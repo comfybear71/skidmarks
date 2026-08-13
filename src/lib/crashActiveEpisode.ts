@@ -153,11 +153,61 @@ export function preferPackedStory(fetched: unknown, cached: unknown): unknown {
   return fetched ?? cached ?? null;
 }
 
+export type CrashLtxThumb = {
+  beatId: string;
+  url: string;
+  file?: string;
+};
+
+const LTX_CACHE_KEY = "crash-lab-open-ltx-v1";
+
+export function writeOpenLtxCache(opts: {
+  styleId: ShowStyleId;
+  folderName: string;
+  results: CrashLtxThumb[];
+}): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      LTX_CACHE_KEY,
+      JSON.stringify({
+        styleId: opts.styleId,
+        folderName: opts.folderName,
+        results: opts.results,
+      }),
+    );
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function readOpenLtxCache(styleId: ShowStyleId): CrashLtxThumb[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(LTX_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as {
+      styleId?: ShowStyleId;
+      folderName?: string;
+      results?: CrashLtxThumb[];
+    };
+    if (parsed.styleId !== styleId || !Array.isArray(parsed.results)) return [];
+    const ep = readActiveEpisode();
+    if (ep && parsed.folderName && parsed.folderName !== ep.folderName) {
+      return [];
+    }
+    return parsed.results.filter((r) => r?.beatId && r?.url);
+  } catch {
+    return [];
+  }
+}
+
 export function clearActiveEpisode(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEY);
   try {
     sessionStorage.removeItem(STORY_CACHE_KEY);
+    sessionStorage.removeItem(LTX_CACHE_KEY);
   } catch {
     /* ignore */
   }

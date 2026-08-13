@@ -104,6 +104,7 @@ export async function openCloudEpisode(opts: {
   sceneKit: SceneKitDiskDraft | null;
   comfyDraft: ComfyDraft | null;
   ltxCount: number;
+  ltxResults: { beatId: string; url: string; file: string }[];
   lipsyncCount: number;
   backupFile: string | null;
   meta: CrashLabEpisodeMeta;
@@ -125,6 +126,7 @@ export async function openCloudEpisode(opts: {
     sceneKit,
     comfyDraft: (row.comfy_draft_json as ComfyDraft) || null,
     ltxCount: ltx.length,
+    ltxResults: ltx,
     lipsyncCount: 0,
     backupFile: null,
     meta: {

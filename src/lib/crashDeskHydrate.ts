@@ -7,7 +7,7 @@ import {
   writeComfyDraft,
   type ComfyDraft,
 } from "./crashComfyStack";
-import { setActiveEpisodeFromOpen } from "./crashActiveEpisode";
+import { setActiveEpisodeFromOpen, writeOpenLtxCache } from "./crashActiveEpisode";
 import {
   hydrateSceneKitFromDisk,
   writeSceneKitDraft,
@@ -41,6 +41,7 @@ export async function openCrashLabPackOnDesk(opts: {
     error?: string;
     story?: unknown;
     sceneKit?: Parameters<typeof writeSceneKitDraft>[0] | null;
+    ltxResults?: Array<{ beatId: string; url: string; file?: string }>;
     comfyDraft?: {
       global?: string;
       beats?: Record<string, { imageMotion?: string; segmentText?: string }>;
@@ -77,6 +78,13 @@ export async function openCrashLabPackOnDesk(opts: {
     styleId: nextStyle,
     story: opened.story,
   });
+  if (Array.isArray(opened.ltxResults) && opened.ltxResults.length) {
+    writeOpenLtxCache({
+      styleId: nextStyle,
+      folderName: opts.folderName,
+      results: opened.ltxResults,
+    });
+  }
   dispatchStorySaved();
   return {
     folderName: opts.folderName,

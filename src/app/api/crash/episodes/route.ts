@@ -147,6 +147,7 @@ export async function POST(req: Request) {
           sceneKit: opened.sceneKit,
           comfyDraft: opened.comfyDraft,
           ltxCount: opened.ltxCount,
+          ltxResults: opened.ltxResults,
           lipsyncCount: opened.lipsyncCount,
           meta: opened.meta,
           backupFile: opened.backupFile,

@@ -22,6 +22,7 @@ import {
   crashDeskLtxFetchUrl,
   crashDeskStoryFetchUrl,
   preferPackedStory,
+  readOpenLtxCache,
   readOpenStoryCache,
 } from "@/lib/crashActiveEpisode";
 import { LTX_CLOUD_SKIP_BEAT_IDS } from "@/lib/ltxCloudSkip";
@@ -740,6 +741,31 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
   /** Restore video players after hard refresh (server results.json). */
   const loadLtxResults = useCallback(async () => {
     try {
+      const apply = (
+        rows: Array<{ beatId: string; url: string; promptId?: string; verdict?: "pass" | "fail" }>,
+      ) => {
+        setLtxByBeat((prev) => {
+          const next = { ...prev };
+          for (const r of rows) {
+            if (!r.beatId || !r.url) continue;
+            if (next[r.beatId]?.inFlight) continue;
+            next[r.beatId] = {
+              step: "done",
+              message: "Done",
+              url: r.url,
+              promptId: r.promptId,
+              inFlight: false,
+              verdict:
+                r.verdict === "pass" || r.verdict === "fail"
+                  ? r.verdict
+                  : undefined,
+            };
+          }
+          return next;
+        });
+      };
+      const cached = readOpenLtxCache(styleId);
+      if (cached.length) apply(cached);
       const res = await fetch(crashDeskLtxFetchUrl(styleId));
       const data = (await res.json()) as {
         results?: Array<{
@@ -750,22 +776,7 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
         }>;
       };
       if (!res.ok || !Array.isArray(data.results)) return;
-      setLtxByBeat((prev) => {
-        const next = { ...prev };
-        for (const r of data.results!) {
-          if (!r.beatId || !r.url) continue;
-          if (next[r.beatId]?.inFlight) continue;
-          next[r.beatId] = {
-            step: "done",
-            message: "Done",
-            url: r.url,
-            promptId: r.promptId,
-            inFlight: false,
-            verdict: r.verdict === "pass" || r.verdict === "fail" ? r.verdict : undefined,
-          };
-        }
-        return next;
-      });
+      apply(data.results);
     } catch {
       /* ignore */
     }

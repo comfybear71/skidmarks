@@ -15,6 +15,7 @@ import {
   crashDeskLtxFetchUrl,
   crashDeskStoryFetchUrl,
   preferPackedStory,
+  readOpenLtxCache,
   readOpenStoryCache,
 } from "@/lib/crashActiveEpisode";
 import {
@@ -174,6 +175,12 @@ export function StyleStoryboardPanel({ styleId }: Props) {
 
   const loadVideos = useCallback(async () => {
     try {
+      const cached = readOpenLtxCache(styleId);
+      const map: Record<string, string> = {};
+      for (const r of cached) {
+        if (r.beatId && r.url) map[r.beatId] = r.url;
+      }
+      if (Object.keys(map).length) setVideoByBeat(map);
       const [ltxRes, lsRes] = await Promise.all([
         fetch(crashDeskLtxFetchUrl(styleId)),
         fetch(
@@ -186,7 +193,6 @@ export function StyleStoryboardPanel({ styleId }: Props) {
       const lsData = (await lsRes.json()) as {
         results?: Array<{ beatId: string; url: string }>;
       };
-      const map: Record<string, string> = {};
       if (ltxRes.ok && Array.isArray(ltxData.results)) {
         for (const r of ltxData.results) {
           if (r.beatId && r.url) map[r.beatId] = r.url;
@@ -197,7 +203,7 @@ export function StyleStoryboardPanel({ styleId }: Props) {
           if (r.beatId && r.url) map[r.beatId] = r.url;
         }
       }
-      setVideoByBeat(map);
+      if (Object.keys(map).length) setVideoByBeat(map);
     } catch {
       /* ignore */
     }
