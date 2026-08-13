@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Skidmarks Studio
 
-## Getting Started
+Built **ad hoc** — one chunk at a time. Runs on your PC. **Crash Lab** is the desk: cast, story, plates, voice, Animate/LTX. RunPod Comfy for LTX.
 
-First, run the development server:
+Old routes `/lab` (Character Lab) and `/locations` (Location Lab) are **not required** anymore — pages may still exist, but new work happens in Crash Lab.
+
+## Start (PC)
 
 ```bash
+cd "C:\Users\Stuie\Desktop\MY MOVIES\blueprint\planner"
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Same thing: `npm run dev:lan`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**On this PC:** http://localhost:3737/crash  
+**Crash Lab:** http://localhost:3737/crash
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## iPhone / home network
 
-## Learn More
+Studio listens on **all interfaces** (`0.0.0.0:3737`), so your phone can reach it on the same Wi‑Fi.
 
-To learn more about Next.js, take a look at the following resources:
+1. On the PC, run `npm run dev` (leave that window open).
+2. Find your PC’s Wi‑Fi IP:
+   - PowerShell: `ipconfig`
+   - Look under **Wireless LAN adapter Wi‑Fi** → **IPv4 Address** (often `192.168.x.x`)
+3. On iPhone Safari (same Wi‑Fi): `http://YOUR-IP:3737/crash`  
+   Example shape: `http://192.168.1.88:3737/crash`
+4. If the phone can’t connect: Windows Firewall may be blocking Node — allow **Node.js** private networks, or temporarily allow port **3737**.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Phone is for checking UI / reading. Heavy jobs (Gen plate, Speak, LTX) still run on the PC + pod.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Keys
 
-## Deploy on Vercel
+Copy [`.env.example`](.env.example) → `MY MOVIES\.env` (repo root) or `blueprint/planner/.env` as your setup uses. Never commit real keys.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+ELEVENLABS_API_KEY=...
+XAI_API_KEY=...
+COMFY_URL=...
+DATABASE_URL=...
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Restart `npm run dev` after changing keys.
+
+## Deploy / GitHub
+
+See [DEPLOY.md](DEPLOY.md). Crash Lab is **not** a full Vercel app — media + Comfy stay local.
+
+## Do it yourself (LTX)
+
+See [DIY_LTX.md](DIY_LTX.md) — start Studio, start pod, Send, Fail/redo.
+
+## North star (Crash Lab)
+
+1. Cast + voice in Crash Lab  
+2. Story / plates / Speak  
+3. Animate — LTX (pod)  
+4. Resolve — cut  
+
+## Locked
+
+- STYLE_LOCK + English/Australian comedy only  
+- Positive prompts only  
+- Plan evolves when you bump into it  
