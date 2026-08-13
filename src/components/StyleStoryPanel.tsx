@@ -1515,21 +1515,23 @@ export function StyleStoryPanel({ styleId }: Props) {
     );
   }
 
+  const doc = story;
+
   function patchScene(i: number, next: CrashStoryScene) {
-    const scenes = [...story.scenes];
+    const scenes = [...doc.scenes];
     scenes[i] = next;
-    scheduleSave({ ...story, scenes });
+    scheduleSave({ ...doc, scenes });
   }
 
   function reorderScenes(from: number, to: number) {
     if (from === to) return;
     if (from < 0 || to < 0) return;
-    if (from >= story.scenes.length || to >= story.scenes.length) return;
-    const scenes = [...story.scenes];
+    if (from >= doc.scenes.length || to >= doc.scenes.length) return;
+    const scenes = [...doc.scenes];
     const [moved] = scenes.splice(from, 1);
     scenes.splice(to, 0, moved);
     undoBurst.current = false;
-    scheduleSave({ ...story, scenes });
+    scheduleSave({ ...doc, scenes });
   }
 
   function nudgeScene(i: number, dir: -1 | 1) {
@@ -1537,11 +1539,11 @@ export function StyleStoryPanel({ styleId }: Props) {
   }
 
   function binScene(i: number) {
-    if (story.scenes.length <= 1) return;
+    if (doc.scenes.length <= 1) return;
     undoBurst.current = false;
     scheduleSave({
-      ...story,
-      scenes: story.scenes.filter((_, j) => j !== i),
+      ...doc,
+      scenes: doc.scenes.filter((_, j) => j !== i),
     });
   }
 
@@ -1645,14 +1647,14 @@ export function StyleStoryPanel({ styleId }: Props) {
             styleId={styleId}
             shelf={shelf}
             bookend={story.intro}
-            onChange={(intro) => scheduleSave({ ...story, intro })}
+            onChange={(intro) => scheduleSave({ ...doc, intro })}
           />
           <BookendBlock
             label="Outro"
             styleId={styleId}
             shelf={shelf}
             bookend={story.outro}
-            onChange={(outro) => scheduleSave({ ...story, outro })}
+            onChange={(outro) => scheduleSave({ ...doc, outro })}
           />
         </div>
 

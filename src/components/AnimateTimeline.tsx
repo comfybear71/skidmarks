@@ -633,7 +633,7 @@ export function AnimateTimeline({
     e.stopPropagation();
     setPlateDropShotId(null);
     if (shotId.startsWith("__") || plateDropBusy) return;
-    const payload = readPlateDrag(e as unknown as DragEvent);
+    const payload = readPlateDrag(e);
     if (!payload) return;
     setPlateDropBusy(true);
     setStoryErr("");

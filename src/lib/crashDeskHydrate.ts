@@ -2,7 +2,11 @@
  * Same client path as clicking Open episode — copy pack into the working desk.
  * Never deletes pack media.
  */
-import { writeComfyDraft } from "./crashComfyStack";
+import {
+  CRASH_COMFY_DEFAULT_GLOBAL,
+  writeComfyDraft,
+  type ComfyDraft,
+} from "./crashComfyStack";
 import { setActiveEpisodeFromOpen } from "./crashActiveEpisode";
 import { hydrateSceneKitFromDisk } from "./crashSceneKitFields";
 import { dispatchStorySaved } from "./crashStyleSync";
@@ -45,7 +49,17 @@ export async function openCrashLabPackOnDesk(opts: {
   const nextStyle = (opened.meta?.styleId || opts.styleId) as ShowStyleId;
   saveShowStyleId(nextStyle);
   if (opened.comfyDraft) {
-    writeComfyDraft(nextStyle, opened.comfyDraft);
+    const beats: ComfyDraft["beats"] = {};
+    for (const [id, row] of Object.entries(opened.comfyDraft.beats || {})) {
+      beats[id] = {
+        imageMotion: row.imageMotion || "",
+        segmentText: row.segmentText || "",
+      };
+    }
+    writeComfyDraft(nextStyle, {
+      global: opened.comfyDraft.global || CRASH_COMFY_DEFAULT_GLOBAL,
+      beats,
+    });
   }
   await hydrateSceneKitFromDisk();
   setActiveEpisodeFromOpen({
