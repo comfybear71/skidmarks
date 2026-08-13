@@ -1,6 +1,22 @@
 import { get, list, put } from "@vercel/blob";
 
-export type BlobFileKind = "plates" | "audio" | "mp4";
+/** Episode-scoped media (uploaded per pack) + show-level shelf assets. */
+export type BlobFileKind =
+  | "plates"
+  | "audio"
+  | "mp4"
+  | "world"
+  | "cast"
+  | "spx_sfx"
+  | "spx_video"
+  | "story_sfx"
+  | "placeholder";
+
+/** Show-level shelves shared across episodes (not tied to one episode). */
+export type ShowAssetKind = "world" | "cast" | "spx_sfx" | "spx_video";
+
+const AUDIO_KINDS = new Set<BlobFileKind>(["audio", "spx_sfx", "story_sfx"]);
+const VIDEO_KINDS = new Set<BlobFileKind>(["mp4", "spx_video"]);
 
 function blobToken(): string {
   const t = process.env.BLOB_READ_WRITE_TOKEN?.trim();
@@ -17,14 +33,36 @@ export function blobPathname(
   return `shows/${showId}/episodes/${episodeFolder}/${kind}/${filename}`;
 }
 
+/** Show-level shelf path (no episode). Mirrors the local disk layout. */
+export function showAssetPathname(
+  showId: string,
+  kind: ShowAssetKind,
+  filename: string,
+): string {
+  const seg =
+    kind === "world"
+      ? "world-cards"
+      : kind === "cast"
+        ? "style-cards"
+        : kind === "spx_sfx"
+          ? "spx/sfx"
+          : "spx/video";
+  return `shows/${showId}/${seg}/${filename}`;
+}
+
 export function blobContentType(kind: BlobFileKind, filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
-  if (kind === "audio") {
+  if (AUDIO_KINDS.has(kind)) {
     if (ext === "wav") return "audio/wav";
     if (ext === "ogg") return "audio/ogg";
+    if (ext === "m4a") return "audio/mp4";
     return "audio/mpeg";
   }
-  if (kind === "mp4") return "video/mp4";
+  if (VIDEO_KINDS.has(kind)) {
+    if (ext === "webm") return "video/webm";
+    if (ext === "mov") return "video/quicktime";
+    return "video/mp4";
+  }
   if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
   if (ext === "webp") return "image/webp";
   if (ext === "gif") return "image/gif";

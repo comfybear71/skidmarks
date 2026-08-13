@@ -4,6 +4,7 @@ import {
   readStyleCardThumbByKey,
   parseStyleCardId,
 } from "@/lib/styleCardThumbs";
+import { cloudShowAssetRedirect } from "@/lib/cloudShelf";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Bad styleId" }, { status: 400 });
   }
   const thumbKey = url.searchParams.get("thumb");
+  if (thumbKey && thumbKey.startsWith("g:")) {
+    const cloud = await cloudShowAssetRedirect(styleId, "cast", thumbKey.slice(2));
+    if (cloud) return cloud;
+  }
   const hit = thumbKey
     ? readStyleCardThumbByKey(styleId, thumbKey)
     : readStyleCardThumb(styleId);

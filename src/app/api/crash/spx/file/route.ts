@@ -4,6 +4,7 @@ import path from "path";
 import { crashSpxFilePath, type CrashSpxKind } from "@/lib/crashSpx";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { morphKeepersDir } from "@/lib/morph";
+import { cloudShowAssetRedirect } from "@/lib/cloudShelf";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,15 @@ export async function GET(req: Request) {
 
   if (!file || file.includes("..") || !/^[\w.\-]+$/.test(file)) {
     return NextResponse.json({ error: "Bad file" }, { status: 400 });
+  }
+
+  if (styleId && (kind === "sfx" || kind === "video")) {
+    const cloud = await cloudShowAssetRedirect(
+      styleId,
+      kind === "sfx" ? "spx_sfx" : "spx_video",
+      file,
+    );
+    if (cloud) return cloud;
   }
 
   let filePath: string | null = null;

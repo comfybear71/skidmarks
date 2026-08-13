@@ -40,24 +40,33 @@ if (!url) {
   process.exit(0);
 }
 
-const sqlFile = path.join(root, "sql", "001_init.sql");
-const raw = fs.readFileSync(sqlFile, "utf8");
-const statements = raw
-  .split(";")
-  .map((s) =>
-    s
-      .split(/\r?\n/)
-      .filter((line) => !line.trim().startsWith("--"))
-      .join("\n")
-      .trim(),
-  )
-  .filter(Boolean);
+const sqlDir = path.join(root, "sql");
+const sqlFiles = fs
+  .readdirSync(sqlDir)
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
 
 const { neon } = await import("@neondatabase/serverless");
 const sql = neon(url);
 
-for (const statement of statements) {
-  await sql.query(statement);
+let total = 0;
+for (const file of sqlFiles) {
+  const raw = fs.readFileSync(path.join(sqlDir, file), "utf8");
+  const statements = raw
+    .split(";")
+    .map((s) =>
+      s
+        .split(/\r?\n/)
+        .filter((line) => !line.trim().startsWith("--"))
+        .join("\n")
+        .trim(),
+    )
+    .filter(Boolean);
+  for (const statement of statements) {
+    await sql.query(statement);
+  }
+  total += statements.length;
+  console.log(`Applied ${file} (${statements.length} statements).`);
 }
 
-console.log(`Neon tables ready (${statements.length} statements).`);
+console.log(`Neon schema ready (${total} statements across ${sqlFiles.length} files).`);

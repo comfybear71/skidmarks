@@ -39,12 +39,29 @@ export type NeonEpisodeRow = {
 
 export type NeonFileRow = {
   id: string;
-  episode_id: string;
+  episode_id: string | null;
+  show_id?: string | null;
   kind: BlobFileKind;
   blob_url: string;
   filename: string;
   blob_pathname: string;
+  label_name?: string | null;
+  label_brief?: string | null;
+  place_type?: string | null;
+  slot?: string | null;
+  spx_id?: string | null;
+  spx_note?: string | null;
+  mtime?: number | string | null;
 };
+
+/** Show-level (shelf) file id — no episode. */
+export function showFileRowId(
+  showId: string,
+  kind: BlobFileKind,
+  filename: string,
+): string {
+  return `${showId}/${kind}/${filename}`;
+}
 
 export function episodeRowId(showId: string, folderName: string): string {
   return `${showId}/${folderName}`;
@@ -261,6 +278,80 @@ export async function listNeonFiles(opts: {
     `;
     return rows as NeonFileRow[];
   }, []);
+}
+
+export async function upsertNeonShowFile(row: {
+  showId: ShowStyleId;
+  kind: BlobFileKind;
+  blobUrl: string;
+  filename: string;
+  blobPathname: string;
+  labelName?: string | null;
+  labelBrief?: string | null;
+  placeType?: string | null;
+  slot?: string | null;
+  spxId?: string | null;
+  spxNote?: string | null;
+}): Promise<void> {
+  const sql = getSql();
+  if (!sql) return;
+  const id = showFileRowId(row.showId, row.kind, row.filename);
+  await sql`
+    INSERT INTO files (
+      id, episode_id, show_id, kind, blob_url, filename, blob_pathname,
+      label_name, label_brief, place_type, slot, spx_id, spx_note
+    )
+    VALUES (
+      ${id}, NULL, ${row.showId}, ${row.kind}, ${row.blobUrl},
+      ${row.filename}, ${row.blobPathname},
+      ${row.labelName ?? null}, ${row.labelBrief ?? null}, ${row.placeType ?? null},
+      ${row.slot ?? null}, ${row.spxId ?? null}, ${row.spxNote ?? null}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      blob_url = EXCLUDED.blob_url,
+      blob_pathname = EXCLUDED.blob_pathname,
+      label_name = COALESCE(EXCLUDED.label_name, files.label_name),
+      label_brief = COALESCE(EXCLUDED.label_brief, files.label_brief),
+      place_type = COALESCE(EXCLUDED.place_type, files.place_type),
+      slot = COALESCE(EXCLUDED.slot, files.slot),
+      spx_id = COALESCE(EXCLUDED.spx_id, files.spx_id),
+      spx_note = COALESCE(EXCLUDED.spx_note, files.spx_note)
+  `;
+}
+
+export async function listNeonShowFiles(opts: {
+  showId: ShowStyleId;
+  kind: BlobFileKind;
+}): Promise<NeonFileRow[]> {
+  return safeQuery(async (sql) => {
+    const rows = await sql`
+      SELECT id, episode_id, show_id, kind, blob_url, filename, blob_pathname,
+        label_name, label_brief, place_type, slot, spx_id, spx_note,
+        (EXTRACT(EPOCH FROM created_at) * 1000)::bigint AS mtime
+      FROM files
+      WHERE show_id = ${opts.showId} AND kind = ${opts.kind} AND episode_id IS NULL
+      ORDER BY created_at ASC, filename ASC
+    `;
+    return rows as NeonFileRow[];
+  }, []);
+}
+
+export async function findNeonShowFile(opts: {
+  showId: ShowStyleId;
+  kind: BlobFileKind;
+  filename: string;
+}): Promise<NeonFileRow | null> {
+  return safeQuery(async (sql) => {
+    const rows = await sql`
+      SELECT id, episode_id, show_id, kind, blob_url, filename, blob_pathname,
+        label_name, label_brief, place_type, slot, spx_id, spx_note
+      FROM files
+      WHERE show_id = ${opts.showId} AND kind = ${opts.kind}
+        AND filename = ${opts.filename} AND episode_id IS NULL
+      LIMIT 1
+    `;
+    return (rows[0] as NeonFileRow) || null;
+  }, null);
 }
 
 export async function findNeonFile(opts: {

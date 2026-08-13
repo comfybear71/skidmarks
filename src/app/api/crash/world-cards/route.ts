@@ -5,10 +5,15 @@ import {
   saveGenStillAsWorldCard,
 } from "@/lib/worldCardThumbs";
 import type { WorldPlaceTypeId } from "@/lib/worldPlaceTypes";
+import { useCloudStore } from "@/lib/cloudEnv";
+import { cloudWorldCardStatus } from "@/lib/cloudShelf";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  if (useCloudStore()) {
+    return NextResponse.json({ cards: await cloudWorldCardStatus() });
+  }
   return NextResponse.json({ cards: listWorldCardStatus() });
 }
 

@@ -7,11 +7,16 @@ import {
 } from "@/lib/styleCardThumbs";
 import { mirrorFaceIntoCrashLabCharacters } from "@/lib/crashLabSharedAssets";
 import { getShowStylePreset } from "@/lib/showStylePresets";
+import { useCloudStore } from "@/lib/cloudEnv";
+import { cloudStyleCardStatus } from "@/lib/cloudShelf";
 
 export const runtime = "nodejs";
 
 /** GET — which style cards already have a thumb PNG. */
 export async function GET() {
+  if (useCloudStore()) {
+    return NextResponse.json({ cards: await cloudStyleCardStatus() });
+  }
   return NextResponse.json({ cards: listStyleCardStatus() });
 }
 

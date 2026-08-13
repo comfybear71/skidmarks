@@ -23,7 +23,7 @@ import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import { isSafeMediaName } from "./cloudMedia";
 import { parseStyleCardId } from "./styleCardThumbs";
 
-const MEDIA_EXT: Record<BlobFileKind, RegExp> = {
+const MEDIA_EXT: Partial<Record<BlobFileKind, RegExp>> = {
   plates: /\.(png|jpe?g|webp|gif)$/i,
   audio: /\.(mp3|wav|ogg|m4a)$/i,
   mp4: /\.mp4$/i,
@@ -75,11 +75,13 @@ function listKindFiles(
 ): CloudUploadPlanFile[] {
   const out: CloudUploadPlanFile[] = [];
   const seen = new Set<string>();
+  const ext = MEDIA_EXT[kind];
+  if (!ext) return out;
   for (const sub of subdirs) {
     const dir = path.join(packDir, sub);
     if (!fs.existsSync(dir)) continue;
     for (const name of fs.readdirSync(dir)) {
-      if (!isSafeMediaName(name) || !MEDIA_EXT[kind].test(name)) continue;
+      if (!isSafeMediaName(name) || !ext.test(name)) continue;
       if (seen.has(name)) continue;
       const abs = path.join(dir, name);
       let st: fs.Stats;

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { readCrashSpxDesk, removeCrashSpxItem } from "@/lib/crashSpx";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
+import { useCloudStore } from "@/lib/cloudEnv";
+import { cloudSpxItems } from "@/lib/cloudShelf";
 
 export const runtime = "nodejs";
 
@@ -10,6 +12,9 @@ export async function GET(req: Request) {
   const styleId = parseStyleCardId(url.searchParams.get("styleId"));
   if (!styleId) {
     return NextResponse.json({ error: "Need styleId" }, { status: 400 });
+  }
+  if (useCloudStore()) {
+    return NextResponse.json({ styleId, items: await cloudSpxItems(styleId) });
   }
   return NextResponse.json(readCrashSpxDesk(styleId));
 }
