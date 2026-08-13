@@ -143,6 +143,30 @@ export async function openCloudEpisode(opts: {
   };
 }
 
+function platedShotCount(story: unknown): number {
+  if (!story || typeof story !== "object") return 0;
+  const scenes = (story as CrashStoryDoc).scenes;
+  if (!Array.isArray(scenes)) return 0;
+  let n = 0;
+  for (const sc of scenes) {
+    for (const sh of sc.shots || []) {
+      if (String(sh.plateFile || "").trim()) n += 1;
+    }
+  }
+  return n;
+}
+
+function kitFillCount(kit: unknown): number {
+  if (!kit || typeof kit !== "object") return 0;
+  const k = kit as SceneKitDiskDraft;
+  return (
+    (k.worldKeys || []).filter(Boolean).length +
+    (k.castKeys || []).filter(Boolean).length +
+    (String(k.arseholeKey || "").trim() ? 1 : 0) +
+    (k.plateFiles || []).filter(Boolean).length
+  );
+}
+
 export async function saveCloudEpisodeMeta(opts: {
   styleId: ShowStyleId;
   folderName: string;
@@ -153,14 +177,26 @@ export async function saveCloudEpisodeMeta(opts: {
 }): Promise<CrashLabEpisodeListItem> {
   const preset = getShowStylePreset(opts.styleId);
   await upsertNeonShow(opts.styleId, preset.label);
+  const existing = await getNeonEpisode(opts.styleId, opts.folderName);
+  const keepStory =
+    platedShotCount(existing?.story_json) > 0 &&
+    platedShotCount(opts.story) === 0
+      ? (existing!.story_json as CrashStoryDoc)
+      : opts.story;
+  const incomingKit = opts.sceneKit ?? null;
+  const existingKit = existing?.scene_kit_json ?? null;
+  const keepKit =
+    kitFillCount(existingKit) > 0 && kitFillCount(incomingKit) === 0
+      ? existingKit
+      : incomingKit;
   await upsertNeonEpisode({
     showId: opts.styleId,
     folderName: opts.folderName,
     name: opts.label,
     hasStory: true,
-    hasSceneKit: Boolean(opts.sceneKit),
-    storyJson: opts.story,
-    sceneKitJson: opts.sceneKit ?? null,
+    hasSceneKit: Boolean(keepKit),
+    storyJson: keepStory,
+    sceneKitJson: keepKit,
     comfyDraftJson: opts.comfyDraft ?? null,
   });
   const row = await getNeonEpisode(opts.styleId, opts.folderName);
