@@ -125,11 +125,77 @@ export function attachPlateFilenamesToStory(
   };
 }
 
+function normPerson(s: string): string {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function storySpeakers(story: CrashStoryDoc): string[] {
+  const out: string[] = [];
+  for (const scene of story.scenes) {
+    for (const shot of scene.shots) {
+      for (const beat of shot.beats) {
+        const n = String(beat.speaker || "").trim();
+        if (!n) continue;
+        if (out.some((x) => normPerson(x) === normPerson(n))) continue;
+        out.push(n);
+      }
+    }
+  }
+  return out;
+}
+
+export type CloudCastThumb = { filename: string; label?: string | null };
+
+/** Match story speakers to shelf faces (g:file) when the pack kit left cast empty. */
+export function inferCastKeysFromStory(
+  story: CrashStoryDoc,
+  castThumbs: CloudCastThumb[],
+): { arseholeKey: string; castKeys: string[] } {
+  const speakers = storySpeakers(story);
+  const taken = new Set<string>();
+  const picked: { speaker: string; key: string }[] = [];
+  for (const speaker of speakers) {
+    const n = normPerson(speaker);
+    if (!n) continue;
+    let bestKey = "";
+    let bestScore = 0;
+    for (const t of castThumbs) {
+      const key = `g:${t.filename}`;
+      if (taken.has(key)) continue;
+      const label = normPerson(t.label || "");
+      if (label === "file") continue;
+      const stem = normPerson(t.filename.replace(/\.[^.]+$/, ""));
+      let score = 0;
+      if (label && label === n) score = 6;
+      else if (stem === n) score = 5;
+      else if (label && n.length >= 3 && (label.includes(n) || n.includes(label)))
+        score = 3;
+      else if (stem && n.length >= 3 && (stem.includes(n) || n.includes(stem)))
+        score = 2;
+      if (score > 0 && /^(thumb_|upload_)/i.test(t.filename)) score -= 0.4;
+      if (score > bestScore) {
+        bestScore = score;
+        bestKey = key;
+      }
+    }
+    if (!bestKey) continue;
+    taken.add(bestKey);
+    picked.push({ speaker, key: bestKey });
+  }
+  const dap = picked.find((p) => normPerson(p.speaker) === "dap");
+  const arseholeKey = dap?.key || picked[0]?.key || "";
+  const castKeys = picked.map((p) => p.key).filter((k) => k !== arseholeKey);
+  return { arseholeKey, castKeys };
+}
+
 export function attachPlateFilenamesToSceneKit(
   kit: SceneKitDiskDraft | null,
   story: CrashStoryDoc,
   plateFilenames: string[],
   worldFilenames?: string[],
+  castThumbs?: CloudCastThumb[],
 ): SceneKitDiskDraft | null {
   if (!kit) return null;
   const existing = (kit.plateFiles || []).map(cleanName).filter(Boolean);
@@ -151,12 +217,25 @@ export function attachPlateFilenamesToSceneKit(
     worldFilenames || [],
   ).filter((k) => !havePlaces.includes(k));
   const worldKeys = [...havePlaces, ...inferred];
+  const haveArse = String(kit.arseholeKey || "").trim();
+  const haveCast = (kit.castKeys || []).filter(Boolean);
+  const faces =
+    !haveArse && !haveCast.length && castThumbs?.length
+      ? inferCastKeysFromStory(story, castThumbs)
+      : { arseholeKey: haveArse, castKeys: haveCast };
   return {
     ...kit,
     plateFiles: nextPlates.length ? nextPlates : kit.plateFiles,
     plateSlotCount: Math.max(kit.plateSlotCount || 9, nextPlates.length),
     worldKeys,
     placeSlotCount: Math.max(kit.placeSlotCount || 5, worldKeys.length, 5),
+    arseholeKey: faces.arseholeKey || kit.arseholeKey,
+    castKeys: faces.castKeys.length ? faces.castKeys : kit.castKeys,
+    castSlotCount: Math.max(
+      kit.castSlotCount || 3,
+      faces.castKeys.length,
+      3,
+    ),
   };
 }
 

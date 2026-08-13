@@ -70,6 +70,10 @@ async function hydrateEpisodeMedia(row: NeonEpisodeRow): Promise<{
     showId: row.show_id as ShowStyleId,
     kind: "world",
   });
+  const cast = await listNeonShowFiles({
+    showId: row.show_id as ShowStyleId,
+    kind: "cast",
+  });
   const names = plates.map((f) => f.filename);
   const kitRaw = (row.scene_kit_json as SceneKitDiskDraft) || null;
   const withPlates = attachPlateFilenamesToStory(
@@ -92,6 +96,7 @@ async function hydrateEpisodeMedia(row: NeonEpisodeRow): Promise<{
       labeled,
       names,
       world.map((w) => w.filename),
+      cast.map((c) => ({ filename: c.filename, label: c.label_name })),
     ),
   };
 }
