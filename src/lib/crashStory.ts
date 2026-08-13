@@ -495,7 +495,7 @@ export function bootstrapCursorStory(styleId: ShowStyleId): {
   return { story, backupFile, gagLabel: entry.campaignLabel };
 }
 
-function emptyStory(styleId: ShowStyleId): CrashStoryDoc {
+export function emptyStory(styleId: ShowStyleId): CrashStoryDoc {
   return {
     styleId,
     campaignLabel: "",

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { readCrashStory } from "@/lib/crashStory";
 import { resolveBeatAudioPath, synthesizeStoryBeat } from "@/lib/crashStorySpeak";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
+import { cloudBlobRedirect, isSafeMediaName } from "@/lib/cloudMedia";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -62,6 +63,14 @@ export async function GET(req: Request) {
     url.searchParams.get("f")?.trim() ||
     url.searchParams.get("voiceFile")?.trim() ||
     undefined;
+
+  const cloudName =
+    (voiceFile && isSafeMediaName(voiceFile) && voiceFile) ||
+    (isSafeMediaName(`${beatId}.mp3`) ? `${beatId}.mp3` : "");
+  if (cloudName) {
+    const cloud = await cloudBlobRedirect("audio", cloudName);
+    if (cloud) return cloud;
+  }
 
   let filePath = resolveBeatAudioPath(styleId, beatId, voiceFile);
   if (!filePath) {

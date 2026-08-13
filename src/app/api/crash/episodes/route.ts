@@ -7,6 +7,15 @@ import {
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { crashLabShowFolderName } from "@/lib/showArchivePaths";
 import { readActivePack } from "@/lib/crashActivePack";
+import { useCloudStore } from "@/lib/cloudEnv";
+import {
+  cloudActivePack,
+  listCloudEpisodes,
+  openCloudEpisode,
+  readCloudStory,
+  saveCloudEpisodeMeta,
+} from "@/lib/cloudPack";
+import { emptyStory } from "@/lib/crashStory";
 
 export const runtime = "nodejs";
 
@@ -16,11 +25,20 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     if (url.searchParams.get("active") === "1") {
+      if (useCloudStore()) {
+        return NextResponse.json({ pack: await cloudActivePack() });
+      }
       return NextResponse.json({ pack: readActivePack() });
     }
     const styleId = parseStyleCardId(url.searchParams.get("styleId") || "skidmarks");
     if (!styleId) {
       return NextResponse.json({ error: "Need styleId" }, { status: 400 });
+    }
+    if (useCloudStore()) {
+      return NextResponse.json({
+        episodes: await listCloudEpisodes(styleId),
+        root: `shows/${styleId}/episodes`,
+      });
     }
     return NextResponse.json({
       episodes: listCrashLabEpisodes(styleId),
@@ -57,6 +75,32 @@ export async function POST(req: Request) {
       if (!styleId) {
         return NextResponse.json({ error: "Need styleId" }, { status: 400 });
       }
+      if (useCloudStore()) {
+        const story = (await readCloudStory(styleId)) || emptyStory(styleId);
+        const label =
+          body.label?.trim() || story.campaignLabel || "Untitled episode";
+        const folderName = body.folderName?.trim() || label;
+        const saved = await saveCloudEpisodeMeta({
+          styleId,
+          folderName,
+          label,
+          story,
+          comfyDraft: body.comfyDraft
+            ? {
+                global: String(body.comfyDraft.global || ""),
+                beats: (body.comfyDraft.beats || {}) as Record<
+                  string,
+                  { imageMotion: string; segmentText: string }
+                >,
+              }
+            : null,
+        });
+        return NextResponse.json({
+          ok: true,
+          episode: saved,
+          path: saved.path,
+        });
+      }
       const saved = saveCrashLabEpisode({
         styleId,
         label: body.label?.trim() || undefined,
@@ -87,6 +131,19 @@ export async function POST(req: Request) {
       }
       if (!styleId) {
         return NextResponse.json({ error: "Need styleId" }, { status: 400 });
+      }
+      if (useCloudStore()) {
+        const opened = await openCloudEpisode({ folderName, styleId });
+        return NextResponse.json({
+          ok: true,
+          story: opened.story,
+          sceneKit: opened.sceneKit,
+          comfyDraft: opened.comfyDraft,
+          ltxCount: opened.ltxCount,
+          lipsyncCount: opened.lipsyncCount,
+          meta: opened.meta,
+          backupFile: opened.backupFile,
+        });
       }
       const opened = openCrashLabEpisode({ folderName, styleId });
       return NextResponse.json({
