@@ -42,8 +42,12 @@ import {
   getShowStylePreset,
   type ShowStyleId,
 } from "@/lib/showStylePresets";
+import { humanMediaLabel } from "@/lib/mediaMatch";
 import { useScriptDeskWatch } from "@/hooks/useScriptDeskWatch";
-import { crashDeskStoryFetchUrl } from "@/lib/crashActiveEpisode";
+import {
+  crashDeskSceneKitFetchUrl,
+  crashDeskStoryFetchUrl,
+} from "@/lib/crashActiveEpisode";
 
 type FaceThumb = { key: string; name?: string; brief?: string };
 type PlaceThumb = { key: string; name?: string };
@@ -476,7 +480,7 @@ export function CrashSceneKitPanel() {
     }
     copyFinishedPlate({
       fileName,
-      label: `Plate ${index + 1}`,
+      label: humanMediaLabel(fileName),
       slot: index + 1,
     });
     setStatus(
@@ -915,8 +919,15 @@ export function CrashSceneKitPanel() {
     setBusy(true);
     setStatus("Reloading places from pack…");
     try {
-      const restored = await hydrateSceneKitFromDisk();
-      if (!restored) throw new Error("Could not read pack scene kit");
+      const packUrl = styleId ? crashDeskSceneKitFetchUrl(styleId) : null;
+      const restored = await hydrateSceneKitFromDisk(packUrl);
+      if (!restored) {
+        throw new Error(
+          packUrl
+            ? "Could not read pack scene kit"
+            : "Open an episode first — Reload places reads that pack",
+        );
+      }
       applyDraft(restored);
       setTick((n) => n + 1);
       const n = restored.worldKeys.filter(Boolean).length;
@@ -1680,13 +1691,13 @@ export function CrashSceneKitPanel() {
                                   kind: "cplate",
                                   styleId,
                                   fileName,
-                                  label: `Plate ${index + 1}`,
+                                  label: humanMediaLabel(fileName),
                                 });
                               }}
                               onClick={() =>
                                 setLightbox({
                                   src,
-                                  label: `Plate ${index + 1}`,
+                                  label: humanMediaLabel(fileName),
                                 })
                               }
                             />
@@ -1696,8 +1707,8 @@ export function CrashSceneKitPanel() {
                             </div>
                           )}
                           <div className="mt-0.5 flex items-center justify-between gap-1">
-                            <p className="truncate text-[10px]">
-                              Plate {index + 1}
+                            <p className="truncate text-[10px]" title={fileName}>
+                              {humanMediaLabel(fileName)}
                             </p>
                             {fileName ? (
                               <button

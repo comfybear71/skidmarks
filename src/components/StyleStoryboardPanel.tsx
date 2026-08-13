@@ -12,6 +12,7 @@ import type {
 import { CRASH_STORY_SAVED, CRASH_SHOW_STYLE_EVENT } from "@/lib/crashStyleSync";
 import {
   CRASH_ACTIVE_EPISODE_EVENT,
+  crashDeskLtxFetchUrl,
   crashDeskStoryFetchUrl,
 } from "@/lib/crashActiveEpisode";
 import {
@@ -172,7 +173,7 @@ export function StyleStoryboardPanel({ styleId }: Props) {
   const loadVideos = useCallback(async () => {
     try {
       const [ltxRes, lsRes] = await Promise.all([
-        fetch(`/api/crash/comfy/ltx?styleId=${encodeURIComponent(styleId)}`),
+        fetch(crashDeskLtxFetchUrl(styleId)),
         fetch(
           `/api/crash/comfy/lipsync?styleId=${encodeURIComponent(styleId)}`,
         ),

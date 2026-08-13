@@ -96,12 +96,36 @@ export function clearActiveEpisode(): void {
   );
 }
 
-/** Story GET url for the open pack, or null when the desk is empty. */
-export function crashDeskStoryFetchUrl(styleId: ShowStyleId): string | null {
+/** Open pack for this show, or null when the desk is empty. */
+export function crashDeskOpenQuery(
+  styleId: ShowStyleId,
+): { styleId: ShowStyleId; folderName: string } | null {
   if (typeof window === "undefined") return null;
   const ep = readActiveEpisode();
   if (!ep?.folderName || ep.styleId !== styleId) return null;
-  return `/api/crash/story?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(ep.folderName)}`;
+  return { styleId, folderName: ep.folderName };
+}
+
+/** Story GET url for the open pack, or null when the desk is empty. */
+export function crashDeskStoryFetchUrl(styleId: ShowStyleId): string | null {
+  const q = crashDeskOpenQuery(styleId);
+  if (!q) return null;
+  return `/api/crash/story?styleId=${encodeURIComponent(q.styleId)}&folderName=${encodeURIComponent(q.folderName)}`;
+}
+
+/** Scene kit GET url for the open pack (Reload places). */
+export function crashDeskSceneKitFetchUrl(styleId: ShowStyleId): string | null {
+  const q = crashDeskOpenQuery(styleId);
+  if (!q) return null;
+  return `/api/crash/scene-kit?styleId=${encodeURIComponent(q.styleId)}&folderName=${encodeURIComponent(q.folderName)}`;
+}
+
+/** Animate LTX results for the open pack (falls back to style-only). */
+export function crashDeskLtxFetchUrl(styleId: ShowStyleId): string {
+  const q = crashDeskOpenQuery(styleId);
+  const params = new URLSearchParams({ styleId });
+  if (q) params.set("folderName", q.folderName);
+  return `/api/crash/comfy/ltx?${params.toString()}`;
 }
 
 export async function fetchStudioFingerprint(

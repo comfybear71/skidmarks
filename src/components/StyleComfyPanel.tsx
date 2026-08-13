@@ -17,7 +17,11 @@ import {
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import { CRASH_STORY_SAVED, dispatchStorySaved } from "@/lib/crashStyleSync";
 import type { ShowStyleId } from "@/lib/showStylePresets";
-import { crashDeskStoryFetchUrl } from "@/lib/crashActiveEpisode";
+import {
+  CRASH_ACTIVE_EPISODE_EVENT,
+  crashDeskLtxFetchUrl,
+  crashDeskStoryFetchUrl,
+} from "@/lib/crashActiveEpisode";
 import { LTX_CLOUD_SKIP_BEAT_IDS } from "@/lib/ltxCloudSkip";
 import { MediaThumb } from "@/components/MediaThumb";
 import { AnimateTimeline } from "@/components/AnimateTimeline";
@@ -727,9 +731,7 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
   /** Restore video players after hard refresh (server results.json). */
   const loadLtxResults = useCallback(async () => {
     try {
-      const res = await fetch(
-        `/api/crash/comfy/ltx?styleId=${encodeURIComponent(styleId)}`,
-      );
+      const res = await fetch(crashDeskLtxFetchUrl(styleId));
       const data = (await res.json()) as {
         results?: Array<{
           beatId: string;
@@ -906,7 +908,11 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
       void loadLipsyncResults();
     };
     window.addEventListener(CRASH_STORY_SAVED, onStory);
-    return () => window.removeEventListener(CRASH_STORY_SAVED, onStory);
+    window.addEventListener(CRASH_ACTIVE_EPISODE_EVENT, onStory);
+    return () => {
+      window.removeEventListener(CRASH_STORY_SAVED, onStory);
+      window.removeEventListener(CRASH_ACTIVE_EPISODE_EVENT, onStory);
+    };
   }, [
     styleId,
     load,
