@@ -5,6 +5,7 @@
 import fs from "fs";
 import path from "path";
 import { cloudEnvReady } from "./cloudEnv";
+import { loadMoviesEnv } from "./env";
 import {
   blobContentType,
   blobPathname,
@@ -19,9 +20,9 @@ import {
 } from "./neonStore";
 import { episodePackDir } from "./crashLabEpisodes";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
+import { isSafeMediaName } from "./cloudMedia";
 import { parseStyleCardId } from "./styleCardThumbs";
 
-const SAFE_FILE = /^[\w.\-]+$/;
 const MEDIA_EXT: Record<BlobFileKind, RegExp> = {
   plates: /\.(png|jpe?g|webp|gif)$/i,
   audio: /\.(mp3|wav|ogg|m4a)$/i,
@@ -78,7 +79,7 @@ function listKindFiles(
     const dir = path.join(packDir, sub);
     if (!fs.existsSync(dir)) continue;
     for (const name of fs.readdirSync(dir)) {
-      if (!SAFE_FILE.test(name) || !MEDIA_EXT[kind].test(name)) continue;
+      if (!isSafeMediaName(name) || !MEDIA_EXT[kind].test(name)) continue;
       if (seen.has(name)) continue;
       const abs = path.join(dir, name);
       let st: fs.Stats;
@@ -165,8 +166,10 @@ export async function uploadPackToCloud(opts: {
   fileCount: number;
   bytes: number;
   uploaded: number;
+  errors: { filename: string; message: string }[];
   files: { kind: BlobFileKind; filename: string; bytes: number; pathname: string }[];
 }> {
+  loadMoviesEnv();
   if (!cloudEnvReady()) {
     throw new Error("Need DATABASE_URL and BLOB_READ_WRITE_TOKEN");
   }
@@ -188,6 +191,7 @@ export async function uploadPackToCloud(opts: {
       fileCount: plan.files.length,
       bytes,
       uploaded: 0,
+      errors: [],
       files: summaryFiles,
     };
   }
@@ -205,21 +209,28 @@ export async function uploadPackToCloud(opts: {
   });
 
   let uploaded = 0;
+  const errors: { filename: string; message: string }[] = [];
   for (const file of plan.files) {
-    const body = fs.readFileSync(file.absPath);
-    const put = await putBlobFile({
-      pathname: file.pathname,
-      body,
-      contentType: blobContentType(file.kind, file.filename),
-    });
-    await upsertNeonFile({
-      episodeId: plan.episodeId,
-      kind: file.kind,
-      blobUrl: put.url,
-      filename: file.filename,
-      blobPathname: put.pathname,
-    });
-    uploaded += 1;
+    try {
+      const body = fs.readFileSync(file.absPath);
+      const put = await putBlobFile({
+        pathname: file.pathname,
+        body,
+        contentType: blobContentType(file.kind, file.filename),
+      });
+      await upsertNeonFile({
+        episodeId: plan.episodeId,
+        kind: file.kind,
+        blobUrl: put.url,
+        filename: file.filename,
+        blobPathname: put.pathname,
+      });
+      uploaded += 1;
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      const message = raw.replace(/postgresql:\/\/\S+/gi, "DATABASE_URL").replace(/vercel_blob_rw_\S+/gi, "BLOB_TOKEN");
+      errors.push({ filename: file.filename, message });
+    }
   }
 
   return {
@@ -231,6 +242,7 @@ export async function uploadPackToCloud(opts: {
     fileCount: plan.files.length,
     bytes,
     uploaded,
+    errors,
     files: summaryFiles,
   };
 }

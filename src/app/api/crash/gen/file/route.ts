@@ -2,14 +2,14 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
-import { cloudBlobRedirect } from "@/lib/cloudMedia";
+import { cloudBlobRedirect, isSafeMediaName } from "@/lib/cloudMedia";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const name = url.searchParams.get("name") || "";
-  if (!/^[\w.\-]+$/.test(name)) {
+  if (!isSafeMediaName(name)) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
   const cloud = await cloudBlobRedirect("plates", name);

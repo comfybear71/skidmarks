@@ -45,11 +45,11 @@ import {
   clearShowStyleId,
   getShowStylePreset,
   loadShowStyleIdOptional,
-  saveShowStyleId,
   SHOW_STYLE_PRESETS,
   SHOW_STYLE_STORAGE_KEY,
   type ShowStyleId,
 } from "@/lib/showStylePresets";
+import { switchCrashLabShow } from "@/lib/crashShowSwitch";
 import {
   CRASH_ACTIVE_EPISODE_EVENT,
   readActiveEpisode,
@@ -949,13 +949,13 @@ export function CrashScriptCard() {
     // Re-click selected → Characters. Switching shows stays on Style so the
     // highlight / Locked line updates (no “click did nothing” feel).
     if (showStyleId === id) {
-      saveShowStyleId(id);
+      switchCrashLabShow(id);
       setProductionStep(2);
       return;
     }
     const firstPick = !showStyleId;
     setShowStyleId(id);
-    saveShowStyleId(id);
+    switchCrashLabShow(id);
     setExpandedStyleId("");
     clearCastSelection();
     seedCharacterIdea(id);
@@ -974,7 +974,7 @@ export function CrashScriptCard() {
   function toggleStyleExpand(id: ShowStyleId) {
     if (showStyleId !== id) {
       setShowStyleId(id);
-      saveShowStyleId(id);
+      switchCrashLabShow(id);
       setExpandedStyleId(id);
       clearCastSelection();
       seedCharacterIdea(id);

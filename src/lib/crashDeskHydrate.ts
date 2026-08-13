@@ -3,14 +3,17 @@
  * Never deletes pack media.
  */
 import {
-  CRASH_COMFY_DEFAULT_GLOBAL,
+  comfyDefaultGlobal,
   writeComfyDraft,
   type ComfyDraft,
 } from "./crashComfyStack";
 import { setActiveEpisodeFromOpen } from "./crashActiveEpisode";
-import { hydrateSceneKitFromDisk } from "./crashSceneKitFields";
+import {
+  hydrateSceneKitFromDisk,
+  writeSceneKitDraft,
+} from "./crashSceneKitFields";
 import { dispatchStorySaved } from "./crashStyleSync";
-import { saveShowStyleId, type ShowStyleId } from "./showStylePresets";
+import { saveShowStyleId, loadShowStyleIdOptional, type ShowStyleId } from "./showStylePresets";
 
 export type OpenedPackOnDesk = {
   folderName: string;
@@ -37,6 +40,7 @@ export async function openCrashLabPackOnDesk(opts: {
   const opened = (await openRes.json()) as {
     error?: string;
     story?: unknown;
+    sceneKit?: Parameters<typeof writeSceneKitDraft>[0] | null;
     comfyDraft?: {
       global?: string;
       beats?: Record<string, { imageMotion?: string; segmentText?: string }>;
@@ -57,11 +61,15 @@ export async function openCrashLabPackOnDesk(opts: {
       };
     }
     writeComfyDraft(nextStyle, {
-      global: opened.comfyDraft.global || CRASH_COMFY_DEFAULT_GLOBAL,
+      global: opened.comfyDraft.global || comfyDefaultGlobal(nextStyle),
       beats,
     });
   }
-  await hydrateSceneKitFromDisk();
+  if (opened.sceneKit && typeof opened.sceneKit === "object") {
+    writeSceneKitDraft(opened.sceneKit);
+  } else {
+    await hydrateSceneKitFromDisk();
+  }
   setActiveEpisodeFromOpen({
     folderName: opts.folderName,
     label:
@@ -84,12 +92,15 @@ export async function hydrateCrashDeskFromServer(): Promise<{
   folderName: string;
   styleId: ShowStyleId;
 } | null> {
-  const res = await fetch("/api/crash/episodes?active=1");
+  const selected = loadShowStyleIdOptional();
+  const q = selected ? `&styleId=${encodeURIComponent(selected)}` : "";
+  const res = await fetch(`/api/crash/episodes?active=1${q}`);
   const data = (await res.json()) as {
     pack?: { folderName?: string; styleId?: ShowStyleId } | null;
   };
   const pack = data.pack;
   if (!pack?.folderName || !pack.styleId) return null;
+  if (selected && pack.styleId !== selected) return null;
   const opened = await openCrashLabPackOnDesk({
     folderName: pack.folderName,
     styleId: pack.styleId,

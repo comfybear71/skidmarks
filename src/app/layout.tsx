@@ -16,9 +16,13 @@ const body = DM_Sans({
   variable: "--font-body",
 });
 
+const isLive = Boolean(process.env.VERCEL);
+
 export const metadata: Metadata = {
-  title: "Skidmarks Studio · localhost",
-  description: "Crash Lab — cast, story, plates, LTX. Local PC + RunPod.",
+  title: isLive ? "Skidmarks Studio · Vercel" : "Skidmarks Studio · localhost",
+  description: isLive
+    ? "Crash Lab — cast, story, plates, LTX. Live on Vercel."
+    : "Crash Lab — cast, story, plates, LTX. Local PC + RunPod.",
 };
 
 export default function RootLayout({
@@ -41,7 +45,7 @@ export default function RootLayout({
                 />
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.28em] text-[var(--magenta-hot)]">
-                    Studio · localhost only
+                    {isLive ? "Studio · Vercel" : "Studio · localhost only"}
                   </p>
                   <h1 className="display text-2xl text-[var(--chrome)] md:text-3xl">
                     Skidmarks

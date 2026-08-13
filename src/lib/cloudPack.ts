@@ -3,6 +3,7 @@ import {
   getLatestOpenedEpisode,
   getNeonEpisode,
   listNeonEpisodes,
+  listNeonFiles,
   markEpisodeOpened,
   upsertNeonEpisode,
   upsertNeonShow,
@@ -13,6 +14,10 @@ import type { CrashLabEpisodeListItem, CrashLabEpisodeMeta } from "./crashLabEpi
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import type { SceneKitDiskDraft } from "./crashSceneKitStore";
 import type { ComfyDraft } from "./crashComfyStack";
+import {
+  attachPlateFilenamesToSceneKit,
+  attachPlateFilenamesToStory,
+} from "./cloudStoryMedia";
 
 function toListItem(row: NeonEpisodeRow): CrashLabEpisodeListItem {
   return {
@@ -34,16 +39,39 @@ export async function listCloudEpisodes(
   return rows.map(toListItem);
 }
 
-export async function cloudActivePack(): Promise<{
+export async function cloudActivePack(styleId?: ShowStyleId): Promise<{
   folderName: string;
   styleId: ShowStyleId;
 } | null> {
   if (!useCloudStore()) return null;
-  const row = await getLatestOpenedEpisode();
+  const row = await getLatestOpenedEpisode(styleId);
   if (!row?.folder_name || !row.show_id) return null;
+  if (styleId && row.show_id !== styleId) return null;
   return {
     folderName: row.folder_name,
     styleId: row.show_id as ShowStyleId,
+  };
+}
+
+async function hydrateEpisodeMedia(row: NeonEpisodeRow): Promise<{
+  story: CrashStoryDoc;
+  sceneKit: SceneKitDiskDraft | null;
+}> {
+  const storyRaw = row.story_json;
+  if (!storyRaw?.styleId) {
+    throw new Error("No story saved in cloud for that episode");
+  }
+  const plates = await listNeonFiles({ episodeId: row.id, kind: "plates" });
+  const names = plates.map((f) => f.filename);
+  const kitRaw = (row.scene_kit_json as SceneKitDiskDraft) || null;
+  const story = attachPlateFilenamesToStory(
+    storyRaw,
+    names,
+    kitRaw?.plateFiles,
+  );
+  return {
+    story,
+    sceneKit: attachPlateFilenamesToSceneKit(kitRaw, story, names),
   };
 }
 
@@ -63,10 +91,7 @@ export async function openCloudEpisode(opts: {
   if (!row) {
     throw new Error("Episode not in cloud yet — upload from local Studio first");
   }
-  const story = row.story_json;
-  if (!story?.styleId) {
-    throw new Error("No story saved in cloud for that episode");
-  }
+  const { story, sceneKit } = await hydrateEpisodeMedia(row);
   if (story.styleId !== opts.styleId) {
     throw new Error(
       `That pack is ${story.styleId}, not ${opts.styleId}. Switch the style dropdown.`,
@@ -75,7 +100,7 @@ export async function openCloudEpisode(opts: {
   await markEpisodeOpened(opts.styleId, opts.folderName);
   return {
     story,
-    sceneKit: (row.scene_kit_json as SceneKitDiskDraft) || null,
+    sceneKit,
     comfyDraft: (row.comfy_draft_json as ComfyDraft) || null,
     ltxCount: 0,
     lipsyncCount: 0,
@@ -127,7 +152,9 @@ export async function readCloudStory(
 ): Promise<CrashStoryDoc | null> {
   if (!useCloudStore()) return null;
   const row = await getLatestOpenedEpisode(styleId);
-  return row?.story_json || null;
+  if (!row?.story_json?.styleId) return null;
+  const { story } = await hydrateEpisodeMedia(row);
+  return story;
 }
 
 export async function writeCloudStory(story: CrashStoryDoc): Promise<boolean> {

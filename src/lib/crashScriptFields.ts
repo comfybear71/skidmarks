@@ -21,7 +21,7 @@ export type ScriptDeskState = {
 export function readScriptDeskState(): ScriptDeskState {
   const ep = readActiveEpisode();
   const globalStyle = loadShowStyleIdOptional();
-  let showStyleId = ep?.styleId ?? globalStyle;
+  let showStyleId: ShowStyleId | null = globalStyle ?? ep?.styleId ?? null;
   let productionStep = 1;
   let swapTargetGenFile = "";
   let spineStep = 1;
@@ -30,7 +30,7 @@ export function readScriptDeskState(): ScriptDeskState {
     const raw = localStorage.getItem(FIELDS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
-      // Open episode locks the show. Else global crashlab-show-style, else script-fields.
+      // Dropdown / saved show wins. Open episode must not lock another show.
       if (!showStyleId && typeof parsed.showStyle === "string") {
         showStyleId = parsed.showStyle as ShowStyleId;
       }

@@ -48,6 +48,7 @@ import {
   type CrashActiveEpisode,
 } from "@/lib/crashActiveEpisode";
 import { hydrateCrashDeskFromServer } from "@/lib/crashDeskHydrate";
+import { switchCrashLabShow } from "@/lib/crashShowSwitch";
 import {
   loadShowStyleIdOptional,
   saveShowStyleId,
@@ -56,8 +57,8 @@ import {
 
 function getToolbarStyleSnapshot(): ShowStyleId {
   if (typeof window === "undefined") return "skidmarks";
-  return (getActiveEpisodeSnapshot()?.styleId ||
-    loadShowStyleIdOptional() ||
+  return (loadShowStyleIdOptional() ||
+    getActiveEpisodeSnapshot()?.styleId ||
     "skidmarks") as ShowStyleId;
 }
 
@@ -104,9 +105,7 @@ export function CrashDeskToolbar() {
   /** SSR-safe default — store snapshot applies the real show on first client paint. */
   const [cursorStyle, setCursorStyle] = useState<ShowStyleId>("skidmarks");
   const liveEpisode = storedEpisode ?? activeEpisode;
-  const liveStyle =
-    liveEpisode?.styleId ||
-    (storedStyle !== "skidmarks" ? storedStyle : cursorStyle);
+  const liveStyle = storedStyle || cursorStyle;
 
   const measureHeader = useCallback(() => {
     const header = document.querySelector("header");
@@ -151,14 +150,14 @@ export function CrashDeskToolbar() {
     return () => window.removeEventListener(CRASH_DESK_MODE_EVENT, onMode);
   }, [refreshDirty]);
 
-  /** Put last night’s episode on the desk — same client path as Open episode. */
+  /** Put last night’s episode on the desk — once. Do not re-run when the show changes. */
   useEffect(() => {
     void (async () => {
       try {
         const pack = await hydrateCrashDeskFromServer();
         if (!pack) {
           const ep = readActiveEpisode();
-          const style = ep?.styleId || loadShowStyleIdOptional();
+          const style = loadShowStyleIdOptional() || ep?.styleId;
           if (style) setCursorStyle(style);
           if (ep) setActiveEpisode(ep);
           return;
@@ -168,7 +167,7 @@ export function CrashDeskToolbar() {
         void refreshDirty();
       } catch {
         const ep = readActiveEpisode();
-        const style = ep?.styleId || loadShowStyleIdOptional();
+        const style = loadShowStyleIdOptional() || ep?.styleId;
         if (style) {
           setCursorStyle(style);
           saveShowStyleId(style);
@@ -176,7 +175,9 @@ export function CrashDeskToolbar() {
         if (ep) setActiveEpisode(ep);
       }
     })();
-  }, [refreshDirty]);
+    // Mount only — switching show must not reopen the previous pack.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Keep toolbar show dropdown in sync with Script desk Style cards. */
   useEffect(() => {
@@ -415,13 +416,7 @@ export function CrashDeskToolbar() {
           onChange={(e) => {
             const id = e.target.value as ShowStyleId;
             setCursorStyle(id);
-            saveShowStyleId(id);
-            // Scene kit was still showing the other show's cast (broken thumbs).
-            // No episode open → wipe kit. Episode open → keep that pack's kit.
-            if (!readActiveEpisode()) {
-              void clearSceneKitDraft(id);
-              clearScriptDeskCastKeys();
-            }
+            switchCrashLabShow(id);
           }}
           className="rounded-sm border border-[var(--line)] bg-[var(--void)]/40 px-1.5 py-1 text-[10px] text-[var(--chrome)]"
           title="Show for CURSOR / PROMPT build"

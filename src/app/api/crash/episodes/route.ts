@@ -25,10 +25,17 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     if (url.searchParams.get("active") === "1") {
+      const styleId = parseStyleCardId(url.searchParams.get("styleId"));
       if (useCloudStore()) {
-        return NextResponse.json({ pack: await cloudActivePack() });
+        return NextResponse.json({
+          pack: await cloudActivePack(styleId || undefined),
+        });
       }
-      return NextResponse.json({ pack: readActivePack() });
+      const pack = readActivePack();
+      if (styleId && pack && pack.styleId !== styleId) {
+        return NextResponse.json({ pack: null });
+      }
+      return NextResponse.json({ pack });
     }
     const styleId = parseStyleCardId(url.searchParams.get("styleId") || "skidmarks");
     if (!styleId) {

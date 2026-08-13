@@ -1,4 +1,4 @@
-import { list, put } from "@vercel/blob";
+import { get, list, put } from "@vercel/blob";
 
 export type BlobFileKind = "plates" | "audio" | "mp4";
 
@@ -63,4 +63,38 @@ export async function listBlobPrefix(prefix: string): Promise<
     cursor = page.hasMore ? page.cursor : undefined;
   } while (cursor);
   return out;
+}
+
+/** Read blob bytes on the server. Never send the token to the browser. */
+export async function getBlobPayload(
+  urlOrPathname: string,
+): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string } | null> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  if (!urlOrPathname) return null;
+  for (const access of ["public", "private"] as const) {
+    try {
+      const result = await get(urlOrPathname, { access, token });
+      if (result?.statusCode === 200 && result.stream) {
+        return {
+          stream: result.stream,
+          contentType: result.blob.contentType || "application/octet-stream",
+        };
+      }
+    } catch {
+      /* try the other access mode */
+    }
+  }
+  if (!/^https?:\/\//i.test(urlOrPathname)) return null;
+  try {
+    const headers: HeadersInit = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(urlOrPathname, { headers, cache: "no-store" });
+    if (!res.ok || !res.body) return null;
+    return {
+      stream: res.body,
+      contentType: res.headers.get("content-type") || "application/octet-stream",
+    };
+  } catch {
+    return null;
+  }
 }
