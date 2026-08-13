@@ -3,7 +3,7 @@
  * Never deletes pack media.
  */
 import {
-  comfyDefaultGlobal,
+  CRASH_COMFY_DEFAULT_GLOBAL,
   writeComfyDraft,
   type ComfyDraft,
 } from "./crashComfyStack";
@@ -61,7 +61,7 @@ export async function openCrashLabPackOnDesk(opts: {
       };
     }
     writeComfyDraft(nextStyle, {
-      global: opened.comfyDraft.global || comfyDefaultGlobal(nextStyle),
+      global: opened.comfyDraft.global || CRASH_COMFY_DEFAULT_GLOBAL,
       beats,
     });
   }

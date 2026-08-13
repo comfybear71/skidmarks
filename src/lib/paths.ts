@@ -1,4 +1,6 @@
+import os from "os";
 import path from "path";
+import { runningOnVercel } from "./cloudEnv";
 
 /** PC root for MY MOVIES */
 export const MOVIES_ROOT = path.resolve(process.cwd(), "..", "..");
@@ -9,7 +11,18 @@ export const SKIDMARKS_EPISODES = path.join(
   "episodes",
 );
 
-export const DATA_DIR = path.join(process.cwd(), "data");
+/**
+ * Writable data root.
+ * - Local Studio writes beside the app (./data).
+ * - On Vercel the deployment dir (/var/task) is read-only, so any scratch
+ *   write there throws (ENOENT/EROFS). The only writable location is the OS
+ *   temp dir, so redirect there. Persistent media on Vercel lives in Vercel
+ *   Blob + Neon (see cloudEnv/useCloudStore); this disk root is just
+ *   per-invocation scratch and read fallbacks.
+ */
+export const DATA_DIR = runningOnVercel()
+  ? path.join(os.tmpdir(), "skidmarks-data")
+  : path.join(process.cwd(), "data");
 export const EPISODES_FILE = path.join(DATA_DIR, "episodes.json");
 export const CHARACTERS_FILE = path.join(DATA_DIR, "characters.json");
 export const CHARACTERS_DIR = path.join(DATA_DIR, "characters");

@@ -4,7 +4,12 @@ import { createCharacter, listCharacters } from "@/lib/characters";
 export const runtime = "nodejs";
 
 export async function GET() {
-  return NextResponse.json({ characters: listCharacters() });
+  try {
+    return NextResponse.json({ characters: listCharacters() });
+  } catch (e) {
+    console.error("[characters GET]", e);
+    return NextResponse.json({ characters: [] });
+  }
 }
 
 export async function POST(req: Request) {

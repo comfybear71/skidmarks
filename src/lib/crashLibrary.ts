@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { CRASH_DIR } from "@/lib/paths";
+import { formatCplateLabel } from "@/lib/cplateLabel";
 import { listMorphDraft, morphDraftDir } from "@/lib/morph";
 
 const IMG_EXT = /\.(png|jpe?g|webp)$/i;
@@ -30,12 +31,12 @@ export function listCrashGenImages(): CrashLabImage[] {
       return { n, mtime: st.mtimeMs };
     })
     .sort((a, b) => b.mtime - a.mtime)
-    .map(({ n }) => ({
+    .map(({ n, mtime }) => ({
       id: `gen:${n}`,
       source: "gen" as const,
       fileName: n,
       url: `/api/crash/gen/file?name=${encodeURIComponent(n)}`,
-      label: n.replace(/\.[^.]+$/, "").slice(-20),
+      label: formatCplateLabel(n, mtime),
     }));
 }
 

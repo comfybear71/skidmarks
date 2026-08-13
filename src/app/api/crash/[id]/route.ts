@@ -11,10 +11,15 @@ export const runtime = "nodejs";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, ctx: Ctx) {
-  const { id } = await ctx.params;
-  const job = getCrashJob(id);
-  if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ job });
+  try {
+    const { id } = await ctx.params;
+    const job = getCrashJob(id);
+    if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ job });
+  } catch (e) {
+    console.error("[crash id GET]", e);
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 }
 
 export async function PATCH(req: Request, ctx: Ctx) {

@@ -3,6 +3,7 @@ import {
   parseWorldCardId,
   readWorldCardThumbByKey,
 } from "@/lib/worldCardThumbs";
+import { cloudShowAssetRedirect } from "@/lib/cloudShelf";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,10 @@ export async function GET(req: Request) {
   const thumbKey = url.searchParams.get("thumb");
   if (!thumbKey) {
     return NextResponse.json({ error: "Need thumb" }, { status: 400 });
+  }
+  if (thumbKey.startsWith("g:")) {
+    const cloud = await cloudShowAssetRedirect(styleId, "world", thumbKey.slice(2));
+    if (cloud) return cloud;
   }
   const hit = readWorldCardThumbByKey(styleId, thumbKey);
   if (!hit) {

@@ -4,7 +4,12 @@ import { createCrashJob, listCrashJobs } from "@/lib/crash";
 export const runtime = "nodejs";
 
 export async function GET() {
-  return NextResponse.json({ jobs: listCrashJobs() });
+  try {
+    return NextResponse.json({ jobs: listCrashJobs() });
+  } catch (e) {
+    console.error("[crash GET]", e);
+    return NextResponse.json({ jobs: [] });
+  }
 }
 
 export async function POST(req: Request) {
