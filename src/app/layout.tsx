@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Black_Ops_One, DM_Sans } from "next/font/google";
 import { HfStatus } from "@/components/HfStatus";
 import { RunpodStatus } from "@/components/RunpodStatus";
+import { runningOnVercel } from "@/lib/cloudEnv";
 import "./globals.css";
 
 const display = Black_Ops_One({
@@ -16,20 +18,24 @@ const body = DM_Sans({
   variable: "--font-body",
 });
 
-const isLive = Boolean(process.env.VERCEL);
+export async function generateMetadata(): Promise<Metadata> {
+  await connection();
+  const isLive = runningOnVercel();
+  return {
+    title: isLive ? "Skidmarks Studio · Vercel" : "Skidmarks Studio · localhost",
+    description: isLive
+      ? "Crash Lab — cast, story, plates, LTX. Live on Vercel."
+      : "Crash Lab — cast, story, plates, LTX. Local PC + RunPod.",
+  };
+}
 
-export const metadata: Metadata = {
-  title: isLive ? "Skidmarks Studio · Vercel" : "Skidmarks Studio · localhost",
-  description: isLive
-    ? "Crash Lab — cast, story, plates, LTX. Live on Vercel."
-    : "Crash Lab — cast, story, plates, LTX. Local PC + RunPod.",
-};
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await connection();
+  const isLive = runningOnVercel();
   return (
     <html lang="en">
       <body className={`${display.variable} ${body.variable} antialiased`}>

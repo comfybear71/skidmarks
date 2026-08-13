@@ -1,5 +1,6 @@
 import os from "os";
 import path from "path";
+import { runningOnVercel } from "./cloudEnv";
 
 /** PC root for MY MOVIES */
 export const MOVIES_ROOT = path.resolve(process.cwd(), "..", "..");
@@ -19,7 +20,7 @@ export const SKIDMARKS_EPISODES = path.join(
  *   Blob + Neon (see cloudEnv/useCloudStore); this disk root is just
  *   per-invocation scratch and read fallbacks.
  */
-export const DATA_DIR = process.env.VERCEL
+export const DATA_DIR = runningOnVercel()
   ? path.join(os.tmpdir(), "skidmarks-data")
   : path.join(process.cwd(), "data");
 export const EPISODES_FILE = path.join(DATA_DIR, "episodes.json");

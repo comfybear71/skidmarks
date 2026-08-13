@@ -14,10 +14,15 @@ export const runtime = "nodejs";
 
 /** GET — which style cards already have a thumb PNG. */
 export async function GET() {
-  if (useCloudStore()) {
-    return NextResponse.json({ cards: await cloudStyleCardStatus() });
+  try {
+    if (useCloudStore()) {
+      return NextResponse.json({ cards: await cloudStyleCardStatus() });
+    }
+    return NextResponse.json({ cards: listStyleCardStatus() });
+  } catch (e) {
+    console.error("[style-cards GET]", e);
+    return NextResponse.json({ cards: [] });
   }
-  return NextResponse.json({ cards: listStyleCardStatus() });
 }
 
 /** POST { genFileName, styleId?, keepDraft? } — append still to style-cards/{id}/ gallery */

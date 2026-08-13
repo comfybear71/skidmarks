@@ -13,10 +13,15 @@ export async function GET(req: Request) {
   if (!styleId) {
     return NextResponse.json({ error: "Need styleId" }, { status: 400 });
   }
-  if (useCloudStore()) {
-    return NextResponse.json({ styleId, items: await cloudSpxItems(styleId) });
+  try {
+    if (useCloudStore()) {
+      return NextResponse.json({ styleId, items: await cloudSpxItems(styleId) });
+    }
+    return NextResponse.json(readCrashSpxDesk(styleId));
+  } catch (e) {
+    console.error("[spx GET]", e);
+    return NextResponse.json({ styleId, items: [] });
   }
-  return NextResponse.json(readCrashSpxDesk(styleId));
 }
 
 /** DELETE body { styleId, id } — retire one shelf item (not destroy). */
