@@ -1,17 +1,21 @@
 /**
- * Put the last opened episode back on the desk (same path as Open episode).
- * Runs from Crash Lab page mount — toolbar-only restore was not firing in Chrome.
+ * Cold load / refresh: empty desk. Stuie picks the show and opens an episode.
+ * Never auto-open last night’s pack (that reopened Sunny Banks after Close).
  */
 "use client";
 
-import { hydrateCrashDeskFromServer } from "./crashDeskHydrate";
+import { clearActiveEpisode } from "./crashActiveEpisode";
 
+let coldStartDone = false;
+
+export function coldStartEmptyCrashDesk(): void {
+  if (typeof window === "undefined" || coldStartDone) return;
+  coldStartDone = true;
+  clearActiveEpisode();
+}
+
+/** Kept so old callers compile — does not reopen a pack. */
 export async function restoreActiveCrashEpisode(): Promise<boolean> {
-  if (typeof window === "undefined") return false;
-  try {
-    const pack = await hydrateCrashDeskFromServer();
-    return Boolean(pack);
-  } catch {
-    return false;
-  }
+  coldStartEmptyCrashDesk();
+  return false;
 }

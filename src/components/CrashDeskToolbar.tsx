@@ -47,7 +47,6 @@ import {
   writeActiveEpisode,
   type CrashActiveEpisode,
 } from "@/lib/crashActiveEpisode";
-import { hydrateCrashDeskFromServer } from "@/lib/crashDeskHydrate";
 import { switchCrashLabShow } from "@/lib/crashShowSwitch";
 import {
   loadShowStyleIdOptional,
@@ -149,35 +148,6 @@ export function CrashDeskToolbar() {
     window.addEventListener(CRASH_DESK_MODE_EVENT, onMode);
     return () => window.removeEventListener(CRASH_DESK_MODE_EVENT, onMode);
   }, [refreshDirty]);
-
-  /** Put last night’s episode on the desk — once. Do not re-run when the show changes. */
-  useEffect(() => {
-    void (async () => {
-      try {
-        const pack = await hydrateCrashDeskFromServer();
-        if (!pack) {
-          const ep = readActiveEpisode();
-          const style = loadShowStyleIdOptional() || ep?.styleId;
-          if (style) setCursorStyle(style);
-          if (ep) setActiveEpisode(ep);
-          return;
-        }
-        setCursorStyle(pack.styleId);
-        setActiveEpisode(readActiveEpisode());
-        void refreshDirty();
-      } catch {
-        const ep = readActiveEpisode();
-        const style = loadShowStyleIdOptional() || ep?.styleId;
-        if (style) {
-          setCursorStyle(style);
-          saveShowStyleId(style);
-        }
-        if (ep) setActiveEpisode(ep);
-      }
-    })();
-    // Mount only — switching show must not reopen the previous pack.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   /** Keep toolbar show dropdown in sync with Script desk Style cards. */
   useEffect(() => {

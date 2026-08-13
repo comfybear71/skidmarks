@@ -13,7 +13,7 @@ import {
   writeSceneKitDraft,
 } from "./crashSceneKitFields";
 import { dispatchStorySaved } from "./crashStyleSync";
-import { saveShowStyleId, loadShowStyleIdOptional, type ShowStyleId } from "./showStylePresets";
+import { saveShowStyleId, type ShowStyleId } from "./showStylePresets";
 
 export type OpenedPackOnDesk = {
   folderName: string;
@@ -87,23 +87,14 @@ export async function openCrashLabPackOnDesk(opts: {
   };
 }
 
-/** Last night’s pack from the server — same as Open episode. */
+/**
+ * Auto-restore is off. Cold load must not reopen last pack (Sunny Banks
+ * was coming back after Close → pick Skidmarks). Open episode still uses
+ * openCrashLabPackOnDesk.
+ */
 export async function hydrateCrashDeskFromServer(): Promise<{
   folderName: string;
   styleId: ShowStyleId;
 } | null> {
-  const selected = loadShowStyleIdOptional();
-  const q = selected ? `&styleId=${encodeURIComponent(selected)}` : "";
-  const res = await fetch(`/api/crash/episodes?active=1${q}`);
-  const data = (await res.json()) as {
-    pack?: { folderName?: string; styleId?: ShowStyleId } | null;
-  };
-  const pack = data.pack;
-  if (!pack?.folderName || !pack.styleId) return null;
-  if (selected && pack.styleId !== selected) return null;
-  const opened = await openCrashLabPackOnDesk({
-    folderName: pack.folderName,
-    styleId: pack.styleId,
-  });
-  return { folderName: opened.folderName, styleId: opened.styleId };
+  return null;
 }

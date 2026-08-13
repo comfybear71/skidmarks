@@ -96,6 +96,14 @@ export function clearActiveEpisode(): void {
   );
 }
 
+/** Story GET url for the open pack, or null when the desk is empty. */
+export function crashDeskStoryFetchUrl(styleId: ShowStyleId): string | null {
+  if (typeof window === "undefined") return null;
+  const ep = readActiveEpisode();
+  if (!ep?.folderName || ep.styleId !== styleId) return null;
+  return `/api/crash/story?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(ep.folderName)}`;
+}
+
 export async function fetchStudioFingerprint(
   styleId: ShowStyleId,
 ): Promise<string> {

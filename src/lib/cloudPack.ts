@@ -15,6 +15,7 @@ import type { CrashStoryDoc } from "./crashStoryTypes";
 import type { SceneKitDiskDraft } from "./crashSceneKitStore";
 import type { ComfyDraft } from "./crashComfyStack";
 import {
+  attachAudioFilenamesToStory,
   attachPlateFilenamesToSceneKit,
   attachPlateFilenamesToStory,
 } from "./cloudStoryMedia";
@@ -62,12 +63,17 @@ async function hydrateEpisodeMedia(row: NeonEpisodeRow): Promise<{
     throw new Error("No story saved in cloud for that episode");
   }
   const plates = await listNeonFiles({ episodeId: row.id, kind: "plates" });
+  const audio = await listNeonFiles({ episodeId: row.id, kind: "audio" });
   const names = plates.map((f) => f.filename);
   const kitRaw = (row.scene_kit_json as SceneKitDiskDraft) || null;
-  const story = attachPlateFilenamesToStory(
+  const withPlates = attachPlateFilenamesToStory(
     storyRaw,
     names,
     kitRaw?.plateFiles,
+  );
+  const story = attachAudioFilenamesToStory(
+    withPlates,
+    audio.map((f) => f.filename),
   );
   return {
     story,
@@ -145,6 +151,17 @@ export async function saveCloudEpisodeMeta(opts: {
     hasStory: true,
     hasSceneKit: Boolean(opts.sceneKit),
   };
+}
+
+export async function readCloudEpisodeStory(
+  styleId: ShowStyleId,
+  folderName: string,
+): Promise<CrashStoryDoc | null> {
+  if (!useCloudStore()) return null;
+  const row = await getNeonEpisode(styleId, folderName);
+  if (!row?.story_json?.styleId) return null;
+  const { story } = await hydrateEpisodeMedia(row);
+  return story;
 }
 
 export async function readCloudStory(

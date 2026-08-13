@@ -15,7 +15,7 @@ import { CursorCastGateModal } from "@/components/CursorCastGateModal";
 import { CrashVoiceCard } from "@/components/CrashVoiceCard";
 import { CrashSceneKitCard } from "@/components/CrashSceneKitCard";
 import { useCrashDeskMode } from "@/hooks/useCrashDeskMode";
-import { restoreActiveCrashEpisode } from "@/lib/crashRestoreDesk";
+import { coldStartEmptyCrashDesk } from "@/lib/crashRestoreDesk";
 import { bumpCrashLabZ } from "@/lib/crashLabZ";
 import {
   CRASH_MORPH_MIN_H,
@@ -80,6 +80,8 @@ type CardGeom = { x: number; y: number; w: number; h: number };
 export default function CrashLabPage() {
   // Before any child panel reads last GRID/FREE — cold open is STACK.
   forceCrashColdOpenStack();
+  // Refresh / cold load: no episode on the desk. He opens one himself.
+  coldStartEmptyCrashDesk();
 
   const { geom, deskReady, collapsed: morphCollapsed, mode: morphMode, togglePanel: toggleMorph, setGeom } =
     useCrashDeskMode("morph");
@@ -552,10 +554,9 @@ export default function CrashLabPage() {
     setTrayW((w) => (w >= TRAY_COLLAPSE_AT ? 0 : TRAY_OPEN_W));
   }
 
-  // Cold open STACK already forced above; restore last open pack.
+  // Cold open STACK already forced above. Episode stays closed until Open.
   useEffect(() => {
     refreshDeskTop();
-    void restoreActiveCrashEpisode();
   }, []);
 
   return (

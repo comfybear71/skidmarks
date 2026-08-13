@@ -9,7 +9,7 @@ import {
 import { syncStoryVoiceFilesFromDisk } from "@/lib/crashStorySpeak";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { useCloudStore } from "@/lib/cloudEnv";
-import { readCloudStory, writeCloudStory } from "@/lib/cloudPack";
+import { readCloudEpisodeStory, writeCloudStory } from "@/lib/cloudPack";
 
 export const runtime = "nodejs";
 
@@ -21,7 +21,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Need styleId" }, { status: 400 });
   }
   if (useCloudStore()) {
-    const cloud = await readCloudStory(styleId);
+    const folderName = url.searchParams.get("folderName")?.trim() || "";
+    if (!folderName) {
+      return NextResponse.json({ ok: true, story: emptyStory(styleId) });
+    }
+    const cloud = await readCloudEpisodeStory(styleId, folderName);
     return NextResponse.json({ ok: true, story: cloud || emptyStory(styleId) });
   }
   let story = readCrashStory(styleId);
@@ -68,14 +72,13 @@ export async function POST(req: Request) {
     }
     if (useCloudStore()) {
       const blank = emptyStory(styleId);
-      await writeCloudStory(blank);
       return NextResponse.json({
         ok: true,
         story: blank,
         moved: [],
         movedCount: 0,
         backupFile: null,
-        parkedIn: "(cloud story cleared — media files left in Blob)",
+        parkedIn: "(desk cleared — cloud pack left intact)",
       });
     }
     const result = clearCrashStory(styleId);

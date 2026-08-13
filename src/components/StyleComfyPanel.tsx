@@ -17,6 +17,7 @@ import {
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import { CRASH_STORY_SAVED, dispatchStorySaved } from "@/lib/crashStyleSync";
 import type { ShowStyleId } from "@/lib/showStylePresets";
+import { crashDeskStoryFetchUrl } from "@/lib/crashActiveEpisode";
 import { LTX_CLOUD_SKIP_BEAT_IDS } from "@/lib/ltxCloudSkip";
 import { MediaThumb } from "@/components/MediaThumb";
 import { AnimateTimeline } from "@/components/AnimateTimeline";
@@ -710,9 +711,12 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/crash/story?styleId=${encodeURIComponent(styleId)}`,
-      );
+      const url = crashDeskStoryFetchUrl(styleId);
+      if (!url) {
+        setStory(null);
+        return;
+      }
+      const res = await fetch(url);
       const data = await res.json();
       if (res.ok && data.story) setStory(data.story as CrashStoryDoc);
     } finally {
