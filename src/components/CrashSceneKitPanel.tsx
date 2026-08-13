@@ -45,9 +45,10 @@ import {
 import { humanMediaLabel } from "@/lib/mediaMatch";
 import { useScriptDeskWatch } from "@/hooks/useScriptDeskWatch";
 import {
-  crashDeskSceneKitFetchUrl,
+  crashDeskOpenQuery,
   crashDeskStoryFetchUrl,
 } from "@/lib/crashActiveEpisode";
+import { openCrashLabPackOnDesk } from "@/lib/crashDeskHydrate";
 
 type FaceThumb = { key: string; name?: string; brief?: string };
 type PlaceThumb = { key: string; name?: string };
@@ -914,24 +915,28 @@ export function CrashSceneKitPanel() {
     setStatus(`Place slot ${index + 1} cleared`);
   }
 
-  /** Pack / disk wins — fixes stale browser kit missing a place after refresh. */
+  /** Same path as Open episode — disk GET is empty on Vercel. */
   async function reloadPlacesFromPack() {
+    if (!styleId) {
+      setStatus("Pick Skidmarks first");
+      return;
+    }
+    const pack = crashDeskOpenQuery(styleId);
+    if (!pack) {
+      setStatus("Open an episode first — Reload places reads that pack");
+      return;
+    }
     setBusy(true);
     setStatus("Reloading places from pack…");
     try {
-      const packUrl = styleId ? crashDeskSceneKitFetchUrl(styleId) : null;
-      const restored = await hydrateSceneKitFromDisk(packUrl);
-      if (!restored) {
-        throw new Error(
-          packUrl
-            ? "Could not read pack scene kit"
-            : "Open an episode first — Reload places reads that pack",
-        );
-      }
+      await openCrashLabPackOnDesk(pack);
+      const restored = readSceneKitDraft();
       applyDraft(restored);
       setTick((n) => n + 1);
       const n = restored.worldKeys.filter(Boolean).length;
-      setStatus(`Places reloaded — ${n} location${n === 1 ? "" : "s"}`);
+      setStatus(
+        `Places reloaded — ${n} location${n === 1 ? "" : "s"} from ${pack.folderName}`,
+      );
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
     } finally {

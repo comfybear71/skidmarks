@@ -29,6 +29,8 @@ import { emptyStory } from "@/lib/crashStory";
 import {
   CRASH_ACTIVE_EPISODE_EVENT,
   crashDeskStoryFetchUrl,
+  preferPackedStory,
+  readOpenStoryCache,
 } from "@/lib/crashActiveEpisode";
 import {
   SHOW_STYLE_PRESETS,
@@ -1390,16 +1392,18 @@ export function StyleStoryPanel({ styleId }: Props) {
           : {};
       if (voiceRes.ok && voiceData.slots) setVoiceSlots(slots);
       if (!storyUrl) {
+        const cached = readOpenStoryCache(styleId) as CrashStoryDoc | null;
         undoStack.current = [];
         undoBurst.current = false;
         setUndoAvail(0);
-        setStory(emptyStory(styleId));
+        setStory(cached?.styleId === styleId ? cached : emptyStory(styleId));
         return;
       }
       const storyRes = await fetch(storyUrl);
       const storyData = await storyRes.json();
       if (storyRes.ok && storyData.story) {
-        const raw = storyData.story as CrashStoryDoc;
+        const cached = readOpenStoryCache(styleId);
+        const raw = preferPackedStory(storyData.story, cached) as CrashStoryDoc;
         const filled = autofillEmptySpeakers(raw, slots);
         undoStack.current = [];
         undoBurst.current = false;

@@ -88,9 +88,79 @@ export function writeActiveEpisode(ep: CrashActiveEpisode): void {
   );
 }
 
+const STORY_CACHE_KEY = "crash-lab-open-story-v1";
+
+type OpenStoryCache = {
+  styleId: ShowStyleId;
+  folderName: string;
+  story: unknown;
+};
+
+export function writeOpenStoryCache(opts: {
+  styleId: ShowStyleId;
+  folderName: string;
+  story: unknown;
+}): void {
+  if (typeof window === "undefined") return;
+  if (!opts.story) return;
+  try {
+    const payload: OpenStoryCache = {
+      styleId: opts.styleId,
+      folderName: opts.folderName,
+      story: opts.story,
+    };
+    sessionStorage.setItem(STORY_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function readOpenStoryCache(styleId: ShowStyleId): unknown | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(STORY_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<OpenStoryCache>;
+    if (parsed.styleId !== styleId || !parsed.story) return null;
+    const ep = readActiveEpisode();
+    if (ep && parsed.folderName && parsed.folderName !== ep.folderName) {
+      return null;
+    }
+    return parsed.story;
+  } catch {
+    return null;
+  }
+}
+
+function storyPlateCount(story: unknown): number {
+  if (!story || typeof story !== "object") return 0;
+  const scenes = (story as { scenes?: Array<{ shots?: Array<{ plateFile?: string }> }> }).scenes;
+  if (!Array.isArray(scenes)) return 0;
+  let n = 0;
+  for (const sc of scenes) {
+    for (const sh of sc.shots || []) {
+      if (String(sh.plateFile || "").trim()) n += 1;
+    }
+  }
+  return n;
+}
+
+/** Keep the Open pack if a later GET returns the empty Shot 1 stub. */
+export function preferPackedStory(fetched: unknown, cached: unknown): unknown {
+  const fetchedPlates = storyPlateCount(fetched);
+  const cachedPlates = storyPlateCount(cached);
+  if (cachedPlates > fetchedPlates) return cached;
+  return fetched ?? cached ?? null;
+}
+
 export function clearActiveEpisode(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEY);
+  try {
+    sessionStorage.removeItem(STORY_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
   window.dispatchEvent(
     new CustomEvent(CRASH_ACTIVE_EPISODE_EVENT, { detail: null }),
   );
@@ -165,5 +235,10 @@ export function setActiveEpisodeFromOpen(opts: {
     label: (opts.label || opts.folderName).trim() || opts.folderName,
     styleId: opts.styleId,
     cleanFingerprint,
+  });
+  writeOpenStoryCache({
+    styleId: opts.styleId,
+    folderName: opts.folderName,
+    story: opts.story,
   });
 }

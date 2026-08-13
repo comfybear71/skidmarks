@@ -14,6 +14,8 @@ import {
   CRASH_ACTIVE_EPISODE_EVENT,
   crashDeskLtxFetchUrl,
   crashDeskStoryFetchUrl,
+  preferPackedStory,
+  readOpenStoryCache,
 } from "@/lib/crashActiveEpisode";
 import {
   COMFY_INTRO_BEAT_ID,
@@ -204,9 +206,11 @@ export function StyleStoryboardPanel({ styleId }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const cached = readOpenStoryCache(styleId) as CrashStoryDoc | null;
+      if (cached?.styleId === styleId) setStory(cached);
       const storyUrl = crashDeskStoryFetchUrl(styleId);
       if (!storyUrl) {
-        setStory(null);
+        if (!cached) setStory(null);
         return;
       }
       const [storyRes, spxRes] = await Promise.all([
@@ -216,7 +220,10 @@ export function StyleStoryboardPanel({ styleId }: Props) {
       const storyData = await storyRes.json();
       const spxData = await spxRes.json();
       if (storyRes.ok && storyData.story) {
-        setStory(storyData.story as CrashStoryDoc);
+        const next = preferPackedStory(storyData.story, cached) as CrashStoryDoc;
+        if (next?.styleId) setStory(next);
+      } else if (cached?.styleId === styleId) {
+        setStory(cached);
       }
       if (spxRes.ok && Array.isArray(spxData.items)) {
         setShelf(

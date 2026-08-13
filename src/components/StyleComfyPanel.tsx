@@ -21,6 +21,8 @@ import {
   CRASH_ACTIVE_EPISODE_EVENT,
   crashDeskLtxFetchUrl,
   crashDeskStoryFetchUrl,
+  preferPackedStory,
+  readOpenStoryCache,
 } from "@/lib/crashActiveEpisode";
 import { LTX_CLOUD_SKIP_BEAT_IDS } from "@/lib/ltxCloudSkip";
 import { MediaThumb } from "@/components/MediaThumb";
@@ -715,14 +717,21 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const cached = readOpenStoryCache(styleId) as CrashStoryDoc | null;
+      if (cached?.styleId === styleId) setStory(cached);
       const url = crashDeskStoryFetchUrl(styleId);
       if (!url) {
-        setStory(null);
+        if (!cached) setStory(null);
         return;
       }
       const res = await fetch(url);
       const data = await res.json();
-      if (res.ok && data.story) setStory(data.story as CrashStoryDoc);
+      if (res.ok && data.story) {
+        const next = preferPackedStory(data.story, cached) as CrashStoryDoc;
+        if (next?.styleId) setStory(next);
+      } else if (cached?.styleId === styleId) {
+        setStory(cached);
+      }
     } finally {
       setLoading(false);
     }
