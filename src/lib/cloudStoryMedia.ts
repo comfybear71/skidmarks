@@ -1,4 +1,8 @@
-import type { CrashStoryBeat, CrashStoryDoc } from "./crashStoryTypes";
+import type {
+  CrashStoryBeat,
+  CrashStoryDoc,
+  CrashStoryShot,
+} from "./crashStoryTypes";
 import type { SceneKitDiskDraft } from "./crashSceneKitStore";
 
 function cleanName(name: string | undefined): string {
@@ -44,8 +48,23 @@ export function attachPlateFilenamesToStory(
     return next;
   };
 
+  function titleFromPlate(file: string): string {
+    return file.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || file;
+  }
+  function shotFromPlate(plateFile: string, index: number): CrashStoryShot {
+    const title = titleFromPlate(plateFile);
+    return {
+      id: `shot_cloud_${index}`,
+      title,
+      summary: title,
+      plateFile,
+      beats: [],
+      sfx: [],
+    };
+  }
+
   let shotIndex = 0;
-  const scenes = story.scenes.map((scene) => ({
+  let scenes = story.scenes.map((scene) => ({
     ...scene,
     shots: scene.shots.map((shot) => {
       const fromKit = kit[shotIndex];
@@ -57,6 +76,31 @@ export function attachPlateFilenamesToStory(
       return { ...shot, plateFile };
     }),
   }));
+
+  // Stub recipes (one empty shot) still have the pack plates in Neon / scene kit.
+  const leftover = pool.filter((n) => !taken.has(n) && !isLogoName(n));
+  if (leftover.length) {
+    if (!scenes.length) {
+      scenes = [
+        {
+          id: "scene_cloud",
+          title: "Scene 01",
+          placeName: "",
+          worldThumbKey: "",
+          shots: [],
+        },
+      ];
+    }
+    const last = scenes[scenes.length - 1]!;
+    const extras = leftover.map((f, i) => {
+      taken.add(f);
+      return shotFromPlate(f, last.shots.length + i + 1);
+    });
+    scenes = [
+      ...scenes.slice(0, -1),
+      { ...last, shots: [...last.shots, ...extras] },
+    ];
+  }
 
   const introLogo =
     keepOrFill(story.intro.logoFile) || takeFromPool(isLogoName);

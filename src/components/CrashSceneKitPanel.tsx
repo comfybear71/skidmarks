@@ -43,6 +43,7 @@ import {
   type ShowStyleId,
 } from "@/lib/showStylePresets";
 import { useScriptDeskWatch } from "@/hooks/useScriptDeskWatch";
+import { crashDeskStoryFetchUrl } from "@/lib/crashActiveEpisode";
 
 type FaceThumb = { key: string; name?: string; brief?: string };
 type PlaceThumb = { key: string; name?: string };
@@ -438,9 +439,9 @@ export function CrashSceneKitPanel() {
     setBusy(true);
     setStatus("");
     try {
-      const res = await fetch(
-        `/api/crash/story?styleId=${encodeURIComponent(styleId)}`,
-      );
+      const storyUrl = crashDeskStoryFetchUrl(styleId);
+      if (!storyUrl) throw new Error("Open an episode first");
+      const res = await fetch(storyUrl);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Story load failed");
       const doc = data.story || data;

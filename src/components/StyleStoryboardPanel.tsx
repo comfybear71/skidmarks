@@ -11,6 +11,10 @@ import type {
 } from "@/lib/crashStoryTypes";
 import { CRASH_STORY_SAVED, CRASH_SHOW_STYLE_EVENT } from "@/lib/crashStyleSync";
 import {
+  CRASH_ACTIVE_EPISODE_EVENT,
+  crashDeskStoryFetchUrl,
+} from "@/lib/crashActiveEpisode";
+import {
   COMFY_INTRO_BEAT_ID,
   COMFY_OUTRO_BEAT_ID,
 } from "@/lib/crashComfyStack";
@@ -199,8 +203,13 @@ export function StyleStoryboardPanel({ styleId }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const storyUrl = crashDeskStoryFetchUrl(styleId);
+      if (!storyUrl) {
+        setStory(null);
+        return;
+      }
       const [storyRes, spxRes] = await Promise.all([
-        fetch(`/api/crash/story?styleId=${encodeURIComponent(styleId)}`),
+        fetch(storyUrl),
         fetch(`/api/crash/spx?styleId=${encodeURIComponent(styleId)}`),
       ]);
       const storyData = await storyRes.json();
@@ -225,9 +234,11 @@ export function StyleStoryboardPanel({ styleId }: Props) {
     const onStyle = () => void load();
     window.addEventListener(CRASH_STORY_SAVED, onStory);
     window.addEventListener(CRASH_SHOW_STYLE_EVENT, onStyle);
+    window.addEventListener(CRASH_ACTIVE_EPISODE_EVENT, onStory);
     return () => {
       window.removeEventListener(CRASH_STORY_SAVED, onStory);
       window.removeEventListener(CRASH_SHOW_STYLE_EVENT, onStyle);
+      window.removeEventListener(CRASH_ACTIVE_EPISODE_EVENT, onStory);
     };
   }, [load]);
 

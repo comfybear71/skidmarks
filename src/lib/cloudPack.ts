@@ -76,7 +76,10 @@ async function hydrateEpisodeMedia(row: NeonEpisodeRow): Promise<{
     audio.map((f) => f.filename),
   );
   return {
-    story,
+    story: {
+      ...story,
+      campaignLabel: story.campaignLabel?.trim() || row.name || story.campaignLabel,
+    },
     sceneKit: attachPlateFilenamesToSceneKit(kitRaw, story, names),
   };
 }

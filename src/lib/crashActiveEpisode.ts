@@ -107,11 +107,11 @@ export function crashDeskStoryFetchUrl(styleId: ShowStyleId): string | null {
 export async function fetchStudioFingerprint(
   styleId: ShowStyleId,
 ): Promise<string> {
-  const res = await fetch(
-    `/api/crash/story?styleId=${encodeURIComponent(styleId)}`,
-  );
-  const data = await res.json().catch(() => ({}));
-  const story = data?.story ?? null;
+  const url = crashDeskStoryFetchUrl(styleId);
+  const story = url
+    ? ((await (await fetch(url)).json().catch(() => ({}))) as { story?: unknown })
+        ?.story ?? null
+    : null;
   const sceneKit = readSceneKitDraft();
   return fingerprintStudioState({ story, sceneKit });
 }

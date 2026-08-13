@@ -13,6 +13,7 @@ import {
 } from "./blobStore";
 import {
   findNeonShowFile,
+  findNeonShowFileAnyShow,
   listNeonShowFiles,
   type NeonFileRow,
 } from "./neonStore";
@@ -27,7 +28,10 @@ export async function cloudShowAssetRedirect(
 ): Promise<NextResponse | null> {
   if (!useCloudStore()) return null;
   if (!isSafeMediaName(filename)) return null;
-  const row = await findNeonShowFile({ showId, kind, filename });
+  let row = await findNeonShowFile({ showId, kind, filename });
+  if (!row && kind === "cast") {
+    row = await findNeonShowFileAnyShow({ kind, filename });
+  }
   if (!row?.blob_url && !row?.blob_pathname) return null;
   const payload = await getBlobPayload(row.blob_url || row.blob_pathname);
   if (!payload) return null;

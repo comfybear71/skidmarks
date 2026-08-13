@@ -25,6 +25,11 @@ import {
   CRASH_VOICE_SAVED,
   dispatchStorySaved,
 } from "@/lib/crashStyleSync";
+import { emptyStory } from "@/lib/crashStory";
+import {
+  CRASH_ACTIVE_EPISODE_EVENT,
+  crashDeskStoryFetchUrl,
+} from "@/lib/crashActiveEpisode";
 import {
   SHOW_STYLE_PRESETS,
   type ShowStyleId,
@@ -1374,17 +1379,25 @@ export function StyleStoryPanel({ styleId }: Props) {
     if (!styleId) return;
     setLoading(true);
     try {
-      const [storyRes, voiceRes] = await Promise.all([
-        fetch(`/api/crash/story?styleId=${encodeURIComponent(styleId)}`),
-        fetch(`/api/crash/voice?styleId=${encodeURIComponent(styleId)}`),
-      ]);
-      const storyData = await storyRes.json();
+      const storyUrl = crashDeskStoryFetchUrl(styleId);
+      const voiceRes = await fetch(
+        `/api/crash/voice?styleId=${encodeURIComponent(styleId)}`,
+      );
       const voiceData = await voiceRes.json();
       const slots =
         voiceRes.ok && voiceData.slots
           ? (voiceData.slots as Record<string, CrashVoiceSlot>)
           : {};
       if (voiceRes.ok && voiceData.slots) setVoiceSlots(slots);
+      if (!storyUrl) {
+        undoStack.current = [];
+        undoBurst.current = false;
+        setUndoAvail(0);
+        setStory(emptyStory(styleId));
+        return;
+      }
+      const storyRes = await fetch(storyUrl);
+      const storyData = await storyRes.json();
       if (storyRes.ok && storyData.story) {
         const raw = storyData.story as CrashStoryDoc;
         const filled = autofillEmptySpeakers(raw, slots);
@@ -1440,10 +1453,12 @@ export function StyleStoryPanel({ styleId }: Props) {
     window.addEventListener(CRASH_SPX_SAVED, onSpx);
     window.addEventListener(CRASH_STORY_SAVED, onStory);
     window.addEventListener(CRASH_VOICE_SAVED, onVoice);
+    window.addEventListener(CRASH_ACTIVE_EPISODE_EVENT, onStory);
     return () => {
       window.removeEventListener(CRASH_SPX_SAVED, onSpx);
       window.removeEventListener(CRASH_STORY_SAVED, onStory);
       window.removeEventListener(CRASH_VOICE_SAVED, onVoice);
+      window.removeEventListener(CRASH_ACTIVE_EPISODE_EVENT, onStory);
     };
   }, [load, loadShelf, loadVoicesOnly]);
 
