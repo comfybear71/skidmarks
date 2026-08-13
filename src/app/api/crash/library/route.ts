@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listCrashLabImages } from "@/lib/crashLibrary";
+import { formatCplateLabel } from "@/lib/cplateLabel";
 import { useCloudStore } from "@/lib/cloudEnv";
 import { listNeonFiles } from "@/lib/neonStore";
 
@@ -15,7 +16,7 @@ export async function GET() {
         source: "gen",
         fileName: f.filename,
         url: `/api/crash/gen/file?name=${encodeURIComponent(f.filename)}`,
-        label: f.filename.replace(/\.[^.]+$/, "").slice(-20),
+        label: formatCplateLabel(f.filename),
       })),
     });
   }
