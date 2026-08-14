@@ -12,7 +12,6 @@ import type { ShowStyleId } from "./showStylePresets";
  */
 export type MobileGenPhase =
   | "screenplay"
-  | "roster"
   | "cast_images"
   | "location_images"
   | "plates"
@@ -32,11 +31,23 @@ export type MobileImageCandidate = {
 export type MobileShotUnit = {
   shotId: string;
   sceneId: string;
-  plateReady: boolean;
-  voiceReady: boolean;
+  plateFile: string;
+};
+
+/** One per dialogue beat — the LTX/Comfy pipeline animates per-line, not per-shot (a shot's plate is shared across its beats, but each line gets its own short clip matched to its own audio). */
+export type MobileClipUnit = {
+  beatId: string;
+  shotId: string;
+  sceneId: string;
   clipFile: string;
   clipStatus: "pending" | "done" | "error";
   error: string;
+};
+
+export type MobileSceneRef = {
+  id: string;
+  placeName: string;
+  worldThumbKey: string;
 };
 
 export type MobileGenJob = {
@@ -47,11 +58,16 @@ export type MobileGenJob = {
   targetDurationSec: number;
   secondsPerShot: number;
   phase: MobileGenPhase;
+  /** Unique speaker names — drives the cast_images approval cursor. */
+  speakers: string[];
+  /** Scenes needing a location — drives the location_images approval cursor. */
+  scenes: MobileSceneRef[];
   /** Candidate portraits per speaker name, awaiting a swipe pick. */
   castCandidates: Record<string, MobileImageCandidate[]>;
   /** Candidate location stills per scene id, awaiting a swipe pick. */
   locationCandidates: Record<string, MobileImageCandidate[]>;
   shots: MobileShotUnit[];
+  clips: MobileClipUnit[];
   finalVideoFile: string;
   error: string;
   createdAt: string;
@@ -83,9 +99,12 @@ export function createMobileGenJob(opts: {
     targetDurationSec: opts.targetDurationSec,
     secondsPerShot: opts.secondsPerShot,
     phase: "screenplay",
+    speakers: [],
+    scenes: [],
     castCandidates: {},
     locationCandidates: {},
     shots: [],
+    clips: [],
     finalVideoFile: "",
     error: "",
     createdAt: now,
