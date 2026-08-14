@@ -725,3 +725,61 @@ export function emptyEpisode(partial?: Partial<Episode>): Episode {
     ...partial,
   };
 }
+
+/** Production script — imported from text, parsed into episodes/characters */
+export type ProductionScript = {
+  id: string;
+  /** Show slug — Skidmarks, Sunny Banks, etc */
+  showSlug: string;
+  title: string;
+  content: string;
+  importedAt: string;
+  parsedEpisodes: ScriptEpisodeData[];
+  parsedCharacters: ScriptCharacterData[];
+};
+
+/** Episode data extracted from script text */
+export type ScriptEpisodeData = {
+  episodeNum: number;
+  title: string;
+  logline: string;
+  scenes: ScriptSceneData[];
+};
+
+/** Scene data extracted from script text */
+export type ScriptSceneData = {
+  act: number;
+  heading: string;
+  action: string[];
+  dialogueLines: ScriptDialogueLine[];
+};
+
+/** Dialogue line from script */
+export type ScriptDialogueLine = {
+  character: string;
+  line: string;
+};
+
+/** Character data extracted from script */
+export type ScriptCharacterData = {
+  name: string;
+  description: string;
+  appearance: string;
+  voiceType?: string;
+  tormentScratch?: string;
+};
+
+export function emptyProductionScript(
+  partial?: Partial<ProductionScript>,
+): ProductionScript {
+  return {
+    id: newId("script"),
+    showSlug: "Skidmarks",
+    title: "Untitled script",
+    content: "",
+    importedAt: new Date().toISOString(),
+    parsedEpisodes: [],
+    parsedCharacters: [],
+    ...partial,
+  };
+}
