@@ -354,6 +354,25 @@ export async function findNeonShowFile(opts: {
   }, null);
 }
 
+/** Cast thumbs are unique timestamps; a desk may ask the wrong show. */
+export async function findNeonShowFileAnyShow(opts: {
+  kind: BlobFileKind;
+  filename: string;
+}): Promise<NeonFileRow | null> {
+  return safeQuery(async (sql) => {
+    const rows = await sql`
+      SELECT id, episode_id, show_id, kind, blob_url, filename, blob_pathname,
+        label_name, label_brief, place_type, slot, spx_id, spx_note
+      FROM files
+      WHERE kind = ${opts.kind} AND filename = ${opts.filename}
+        AND episode_id IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    return (rows[0] as NeonFileRow) || null;
+  }, null);
+}
+
 export async function findNeonFile(opts: {
   kind: BlobFileKind;
   filename: string;

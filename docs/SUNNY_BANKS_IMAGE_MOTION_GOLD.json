@@ -1,0 +1,405 @@
+{
+  "global": "perfect lip sync, clear lip movement, citing the dialogue clearly, facial expressions and hand gestures are lively, dication is perfect. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+  "beats": {
+    "hold_shot_hx63noe": {
+      "imageMotion": "Use the provided start image as the first frame. Only Shazza and Dazza in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_lgv3cc9": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_hvbnvpf": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, tall messy blonde, blue shirt, beers, coins, or pink hair dryer depending on the plate holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_7uaap14": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, tall messy blonde, blue shirt, beers, coins, or pink hair dryer depending on the plate is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Dazza says: \"Shaz. Thermometer says forty-seven degrees in the shade\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_ahlhevw": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Shazza says: \"We haven't got any shade, Dazza. So it's forty-seven degrees of structural integrity. Stop complaining and finish your breakfast\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_mnkntw5": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, tall messy blonde, blue shirt, beers, coins, or pink hair dryer depending on the plate holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_n4rp56h": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, tall messy blonde, blue shirt, beers, coins, or pink hair dryer depending on the plate is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Dazza says: \"Fair call\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_ndpkqy1": {
+      "imageMotion": "Use the provided start image as the first frame. Nan, tiny elderly woman, hair bun, round glasses, purple housecoat, teacup, cricket bat holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nan, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_01quzyg": {
+      "imageMotion": "Use the provided start image as the first frame. Nan, tiny elderly woman, hair bun, round glasses, purple housecoat, teacup, cricket bat is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Nan says: \"In my day, the heat would melt the soles right off your boots. You're both soft. Like un-refrigerated butter\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nan delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_vbbjwln": {
+      "imageMotion": "Use the provided start image as the first frame. Hold holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hold, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_1xwahah": {
+      "imageMotion": "Use the provided start image as the first frame. Hold holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hold, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_k5ge0lp": {
+      "imageMotion": "Use the provided start image as the first frame. Hans, German backpacker, safari outfit, cork hat, camera around neck holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_u1are9q": {
+      "imageMotion": "Use the provided start image as the first frame. Hans, German backpacker, safari outfit, cork hat, camera around neck is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Hans says: \"Guten tag, true blue Australian locals! Our transport vehicle has suffered a catastrophic thermal event. Is this the legendary outback hospitality\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_a18coj7": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_bw5jwuj": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Shazza says: \"It bloody well is if you've got a credit card, mate. Dazza, put some pants on. We've got revenue\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_snlalv5": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, tall messy blonde, blue shirt, beers, coins, or pink hair dryer depending on the plate holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_61jtid8": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, tall messy blonde, blue shirt, beers, coins, or pink hair dryer depending on the plate is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Dazza says: \"These are pants, Shaz. They cover the essentials\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_9yry2os": {
+      "imageMotion": "Use the provided start image as the first frame. Only Shazza, Dazza, and Hans in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_q4w3mrq": {
+      "imageMotion": "Use the provided start image as the first frame. Only Nuggets, Alien 1, and Alien 2 in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_fmd2l8w": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_56jzksx": {
+      "imageMotion": "Use the provided start image as the first frame. Only Alien 1 and Alien 2 in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 1, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_b95lnbd": {
+      "imageMotion": "Use the provided start image as the first frame. Hold holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hold, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_xovz2nq": {
+      "imageMotion": "Use the provided start image as the first frame. Alien 1, short purple alien, antennae, bulging eyes, bucket hat, high-vis vest is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Alien 1 says: \"Bleep bop poopy bop\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 1 delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_ew4nl1i": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Nuggets says: \"Nah, mate. It's plastic. You can't eat it. And don't touch the wings, Dazza thinks it's art\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_odu2qn8": {
+      "imageMotion": "Use the provided start image as the first frame. Alien 2, short purple alien, antennae, bulging eyes, bucket hat, high-vis vest is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Alien 2 says: \"Bleep blop zoorp ding\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 2 delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_vwn9juw": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Nuggets says: \"Yeah, the air con is broken in there too. Welcome to Australia\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_ty5pw7w": {
+      "imageMotion": "Use the provided start image as the first frame. Ranger Dan, portly park ranger, oversized Akubra, high-vis vest, mountain bike holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Ranger Dan, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_r6tuzt7": {
+      "imageMotion": "Use the provided start image as the first frame. Ranger Dan, portly park ranger, oversized Akubra, high-vis vest, mountain bike holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Ranger Dan, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_erbl7fl": {
+      "imageMotion": "Use the provided start image as the first frame. Ranger Dan, portly park ranger, oversized Akubra, high-vis vest, mountain bike is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Ranger Dan says: \"Hold it right there! Nuggets! I've had reports of unauthorized biological activity in this sector\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Ranger Dan delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_uoldom3": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_a463im2": {
+      "imageMotion": "Use the provided start image as the first frame. Only Alien 1 and Alien 2 in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 1, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_32sb4v5": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Nuggets says: \"They're just my mates, Ranger Dan. They're from... out past Bourke\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_wmepidc": {
+      "imageMotion": "Use the provided start image as the first frame. Ranger Dan, portly park ranger, oversized Akubra, high-vis vest, mountain bike holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Ranger Dan, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_ic1edws": {
+      "imageMotion": "Use the provided start image as the first frame. Ranger Dan, portly park ranger, oversized Akubra, high-vis vest, mountain bike is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Ranger Dan says: \"Bourke, eh? They look like council workers to me. Have they filled out their environmental impact statements for that flamingo\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Ranger Dan delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_eg2all6": {
+      "imageMotion": "Use the provided start image as the first frame. Alien 1, short purple alien, antennae, bulging eyes, bucket hat, high-vis vest is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Alien 1 says: \"Bleep bop poopy bop\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 1 delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_rhzn4c3": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Nuggets says: \"He says your hat looks structural\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_y0m0rko": {
+      "imageMotion": "Use the provided start image as the first frame. Ranger Dan, portly park ranger, oversized Akubra, high-vis vest, mountain bike holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Ranger Dan, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_mnw4d5r": {
+      "imageMotion": "Use the provided start image as the first frame. Ranger Dan, portly park ranger, oversized Akubra, high-vis vest, mountain bike is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Ranger Dan says: \"Finally, someone with respect for authority. Carry on, boys. But keep an eye out for noxious weeds\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Ranger Dan delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_bc7ykux": {
+      "imageMotion": "Use the provided start image as the first frame. Ranger Dan, portly park ranger, oversized Akubra, high-vis vest, mountain bike holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Ranger Dan, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_sbzifwo": {
+      "imageMotion": "Use the provided start image as the first frame. Ranger Dan, portly park ranger, oversized Akubra, high-vis vest, mountain bike holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Ranger Dan, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_h4czti7": {
+      "imageMotion": "Use the provided start image as the first frame. Only Shazza and Hans in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_s73b91z": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_qcx0fxp": {
+      "imageMotion": "Use the provided start image as the first frame. Hans, German backpacker, safari outfit, cork hat, camera around neck holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_fvynn9s": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Shazza says: \"Alright, Hansy boy. That's two hundred bucks for the Outback Stranded Package. Includes unlimited flies, a view of that dead tree, and a single sheet of two-ply toilet paper. That's premium outback hospitality, mate.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_k53a4za": {
+      "imageMotion": "Use the provided start image as the first frame. Hans, German backpacker, safari outfit, cork hat, camera around neck holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_clmz8d2": {
+      "imageMotion": "Use the provided start image as the first frame. Hans, German backpacker, safari outfit, cork hat, camera around neck is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Hans says: \"Wunderbar! And where is the swimming facility? The brochure promised a Refreshing Billabong. I have brought my swimming trunks specially.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_tv3yywm": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_m9kn1oc": {
+      "imageMotion": "Use the provided start image as the first frame. Muddy puddle with rusty car parts, cracked dirt rim, holds still with subtle ambient motion, heat shimmer, light glint. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Insert, ambient motion, heat haze, props locked"
+    },
+    "beat_4vaionx": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Shazza says: \"Right there. Watch out for the leeches. They don't bite hard, they just hitch a ride. Still counts as wildlife, Hansy.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_rao9s0z": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_yoqzu7t": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_36mn01q": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Dazza says: \"Shaz, where do you want the German's luggage? My back's playing up. I think it's the humidity. And this suitcase weighs a bloody tonne.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_9w8vfpb": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Shazza says: \"Stick it behind Unit 4, Dazza. And don't go through their pockets until they're asleep. I mean it this time.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_eu0wvke": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_490ugxj": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_q5nhp2c": {
+      "imageMotion": "Use the provided start image as the first frame. Stack of cash and a sheet of toilet paper on the folding table, holds still with subtle ambient motion, heat shimmer. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Insert, ambient motion, heat haze, props locked"
+    },
+    "hold_shot_jyuv1gh": {
+      "imageMotion": "Use the provided start image as the first frame. Hans, German backpacker, safari outfit, cork hat, camera around neck holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_btctmsu": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_zmn7hn1": {
+      "imageMotion": "Use the provided start image as the first frame. Only Shazza and Hans in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_h0fb2np": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_9rfq6hb": {
+      "imageMotion": "Use the provided start image as the first frame. Only Dazza, Nuggets, and Alien 1 in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_3bzeffw": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_dzipmnl": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_94vykva": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Dazza says: \"Far out, it's dry. Nuggets, tell your foreign exchange mates to stop looking at me with all those eyes. It's creepy. Proper creepy.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_6jr8rt6": {
+      "imageMotion": "Use the provided start image as the first frame. Only Alien 1 and Alien 2 in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 1, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_s79wc4u": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_j6z98qy": {
+      "imageMotion": "Use the provided start image as the first frame. Alien 1, short purple alien, antennae, bulging eyes, bucket hat, high-vis vest holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 1, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_yg3ih49": {
+      "imageMotion": "Use the provided start image as the first frame. The suitcase snaps open by itself, lid rising, holds still with subtle ambient motion. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Insert, ambient motion, heat haze, props locked"
+    },
+    "hold_shot_zpl7u4k": {
+      "imageMotion": "Use the provided start image as the first frame. Rows of skin-care bottles, cameras, and a chrome espresso machine inside the open suitcase, holds still with subtle ambient motion, light glint. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Insert, ambient motion, heat haze, props locked"
+    },
+    "beat_a8fpu10": {
+      "imageMotion": "Use the provided start image as the first frame. Alien 1, short purple alien, antennae, bulging eyes, bucket hat, high-vis vest is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Alien 1 says: \"Bleep bop poopy bop? Bleep bloo zing ding espresso bop! Bleep blorp zee Yup yup yup naaahh.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 1 delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_ve404tf": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Nuggets says: \"A coffee machine? Nah, Dazza prefers instant. Tastes like dirt, but it wakes him up. Proper dirt. Leave the chrome thing.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_qzomo6w": {
+      "imageMotion": "Use the provided start image as the first frame. Alien 2, short purple alien, antennae, bulging eyes, bucket hat, high-vis vest holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 2, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_e22z0hs": {
+      "imageMotion": "Use the provided start image as the first frame. The glowing pulsating blue cube hovering, soft blue light on the dirt, holds still with subtle pulsing glow. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Insert, ambient motion, heat haze, props locked"
+    },
+    "beat_lvcwi5z": {
+      "imageMotion": "Use the provided start image as the first frame. Alien 2, short purple alien, antennae, bulging eyes, bucket hat, high-vis vest is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Alien 2 says: \"Bleep blop zoorp. Bleep ding suitcase trade? Zoorp bloop cube for luggage. Bleep Yup yup yup naaahh.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 2 delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_4uj9bah": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_kpd8gnu": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Nuggets says: \"For the suitcase? Deal. This looks like it can pick up the cricket on the radio. Proper reception. Nice one, boys.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_migcwi8": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_150rkm4": {
+      "imageMotion": "Use the provided start image as the first frame. Only Nuggets, Alien 1, and Alien 2 in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_xgpzqgu": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_u2hwa8o": {
+      "imageMotion": "Use the provided start image as the first frame. Only Nuggets, Alien 1, and Alien 2 in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_emyrlbl": {
+      "imageMotion": "Use the provided start image as the first frame. Only Hans, Nan, and Shazza in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_9snnsvu": {
+      "imageMotion": "Use the provided start image as the first frame. Only Hans and Nan in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_kxhcxxi": {
+      "imageMotion": "Use the provided start image as the first frame. Hans, German backpacker, safari outfit, cork hat, camera around neck is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Hans says: \"The billabong... it had teeth, madame. Something bit my toe. I am not joking. There were teeth.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_0jyol6p": {
+      "imageMotion": "Use the provided start image as the first frame. Nan, tiny elderly woman, hair bun, round glasses, purple housecoat, teacup, cricket bat holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nan, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_9v4m7p0": {
+      "imageMotion": "Use the provided start image as the first frame. Nan, tiny elderly woman, hair bun, round glasses, purple housecoat, teacup, cricket bat is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Nan says: \"That's just Trevor. He's a freshie. Don't look him in the eye, he takes it personal. Always has.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nan delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_fu40khq": {
+      "imageMotion": "Use the provided start image as the first frame. Only Shazza and Dazza in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_xox3mj1": {
+      "imageMotion": "Use the provided start image as the first frame. The cracked dirt shuddering, dust jumping, holds still with subtle ambient tremor. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Insert, ambient motion, heat haze, props locked"
+    },
+    "beat_eq0u5p1": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Dazza says: \"The bubbles are moving sideways, Shaz. That ain't right. Beer bubbles don't do sideways. Something's on.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_2art2yb": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets, soft idle motion, heat haze, flies, props locked"
+    },
+    "hold_shot_t9g969u": {
+      "imageMotion": "Use the provided start image as the first frame. Only Nuggets, Shazza, and Dazza in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_gkj6xa2": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Shazza says: \"Nugget! What did I tell you about bringing radioactive garbage into the living area? I said it twice. Put it down.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_tn7s4b5": {
+      "imageMotion": "Use the provided start image as the first frame. Nuggets, skinny teen, buzz cut, blue and yellow jersey, meat pie is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Nuggets says: \"It's not garbage, Mum. The blokes in Unit 4 traded it for the tourist's luggage. Look, it's got a map of the stars. Proper map. See?\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Nuggets delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_h27wb2a": {
+      "imageMotion": "Use the provided start image as the first frame. Hans, German backpacker, safari outfit, cork hat, camera around neck holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_cqksytg": {
+      "imageMotion": "Use the provided start image as the first frame. Hans, German backpacker, safari outfit, cork hat, camera around neck is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Hans says: \"Mein Gott! Is this... an indigenous celestial navigation device? The cultural depth is astounding! Truly astounding!\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_lyrhdsh": {
+      "imageMotion": "Use the provided start image as the first frame. Alien 1, short purple alien, antennae, bulging eyes, bucket hat, high-vis vest is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Alien 1 says: \"BLEEP BOP POOPY BOP. BLEEP BLOO ZING DING. POOPY BOP ZOORP. BLEEP Yup yup yup naaahh.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Alien 1 delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "hold_shot_o3xxxxd": {
+      "imageMotion": "Use the provided start image as the first frame. A silver glitter burst cloud where the hologram was, holds still with subtle drifting sparkle. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Insert, ambient motion, heat haze, props locked"
+    },
+    "hold_shot_2p6sx2g": {
+      "imageMotion": "Use the provided start image as the first frame. Only Shazza, Dazza, and Hans in frame, no one else appears. Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies. All mouths stay closed. Props and background stay exactly as the start image, nothing new enters frame. No dialogue. Camera holds, no cuts. Same people and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza, soft idle motion, heat haze, flies, props locked"
+    },
+    "beat_vp29iik": {
+      "imageMotion": "Use the provided start image as the first frame. Dazza, wild mullet, stained blue singlet, stubbies, beer can is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Dazza says: \"Tastes like peppermint. I don't mind it. Could be worse. Could be aniseed.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Dazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_zbt5f7d": {
+      "imageMotion": "Use the provided start image as the first frame. Shazza, big blonde hair, leopard-print top, cigarette, arms folded is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Shazza says: \"Alright, safari boy. That holographic light show is an extra fifty bucks per head. Entertainment tax. Non-negotiable.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Shazza delivers the line, subtle lean and gesture, cartoon timing"
+    },
+    "beat_dezo9xh": {
+      "imageMotion": "Use the provided start image as the first frame. Hans, German backpacker, safari outfit, cork hat, camera around neck is prominent, mouth and head move naturally while speaking, subtle gesture. Props and background stay exactly as the start image, nothing new enters frame. Hans says: \"The outback... it is truly magical. Here is your fifty. Magical.\". Camera holds. Same person and objects as the start image. rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, heat haze. Not photographic, not soft Pixar, not photorealistic",
+      "segmentText": "Hans delivers the line, subtle lean and gesture, cartoon timing"
+    }
+  }
+}

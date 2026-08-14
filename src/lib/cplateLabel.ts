@@ -1,4 +1,6 @@
 /** Human label for cplate_20260808000108230_nu2.png → "8 Aug 12:01 am · nu2" */
+import { humanMediaLabel } from "./mediaMatch";
+
 export function formatCplateLabel(fileName: string, mtime?: number): string {
   const m = /^cplate_(\d{17})_([a-z0-9]+)\./i.exec(fileName);
   if (m) {
@@ -21,6 +23,8 @@ export function formatCplateLabel(fileName: string, mtime?: number): string {
     });
     return `${stamp} · ${tag}`;
   }
+  const named = humanMediaLabel(fileName);
+  if (named && named !== fileName) return named;
   if (mtime) {
     return new Date(mtime).toLocaleString(undefined, {
       month: "short",
@@ -29,5 +33,5 @@ export function formatCplateLabel(fileName: string, mtime?: number): string {
       minute: "2-digit",
     });
   }
-  return fileName;
+  return named || fileName;
 }

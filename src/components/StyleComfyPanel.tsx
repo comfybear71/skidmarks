@@ -17,7 +17,14 @@ import {
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import { CRASH_STORY_SAVED, dispatchStorySaved } from "@/lib/crashStyleSync";
 import type { ShowStyleId } from "@/lib/showStylePresets";
-import { crashDeskStoryFetchUrl } from "@/lib/crashActiveEpisode";
+import {
+  CRASH_ACTIVE_EPISODE_EVENT,
+  crashDeskLtxFetchUrl,
+  crashDeskStoryFetchUrl,
+  preferPackedStory,
+  readOpenLtxCache,
+  readOpenStoryCache,
+} from "@/lib/crashActiveEpisode";
 import { LTX_CLOUD_SKIP_BEAT_IDS } from "@/lib/ltxCloudSkip";
 import { MediaThumb } from "@/components/MediaThumb";
 import { AnimateTimeline } from "@/components/AnimateTimeline";
@@ -711,14 +718,21 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const cached = readOpenStoryCache(styleId) as CrashStoryDoc | null;
+      if (cached?.styleId === styleId) setStory(cached);
       const url = crashDeskStoryFetchUrl(styleId);
       if (!url) {
-        setStory(null);
+        if (!cached) setStory(null);
         return;
       }
       const res = await fetch(url);
       const data = await res.json();
-      if (res.ok && data.story) setStory(data.story as CrashStoryDoc);
+      if (res.ok && data.story) {
+        const next = preferPackedStory(data.story, cached) as CrashStoryDoc;
+        if (next?.styleId) setStory(next);
+      } else if (cached?.styleId === styleId) {
+        setStory(cached);
+      }
     } finally {
       setLoading(false);
     }
@@ -727,9 +741,32 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
   /** Restore video players after hard refresh (server results.json). */
   const loadLtxResults = useCallback(async () => {
     try {
-      const res = await fetch(
-        `/api/crash/comfy/ltx?styleId=${encodeURIComponent(styleId)}`,
-      );
+      const apply = (
+        rows: Array<{ beatId: string; url: string; promptId?: string; verdict?: "pass" | "fail" }>,
+      ) => {
+        setLtxByBeat((prev) => {
+          const next = { ...prev };
+          for (const r of rows) {
+            if (!r.beatId || !r.url) continue;
+            if (next[r.beatId]?.inFlight) continue;
+            next[r.beatId] = {
+              step: "done",
+              message: "Done",
+              url: r.url,
+              promptId: r.promptId,
+              inFlight: false,
+              verdict:
+                r.verdict === "pass" || r.verdict === "fail"
+                  ? r.verdict
+                  : undefined,
+            };
+          }
+          return next;
+        });
+      };
+      const cached = readOpenLtxCache(styleId);
+      if (cached.length) apply(cached);
+      const res = await fetch(crashDeskLtxFetchUrl(styleId));
       const data = (await res.json()) as {
         results?: Array<{
           beatId: string;
@@ -739,22 +776,7 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
         }>;
       };
       if (!res.ok || !Array.isArray(data.results)) return;
-      setLtxByBeat((prev) => {
-        const next = { ...prev };
-        for (const r of data.results!) {
-          if (!r.beatId || !r.url) continue;
-          if (next[r.beatId]?.inFlight) continue;
-          next[r.beatId] = {
-            step: "done",
-            message: "Done",
-            url: r.url,
-            promptId: r.promptId,
-            inFlight: false,
-            verdict: r.verdict === "pass" || r.verdict === "fail" ? r.verdict : undefined,
-          };
-        }
-        return next;
-      });
+      apply(data.results);
     } catch {
       /* ignore */
     }
@@ -906,7 +928,11 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
       void loadLipsyncResults();
     };
     window.addEventListener(CRASH_STORY_SAVED, onStory);
-    return () => window.removeEventListener(CRASH_STORY_SAVED, onStory);
+    window.addEventListener(CRASH_ACTIVE_EPISODE_EVENT, onStory);
+    return () => {
+      window.removeEventListener(CRASH_STORY_SAVED, onStory);
+      window.removeEventListener(CRASH_ACTIVE_EPISODE_EVENT, onStory);
+    };
   }, [
     styleId,
     load,

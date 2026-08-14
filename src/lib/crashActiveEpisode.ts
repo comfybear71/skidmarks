@@ -88,30 +88,174 @@ export function writeActiveEpisode(ep: CrashActiveEpisode): void {
   );
 }
 
+const STORY_CACHE_KEY = "crash-lab-open-story-v1";
+
+type OpenStoryCache = {
+  styleId: ShowStyleId;
+  folderName: string;
+  story: unknown;
+};
+
+export function writeOpenStoryCache(opts: {
+  styleId: ShowStyleId;
+  folderName: string;
+  story: unknown;
+}): void {
+  if (typeof window === "undefined") return;
+  if (!opts.story) return;
+  try {
+    const payload: OpenStoryCache = {
+      styleId: opts.styleId,
+      folderName: opts.folderName,
+      story: opts.story,
+    };
+    sessionStorage.setItem(STORY_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function readOpenStoryCache(styleId: ShowStyleId): unknown | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(STORY_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<OpenStoryCache>;
+    if (parsed.styleId !== styleId || !parsed.story) return null;
+    const ep = readActiveEpisode();
+    if (ep && parsed.folderName && parsed.folderName !== ep.folderName) {
+      return null;
+    }
+    return parsed.story;
+  } catch {
+    return null;
+  }
+}
+
+function storyPlateCount(story: unknown): number {
+  if (!story || typeof story !== "object") return 0;
+  const scenes = (story as { scenes?: Array<{ shots?: Array<{ plateFile?: string }> }> }).scenes;
+  if (!Array.isArray(scenes)) return 0;
+  let n = 0;
+  for (const sc of scenes) {
+    for (const sh of sc.shots || []) {
+      if (String(sh.plateFile || "").trim()) n += 1;
+    }
+  }
+  return n;
+}
+
+/** Keep the Open pack if a later GET returns the empty Shot 1 stub. */
+export function preferPackedStory(fetched: unknown, cached: unknown): unknown {
+  const fetchedPlates = storyPlateCount(fetched);
+  const cachedPlates = storyPlateCount(cached);
+  if (cachedPlates > fetchedPlates) return cached;
+  return fetched ?? cached ?? null;
+}
+
+export type CrashLtxThumb = {
+  beatId: string;
+  url: string;
+  file?: string;
+};
+
+const LTX_CACHE_KEY = "crash-lab-open-ltx-v1";
+
+export function writeOpenLtxCache(opts: {
+  styleId: ShowStyleId;
+  folderName: string;
+  results: CrashLtxThumb[];
+}): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      LTX_CACHE_KEY,
+      JSON.stringify({
+        styleId: opts.styleId,
+        folderName: opts.folderName,
+        results: opts.results,
+      }),
+    );
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function readOpenLtxCache(styleId: ShowStyleId): CrashLtxThumb[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(LTX_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as {
+      styleId?: ShowStyleId;
+      folderName?: string;
+      results?: CrashLtxThumb[];
+    };
+    if (parsed.styleId !== styleId || !Array.isArray(parsed.results)) return [];
+    const ep = readActiveEpisode();
+    if (ep && parsed.folderName && parsed.folderName !== ep.folderName) {
+      return [];
+    }
+    return parsed.results.filter((r) => r?.beatId && r?.url);
+  } catch {
+    return [];
+  }
+}
+
 export function clearActiveEpisode(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEY);
+  try {
+    sessionStorage.removeItem(STORY_CACHE_KEY);
+    sessionStorage.removeItem(LTX_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
   window.dispatchEvent(
     new CustomEvent(CRASH_ACTIVE_EPISODE_EVENT, { detail: null }),
   );
 }
 
-/** Story GET url for the open pack, or null when the desk is empty. */
-export function crashDeskStoryFetchUrl(styleId: ShowStyleId): string | null {
+/** Open pack for this show, or null when the desk is empty. */
+export function crashDeskOpenQuery(
+  styleId: ShowStyleId,
+): { styleId: ShowStyleId; folderName: string } | null {
   if (typeof window === "undefined") return null;
   const ep = readActiveEpisode();
   if (!ep?.folderName || ep.styleId !== styleId) return null;
-  return `/api/crash/story?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(ep.folderName)}`;
+  return { styleId, folderName: ep.folderName };
+}
+
+/** Story GET url for the open pack, or null when the desk is empty. */
+export function crashDeskStoryFetchUrl(styleId: ShowStyleId): string | null {
+  const q = crashDeskOpenQuery(styleId);
+  if (!q) return null;
+  return `/api/crash/story?styleId=${encodeURIComponent(q.styleId)}&folderName=${encodeURIComponent(q.folderName)}`;
+}
+
+/** Scene kit GET url for the open pack (Reload places). */
+export function crashDeskSceneKitFetchUrl(styleId: ShowStyleId): string | null {
+  const q = crashDeskOpenQuery(styleId);
+  if (!q) return null;
+  return `/api/crash/scene-kit?styleId=${encodeURIComponent(q.styleId)}&folderName=${encodeURIComponent(q.folderName)}`;
+}
+
+/** Animate LTX results for the open pack (falls back to style-only). */
+export function crashDeskLtxFetchUrl(styleId: ShowStyleId): string {
+  const q = crashDeskOpenQuery(styleId);
+  const params = new URLSearchParams({ styleId });
+  if (q) params.set("folderName", q.folderName);
+  return `/api/crash/comfy/ltx?${params.toString()}`;
 }
 
 export async function fetchStudioFingerprint(
   styleId: ShowStyleId,
 ): Promise<string> {
-  const res = await fetch(
-    `/api/crash/story?styleId=${encodeURIComponent(styleId)}`,
-  );
-  const data = await res.json().catch(() => ({}));
-  const story = data?.story ?? null;
+  const url = crashDeskStoryFetchUrl(styleId);
+  const story = url
+    ? ((await (await fetch(url)).json().catch(() => ({}))) as { story?: unknown })
+        ?.story ?? null
+    : null;
   const sceneKit = readSceneKitDraft();
   return fingerprintStudioState({ story, sceneKit });
 }
@@ -141,5 +285,10 @@ export function setActiveEpisodeFromOpen(opts: {
     label: (opts.label || opts.folderName).trim() || opts.folderName,
     styleId: opts.styleId,
     cleanFingerprint,
+  });
+  writeOpenStoryCache({
+    styleId: opts.styleId,
+    folderName: opts.folderName,
+    story: opts.story,
   });
 }

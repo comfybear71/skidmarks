@@ -11,6 +11,14 @@ import type {
 } from "@/lib/crashStoryTypes";
 import { CRASH_STORY_SAVED, CRASH_SHOW_STYLE_EVENT } from "@/lib/crashStyleSync";
 import {
+  CRASH_ACTIVE_EPISODE_EVENT,
+  crashDeskLtxFetchUrl,
+  crashDeskStoryFetchUrl,
+  preferPackedStory,
+  readOpenLtxCache,
+  readOpenStoryCache,
+} from "@/lib/crashActiveEpisode";
+import {
   COMFY_INTRO_BEAT_ID,
   COMFY_OUTRO_BEAT_ID,
 } from "@/lib/crashComfyStack";
@@ -167,8 +175,14 @@ export function StyleStoryboardPanel({ styleId }: Props) {
 
   const loadVideos = useCallback(async () => {
     try {
+      const cached = readOpenLtxCache(styleId);
+      const map: Record<string, string> = {};
+      for (const r of cached) {
+        if (r.beatId && r.url) map[r.beatId] = r.url;
+      }
+      if (Object.keys(map).length) setVideoByBeat(map);
       const [ltxRes, lsRes] = await Promise.all([
-        fetch(`/api/crash/comfy/ltx?styleId=${encodeURIComponent(styleId)}`),
+        fetch(crashDeskLtxFetchUrl(styleId)),
         fetch(
           `/api/crash/comfy/lipsync?styleId=${encodeURIComponent(styleId)}`,
         ),
@@ -179,7 +193,6 @@ export function StyleStoryboardPanel({ styleId }: Props) {
       const lsData = (await lsRes.json()) as {
         results?: Array<{ beatId: string; url: string }>;
       };
-      const map: Record<string, string> = {};
       if (ltxRes.ok && Array.isArray(ltxData.results)) {
         for (const r of ltxData.results) {
           if (r.beatId && r.url) map[r.beatId] = r.url;
@@ -190,7 +203,7 @@ export function StyleStoryboardPanel({ styleId }: Props) {
           if (r.beatId && r.url) map[r.beatId] = r.url;
         }
       }
-      setVideoByBeat(map);
+      if (Object.keys(map).length) setVideoByBeat(map);
     } catch {
       /* ignore */
     }
@@ -199,14 +212,24 @@ export function StyleStoryboardPanel({ styleId }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const cached = readOpenStoryCache(styleId) as CrashStoryDoc | null;
+      if (cached?.styleId === styleId) setStory(cached);
+      const storyUrl = crashDeskStoryFetchUrl(styleId);
+      if (!storyUrl) {
+        if (!cached) setStory(null);
+        return;
+      }
       const [storyRes, spxRes] = await Promise.all([
-        fetch(`/api/crash/story?styleId=${encodeURIComponent(styleId)}`),
+        fetch(storyUrl),
         fetch(`/api/crash/spx?styleId=${encodeURIComponent(styleId)}`),
       ]);
       const storyData = await storyRes.json();
       const spxData = await spxRes.json();
       if (storyRes.ok && storyData.story) {
-        setStory(storyData.story as CrashStoryDoc);
+        const next = preferPackedStory(storyData.story, cached) as CrashStoryDoc;
+        if (next?.styleId) setStory(next);
+      } else if (cached?.styleId === styleId) {
+        setStory(cached);
       }
       if (spxRes.ok && Array.isArray(spxData.items)) {
         setShelf(
@@ -225,9 +248,11 @@ export function StyleStoryboardPanel({ styleId }: Props) {
     const onStyle = () => void load();
     window.addEventListener(CRASH_STORY_SAVED, onStory);
     window.addEventListener(CRASH_SHOW_STYLE_EVENT, onStyle);
+    window.addEventListener(CRASH_ACTIVE_EPISODE_EVENT, onStory);
     return () => {
       window.removeEventListener(CRASH_STORY_SAVED, onStory);
       window.removeEventListener(CRASH_SHOW_STYLE_EVENT, onStyle);
+      window.removeEventListener(CRASH_ACTIVE_EPISODE_EVENT, onStory);
     };
   }, [load]);
 

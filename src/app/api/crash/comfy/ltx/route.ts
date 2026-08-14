@@ -25,6 +25,8 @@ import { CRASH_DIR } from "@/lib/paths";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { sortableId } from "@/lib/types";
+import { useCloudStore } from "@/lib/cloudEnv";
+import { cloudLtxResultsForStyle } from "@/lib/cloudPack";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -45,11 +47,20 @@ type LtxBody = {
   clear?: boolean;
 };
 
-/** GET ?styleId= — saved LTX pulls for Animate player after refresh */
+/** GET ?styleId=&folderName= — pack mp4s mapped onto story beats */
 export async function GET(req: Request) {
+  const url = new URL(req.url);
   const styleId = (parseStyleCardId(
-    new URL(req.url).searchParams.get("styleId") || "sunny_banks",
+    url.searchParams.get("styleId") || "sunny_banks",
   ) || "sunny_banks") as ShowStyleId;
+  const folderName = url.searchParams.get("folderName")?.trim() || "";
+  if (useCloudStore()) {
+    const results = await cloudLtxResultsForStyle(
+      styleId,
+      folderName || undefined,
+    );
+    return NextResponse.json({ styleId, results });
+  }
   const results = listLtxResultsForStyle(styleId);
   return NextResponse.json({ styleId, results });
 }

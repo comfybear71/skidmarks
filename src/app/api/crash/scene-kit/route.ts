@@ -5,10 +5,23 @@ import {
   writeStudioSceneKitDiskDraft,
   type SceneKitDiskDraft,
 } from "@/lib/crashSceneKitStore";
+import { useCloudStore } from "@/lib/cloudEnv";
+import { readCloudEpisodeSceneKit } from "@/lib/cloudPack";
+import { parseStyleCardId } from "@/lib/styleCardThumbs";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(req: Request) {
+  if (useCloudStore()) {
+    const url = new URL(req.url);
+    const styleId = parseStyleCardId(url.searchParams.get("styleId"));
+    const folderName = url.searchParams.get("folderName")?.trim() || "";
+    if (!styleId || !folderName) {
+      return NextResponse.json({ draft: null });
+    }
+    const draft = await readCloudEpisodeSceneKit(styleId, folderName);
+    return NextResponse.json({ draft });
+  }
   const draft = readSceneKitDiskDraft();
   return NextResponse.json({ draft });
 }

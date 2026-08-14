@@ -42,7 +42,13 @@ import {
   getShowStylePreset,
   type ShowStyleId,
 } from "@/lib/showStylePresets";
+import { humanMediaLabel } from "@/lib/mediaMatch";
 import { useScriptDeskWatch } from "@/hooks/useScriptDeskWatch";
+import {
+  crashDeskOpenQuery,
+  crashDeskStoryFetchUrl,
+} from "@/lib/crashActiveEpisode";
+import { openCrashLabPackOnDesk } from "@/lib/crashDeskHydrate";
 
 type FaceThumb = { key: string; name?: string; brief?: string };
 type PlaceThumb = { key: string; name?: string };
@@ -438,9 +444,9 @@ export function CrashSceneKitPanel() {
     setBusy(true);
     setStatus("");
     try {
-      const res = await fetch(
-        `/api/crash/story?styleId=${encodeURIComponent(styleId)}`,
-      );
+      const storyUrl = crashDeskStoryFetchUrl(styleId);
+      if (!storyUrl) throw new Error("Open an episode first");
+      const res = await fetch(storyUrl);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Story load failed");
       const doc = data.story || data;
@@ -475,7 +481,7 @@ export function CrashSceneKitPanel() {
     }
     copyFinishedPlate({
       fileName,
-      label: `Plate ${index + 1}`,
+      label: humanMediaLabel(fileName),
       slot: index + 1,
     });
     setStatus(
@@ -909,17 +915,28 @@ export function CrashSceneKitPanel() {
     setStatus(`Place slot ${index + 1} cleared`);
   }
 
-  /** Pack / disk wins — fixes stale browser kit missing a place after refresh. */
+  /** Same path as Open episode — disk GET is empty on Vercel. */
   async function reloadPlacesFromPack() {
+    if (!styleId) {
+      setStatus("Pick Skidmarks first");
+      return;
+    }
+    const pack = crashDeskOpenQuery(styleId);
+    if (!pack) {
+      setStatus("Open an episode first — Reload places reads that pack");
+      return;
+    }
     setBusy(true);
     setStatus("Reloading places from pack…");
     try {
-      const restored = await hydrateSceneKitFromDisk();
-      if (!restored) throw new Error("Could not read pack scene kit");
+      await openCrashLabPackOnDesk(pack);
+      const restored = readSceneKitDraft();
       applyDraft(restored);
       setTick((n) => n + 1);
       const n = restored.worldKeys.filter(Boolean).length;
-      setStatus(`Places reloaded — ${n} location${n === 1 ? "" : "s"}`);
+      setStatus(
+        `Places reloaded — ${n} location${n === 1 ? "" : "s"} from ${pack.folderName}`,
+      );
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1679,13 +1696,13 @@ export function CrashSceneKitPanel() {
                                   kind: "cplate",
                                   styleId,
                                   fileName,
-                                  label: `Plate ${index + 1}`,
+                                  label: humanMediaLabel(fileName),
                                 });
                               }}
                               onClick={() =>
                                 setLightbox({
                                   src,
-                                  label: `Plate ${index + 1}`,
+                                  label: humanMediaLabel(fileName),
                                 })
                               }
                             />
@@ -1695,8 +1712,8 @@ export function CrashSceneKitPanel() {
                             </div>
                           )}
                           <div className="mt-0.5 flex items-center justify-between gap-1">
-                            <p className="truncate text-[10px]">
-                              Plate {index + 1}
+                            <p className="truncate text-[10px]" title={fileName}>
+                              {humanMediaLabel(fileName)}
                             </p>
                             {fileName ? (
                               <button

@@ -243,10 +243,12 @@ export function writeSceneKitDraft(
   return next;
 }
 
-/** Load disk restore into local Scene kit (Open episode / mount). */
-export async function hydrateSceneKitFromDisk(): Promise<SceneKitDraft | null> {
+/** Load pack/disk restore into local Scene kit (Open episode / Reload places). */
+export async function hydrateSceneKitFromDisk(
+  url?: string | null,
+): Promise<SceneKitDraft | null> {
   try {
-    const res = await fetch("/api/crash/scene-kit", { cache: "no-store" });
+    const res = await fetch(url || "/api/crash/scene-kit", { cache: "no-store" });
     const data = await res.json();
     if (!res.ok || !data.draft) return null;
     const d = data.draft as Partial<SceneKitDraft>;
