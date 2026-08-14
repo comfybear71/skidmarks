@@ -252,6 +252,16 @@ export function findCrashVoiceByName(
   return pickBestVoiceSlot(loose);
 }
 
+/** Every cast slot in this show with a locked voice_id — donor pool for reuse-only casting. */
+export function listApprovedCrashVoiceSlots(
+  styleId: ShowStyleId,
+): CrashVoiceSlot[] {
+  const manifest = readCrashVoiceManifestRaw(styleId);
+  return Object.values(manifest).filter((slot) =>
+    slot.approvedVoiceId?.trim(),
+  );
+}
+
 function voiceLimitError(msg: string): boolean {
   const m = msg.toLowerCase();
   return m.includes("maximum amount") || m.includes("custom voice limit");
@@ -418,7 +428,7 @@ export async function refreshCrashVoiceId(
   return voiceId;
 }
 
-function ensureVoiceSlotFromCards(
+export function ensureVoiceSlotFromCards(
   styleId: ShowStyleId,
   castName: string,
 ): CrashVoiceSlot | null {
