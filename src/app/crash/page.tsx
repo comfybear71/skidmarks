@@ -17,6 +17,7 @@ import { CrashSceneKitCard } from "@/components/CrashSceneKitCard";
 import { CrashScriptUploadCard } from "@/components/CrashScriptUploadCard";
 import { CrashCharacterRosterCard } from "@/components/CrashCharacterRosterCard";
 import { CrashScriptStoryboardCard } from "@/components/CrashScriptStoryboardCard";
+import { CrashCompositorCard } from "@/components/CrashCompositorCard";
 import { useCrashDeskMode } from "@/hooks/useCrashDeskMode";
 import { usePanelPointerDrag } from "@/hooks/usePanelPointerDrag";
 import { coldStartEmptyCrashDesk } from "@/lib/crashRestoreDesk";
@@ -539,6 +540,7 @@ export default function CrashLabPage() {
       <CrashScriptUploadCard />
       <CrashCharacterRosterCard />
       <CrashScriptStoryboardCard />
+      <CrashCompositorCard />
       {!hideMorphOnNarrowStack ? (
       <div
         className="fixed flex flex-col overflow-hidden rounded-sm border border-[var(--line)] bg-[var(--panel)] shadow-lg"

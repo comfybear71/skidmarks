@@ -54,7 +54,8 @@ export type CrashPanelId =
   | "storyboard"
   | "script-upload"
   | "character-roster"
-  | "script-storyboard";
+  | "script-storyboard"
+  | "compositor";
 
 /**
  * Stack strip order (Animate-first). Character → Image gen → Voice → Scene kit → Animate
@@ -73,6 +74,7 @@ export const CRASH_DESK_LIVE_PANELS: CrashPanelId[] = [
   "script-upload",
   "character-roster",
   "script-storyboard",
+  "compositor",
 ];
 
 /** Full id list including retired Story (geom / old keys). Strip Y uses LIVE only. */
@@ -300,6 +302,12 @@ function openColumnsAt(
     w: 360,
     h: 500,
   };
+  const compositor: CardGeom = {
+    x: viewW - 1140 > margin ? viewW - 1140 : margin,
+    y: top,
+    w: 380,
+    h: 560,
+  };
 
   return {
     script,
@@ -315,6 +323,7 @@ function openColumnsAt(
     "script-upload": scriptUpload,
     "character-roster": characterRoster,
     "script-storyboard": scriptStoryboard,
+    compositor,
   };
 }
 
