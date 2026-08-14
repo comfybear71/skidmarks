@@ -75,6 +75,18 @@ function subscribeToolbarStyle(cb: () => void): () => void {
   };
 }
 
+/** Icon on mobile (button shrinks to a square), text label from md up — same button, same click behavior either way. */
+function BtnFace({ icon, label }: { icon: string; label: string }) {
+  return (
+    <>
+      <span aria-hidden="true" className="md:hidden">
+        {icon}
+      </span>
+      <span className="hidden md:inline">{label}</span>
+    </>
+  );
+}
+
 /** Fixed bar under site header — Stack / Open workspace / Free flow / Reset. */
 export function CrashDeskToolbar() {
   const storedEpisode = useSyncExternalStore(
@@ -382,51 +394,59 @@ export function CrashDeskToolbar() {
         className={`${menuOpen ? "flex" : "hidden"} pointer-events-auto flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--panel)]/95 px-4 py-1.5 backdrop-blur md:flex`}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <span className="mr-1 text-[9px] uppercase tracking-[0.2em] text-[var(--acid-deep)]">
+        <span className="hidden text-[9px] uppercase tracking-[0.2em] text-[var(--acid-deep)] md:mr-1 md:inline">
           Layout
         </span>
         <button
           type="button"
-          className={`touch-manipulation rounded-sm border px-2.5 py-2 text-[10px] uppercase tracking-wide ${
+          aria-label="Stack"
+          title="Stack"
+          className={`touch-manipulation flex h-9 w-9 items-center justify-center rounded-sm border text-base md:h-auto md:w-auto md:px-2.5 md:py-2 md:text-[10px] md:uppercase md:tracking-wide ${
             mode === "stack"
               ? "border-[var(--acid)] bg-[var(--acid)]/15 text-[var(--acid)]"
               : "border-[var(--line)] text-[var(--chrome-dim)] hover:border-[var(--acid)] hover:text-[var(--acid)]"
           }`}
           onClick={() => setDesk("stack")}
         >
-          Stack
+          <BtnFace icon="▤" label="Stack" />
         </button>
         <button
           type="button"
-          className={`touch-manipulation rounded-sm border px-2.5 py-2 text-[10px] uppercase tracking-wide ${
+          aria-label="Open workspace"
+          title="Open workspace"
+          className={`touch-manipulation flex h-9 w-9 items-center justify-center rounded-sm border text-base md:h-auto md:w-auto md:px-2.5 md:py-2 md:text-[10px] md:uppercase md:tracking-wide ${
             mode === "grid"
               ? "border-[var(--magenta-hot)] bg-[var(--magenta)]/15 text-[var(--magenta-hot)]"
               : "border-[var(--line)] text-[var(--chrome-dim)] hover:border-[var(--magenta-hot)] hover:text-[var(--magenta-hot)]"
           }`}
           onClick={() => setDesk("grid")}
         >
-          Open workspace
+          <BtnFace icon="▦" label="Open workspace" />
         </button>
         <button
           type="button"
-          className={`touch-manipulation rounded-sm border px-2.5 py-2 text-[10px] uppercase tracking-wide ${
+          aria-label="Free flow"
+          title="Free flow"
+          className={`touch-manipulation flex h-9 w-9 items-center justify-center rounded-sm border text-base md:h-auto md:w-auto md:px-2.5 md:py-2 md:text-[10px] md:uppercase md:tracking-wide ${
             mode === "free"
               ? "border-[var(--chrome)] bg-[var(--chrome)]/15 text-[var(--chrome)]"
               : "border-[var(--line)] text-[var(--chrome-dim)] hover:border-[var(--chrome)] hover:text-[var(--chrome)]"
           }`}
           onClick={() => setDesk("free")}
         >
-          Free flow
+          <BtnFace icon="▧" label="Free flow" />
         </button>
         <button
           type="button"
-          className="touch-manipulation rounded-sm border border-[var(--line)] px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--chrome-dim)] hover:border-[var(--chrome)] hover:text-[var(--chrome)]"
+          aria-label="Reset layout"
+          title="Reset layout"
+          className="touch-manipulation flex h-9 w-9 items-center justify-center rounded-sm border border-[var(--line)] text-base text-[var(--chrome-dim)] hover:border-[var(--chrome)] hover:text-[var(--chrome)] md:h-auto md:w-auto md:px-2.5 md:py-2 md:text-[10px] md:uppercase md:tracking-wide"
           onClick={() => {
             resetCrashDeskLayout();
             setMenuOpen(false);
           }}
         >
-          Reset layout
+          <BtnFace icon="↺" label="Reset layout" />
         </button>
         <select
           value={liveStyle}
@@ -436,7 +456,7 @@ export function CrashDeskToolbar() {
             setCursorStyle(id);
             switchCrashLabShow(id);
           }}
-          className="touch-manipulation rounded-sm border border-[var(--line)] bg-[var(--void)]/40 px-1.5 py-2 text-[10px] text-[var(--chrome)]"
+          className="touch-manipulation w-24 rounded-sm border border-[var(--line)] bg-[var(--void)]/40 px-1.5 py-2 text-[10px] text-[var(--chrome)] md:w-auto"
           title="Show for CURSOR / PROMPT build"
         >
           {CURSOR_STYLE_OPTIONS.map((o) => (
@@ -445,63 +465,70 @@ export function CrashDeskToolbar() {
             </option>
           ))}
         </select>
-        <button
-          type="button"
-          disabled={tourBusy}
-          className="touch-manipulation rounded-sm border border-[var(--magenta-hot)] bg-[var(--magenta-hot)]/15 px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/25 disabled:opacity-40"
-          onClick={() => {
-            void onCursorTour();
-            setMenuOpen(false);
-          }}
-          title="New CURSOR_ pack → Character → Cast → Places… You only click Proceed"
-        >
-          {tourBusy ? "Cursor…" : "Cursor"}
-        </button>
-        <button
-          type="button"
-          disabled={tourBusy}
-          className="touch-manipulation rounded-sm border border-[var(--acid)] bg-[var(--acid)]/15 px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--acid)] hover:bg-[var(--acid)]/25 disabled:opacity-40"
-          onClick={() => {
-            setPromptOpen(true);
-            setPromptFront((n) => n + 1);
-            setMenuOpen(false);
-          }}
-          title="Paste full script → next numbered episode folder"
-        >
-          Prompt
-        </button>
+        {/* Cursor + Prompt — grouped into one connected pill on mobile; independent pills at md and up. */}
+        <div className="flex overflow-hidden rounded-sm border border-[var(--line)] md:contents">
+          <button
+            type="button"
+            disabled={tourBusy}
+            aria-label="Cursor"
+            className="touch-manipulation flex h-9 flex-1 items-center justify-center border-r border-[var(--line)] bg-[var(--magenta-hot)]/15 px-2 text-base text-[var(--magenta-hot)] disabled:opacity-40 md:h-auto md:flex-none md:rounded-sm md:border md:border-[var(--magenta-hot)] md:px-2.5 md:py-2 md:text-[10px] md:uppercase md:tracking-wide md:hover:bg-[var(--magenta-hot)]/25"
+            onClick={() => {
+              void onCursorTour();
+              setMenuOpen(false);
+            }}
+            title="New CURSOR_ pack → Character → Cast → Places… You only click Proceed"
+          >
+            <BtnFace icon="✳" label={tourBusy ? "Cursor…" : "Cursor"} />
+          </button>
+          <button
+            type="button"
+            disabled={tourBusy}
+            aria-label="Prompt"
+            className="touch-manipulation flex h-9 flex-1 items-center justify-center bg-[var(--acid)]/15 px-2 text-base text-[var(--acid)] disabled:opacity-40 md:h-auto md:flex-none md:rounded-sm md:border md:border-[var(--acid)] md:px-2.5 md:py-2 md:text-[10px] md:uppercase md:tracking-wide md:hover:bg-[var(--acid)]/25"
+            onClick={() => {
+              setPromptOpen(true);
+              setPromptFront((n) => n + 1);
+              setMenuOpen(false);
+            }}
+            title="Paste full script → next numbered episode folder"
+          >
+            <BtnFace icon="✎" label="Prompt" />
+          </button>
+        </div>
 
         {!episodeOpen ? (
           <>
             <button
               type="button"
               disabled={tourBusy || newEpisodeBusy}
-              className="touch-manipulation rounded-sm border border-[var(--magenta-hot)]/70 px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/10 disabled:opacity-40"
+              aria-label="New episode"
+              title="Blank story for a new gag — dialogue parked in _cleared/, plates stay"
+              className="touch-manipulation flex h-9 w-9 items-center justify-center rounded-sm border border-[var(--magenta-hot)]/70 text-base text-[var(--magenta-hot)] disabled:opacity-40 md:h-auto md:w-auto md:px-2.5 md:py-2 md:text-[10px] md:uppercase md:tracking-wide md:hover:bg-[var(--magenta-hot)]/10"
               onClick={() => {
                 void onNewEpisode();
                 setMenuOpen(false);
               }}
-              title="Blank story for a new gag — dialogue parked in _cleared/, plates stay"
             >
-              {newEpisodeBusy ? "New…" : "New episode"}
+              <BtnFace icon="+" label={newEpisodeBusy ? "New…" : "New episode"} />
             </button>
             <button
               type="button"
               disabled={tourBusy}
-              className="touch-manipulation rounded-sm border border-[var(--magenta-hot)]/60 px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/10 disabled:opacity-40"
+              aria-label="Open episode"
+              title="Open a _CRASH_LAB episode — fills Scene kit, Animate cut, Storyboard"
+              className="touch-manipulation flex h-9 w-9 items-center justify-center rounded-sm border border-[var(--magenta-hot)]/60 text-base text-[var(--magenta-hot)] disabled:opacity-40 md:h-auto md:w-auto md:px-2.5 md:py-2 md:text-[10px] md:uppercase md:tracking-wide md:hover:bg-[var(--magenta-hot)]/10"
               onClick={() => {
                 setEpisodeMode("open");
                 setMenuOpen(false);
               }}
-              title="Open a _CRASH_LAB episode — fills Scene kit, Animate cut, Storyboard"
             >
-              Open episode
+              <BtnFace icon="▸" label="Open episode" />
             </button>
           </>
         ) : (
           <>
             <span
-              className="max-w-[14rem] truncate rounded-sm border border-[var(--acid)]/50 bg-[var(--acid)]/10 px-2.5 py-2 text-[10px] font-medium tracking-wide text-[var(--acid)]"
+              className="max-w-[9rem] truncate rounded-sm border border-[var(--acid)]/50 bg-[var(--acid)]/10 px-2.5 py-2 text-[10px] font-medium tracking-wide text-[var(--acid)] md:max-w-[14rem]"
               title={liveEpisode?.folderName}
             >
               {liveEpisode?.folderName}
@@ -509,30 +536,32 @@ export function CrashDeskToolbar() {
             <button
               type="button"
               disabled={tourBusy || saveBusy || !dirty}
-              className="touch-manipulation rounded-sm border border-[var(--chrome)]/50 px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--chrome)] hover:border-[var(--chrome)] hover:bg-[var(--chrome)]/10 disabled:opacity-40"
-              onClick={() => {
-                void onSaveEpisode();
-                setMenuOpen(false);
-              }}
+              aria-label="Save episode"
               title={
                 dirty
                   ? `Save into _CRASH_LAB\\${liveEpisode?.folderName}`
                   : "Nothing changed since last open/save"
               }
+              className="touch-manipulation flex h-9 w-9 items-center justify-center rounded-sm border border-[var(--chrome)]/50 text-base text-[var(--chrome)] disabled:opacity-40 md:h-auto md:w-auto md:px-2.5 md:py-2 md:text-[10px] md:uppercase md:tracking-wide md:hover:bg-[var(--chrome)]/10"
+              onClick={() => {
+                void onSaveEpisode();
+                setMenuOpen(false);
+              }}
             >
-              {saveBusy ? "Saving…" : "Save episode"}
+              <BtnFace icon="✓" label={saveBusy ? "Saving…" : "Save episode"} />
             </button>
             <button
               type="button"
               disabled={saveBusy}
-              className="touch-manipulation rounded-sm border border-[var(--line)] px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--chrome-dim)] hover:border-[var(--fail)] hover:text-[var(--fail)] disabled:opacity-40"
+              aria-label="Close episode"
+              title="Close this pack — New / Open come back"
+              className="touch-manipulation flex h-9 w-9 items-center justify-center rounded-sm border border-[var(--line)] text-base text-[var(--chrome-dim)] disabled:opacity-40 md:h-auto md:w-auto md:px-2.5 md:py-2 md:text-[10px] md:uppercase md:tracking-wide md:hover:border-[var(--fail)] md:hover:text-[var(--fail)]"
               onClick={() => {
                 void onCloseEpisode();
                 setMenuOpen(false);
               }}
-              title="Close this pack — New / Open come back"
             >
-              Close
+              <BtnFace icon="✕" label="Close" />
             </button>
           </>
         )}
