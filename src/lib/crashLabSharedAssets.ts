@@ -4,6 +4,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { runningOnVercel } from "./cloudEnv";
 import { crashLabRootForStyle } from "./showArchivePaths";
 import {
   getShowStylePreset,
@@ -37,6 +38,10 @@ export function mirrorFaceIntoCrashLabCharacters(opts: {
   thumbKey: string;
   name: string;
 }): string | null {
+  // MY MOVIES\{show}\_CRASH_LAB lives on the real PC disk (MOVIES_ROOT) —
+  // there's nothing to mirror into on Vercel, and mkdirSync there throws
+  // (read-only deployment filesystem), so skip rather than 500 the caller.
+  if (runningOnVercel()) return null;
   const src = resolveStyleCardThumbPath(opts.styleId, opts.thumbKey);
   if (!src) return null;
   const safe =
@@ -63,6 +68,12 @@ export function syncCrashLabCharactersForSceneKit(styleId: ShowStyleId): {
   castKeys: string[];
   imported: string[];
 } {
+  // Same MOVIES_ROOT-only disk as mirrorFaceIntoCrashLabCharacters — no
+  // local _CRASH_LAB\images\characters\ to read on Vercel, so return the
+  // empty-but-valid shape instead of throwing on the read-only filesystem.
+  if (runningOnVercel()) {
+    return { parkKeys: [], guestKeys: [], castKeys: [], imported: [] };
+  }
   const preset = getShowStylePreset(styleId);
   const parkNameList = preset.presetCast.map((c) => c.name.trim());
   const parkNameSet = new Set(parkNameList.map((n) => n.toLowerCase()));
