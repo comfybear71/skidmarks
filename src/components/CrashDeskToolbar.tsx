@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import {
   CRASH_DESK_MODE_EVENT,
-  CRASH_DESK_TOP_EVENT,
   ensureDeskTopObserver,
   enterFreeFlowMode,
   openCrashDeskGrid,
@@ -89,6 +88,7 @@ export function CrashDeskToolbar() {
     () => "skidmarks" as ShowStyleId,
   );
   const [top, setTop] = useState(72);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [mode, setMode] = useState<CrashDeskMode>(() =>
     typeof window !== "undefined" ? readCrashDeskMode() : "stack",
   );
@@ -138,11 +138,22 @@ export function CrashDeskToolbar() {
   }, [measureHeader]);
 
   // Header height can change after first paint (logo image finishes loading,
-  // webfont swap re-wraps the nav) — re-measure whenever the shared desk-top
-  // observer detects that, instead of trusting the one-time mount reading.
+  // webfont swap re-wraps the nav, the mobile hamburger opens) — watch the
+  // header directly. deskTopY()/CRASH_DESK_TOP_EVENT reads THIS toolbar's own
+  // bottom edge (to place panels below it), so it can never notice the
+  // header changing size out from under a toolbar that's already mounted —
+  // that's a different, circular signal from what this needs.
   useEffect(() => {
-    window.addEventListener(CRASH_DESK_TOP_EVENT, measureHeader);
-    return () => window.removeEventListener(CRASH_DESK_TOP_EVENT, measureHeader);
+    const header = document.querySelector("header");
+    if (!header) return;
+    const ro = new ResizeObserver(() => measureHeader());
+    ro.observe(header);
+    header.querySelectorAll("img").forEach((img) => {
+      if (!(img as HTMLImageElement).complete) {
+        img.addEventListener("load", () => measureHeader(), { once: true });
+      }
+    });
+    return () => ro.disconnect();
   }, [measureHeader]);
 
   useEffect(() => {
@@ -198,11 +209,19 @@ export function CrashDeskToolbar() {
     refreshDeskTop();
   }, [top]);
 
+  // Toolbar's own height changes when the mobile drawer opens/closes —
+  // panels below it (deskTopY() reads this element's bounding rect) need
+  // to know so they don't sit under the expanded menu.
+  useEffect(() => {
+    refreshDeskTop();
+  }, [menuOpen]);
+
   function setDesk(next: CrashDeskMode) {
     if (next === "grid") openCrashDeskGrid();
     else if (next === "free") enterFreeFlowMode();
     else writeCrashDeskMode("stack");
     setMode(next);
+    setMenuOpen(false);
   }
 
   async function onCursorTour() {
@@ -343,7 +362,24 @@ export function CrashDeskToolbar() {
       style={{ top: px(top), bottom: "auto", height: "auto" }}
     >
       <div
-        className="pointer-events-auto flex flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--panel)]/95 px-4 py-1.5 backdrop-blur"
+        className="pointer-events-auto flex items-center justify-between gap-2 border-b border-[var(--line)] bg-[var(--panel)]/95 px-4 py-2 backdrop-blur md:hidden"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <span className="min-w-0 truncate text-[10px] uppercase tracking-wide text-[var(--chrome-dim)]">
+          {episodeOpen ? liveEpisode?.folderName : `Layout · ${mode}`}
+        </span>
+        <button
+          type="button"
+          aria-expanded={menuOpen}
+          aria-label={menuOpen ? "Close desk menu" : "Open desk menu"}
+          className="touch-manipulation flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-[var(--line)] text-base text-[var(--chrome)]"
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          {menuOpen ? "✕" : "☰"}
+        </button>
+      </div>
+      <div
+        className={`${menuOpen ? "flex" : "hidden"} pointer-events-auto flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--panel)]/95 px-4 py-1.5 backdrop-blur md:flex`}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <span className="mr-1 text-[9px] uppercase tracking-[0.2em] text-[var(--acid-deep)]">
@@ -384,8 +420,11 @@ export function CrashDeskToolbar() {
         </button>
         <button
           type="button"
-          className="rounded-sm border border-[var(--line)] px-2.5 py-1 text-[10px] uppercase tracking-wide text-[var(--chrome-dim)] hover:border-[var(--chrome)] hover:text-[var(--chrome)]"
-          onClick={() => resetCrashDeskLayout()}
+          className="touch-manipulation rounded-sm border border-[var(--line)] px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--chrome-dim)] hover:border-[var(--chrome)] hover:text-[var(--chrome)]"
+          onClick={() => {
+            resetCrashDeskLayout();
+            setMenuOpen(false);
+          }}
         >
           Reset layout
         </button>
@@ -409,8 +448,11 @@ export function CrashDeskToolbar() {
         <button
           type="button"
           disabled={tourBusy}
-          className="rounded-sm border border-[var(--magenta-hot)] bg-[var(--magenta-hot)]/15 px-2.5 py-1 text-[10px] uppercase tracking-wide text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/25 disabled:opacity-40"
-          onClick={() => void onCursorTour()}
+          className="touch-manipulation rounded-sm border border-[var(--magenta-hot)] bg-[var(--magenta-hot)]/15 px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/25 disabled:opacity-40"
+          onClick={() => {
+            void onCursorTour();
+            setMenuOpen(false);
+          }}
           title="New CURSOR_ pack → Character → Cast → Places… You only click Proceed"
         >
           {tourBusy ? "Cursor…" : "Cursor"}
@@ -418,10 +460,11 @@ export function CrashDeskToolbar() {
         <button
           type="button"
           disabled={tourBusy}
-          className="rounded-sm border border-[var(--acid)] bg-[var(--acid)]/15 px-2.5 py-1 text-[10px] uppercase tracking-wide text-[var(--acid)] hover:bg-[var(--acid)]/25 disabled:opacity-40"
+          className="touch-manipulation rounded-sm border border-[var(--acid)] bg-[var(--acid)]/15 px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--acid)] hover:bg-[var(--acid)]/25 disabled:opacity-40"
           onClick={() => {
             setPromptOpen(true);
             setPromptFront((n) => n + 1);
+            setMenuOpen(false);
           }}
           title="Paste full script → next numbered episode folder"
         >
@@ -433,8 +476,11 @@ export function CrashDeskToolbar() {
             <button
               type="button"
               disabled={tourBusy || newEpisodeBusy}
-              className="rounded-sm border border-[var(--magenta-hot)]/70 px-2.5 py-1 text-[10px] uppercase tracking-wide text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/10 disabled:opacity-40"
-              onClick={() => void onNewEpisode()}
+              className="touch-manipulation rounded-sm border border-[var(--magenta-hot)]/70 px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/10 disabled:opacity-40"
+              onClick={() => {
+                void onNewEpisode();
+                setMenuOpen(false);
+              }}
               title="Blank story for a new gag — dialogue parked in _cleared/, plates stay"
             >
               {newEpisodeBusy ? "New…" : "New episode"}
@@ -442,8 +488,11 @@ export function CrashDeskToolbar() {
             <button
               type="button"
               disabled={tourBusy}
-              className="rounded-sm border border-[var(--magenta-hot)]/60 px-2.5 py-1 text-[10px] uppercase tracking-wide text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/10 disabled:opacity-40"
-              onClick={() => setEpisodeMode("open")}
+              className="touch-manipulation rounded-sm border border-[var(--magenta-hot)]/60 px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/10 disabled:opacity-40"
+              onClick={() => {
+                setEpisodeMode("open");
+                setMenuOpen(false);
+              }}
               title="Open a _CRASH_LAB episode — fills Scene kit, Animate cut, Storyboard"
             >
               Open episode
@@ -460,8 +509,11 @@ export function CrashDeskToolbar() {
             <button
               type="button"
               disabled={tourBusy || saveBusy || !dirty}
-              className="rounded-sm border border-[var(--chrome)]/50 px-2.5 py-1 text-[10px] uppercase tracking-wide text-[var(--chrome)] hover:border-[var(--chrome)] hover:bg-[var(--chrome)]/10 disabled:opacity-40"
-              onClick={() => void onSaveEpisode()}
+              className="touch-manipulation rounded-sm border border-[var(--chrome)]/50 px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--chrome)] hover:border-[var(--chrome)] hover:bg-[var(--chrome)]/10 disabled:opacity-40"
+              onClick={() => {
+                void onSaveEpisode();
+                setMenuOpen(false);
+              }}
               title={
                 dirty
                   ? `Save into _CRASH_LAB\\${liveEpisode?.folderName}`
@@ -473,8 +525,11 @@ export function CrashDeskToolbar() {
             <button
               type="button"
               disabled={saveBusy}
-              className="rounded-sm border border-[var(--line)] px-2.5 py-1 text-[10px] uppercase tracking-wide text-[var(--chrome-dim)] hover:border-[var(--fail)] hover:text-[var(--fail)] disabled:opacity-40"
-              onClick={() => void onCloseEpisode()}
+              className="touch-manipulation rounded-sm border border-[var(--line)] px-2.5 py-2 text-[10px] uppercase tracking-wide text-[var(--chrome-dim)] hover:border-[var(--fail)] hover:text-[var(--fail)] disabled:opacity-40"
+              onClick={() => {
+                void onCloseEpisode();
+                setMenuOpen(false);
+              }}
               title="Close this pack — New / Open come back"
             >
               Close
