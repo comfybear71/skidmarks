@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import {
   CRASH_DESK_MODE_EVENT,
+  CRASH_DESK_TOP_EVENT,
   ensureDeskTopObserver,
   enterFreeFlowMode,
   openCrashDeskGrid,
@@ -134,6 +135,14 @@ export function CrashDeskToolbar() {
     const style = ep?.styleId || loadShowStyleIdOptional();
     if (style) setCursorStyle(style);
     if (ep) setActiveEpisode(ep);
+  }, [measureHeader]);
+
+  // Header height can change after first paint (logo image finishes loading,
+  // webfont swap re-wraps the nav) — re-measure whenever the shared desk-top
+  // observer detects that, instead of trusting the one-time mount reading.
+  useEffect(() => {
+    window.addEventListener(CRASH_DESK_TOP_EVENT, measureHeader);
+    return () => window.removeEventListener(CRASH_DESK_TOP_EVENT, measureHeader);
   }, [measureHeader]);
 
   useEffect(() => {
