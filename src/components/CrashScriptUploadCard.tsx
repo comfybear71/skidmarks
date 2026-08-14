@@ -5,20 +5,22 @@ import { Btn } from "@/components/ui";
 import { CrashLabCollapseBtn } from "@/components/CrashLabCollapseBtn";
 import { useCrashDeskMode } from "@/hooks/useCrashDeskMode";
 import { usePanelPointerDrag } from "@/hooks/usePanelPointerDrag";
-import { useActiveShow } from "@/hooks/useActiveShow";
+import { useCrashActiveStyle } from "@/hooks/useCrashActiveStyle";
 import {
   CRASH_PANEL_TITLE_BAR,
   CRASH_PANEL_TITLE_COL,
   CRASH_PANEL_SUBTITLE_COL,
 } from "@/lib/crashLabPanel";
 import { bumpCrashLabZ } from "@/lib/crashLabZ";
+import { dispatchStorySaved } from "@/lib/crashStyleSync";
+import type { ImportedScriptEpisode } from "@/lib/scriptImport";
 import type { ProductionScript } from "@/lib/types";
 
 const SCRIPT_UPLOAD_MIN_W = 320;
 const SCRIPT_UPLOAD_MIN_H = 240;
 
 export function CrashScriptUploadCard() {
-  const { activeShow } = useActiveShow();
+  const activeStyle = useCrashActiveStyle();
   const {
     geom,
     collapsed,
@@ -40,6 +42,9 @@ export function CrashScriptUploadCard() {
   const [parsedScript, setParsedScript] = useState<ProductionScript | null>(
     null,
   );
+  const [importing, setImporting] = useState(false);
+  const [imported, setImported] = useState<ImportedScriptEpisode[] | null>(null);
+  const [importError, setImportError] = useState("");
 
   const bringFront = useCallback(() => {
     setZ(bumpCrashLabZ());
@@ -69,7 +74,7 @@ export function CrashScriptUploadCard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: scriptText,
-          showSlug: activeShow.toLowerCase().replace(/\s+/g, "-"),
+          showSlug: activeStyle,
           title,
         }),
       });
@@ -81,6 +86,8 @@ export function CrashScriptUploadCard() {
 
       const parsed = (await response.json()) as ProductionScript;
       setParsedScript(parsed);
+      setImported(null);
+      setImportError("");
       setSuccess(
         `Parsed ${parsed.parsedEpisodes.length} episode(s), ${parsed.parsedCharacters.length} character(s)`,
       );
@@ -98,7 +105,33 @@ export function CrashScriptUploadCard() {
     } finally {
       setLoading(false);
     }
-  }, [scriptText, title, activeShow]);
+  }, [scriptText, title, activeStyle]);
+
+  // Parsing above never touches disk/cloud — this is the step that turns
+  // parsed episodes into real, durable Crash Lab episode packs.
+  const handleImport = useCallback(async () => {
+    if (!parsedScript?.parsedEpisodes.length || importing) return;
+    setImporting(true);
+    setImportError("");
+    try {
+      const res = await fetch("/api/crash/script/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          styleId: activeStyle,
+          episodes: parsedScript.parsedEpisodes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed");
+      setImported(data.imported as ImportedScriptEpisode[]);
+      dispatchStorySaved();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  }, [parsedScript, activeStyle, importing]);
 
   if (hideOnNarrowStack) return null;
 
@@ -144,7 +177,7 @@ export function CrashScriptUploadCard() {
               marginTop: "2px",
             }}
           >
-            {activeShow}
+            {activeStyle}
           </div>
         </div>
         <div style={{ display: "flex", gap: "4px" }}>
@@ -170,7 +203,7 @@ export function CrashScriptUploadCard() {
           {/* Show */}
           <div>
             <label style={{ color: "#666", fontSize: "11px" }}>Show</label>
-            <div style={{ color: "#fff", fontSize: "12px" }}>{activeShow}</div>
+            <div style={{ color: "#fff", fontSize: "12px" }}>{activeStyle}</div>
           </div>
 
           {/* Title */}
@@ -270,17 +303,66 @@ export function CrashScriptUploadCard() {
             </div>
           )}
 
+          {importError && (
+            <div
+              style={{
+                padding: "8px",
+                backgroundColor: "#330000",
+                color: "#ff6b6b",
+                borderRadius: "3px",
+                fontSize: "11px",
+              }}
+            >
+              ✗ {importError}
+            </div>
+          )}
+          {imported && (
+            <div
+              style={{
+                padding: "8px",
+                backgroundColor: "#003300",
+                color: "#51cf66",
+                borderRadius: "3px",
+                fontSize: "10px",
+              }}
+            >
+              <div style={{ marginBottom: "4px" }}>
+                <strong>Imported {imported.length} episode(s) into {activeStyle}:</strong>
+              </div>
+              {imported.map((ep) => (
+                <div key={ep.folderName} style={{ fontSize: "9px" }}>
+                  {ep.folderName} — {ep.scenes} scenes, {ep.lines} lines
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Upload button */}
           <Btn
             onClick={handleUpload}
             disabled={loading || !scriptText.trim()}
             style={{
-              marginTop: "auto",
               opacity: loading ? 0.6 : 1,
             }}
           >
             {loading ? "Parsing..." : "Upload & Parse"}
           </Btn>
+
+          {/* Import button — parse above never touches disk; this creates real packs */}
+          {parsedScript && parsedScript.parsedEpisodes.length > 0 ? (
+            <Btn
+              onClick={() => void handleImport()}
+              disabled={importing}
+              style={{
+                marginTop: "auto",
+                opacity: importing ? 0.6 : 1,
+              }}
+            >
+              {importing
+                ? "Importing…"
+                : `Import ${parsedScript.parsedEpisodes.length} episode(s) as Crash Lab packs`}
+            </Btn>
+          ) : null}
         </div>
       )}
     </div>

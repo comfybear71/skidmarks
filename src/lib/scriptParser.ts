@@ -141,25 +141,22 @@ function extractEpisodes(
  */
 function extractScenes(text: string): ScriptSceneData[] {
   const scenes: ScriptSceneData[] = [];
-  let actNum = 0;
 
-  // Split by ACT headings
+  // Split by ACT headings — collect every match up front (matchAll) and
+  // walk pairwise, rather than peeking ahead with a second exec() call:
+  // re-pointing a global regex's lastIndex back after an exec() either
+  // re-matches the same heading forever (infinite loop) or silently
+  // consumes every other act, depending on which line does the resetting.
   const actRegex = /^ACT\s+([IVivx]+)\s*$/gm;
-  let lastIndex = 0;
-  let match;
+  const actMatches = Array.from(text.matchAll(actRegex));
 
-  while ((match = actRegex.exec(text)) !== null) {
-    actNum = romanToNumber(match[1]) || actNum + 1;
-
-    const actStart = match.index + match[0].length;
-    const nextActMatch = actRegex.exec(text);
-    const actEnd = nextActMatch ? nextActMatch.index : text.length;
+  actMatches.forEach((match, i) => {
+    const actNum = romanToNumber(match[1]) || i + 1;
+    const actStart = (match.index ?? 0) + match[0].length;
+    const actEnd = actMatches[i + 1]?.index ?? text.length;
     const actContent = text.substring(actStart, actEnd);
-
-    // Extract scenes within this act
-    const actScenes = extractScenesFromAct(actContent, actNum);
-    scenes.push(...actScenes);
-  }
+    scenes.push(...extractScenesFromAct(actContent, actNum));
+  });
 
   return scenes;
 }
@@ -168,35 +165,23 @@ function extractScenes(text: string): ScriptSceneData[] {
  * Extract individual scenes from an act
  */
 function extractScenesFromAct(actText: string, actNum: number): ScriptSceneData[] {
-  const scenes: ScriptSceneData[] = [];
-
   // Scene heading pattern: EXT./INT. LOCATION - TIME
   const sceneHeadingRegex = /^(EXT\.|INT\.)\s+(.+?)\s+-\s+(.+?)$/gm;
-  let lastIndex = 0;
-  let match;
+  const sceneMatches = Array.from(actText.matchAll(sceneHeadingRegex));
 
-  while ((match = sceneHeadingRegex.exec(actText)) !== null) {
+  return sceneMatches.map((match, i) => {
     const heading = match[0];
-    const sceneStart = match.index + match[0].length;
-
-    // Find next scene heading or end of act
-    const nextMatch = sceneHeadingRegex.exec(actText);
-    const sceneEnd = nextMatch ? nextMatch.index : actText.length;
-    sceneHeadingRegex.lastIndex = lastIndex; // Reset regex position
-
+    const sceneStart = (match.index ?? 0) + match[0].length;
+    const sceneEnd = sceneMatches[i + 1]?.index ?? actText.length;
     const sceneContent = actText.substring(sceneStart, sceneEnd);
 
-    const scene: ScriptSceneData = {
+    return {
       act: actNum,
       heading,
       action: extractActionLines(sceneContent),
       dialogueLines: extractDialogueLines(sceneContent),
     };
-
-    scenes.push(scene);
-  }
-
-  return scenes;
+  });
 }
 
 /**

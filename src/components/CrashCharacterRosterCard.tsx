@@ -5,7 +5,6 @@ import { Btn } from "@/components/ui";
 import { CrashLabCollapseBtn } from "@/components/CrashLabCollapseBtn";
 import { useCrashDeskMode } from "@/hooks/useCrashDeskMode";
 import { usePanelPointerDrag } from "@/hooks/usePanelPointerDrag";
-import { useActiveShow } from "@/hooks/useActiveShow";
 import {
   CRASH_PANEL_TITLE_BAR,
   CRASH_PANEL_TITLE_COL,
@@ -20,7 +19,6 @@ const ROSTER_MIN_H = 240;
 type RosterChar = ScriptCharacterData & { tempVoiceType?: string };
 
 export function CrashCharacterRosterCard() {
-  const { activeShow } = useActiveShow();
   const {
     geom,
     collapsed,
@@ -37,6 +35,8 @@ export function CrashCharacterRosterCard() {
   const [characters, setCharacters] = useState<RosterChar[]>([]);
   const [selectedChar, setSelectedChar] = useState<string | null>(null);
   const [editingVoiceType, setEditingVoiceType] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
 
   const bringFront = useCallback(() => {
     setZ(bumpCrashLabZ());
@@ -81,19 +81,49 @@ export function CrashCharacterRosterCard() {
     [],
   );
 
-  const handleSave = useCallback(() => {
-    // Dispatch event with final roster
-    const finalRoster = characters.map((c) => ({
-      ...c,
-      voiceType: c.tempVoiceType || c.voiceType,
-    }));
-
-    window.dispatchEvent(
-      new CustomEvent("crash-roster-saved", {
-        detail: { characters: finalRoster },
-      }),
-    );
-  }, [characters]);
+  // Save each roster character into the real Character store — same
+  // POST-then-PUT flow CrashCharacterPanel.tsx uses to create characters,
+  // so they show up in Character / Image gen like any other cast member.
+  const handleSave = useCallback(async () => {
+    if (saving || !characters.length) return;
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      let ok = 0;
+      for (const c of characters) {
+        const voiceType = c.tempVoiceType || c.voiceType || "";
+        const created = await fetch("/api/characters", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: c.name,
+            pastNote: c.description || "",
+            tormentScratch: c.tormentScratch || "",
+          }),
+        });
+        const data = await created.json();
+        if (!created.ok || !data.character?.id) continue;
+        await fetch(`/api/characters/${data.character.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lookNote: c.appearance || "",
+            voiceDescription: voiceType,
+          }),
+        });
+        ok += 1;
+      }
+      setSaveMsg(
+        ok === characters.length
+          ? `Saved ${ok} to Character`
+          : `Saved ${ok}/${characters.length} — check Character panel`,
+      );
+    } catch {
+      setSaveMsg("Save failed — try again");
+    } finally {
+      setSaving(false);
+    }
+  }, [characters, saving]);
 
   const selectedCharData = characters.find((c) => c.name === selectedChar);
 
@@ -297,11 +327,17 @@ export function CrashCharacterRosterCard() {
                   </div>
 
                   <Btn
-                    onClick={handleSave}
+                    onClick={() => void handleSave()}
+                    disabled={saving}
                     style={{ marginTop: "auto" }}
                   >
-                    Save Roster
+                    {saving ? "Saving…" : "Save Roster"}
                   </Btn>
+                  {saveMsg ? (
+                    <div style={{ color: "#888", fontSize: "10px" }}>
+                      {saveMsg}
+                    </div>
+                  ) : null}
                 </div>
               )}
             </>

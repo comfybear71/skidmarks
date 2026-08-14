@@ -4,20 +4,25 @@ import { useCallback, useEffect, useState } from "react";
 import { CrashLabCollapseBtn } from "@/components/CrashLabCollapseBtn";
 import { useCrashDeskMode } from "@/hooks/useCrashDeskMode";
 import { usePanelPointerDrag } from "@/hooks/usePanelPointerDrag";
-import { useActiveShow } from "@/hooks/useActiveShow";
+import { useCrashActiveStyle } from "@/hooks/useCrashActiveStyle";
+import {
+  CRASH_ACTIVE_EPISODE_EVENT,
+  crashDeskStoryFetchUrl,
+} from "@/lib/crashActiveEpisode";
+import { CRASH_STORY_SAVED } from "@/lib/crashStyleSync";
 import {
   CRASH_PANEL_TITLE_BAR,
   CRASH_PANEL_TITLE_COL,
   CRASH_PANEL_SUBTITLE_COL,
 } from "@/lib/crashLabPanel";
 import { bumpCrashLabZ } from "@/lib/crashLabZ";
-import type { ProductionScript, ScriptSceneData } from "@/lib/types";
+import type { CrashStoryDoc, CrashStoryScene } from "@/lib/crashStoryTypes";
 
 const STORYBOARD_MIN_W = 360;
 const STORYBOARD_MIN_H = 280;
 
 export function CrashScriptStoryboardCard() {
-  const { activeShow } = useActiveShow();
+  const activeStyle = useCrashActiveStyle();
   const {
     geom,
     collapsed,
@@ -31,11 +36,8 @@ export function CrashScriptStoryboardCard() {
   });
 
   const [z, setZ] = useState(40);
-  const [script, setScript] = useState<ProductionScript | null>(null);
-  const [selectedAct, setSelectedAct] = useState<number>(1);
-  const [selectedScene, setSelectedScene] = useState<ScriptSceneData | null>(
-    null,
-  );
+  const [story, setStory] = useState<CrashStoryDoc | null>(null);
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
 
   const bringFront = useCallback(() => {
     setZ(bumpCrashLabZ());
@@ -49,44 +51,45 @@ export function CrashScriptStoryboardCard() {
     bringFront,
   });
 
-  // Listen for script parse events
-  useEffect(() => {
-    const handleScriptParsed = (e: Event) => {
-      const evt = e as CustomEvent;
-      if (evt.detail?.script) {
-        setScript(evt.detail.script);
-        if (evt.detail.script.parsedEpisodes?.[0]) {
-          const firstScene =
-            evt.detail.script.parsedEpisodes[0].scenes?.[0];
-          if (firstScene) {
-            setSelectedAct(firstScene.act);
-            setSelectedScene(firstScene);
-          }
-        }
+  // Read the real, persisted story for whatever episode is currently open —
+  // same source Storyboard/Animate/Populate use — instead of the ephemeral
+  // "just parsed, not saved anywhere" preview this panel started as.
+  const load = useCallback(async () => {
+    const url = crashDeskStoryFetchUrl(activeStyle);
+    if (!url) {
+      setStory(null);
+      setSelectedSceneId(null);
+      return;
+    }
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (res.ok && data.story) {
+        setStory(data.story as CrashStoryDoc);
+        setSelectedSceneId((data.story as CrashStoryDoc).scenes[0]?.id ?? null);
       }
-    };
+    } catch {
+      /* ignore */
+    }
+  }, [activeStyle]);
 
-    window.addEventListener("crash-script-parsed", handleScriptParsed);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    const onChange = () => void load();
+    window.addEventListener(CRASH_STORY_SAVED, onChange);
+    window.addEventListener(CRASH_ACTIVE_EPISODE_EVENT, onChange);
     return () => {
-      window.removeEventListener("crash-script-parsed", handleScriptParsed);
+      window.removeEventListener(CRASH_STORY_SAVED, onChange);
+      window.removeEventListener(CRASH_ACTIVE_EPISODE_EVENT, onChange);
     };
-  }, []);
+  }, [load]);
 
-  const episodes = script?.parsedEpisodes || [];
-  const currentEpisode = episodes[0];
-  const allScenes = currentEpisode?.scenes || [];
-  const acts = Array.from(new Set(allScenes.map((s) => s.act))).sort(
-    (a, b) => a - b,
-  );
-  const scenesInAct = allScenes.filter((s) => s.act === selectedAct);
-
-  const actLabels: Record<number, string> = {
-    1: "Act I",
-    2: "Act II",
-    3: "Act III",
-    4: "Act IV",
-    5: "Act V",
-  };
+  const scenes = story?.scenes || [];
+  const selectedScene: CrashStoryScene | null =
+    scenes.find((s) => s.id === selectedSceneId) || null;
 
   if (hideOnNarrowStack) return null;
 
@@ -132,9 +135,7 @@ export function CrashScriptStoryboardCard() {
               marginTop: "2px",
             }}
           >
-            {currentEpisode
-              ? `Ep ${currentEpisode.episodeNum}: ${currentEpisode.title}`
-              : "No episode"}
+            {story ? story.campaignLabel : "No episode open"}
           </div>
         </div>
         <div style={{ display: "flex", gap: "4px" }}>
@@ -155,7 +156,7 @@ export function CrashScriptStoryboardCard() {
             flexDirection: "column",
           }}
         >
-          {!currentEpisode ? (
+          {!story || !scenes.length ? (
             <div
               style={{
                 padding: "12px",
@@ -164,7 +165,8 @@ export function CrashScriptStoryboardCard() {
                 textAlign: "center",
               }}
             >
-              Parse a script to see storyboard
+              Open an episode (Script upload → Import, or Open episode) to
+              see its storyboard
             </div>
           ) : (
             <>
@@ -177,43 +179,8 @@ export function CrashScriptStoryboardCard() {
                 }}
               >
                 <div style={{ color: "#aaa", fontSize: "10px" }}>
-                  {currentEpisode.logline || "No logline"}
+                  {story.gagNote || "No logline"}
                 </div>
-              </div>
-
-              {/* Act tabs */}
-              <div
-                style={{
-                  display: "flex",
-                  borderBottom: "1px solid #333",
-                  backgroundColor: "#111",
-                  overflowX: "auto",
-                }}
-              >
-                {acts.map((act) => (
-                  <button
-                    key={act}
-                    onClick={() => {
-                      setSelectedAct(act);
-                      setSelectedScene(scenesInAct[0] || null);
-                    }}
-                    style={{
-                      padding: "8px 12px",
-                      backgroundColor:
-                        selectedAct === act ? "#0d47a1" : "transparent",
-                      color: "#fff",
-                      border: "none",
-                      borderBottom:
-                        selectedAct === act ? "2px solid #42a5f5" : "none",
-                      cursor: "pointer",
-                      fontSize: "10px",
-                      fontWeight: selectedAct === act ? 600 : 400,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {actLabels[act] || `Act ${act}`}
-                  </button>
-                ))}
               </div>
 
               {/* Scenes list */}
@@ -225,34 +192,43 @@ export function CrashScriptStoryboardCard() {
                   flexDirection: "column",
                 }}
               >
-                {scenesInAct.map((scene, i) => (
-                  <div
-                    key={i}
-                    onClick={() => setSelectedScene(scene)}
-                    style={{
-                      padding: "8px 12px",
-                      borderBottom: "1px solid #222",
-                      backgroundColor:
-                        selectedScene === scene ? "#1a2f4a" : "transparent",
-                      cursor: "pointer",
-                      transition: "background-color 200ms",
-                    }}
-                  >
+                {scenes.map((scene) => {
+                  const lines = scene.shots.reduce(
+                    (n, sh) => n + sh.beats.length,
+                    0,
+                  );
+                  return (
                     <div
+                      key={scene.id}
+                      onClick={() => setSelectedSceneId(scene.id)}
                       style={{
-                        color: "#42a5f5",
-                        fontSize: "9px",
-                        fontFamily: "monospace",
-                        marginBottom: "2px",
+                        padding: "8px 12px",
+                        borderBottom: "1px solid #222",
+                        backgroundColor:
+                          selectedSceneId === scene.id
+                            ? "#1a2f4a"
+                            : "transparent",
+                        cursor: "pointer",
+                        transition: "background-color 200ms",
                       }}
                     >
-                      {scene.heading}
+                      <div
+                        style={{
+                          color: "#42a5f5",
+                          fontSize: "9px",
+                          fontFamily: "monospace",
+                          marginBottom: "2px",
+                        }}
+                      >
+                        {scene.title}
+                        {!scene.worldThumbKey ? " · no world card yet" : ""}
+                      </div>
+                      <div style={{ color: "#aaa", fontSize: "10px" }}>
+                        {scene.shots.length} shot(s), {lines} line(s)
+                      </div>
                     </div>
-                    <div style={{ color: "#aaa", fontSize: "10px" }}>
-                      {scene.dialogueLines.length} lines
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Scene detail */}
@@ -268,44 +244,36 @@ export function CrashScriptStoryboardCard() {
                   }}
                 >
                   <div style={{ color: "#42a5f5", marginBottom: "8px" }}>
-                    <strong>{selectedScene.heading}</strong>
+                    <strong>{selectedScene.title}</strong>
                   </div>
 
-                  {selectedScene.action.length > 0 && (
-                    <div style={{ marginBottom: "8px" }}>
-                      <div style={{ color: "#666", marginBottom: "4px" }}>
-                        ACTION:
-                      </div>
-                      <div style={{ color: "#aaa", lineHeight: "1.4" }}>
-                        {selectedScene.action.slice(0, 3).join(" ")}
-                        {selectedScene.action.length > 3 && "…"}
-                      </div>
+                  {selectedScene.shots.map((shot) => (
+                    <div key={shot.id} style={{ marginBottom: "8px" }}>
+                      {shot.summary ? (
+                        <div style={{ color: "#aaa", lineHeight: "1.4", marginBottom: "4px" }}>
+                          {shot.summary}
+                        </div>
+                      ) : null}
+                      {shot.beats.length > 0 ? (
+                        <div style={{ color: "#aaa", lineHeight: "1.6" }}>
+                          {shot.beats.slice(0, 4).map((beat) => (
+                            <div key={beat.id}>
+                              <span style={{ color: "#51cf66", fontWeight: 600 }}>
+                                {beat.speaker}
+                              </span>
+                              <br />
+                              &quot;{beat.text}&quot;
+                            </div>
+                          ))}
+                          {shot.beats.length > 4 && (
+                            <div style={{ color: "#666" }}>
+                              +{shot.beats.length - 4} more…
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                  )}
-
-                  {selectedScene.dialogueLines.length > 0 && (
-                    <div>
-                      <div style={{ color: "#666", marginBottom: "4px" }}>
-                        DIALOGUE:
-                      </div>
-                      <div style={{ color: "#aaa", lineHeight: "1.6" }}>
-                        {selectedScene.dialogueLines.slice(0, 2).map((d, i) => (
-                          <div key={i}>
-                            <span style={{ color: "#51cf66", fontWeight: 600 }}>
-                              {d.character}
-                            </span>
-                            <br />
-                            "{d.line}"
-                          </div>
-                        ))}
-                        {selectedScene.dialogueLines.length > 2 && (
-                          <div style={{ color: "#666" }}>
-                            +{selectedScene.dialogueLines.length - 2} more…
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  ))}
                 </div>
               )}
             </>

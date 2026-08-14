@@ -70,6 +70,9 @@ export const CRASH_DESK_LIVE_PANELS: CrashPanelId[] = [
   "morph",
   "spx",
   "storyboard",
+  "script-upload",
+  "character-roster",
+  "script-storyboard",
 ];
 
 /** Full id list including retired Story (geom / old keys). Strip Y uses LIVE only. */
