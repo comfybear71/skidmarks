@@ -51,7 +51,10 @@ export type CrashPanelId =
   | "morph"
   | "story"
   | "comfy"
-  | "storyboard";
+  | "storyboard"
+  | "script-upload"
+  | "character-roster"
+  | "script-storyboard";
 
 /**
  * Stack strip order (Animate-first). Character → Image gen → Voice → Scene kit → Animate
@@ -275,6 +278,26 @@ function openColumnsAt(
   };
   const story: CardGeom = { x, y: top, w: colW, h: CRASH_STRIP_H };
 
+  // New script pipeline panels (positioned off-screen initially, user drags into view)
+  const scriptUpload: CardGeom = {
+    x: viewW - 380,
+    y: top,
+    w: 360,
+    h: 320,
+  };
+  const characterRoster: CardGeom = {
+    x: viewW - 380,
+    y: top + 340,
+    w: 360,
+    h: 400,
+  };
+  const scriptStoryboard: CardGeom = {
+    x: viewW - 760,
+    y: top,
+    w: 360,
+    h: 500,
+  };
+
   return {
     script,
     character,
@@ -286,6 +309,9 @@ function openColumnsAt(
     story,
     comfy,
     storyboard,
+    "script-upload": scriptUpload,
+    "character-roster": characterRoster,
+    "script-storyboard": scriptStoryboard,
   };
 }
 

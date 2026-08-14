@@ -33,20 +33,22 @@ export function CrashCharacterRosterCard() {
     minH: ROSTER_MIN_H,
   });
 
+  const [z, setZ] = useState(40);
   const [characters, setCharacters] = useState<RosterChar[]>([]);
   const [selectedChar, setSelectedChar] = useState<string | null>(null);
   const [editingVoiceType, setEditingVoiceType] = useState("");
 
-  const handleDragStart = usePanelPointerDrag(
-    (delta) => {
-      setGeom((g) => ({
-        ...g,
-        x: g.x + delta.x,
-        y: g.y + delta.y,
-      }));
-    },
-    () => bumpCrashLabZ(),
-  );
+  const bringFront = useCallback(() => {
+    setZ(bumpCrashLabZ());
+  }, []);
+
+  const { startMove } = usePanelPointerDrag({
+    geom,
+    setGeom,
+    minW: ROSTER_MIN_W,
+    minH: ROSTER_MIN_H,
+    bringFront,
+  });
 
   // Listen for script parse events
   useEffect(() => {
@@ -110,12 +112,12 @@ export function CrashCharacterRosterCard() {
         borderRadius: "4px",
         display: "flex",
         flexDirection: "column",
-        zIndex: geom.z,
+        zIndex: z,
       }}
     >
       {/* Title bar */}
       <div
-        onPointerDown={handleDragStart}
+        onPointerDown={startMove}
         style={{
           height: CRASH_PANEL_TITLE_BAR,
           padding: "0 8px",
@@ -145,7 +147,7 @@ export function CrashCharacterRosterCard() {
         <div style={{ display: "flex", gap: "4px" }}>
           <CrashLabCollapseBtn
             collapsed={collapsed}
-            onToggle={() => togglePanel("character-roster")}
+            onToggle={togglePanel}
           />
         </div>
       </div>

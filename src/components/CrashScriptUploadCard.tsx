@@ -31,6 +31,7 @@ export function CrashScriptUploadCard() {
     minH: SCRIPT_UPLOAD_MIN_H,
   });
 
+  const [z, setZ] = useState(40);
   const [scriptText, setScriptText] = useState("");
   const [title, setTitle] = useState("Episode 1");
   const [loading, setLoading] = useState(false);
@@ -40,16 +41,17 @@ export function CrashScriptUploadCard() {
     null,
   );
 
-  const handleDragStart = usePanelPointerDrag(
-    (delta) => {
-      setGeom((g) => ({
-        ...g,
-        x: g.x + delta.x,
-        y: g.y + delta.y,
-      }));
-    },
-    () => bumpCrashLabZ(),
-  );
+  const bringFront = useCallback(() => {
+    setZ(bumpCrashLabZ());
+  }, []);
+
+  const { startMove } = usePanelPointerDrag({
+    geom,
+    setGeom,
+    minW: SCRIPT_UPLOAD_MIN_W,
+    minH: SCRIPT_UPLOAD_MIN_H,
+    bringFront,
+  });
 
   const handleUpload = useCallback(async () => {
     if (!scriptText.trim()) {
@@ -113,12 +115,12 @@ export function CrashScriptUploadCard() {
         borderRadius: "4px",
         display: "flex",
         flexDirection: "column",
-        zIndex: geom.z,
+        zIndex: z,
       }}
     >
       {/* Title bar */}
       <div
-        onPointerDown={handleDragStart}
+        onPointerDown={startMove}
         style={{
           height: CRASH_PANEL_TITLE_BAR,
           padding: "0 8px",
@@ -148,7 +150,7 @@ export function CrashScriptUploadCard() {
         <div style={{ display: "flex", gap: "4px" }}>
           <CrashLabCollapseBtn
             collapsed={collapsed}
-            onToggle={() => togglePanel("script-upload")}
+            onToggle={togglePanel}
           />
         </div>
       </div>
