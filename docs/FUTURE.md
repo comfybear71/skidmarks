@@ -4,6 +4,12 @@ Logged **2026-08-06** after cafe plating worked 100% better with stylised locati
 
 ---
 
+## 0. Mobile / PWA — separate automated app, not a shrunk desktop
+
+**Logged 2026-08-14.** Full brief in [`MOBILE_PWA_VISION.md`](./MOBILE_PWA_VISION.md) — a fully-automated, carousel-driven mobile/PWA experience (prompt → cast → location → plate → script → voice → Comfy animate → export), completely separate from the `/crash` desktop workbench, which stays as-is. **No code yet — plan + build only when Stuie says go.**
+
+---
+
 ## 1. Image gen — multi-character plates
 
 **Need:** Drop **1, 2, 3 or more** cast faces into image gen / Crash Lab plating and build a full shot plate in one go (location BG + people).
