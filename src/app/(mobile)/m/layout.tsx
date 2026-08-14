@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Black_Ops_One, DM_Sans } from "next/font/google";
 import "../../globals.css";
+import "./mobile.css";
 
 /**
  * Independent root layout for the mobile/PWA automated pipeline — no
