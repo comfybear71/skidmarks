@@ -13,6 +13,10 @@ import {
 } from "@/lib/cursorOriginalKit";
 import { sunnyBanksCursorKit } from "@/lib/cursorSunnyBanksKit";
 import { startSunnyBanksCursorPack } from "@/lib/cursorSunnyBanksStart";
+import {
+  hydrateShowShelfManifests,
+  persistCursorPackToCloud,
+} from "@/lib/cursorCloudSync";
 
 export const runtime = "nodejs";
 
@@ -33,6 +37,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Need styleId" }, { status: 400 });
     }
 
+    // Vercel has no local shelf — mirror World/Cast names from Neon first so
+    // the resolvers below can find real places and cast. No-op locally.
+    await hydrateShowShelfManifests(styleId);
+
     if (styleId === "sunny_banks") {
       const named = String(body.folderName || "").trim();
       if (named.startsWith("CURSOR_") && !/CLIVE/i.test(named)) {
@@ -47,6 +55,12 @@ export async function POST(req: Request) {
             .length;
           const facesReady =
             Boolean(resumed.sceneKit.arseholeKey) && castN >= 4 && worldN >= 4;
+          await persistCursorPackToCloud({
+            styleId,
+            folderName: resumed.folderName,
+            story: resumed.story,
+            sceneKit: resumed.sceneKit,
+          });
           return NextResponse.json({
             ok: true,
             resumed: true,
@@ -65,6 +79,12 @@ export async function POST(req: Request) {
         }
       }
       const started = startSunnyBanksCursorPack();
+      await persistCursorPackToCloud({
+        styleId,
+        folderName: started.folderName,
+        story: started.story,
+        sceneKit: started.sceneKit,
+      });
       return NextResponse.json({
         ok: true,
         resumed: false,
@@ -105,6 +125,12 @@ export async function POST(req: Request) {
       const facesReady =
         Boolean(resumed.sceneKit.arseholeKey) &&
         (resumed.sceneKit.castKeys || []).filter(Boolean).length >= 4;
+      await persistCursorPackToCloud({
+        styleId,
+        folderName: resumed.folderName,
+        story: resumed.story,
+        sceneKit: resumed.sceneKit,
+      });
       return NextResponse.json({
         ok: true,
         resumed: true,
@@ -118,6 +144,12 @@ export async function POST(req: Request) {
     }
 
     const created = createCursorEpisodePack({ styleId });
+    await persistCursorPackToCloud({
+      styleId,
+      folderName: created.folderName,
+      story: created.story,
+      sceneKit: created.sceneKit,
+    });
     return NextResponse.json({
       ok: true,
       resumed: false,

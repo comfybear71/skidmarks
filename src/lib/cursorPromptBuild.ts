@@ -418,6 +418,7 @@ export function bootstrapPromptStory(
   campaignLabel: string;
   folderName: string;
   kit: ReturnType<typeof promptTourKit>;
+  sceneKit: ReturnType<typeof writeSceneKitDiskDraft>;
 } {
   const parsed = parsePromptScript(script, styleId);
   const pack = createCursorEpisodePack({
@@ -431,7 +432,7 @@ export function bootstrapPromptStory(
   writeCrashStory(story);
   writePromptPopulateConfig(styleId, story.campaignLabel, config);
   const kit = promptTourKit(styleId, parsed);
-  writeSceneKitDiskDraft({
+  const sceneKit = writeSceneKitDiskDraft({
     sceneId: "scene_01",
     sceneTitle: "Scene 01",
     styleId,
@@ -456,6 +457,7 @@ export function bootstrapPromptStory(
     campaignLabel: parsed.campaignLabel,
     folderName: pack.folderName,
     kit,
+    sceneKit,
   };
 }
 

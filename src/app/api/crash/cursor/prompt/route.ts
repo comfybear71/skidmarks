@@ -7,6 +7,10 @@ import {
 import { seedVoiceManifestForStyle } from "@/lib/crashVoiceSeed";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { getShowStylePreset } from "@/lib/showStylePresets";
+import {
+  hydrateShowShelfManifests,
+  persistCursorPackToCloud,
+} from "@/lib/cursorCloudSync";
 
 export const runtime = "nodejs";
 
@@ -80,8 +84,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Need script text" }, { status: 400 });
     }
 
+    // Vercel has no local shelf — mirror World/Cast names from Neon first so
+    // the script's Place:/Cast: lines resolve to real gallery keys.
+    await hydrateShowShelfManifests(styleId);
+
     const result = bootstrapPromptStory(styleId, body.script);
     seedVoiceManifestForStyle(styleId);
+    await persistCursorPackToCloud({
+      styleId,
+      folderName: result.folderName,
+      story: result.story,
+      sceneKit: result.sceneKit,
+    });
 
     return NextResponse.json({
       ok: true,
