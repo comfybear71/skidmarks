@@ -103,6 +103,15 @@ function vh(): number {
   return typeof window !== "undefined" ? window.innerHeight : 900;
 }
 
+/**
+ * Phone/small-tablet viewport — panels go full-width instead of the desktop
+ * strip+focus / 4-column layouts. Only call from live (post-mount) geometry
+ * paths, never from crashPanelSsrGeom/openColumnsAt's literal SSR call.
+ */
+export function isNarrowViewport(): boolean {
+  return typeof window !== "undefined" ? window.innerWidth < 768 : false;
+}
+
 /** Keep panels fully on screen — bottom stays above taskbar, top below desk toolbar. */
 export function clampCardGeom(
   g: CardGeom,
@@ -300,18 +309,27 @@ export function crashPanelOpenGeom(id: CrashPanelId): CardGeom {
 export function crashPanelClosedGeom(id: CrashPanelId): CardGeom {
   const live = CRASH_DESK_LIVE_PANELS.indexOf(id);
   const i = live >= 0 ? live : CRASH_DESK_LIVE_PANELS.length;
+  const w = isNarrowViewport() ? vw() - DESK_MARGIN * 2 : CRASH_STRIP_W;
   return {
     x: DESK_MARGIN,
     y: stackStripY(i),
-    w: CRASH_STRIP_W,
+    w,
     h: CRASH_STRIP_H,
   };
 }
 
-/** Stack mode — one panel expanded to the right; strips stay on the left. */
+/**
+ * Stack mode — one panel expanded. Desktop: to the right of the left strip
+ * column. Narrow (phone): full width below the toolbar — the strip column
+ * doesn't fit beside it, so the focused panel takes the whole screen.
+ */
 export function crashPanelFocusGeom(id: CrashPanelId): CardGeom {
   const top = deskTopY();
   const H = deskHeight();
+  if (isNarrowViewport()) {
+    const w = Math.max(CRASH_SCRIPT_MIN_W, vw() - DESK_MARGIN * 2);
+    return { x: DESK_MARGIN, y: top, w, h: H };
+  }
   const x = DESK_MARGIN + CRASH_STRIP_W + DESK_PANEL_GAP;
   const w = Math.max(CRASH_SCRIPT_MIN_W, vw() - x - DESK_MARGIN);
   return { x, y: top, w, h: H };
@@ -331,6 +349,16 @@ export function crashPanelFreePullGeom(
   });
 }
 
+/**
+ * True when this mode+viewport combo uses Stack's single-focus strip list
+ * (Stack always; Grid too once the viewport is too narrow for 4 columns).
+ * Shared by snapPanelGeom and useCrashDeskMode so focus read/write/collapse
+ * all agree on which storage key drives the layout.
+ */
+export function isDrilldownMode(mode: CrashDeskMode): boolean {
+  return mode === "stack" || (mode === "grid" && isNarrowViewport());
+}
+
 export function snapPanelGeom(
   id: CrashPanelId,
   mode: CrashDeskMode,
@@ -345,7 +373,9 @@ export function snapPanelGeom(
     }
     return crashPanelClosedGeom(id);
   }
-  if (mode === "stack") {
+  // Grid's 4-column layout can't fit a phone — reuse Stack's single-focus
+  // strip list there too instead of inventing a third narrow layout.
+  if (isDrilldownMode(mode)) {
     // null focus = all strips (classic STACK). Do not force Animate open.
     if (stackFocus && CRASH_DESK_LIVE_PANELS.includes(stackFocus)) {
       if (stackFocus === id) return crashPanelFocusGeom(id);

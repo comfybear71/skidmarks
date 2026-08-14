@@ -1,18 +1,13 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cursorPromptExampleForStyle } from "@/lib/cursorAiWriterTemplate";
 import { normalizePromptScript } from "@/lib/cursorPromptNormalize";
 import { copyTextToClipboard } from "@/lib/copyText";
 import { runPromptBuild } from "@/lib/crashPromptTour";
 import { px } from "@/lib/crashDeskLayout";
+import { usePanelPointerDrag } from "@/hooks/usePanelPointerDrag";
 import {
   CRASH_PANEL_MIN_H,
   CRASH_PANEL_MIN_W,
@@ -77,13 +72,6 @@ export function PromptScriptModal({
   const [copiedCount, setCopiedCount] = useState(0);
   const [geom, setGeom] = useState<PanelGeom>(() => defaultPanelGeom());
   const [mounted, setMounted] = useState(false);
-  const moveRef = useRef<{
-    mode: "move" | "resize";
-    edge?: string;
-    startX: number;
-    startY: number;
-    orig: PanelGeom;
-  } | null>(null);
   const templateRef = useRef<HTMLTextAreaElement>(null);
   const hiddenCopyRef = useRef<HTMLTextAreaElement>(null);
   const pasteRef = useRef<HTMLTextAreaElement>(null);
@@ -168,77 +156,17 @@ export function PromptScriptModal({
     if (ep) void refreshPreview(ep);
   }, [script, refreshPreview]);
 
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!moveRef.current) return;
-      const { mode, edge, startX, startY, orig } = moveRef.current;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      if (mode === "move") {
-        setGeom({
-          ...orig,
-          x: Math.max(0, orig.x + dx),
-          y: Math.max(0, orig.y + dy),
-        });
-        return;
-      }
-      let { x, y, w, h } = orig;
-      if (edge?.includes("e")) w = Math.max(PANEL_MIN_W, orig.w + dx);
-      if (edge?.includes("s")) h = Math.max(PANEL_MIN_H, orig.h + dy);
-      if (edge?.includes("w")) {
-        w = Math.max(PANEL_MIN_W, orig.w - dx);
-        x = orig.x + (orig.w - w);
-      }
-      if (edge?.includes("n")) {
-        h = Math.max(PANEL_MIN_H, orig.h - dy);
-        y = orig.y + (orig.h - h);
-      }
-      setGeom({ x: Math.max(0, x), y: Math.max(0, y), w, h });
-    };
-    const onUp = () => {
-      moveRef.current = null;
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, []);
-
   const bringFront = useCallback(() => {
     bumpCrashLabZ();
   }, []);
 
-  const startMove = useCallback(
-    (e: ReactMouseEvent) => {
-      if ((e.target as HTMLElement).closest("button, select, a")) return;
-      bringFront();
-      e.preventDefault();
-      moveRef.current = {
-        mode: "move",
-        startX: e.clientX,
-        startY: e.clientY,
-        orig: geom,
-      };
-    },
-    [geom, bringFront],
-  );
-
-  function startResize(edge: string) {
-    return (e: ReactMouseEvent) => {
-      bringFront();
-      e.preventDefault();
-      e.stopPropagation();
-      moveRef.current = {
-        mode: "resize",
-        edge,
-        startX: e.clientX,
-        startY: e.clientY,
-        orig: geom,
-      };
-    };
-  }
+  const { startMove, startResize } = usePanelPointerDrag({
+    geom,
+    setGeom,
+    minW: PANEL_MIN_W,
+    minH: PANEL_MIN_H,
+    bringFront,
+  });
 
   function loadExample() {
     setScript(cursorPromptExampleForStyle(styleId));
@@ -410,10 +338,13 @@ export function PromptScriptModal({
           height: px(geom.h),
           zIndex: PROMPT_PANEL_Z,
         }}
-        onMouseDown={bringFront}
+        onPointerDown={bringFront}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={CRASH_PANEL_TITLE_BAR} onMouseDown={startMove}>
+        <div
+          className={`${CRASH_PANEL_TITLE_BAR} touch-none`}
+          onPointerDown={startMove}
+        >
           <h2 className="display shrink-0 text-sm leading-none text-[var(--acid)]">
             PROMPT
           </h2>
@@ -571,17 +502,17 @@ export function PromptScriptModal({
         </div>
 
         <div
-          className="absolute bottom-0 right-0 z-10 h-4 w-4 cursor-se-resize"
-          onMouseDown={startResize("se")}
+          className="crash-resize-handle touch-none absolute bottom-0 right-0 z-10 h-4 w-4 cursor-se-resize"
+          onPointerDown={startResize("se")}
           title="Drag to resize"
         />
         <div
-          className="absolute bottom-0 left-4 right-4 z-10 h-2 cursor-s-resize"
-          onMouseDown={startResize("s")}
+          className="crash-resize-handle touch-none absolute bottom-0 left-4 right-4 z-10 h-2 cursor-s-resize"
+          onPointerDown={startResize("s")}
         />
         <div
-          className="absolute bottom-4 top-8 right-0 z-10 w-2 cursor-e-resize"
-          onMouseDown={startResize("e")}
+          className="crash-resize-handle touch-none absolute bottom-4 top-8 right-0 z-10 w-2 cursor-e-resize"
+          onPointerDown={startResize("e")}
         />
       </div>
     </>,

@@ -135,6 +135,20 @@ code {
   background: transparent;
 }
 
+/* Crash Lab panel resize handles — bigger hit area for a fingertip, same
+   visual size for a mouse cursor. Negative-margin overlay keeps the drag
+   target centered on the visible edge instead of shifting the layout. */
+@media (pointer: coarse) {
+  .crash-resize-handle {
+    position: relative;
+  }
+  .crash-resize-handle::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+  }
+}
+
 /* Scene kit Cast — fat visible bar (not the thin outer panel scroller) */
 .crash-cast-scroll {
   scrollbar-gutter: stable;
