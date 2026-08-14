@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
-  type MouseEvent as ReactMouseEvent,
 } from "react";
 import { Btn } from "@/components/ui";
 import { CrashLabCollapseBtn } from "@/components/CrashLabCollapseBtn";
@@ -21,6 +20,7 @@ import {
 } from "@/lib/crashLabPanel";
 import { crashGenExamplePrompt, crashGenStylePickPrompt, pickStyleIdeaPrompt } from "@/lib/crashGenExamples";
 import { useCrashDeskMode } from "@/hooks/useCrashDeskMode";
+import { usePanelPointerDrag } from "@/hooks/usePanelPointerDrag";
 import {
   CRASH_STRIP_H,
   openCrashDeskGrid,
@@ -70,7 +70,6 @@ const CARD_MIN_W = CRASH_GEN_MIN_W;
 const CARD_MIN_H = CRASH_GEN_MIN_H;
 const DRAWER_W = 200;
 
-type CardGeom = { x: number; y: number; w: number; h: number };
 type PlateThumb = { id: string; fileName: string; url: string };
 type SmokeTake = { fileName: string; url: string };
 const CURSOR_SMOKE_MAX_TAKES = 5;
@@ -118,7 +117,8 @@ async function urlToFile(src: string, baseName: string): Promise<File> {
  * Lock a BG → drop character stills → auto-plate each → thumbs under BG.
  */
 export function CrashImageGenCard() {
-  const { geom, deskReady, collapsed, mode, togglePanel, setGeom } = useCrashDeskMode("imageGen");
+  const { geom, deskReady, collapsed, mode, togglePanel, setGeom, hideOnNarrowStack } =
+    useCrashDeskMode("imageGen", { minW: CARD_MIN_W, minH: CARD_MIN_H });
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [plating, setPlating] = useState(false);
@@ -170,13 +170,6 @@ export function CrashImageGenCard() {
   const styleSyncAbortRef = useRef<AbortController | null>(null);
   const lastStylePromptRef = useRef("");
   const genScreenKindRef = useRef<"character" | "world" | null>(null);
-  const moveRef = useRef<{
-    mode: "move" | "resize";
-    edge?: string;
-    startX: number;
-    startY: number;
-    orig: CardGeom;
-  } | null>(null);
 
   useEffect(() => {
     const style = loadShowStyleIdOptional();
@@ -534,44 +527,6 @@ export function CrashImageGenCard() {
     };
   }, [showStyleId]);
 
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!moveRef.current) return;
-      const { mode, edge, startX, startY, orig } = moveRef.current;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      if (mode === "move") {
-        setGeom({
-          ...orig,
-          x: Math.max(0, orig.x + dx),
-          y: Math.max(0, orig.y + dy),
-        });
-        return;
-      }
-      let { x, y, w, h } = orig;
-      if (edge?.includes("e")) w = Math.max(CARD_MIN_W, orig.w + dx);
-      if (edge?.includes("s")) h = Math.max(CARD_MIN_H, orig.h + dy);
-      if (edge?.includes("w")) {
-        w = Math.max(CARD_MIN_W, orig.w - dx);
-        x = orig.x + (orig.w - w);
-      }
-      if (edge?.includes("n")) {
-        h = Math.max(CARD_MIN_H, orig.h - dy);
-        y = orig.y + (orig.h - h);
-      }
-      setGeom({ x: Math.max(0, x), y: Math.max(0, y), w, h });
-    };
-    const onUp = () => {
-      moveRef.current = null;
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, []);
-
   const stylePreset = showStyleId ? getShowStylePreset(showStyleId) : null;
   const activeStyleId = showStyleId ?? DEFAULT_SHOW_STYLE;
   const hasStockStill = Boolean(!lockedBg && fileName && url);
@@ -631,40 +586,14 @@ export function CrashImageGenCard() {
     setZ(bumpCrashLabZ());
   }, []);
 
-  const startMove = useCallback(
-    (e: ReactMouseEvent) => {
-      if (
-        (e.target as HTMLElement).closest(
-          "button, a, input, textarea, select, img, [data-dropzone]",
-        )
-      )
-        return;
-      bringFront();
-      e.preventDefault();
-      moveRef.current = {
-        mode: "move",
-        startX: e.clientX,
-        startY: e.clientY,
-        orig: geom,
-      };
-    },
-    [geom, bringFront],
-  );
-
-  function startResize(edge: string) {
-    return (e: ReactMouseEvent) => {
-      bringFront();
-      e.preventDefault();
-      e.stopPropagation();
-      moveRef.current = {
-        mode: "resize",
-        edge,
-        startX: e.clientX,
-        startY: e.clientY,
-        orig: geom,
-      };
-    };
-  }
+  const { startMove, startResize } = usePanelPointerDrag({
+    geom,
+    setGeom,
+    minW: CARD_MIN_W,
+    minH: CARD_MIN_H,
+    bringFront,
+    ignoreSelector: "button, a, input, textarea, select, img, [data-dropzone]",
+  });
 
   function pushPlate(p: PlateThumb) {
     setPlates((list) => [...list, p]);
@@ -1594,6 +1523,8 @@ export function CrashImageGenCard() {
 
   const showPreview = lockedBg?.url || url;
 
+  if (hideOnNarrowStack) return null;
+
   return (
     <div
       className="fixed"
@@ -1604,7 +1535,7 @@ export function CrashImageGenCard() {
         height: px(collapsed ? CRASH_STRIP_H : geom.h),
         zIndex: z,
       }}
-      onMouseDown={bringFront}
+      onPointerDown={bringFront}
     >
       {drawerOpen && !collapsed ? (
         <aside
@@ -1821,8 +1752,8 @@ export function CrashImageGenCard() {
         </div>
       ) : null}
       <div
-        className={CRASH_PANEL_TITLE_BAR}
-        onMouseDown={startMove}
+        className={`${CRASH_PANEL_TITLE_BAR} touch-none`}
+        onPointerDown={startMove}
       >
         {!collapsed ? (
           <button
@@ -2400,16 +2331,16 @@ export function CrashImageGenCard() {
         )}
       </div>
       <div
-        className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize"
-        onMouseDown={startResize("se")}
+        className="crash-resize-handle touch-none absolute bottom-0 right-0 h-3 w-3 cursor-se-resize"
+        onPointerDown={startResize("se")}
       />
       <div
-        className="absolute bottom-0 left-3 right-3 h-1.5 cursor-s-resize"
-        onMouseDown={startResize("s")}
+        className="crash-resize-handle touch-none absolute bottom-0 left-3 right-3 h-1.5 cursor-s-resize"
+        onPointerDown={startResize("s")}
       />
       <div
-        className="absolute bottom-3 top-3 right-0 w-1.5 cursor-e-resize"
-        onMouseDown={startResize("e")}
+        className="crash-resize-handle touch-none absolute bottom-3 top-3 right-0 w-1.5 cursor-e-resize"
+        onPointerDown={startResize("e")}
       />
       </>
       ) : null}

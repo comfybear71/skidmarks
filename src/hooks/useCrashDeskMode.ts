@@ -7,8 +7,10 @@ import {
   CRASH_FREE_FLOAT_EVENT,
   CRASH_PANEL_SHUT_EVENT,
   CRASH_STACK_FOCUS_EVENT,
-  clampPanelGeom,
+  clampCardGeom,
   deskTopY,
+  isDrilldownMode,
+  isNarrowViewport,
   isPanelShut,
   readCrashDeskMode,
   readFreeFloatPanels,
@@ -22,6 +24,7 @@ import {
   type CrashDeskMode,
   type CrashPanelId,
 } from "@/lib/crashDeskLayout";
+import { CRASH_PANEL_MIN_H, CRASH_PANEL_MIN_W } from "@/lib/crashLabPanel";
 
 type CardGeom = { x: number; y: number; w: number; h: number };
 
@@ -32,6 +35,8 @@ type DeskSnap = {
   freeFloat: CrashPanelId[];
   geom: CardGeom;
   collapsed: boolean;
+  /** Narrow viewport, drilldown mode, some OTHER panel focused — render nothing. */
+  hideOnNarrowStack: boolean;
 };
 
 /** Same HTML on server + first client paint — no window / localStorage. */
@@ -43,23 +48,29 @@ function ssrSnap(panelId: CrashPanelId): DeskSnap {
     freeFloat: [],
     geom: crashPanelSsrGeom(panelId),
     collapsed: true,
+    hideOnNarrowStack: false,
   };
 }
 
 function readSnap(panelId: CrashPanelId): DeskSnap {
   const mode = readCrashDeskMode();
-  const panelShut = mode === "grid" && isPanelShut(panelId);
-  const stackFocus = mode === "stack" ? readStackFocusPanel() : null;
+  const drilldown = isDrilldownMode(mode);
+  const panelShut = mode === "grid" && !drilldown && isPanelShut(panelId);
+  const stackFocus = drilldown ? readStackFocusPanel() : null;
   const freeFloat = mode === "free" ? readFreeFloatPanels() : [];
-  const collapsed =
-    mode === "stack"
-      ? stackFocus !== panelId
-      : mode === "free"
-        ? !freeFloat.includes(panelId)
-        : panelShut;
+  const collapsed = drilldown
+    ? stackFocus !== panelId
+    : mode === "free"
+      ? !freeFloat.includes(panelId)
+      : panelShut;
+  const hideOnNarrowStack =
+    drilldown &&
+    isNarrowViewport() &&
+    stackFocus !== null &&
+    stackFocus !== panelId;
   deskTopY();
   const geom = snapPanelGeom(panelId, mode, panelShut, stackFocus, freeFloat);
-  return { mode, panelShut, stackFocus, freeFloat, geom, collapsed };
+  return { mode, panelShut, stackFocus, freeFloat, geom, collapsed, hideOnNarrowStack };
 }
 
 function deskEpoch(): string {
@@ -106,7 +117,12 @@ function subscribeDesk(cb: () => void) {
 }
 
 /** Stack · grid · free-flow — live layout only after mount (avoids hydration mismatch). */
-export function useCrashDeskMode(panelId: CrashPanelId) {
+export function useCrashDeskMode(
+  panelId: CrashPanelId,
+  opts?: { minW?: number; minH?: number },
+) {
+  const minW = opts?.minW ?? CRASH_PANEL_MIN_W;
+  const minH = opts?.minH ?? CRASH_PANEL_MIN_H;
   const [live, setLive] = useState(false);
   useEffect(() => {
     setLive(true);
@@ -135,7 +151,7 @@ export function useCrashDeskMode(panelId: CrashPanelId) {
       setDragGeom((prev) => {
         const base = prev ?? readSnap(panelId).geom;
         const raw = typeof next === "function" ? next(base) : next;
-        const clamped = clampPanelGeom(raw);
+        const clamped = clampCardGeom(raw, minW, minH);
         if (
           modeRef.current === "free" &&
           freeFloatRef.current.includes(panelId)
@@ -145,7 +161,7 @@ export function useCrashDeskMode(panelId: CrashPanelId) {
         return clamped;
       });
     },
-    [panelId],
+    [panelId, minW, minH],
   );
 
   const togglePanel = useCallback(() => {
@@ -155,7 +171,7 @@ export function useCrashDeskMode(panelId: CrashPanelId) {
       emit();
       return;
     }
-    if (mode === "stack") {
+    if (isDrilldownMode(mode)) {
       // − on open panel → all strips. + on strip → open that panel.
       if (stackFocus === panelId) {
         writeStackFocusPanel(null);
@@ -179,6 +195,7 @@ export function useCrashDeskMode(panelId: CrashPanelId) {
     panelShut: snap.panelShut,
     stackFocus: snap.stackFocus,
     freeFloat: snap.freeFloat,
+    hideOnNarrowStack: snap.hideOnNarrowStack,
     togglePanel,
     toggleDesk: togglePanel,
     setGeom,

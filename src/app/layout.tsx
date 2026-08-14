@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Black_Ops_One, DM_Sans } from "next/font/google";
@@ -17,6 +17,11 @@ const body = DM_Sans({
   subsets: ["latin"],
   variable: "--font-body",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   await connection();
@@ -61,13 +66,13 @@ export default async function RootLayout({
               <nav className="flex flex-wrap items-center gap-2 text-sm">
                 <Link
                   href="/crash"
-                  className="rounded-sm border border-[var(--acid)] bg-[var(--acid)]/10 px-3 py-1.5 text-[var(--acid)] hover:bg-[var(--acid)]/20"
+                  className="touch-manipulation rounded-sm border border-[var(--acid)] bg-[var(--acid)]/10 px-3 py-2.5 text-[var(--acid)] hover:bg-[var(--acid)]/20"
                 >
                   Crash Lab
                 </Link>
                 <Link
                   href="/"
-                  className="rounded-sm border border-[var(--line)] px-3 py-1.5 text-[var(--chrome-dim)] hover:border-[var(--acid)] hover:text-[var(--acid)]"
+                  className="touch-manipulation rounded-sm border border-[var(--line)] px-3 py-2.5 text-[var(--chrome-dim)] hover:border-[var(--acid)] hover:text-[var(--acid)]"
                 >
                   Home
                 </Link>

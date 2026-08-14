@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { CrashLabCollapseBtn } from "@/components/CrashLabCollapseBtn";
 import {
   CRASH_DESK_LAYOUT_VER,
@@ -16,6 +9,7 @@ import {
   type CrashPanelId,
 } from "@/lib/crashDeskLayout";
 import { useCrashDeskMode } from "@/hooks/useCrashDeskMode";
+import { usePanelPointerDrag } from "@/hooks/usePanelPointerDrag";
 import {
   CRASH_PANEL_MIN_H,
   CRASH_PANEL_MIN_W,
@@ -52,17 +46,17 @@ export function CrashLabFloatingPanel({
   defaultZ = 40,
   children,
 }: Props) {
-  const { geom, deskReady, collapsed, mode, togglePanel, setGeom } =
-    useCrashDeskMode(panelId);
+  const {
+    geom,
+    deskReady,
+    collapsed,
+    mode,
+    togglePanel,
+    setGeom,
+    hideOnNarrowStack,
+  } = useCrashDeskMode(panelId, { minW, minH });
   const [cardReady, setCardReady] = useState(true);
   const [z, setZ] = useState(40);
-  const moveRef = useRef<{
-    mode: "move" | "resize";
-    edge?: string;
-    startX: number;
-    startY: number;
-    orig: CardGeom;
-  } | null>(null);
 
   useEffect(() => {
     try {
@@ -76,80 +70,19 @@ export function CrashLabFloatingPanel({
     setCardReady(true);
   }, [defaultZ, layoutVerKey]);
 
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!moveRef.current) return;
-      const { mode, edge, startX, startY, orig } = moveRef.current;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      if (mode === "move") {
-        setGeom({
-          ...orig,
-          x: Math.max(0, orig.x + dx),
-          y: Math.max(0, orig.y + dy),
-        });
-        return;
-      }
-      let { x, y, w, h } = orig;
-      if (edge?.includes("e")) w = Math.max(minW, orig.w + dx);
-      if (edge?.includes("s")) h = Math.max(minH, orig.h + dy);
-      if (edge?.includes("w")) {
-        w = Math.max(minW, orig.w - dx);
-        x = orig.x + (orig.w - w);
-      }
-      if (edge?.includes("n")) {
-        h = Math.max(minH, orig.h - dy);
-        y = orig.y + (orig.h - h);
-      }
-      setGeom({ x: Math.max(0, x), y: Math.max(0, y), w, h });
-    };
-    const onUp = () => {
-      moveRef.current = null;
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [minH, minW, setGeom]);
-
   const bringFront = useCallback(() => {
     setZ(bumpCrashLabZ());
   }, []);
 
-  const startMove = useCallback(
-    (e: ReactMouseEvent) => {
-      if ((e.target as HTMLElement).closest("button, select, textarea, input, a"))
-        return;
-      bringFront();
-      e.preventDefault();
-      moveRef.current = {
-        mode: "move",
-        startX: e.clientX,
-        startY: e.clientY,
-        orig: geom,
-      };
-    },
-    [geom, bringFront],
-  );
+  const { startMove, startResize } = usePanelPointerDrag({
+    geom,
+    setGeom,
+    minW,
+    minH,
+    bringFront,
+  });
 
-  function startResize(edge: string) {
-    return (e: ReactMouseEvent) => {
-      bringFront();
-      e.preventDefault();
-      e.stopPropagation();
-      moveRef.current = {
-        mode: "resize",
-        edge,
-        startX: e.clientX,
-        startY: e.clientY,
-        orig: geom,
-      };
-    };
-  }
-
-  if (!visible) return null;
+  if (!visible || hideOnNarrowStack) return null;
 
   return (
     <div
@@ -162,13 +95,16 @@ export function CrashLabFloatingPanel({
         height: px(collapsed ? CRASH_STRIP_H : geom.h),
         zIndex: z,
       }}
-      onMouseDown={bringFront}
+      onPointerDown={bringFront}
     >
       <div
         className="relative flex h-full flex-col overflow-hidden rounded-sm border border-[var(--line)] bg-[var(--panel)] shadow-lg"
         style={{ width: px(geom.w), height: collapsed ? px(CRASH_STRIP_H) : "100%" }}
       >
-        <div className={CRASH_PANEL_TITLE_BAR} onMouseDown={startMove}>
+        <div
+          className={`${CRASH_PANEL_TITLE_BAR} touch-none`}
+          onPointerDown={startMove}
+        >
           <h2 className={`${CRASH_PANEL_TITLE_COL} ${titleClassName}`}>
             {title}
           </h2>
@@ -202,46 +138,46 @@ export function CrashLabFloatingPanel({
         {!collapsed ? (
           <>
             <div
-              className="pointer-events-auto absolute bottom-0 right-0 z-30 h-5 w-5 cursor-se-resize"
-              onMouseDown={startResize("se")}
+              className="crash-resize-handle touch-none pointer-events-auto absolute bottom-0 right-0 z-30 h-5 w-5 cursor-se-resize"
+              onPointerDown={startResize("se")}
               title="Drag to resize"
             />
             <div
-              className="pointer-events-auto absolute bottom-0 left-0 z-30 h-5 w-5 cursor-sw-resize"
-              onMouseDown={startResize("sw")}
+              className="crash-resize-handle touch-none pointer-events-auto absolute bottom-0 left-0 z-30 h-5 w-5 cursor-sw-resize"
+              onPointerDown={startResize("sw")}
             />
             <div
-              className="pointer-events-auto absolute top-0 right-0 z-30 h-5 w-5 cursor-ne-resize"
-              onMouseDown={startResize("ne")}
+              className="crash-resize-handle touch-none pointer-events-auto absolute top-0 right-0 z-30 h-5 w-5 cursor-ne-resize"
+              onPointerDown={startResize("ne")}
             />
             <div
-              className="pointer-events-auto absolute top-0 left-0 z-30 h-5 w-5 cursor-nw-resize"
-              onMouseDown={startResize("nw")}
+              className="crash-resize-handle touch-none pointer-events-auto absolute top-0 left-0 z-30 h-5 w-5 cursor-nw-resize"
+              onPointerDown={startResize("nw")}
             />
             {/* Fat bottom grab — height resize (move = title bar) */}
             <div
-              className="pointer-events-auto absolute bottom-0 left-0 right-0 z-30 flex h-3 cursor-s-resize items-end justify-center bg-gradient-to-t from-black/35 to-transparent"
-              onMouseDown={startResize("s")}
+              className="crash-resize-handle touch-none pointer-events-auto absolute bottom-0 left-0 right-0 z-30 flex h-3 cursor-s-resize items-end justify-center bg-gradient-to-t from-black/35 to-transparent"
+              onPointerDown={startResize("s")}
               title="Drag to resize height"
             >
               <span className="mb-0.5 h-0.5 w-10 rounded-full bg-[var(--acid)]/70" />
             </div>
             <div
-              className="pointer-events-auto absolute top-0 left-5 right-5 z-30 h-3 cursor-n-resize"
-              onMouseDown={startResize("n")}
+              className="crash-resize-handle touch-none pointer-events-auto absolute top-0 left-5 right-5 z-30 h-3 cursor-n-resize"
+              onPointerDown={startResize("n")}
             />
             {/* Side grips only mid-edge — full-height strips steal the scrollbar */}
             <div className="pointer-events-none absolute inset-y-0 left-0 z-30 flex w-3 items-center">
               <div
-                className="pointer-events-auto h-14 w-full cursor-w-resize"
-                onMouseDown={startResize("w")}
+                className="crash-resize-handle touch-none pointer-events-auto h-14 w-full cursor-w-resize"
+                onPointerDown={startResize("w")}
                 title="Drag to resize width"
               />
             </div>
             <div className="pointer-events-none absolute inset-y-0 right-0 z-30 flex w-3 items-center justify-end">
               <div
-                className="pointer-events-auto h-14 w-full cursor-e-resize"
-                onMouseDown={startResize("e")}
+                className="crash-resize-handle touch-none pointer-events-auto h-14 w-full cursor-e-resize"
+                onPointerDown={startResize("e")}
                 title="Drag to resize width"
               />
             </div>

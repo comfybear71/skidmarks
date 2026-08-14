@@ -335,14 +335,14 @@ export function CrashDeskToolbar() {
     >
       <div
         className="pointer-events-auto flex flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--panel)]/95 px-4 py-1.5 backdrop-blur"
-        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <span className="mr-1 text-[9px] uppercase tracking-[0.2em] text-[var(--acid-deep)]">
           Layout
         </span>
         <button
           type="button"
-          className={`rounded-sm border px-2.5 py-1 text-[10px] uppercase tracking-wide ${
+          className={`touch-manipulation rounded-sm border px-2.5 py-2 text-[10px] uppercase tracking-wide ${
             mode === "stack"
               ? "border-[var(--acid)] bg-[var(--acid)]/15 text-[var(--acid)]"
               : "border-[var(--line)] text-[var(--chrome-dim)] hover:border-[var(--acid)] hover:text-[var(--acid)]"
@@ -353,7 +353,7 @@ export function CrashDeskToolbar() {
         </button>
         <button
           type="button"
-          className={`rounded-sm border px-2.5 py-1 text-[10px] uppercase tracking-wide ${
+          className={`touch-manipulation rounded-sm border px-2.5 py-2 text-[10px] uppercase tracking-wide ${
             mode === "grid"
               ? "border-[var(--magenta-hot)] bg-[var(--magenta)]/15 text-[var(--magenta-hot)]"
               : "border-[var(--line)] text-[var(--chrome-dim)] hover:border-[var(--magenta-hot)] hover:text-[var(--magenta-hot)]"
@@ -364,7 +364,7 @@ export function CrashDeskToolbar() {
         </button>
         <button
           type="button"
-          className={`rounded-sm border px-2.5 py-1 text-[10px] uppercase tracking-wide ${
+          className={`touch-manipulation rounded-sm border px-2.5 py-2 text-[10px] uppercase tracking-wide ${
             mode === "free"
               ? "border-[var(--chrome)] bg-[var(--chrome)]/15 text-[var(--chrome)]"
               : "border-[var(--line)] text-[var(--chrome-dim)] hover:border-[var(--chrome)] hover:text-[var(--chrome)]"
@@ -388,7 +388,7 @@ export function CrashDeskToolbar() {
             setCursorStyle(id);
             switchCrashLabShow(id);
           }}
-          className="rounded-sm border border-[var(--line)] bg-[var(--void)]/40 px-1.5 py-1 text-[10px] text-[var(--chrome)]"
+          className="touch-manipulation rounded-sm border border-[var(--line)] bg-[var(--void)]/40 px-1.5 py-2 text-[10px] text-[var(--chrome)]"
           title="Show for CURSOR / PROMPT build"
         >
           {CURSOR_STYLE_OPTIONS.map((o) => (
@@ -443,7 +443,7 @@ export function CrashDeskToolbar() {
         ) : (
           <>
             <span
-              className="max-w-[14rem] truncate rounded-sm border border-[var(--acid)]/50 bg-[var(--acid)]/10 px-2.5 py-1 text-[10px] font-medium tracking-wide text-[var(--acid)]"
+              className="max-w-[14rem] truncate rounded-sm border border-[var(--acid)]/50 bg-[var(--acid)]/10 px-2.5 py-2 text-[10px] font-medium tracking-wide text-[var(--acid)]"
               title={liveEpisode?.folderName}
             >
               {liveEpisode?.folderName}

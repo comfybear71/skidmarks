@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { Btn } from "@/components/ui";
 import { CrashDeskToolbar } from "@/components/CrashDeskToolbar";
 import { CrashImageGenCard } from "@/components/CrashImageGenCard";
@@ -15,6 +15,7 @@ import { CursorCastGateModal } from "@/components/CursorCastGateModal";
 import { CrashVoiceCard } from "@/components/CrashVoiceCard";
 import { CrashSceneKitCard } from "@/components/CrashSceneKitCard";
 import { useCrashDeskMode } from "@/hooks/useCrashDeskMode";
+import { usePanelPointerDrag } from "@/hooks/usePanelPointerDrag";
 import { coldStartEmptyCrashDesk } from "@/lib/crashRestoreDesk";
 import { bumpCrashLabZ } from "@/lib/crashLabZ";
 import {
@@ -71,8 +72,6 @@ function loadTools(): SavedTools {
   return {};
 }
 
-type CardGeom = { x: number; y: number; w: number; h: number };
-
 /**
  * Crash Lab — Morph v1
  * Tray + result persist on disk. Thin drag handle collapses tray.
@@ -83,8 +82,15 @@ export default function CrashLabPage() {
   // Refresh / cold load: no episode on the desk. He opens one himself.
   coldStartEmptyCrashDesk();
 
-  const { geom, deskReady, collapsed: morphCollapsed, mode: morphMode, togglePanel: toggleMorph, setGeom } =
-    useCrashDeskMode("morph");
+  const {
+    geom,
+    deskReady,
+    collapsed: morphCollapsed,
+    mode: morphMode,
+    togglePanel: toggleMorph,
+    setGeom,
+    hideOnNarrowStack: hideMorphOnNarrowStack,
+  } = useCrashDeskMode("morph", { minW: CARD_MIN_W, minH: CARD_MIN_H });
   const [slots, setSlots] = useState<Slot[]>([]);
   const [busy, setBusy] = useState(false);
   const [morphing, setMorphing] = useState(false);
@@ -116,15 +122,11 @@ export default function CrashLabPage() {
   const [morphZ, setMorphZ] = useState(40);
   const inputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
-  const dragRef = useRef<{ startX: number; startW: number; moved: boolean } | null>(
-    null,
-  );
-  const moveRef = useRef<{
-    mode: "move" | "resize";
-    edge?: string;
+  const dragRef = useRef<{
+    pointerId: number;
     startX: number;
-    startY: number;
-    orig: CardGeom;
+    startW: number;
+    moved: boolean;
   } | null>(null);
 
   const trayOpen = trayW >= TRAY_COLLAPSE_AT;
@@ -238,51 +240,27 @@ export default function CrashLabPage() {
     };
   }, []);
 
-  // Tray rail + whole-card move/resize
+  // Tray-width rail — separate small drag, not part of the panel move/resize hook.
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (dragRef.current) {
-        const dx = e.clientX - dragRef.current.startX;
-        if (Math.abs(dx) > 3) dragRef.current.moved = true;
-        const next = dragRef.current.startW + dx;
-        if (next < TRAY_COLLAPSE_AT) setTrayW(0);
-        else setTrayW(Math.min(320, Math.max(TRAY_MIN_W, next)));
-        return;
-      }
-      if (!moveRef.current) return;
-      const { mode, edge, startX, startY, orig } = moveRef.current;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      if (mode === "move") {
-        setGeom({
-          ...orig,
-          x: Math.max(0, orig.x + dx),
-          y: Math.max(0, orig.y + dy),
-        });
-        return;
-      }
-      let { x, y, w, h } = orig;
-      if (edge?.includes("e")) w = Math.max(CARD_MIN_W, orig.w + dx);
-      if (edge?.includes("s")) h = Math.max(CARD_MIN_H, orig.h + dy);
-      if (edge?.includes("w")) {
-        w = Math.max(CARD_MIN_W, orig.w - dx);
-        x = orig.x + (orig.w - w);
-      }
-      if (edge?.includes("n")) {
-        h = Math.max(CARD_MIN_H, orig.h - dy);
-        y = orig.y + (orig.h - h);
-      }
-      setGeom({ x: Math.max(0, x), y: Math.max(0, y), w, h });
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
+      const dx = e.clientX - dragRef.current.startX;
+      if (Math.abs(dx) > 3) dragRef.current.moved = true;
+      const next = dragRef.current.startW + dx;
+      if (next < TRAY_COLLAPSE_AT) setTrayW(0);
+      else setTrayW(Math.min(320, Math.max(TRAY_MIN_W, next)));
     };
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
+      if (dragRef.current?.pointerId !== e.pointerId) return;
       dragRef.current = null;
-      moveRef.current = null;
     };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
     return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
     };
   }, []);
 
@@ -290,32 +268,15 @@ export default function CrashLabPage() {
     setMorphZ(bumpCrashLabZ());
   }
 
-  function startCardMove(e: ReactMouseEvent) {
-    if ((e.target as HTMLElement).closest("button, a, input, video")) return;
-    bringMorphFront();
-    e.preventDefault();
-    moveRef.current = {
-      mode: "move",
-      startX: e.clientX,
-      startY: e.clientY,
-      orig: geom,
-    };
-  }
-
-  function startCardResize(edge: string) {
-    return (e: ReactMouseEvent) => {
-      bringMorphFront();
-      e.preventDefault();
-      e.stopPropagation();
-      moveRef.current = {
-        mode: "resize",
-        edge,
-        startX: e.clientX,
-        startY: e.clientY,
-        orig: geom,
-      };
-    };
-  }
+  const { startMove: startCardMove, startResize: startCardResize } =
+    usePanelPointerDrag({
+      geom,
+      setGeom,
+      minW: CARD_MIN_W,
+      minH: CARD_MIN_H,
+      bringFront: bringMorphFront,
+      ignoreSelector: "button, a, input, video",
+    });
 
   async function addFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList).filter((f) => {
@@ -572,6 +533,7 @@ export default function CrashLabPage() {
       <CrashComfyCard />
       <CrashStoryboardCard />
       <CrashSpxCard />
+      {!hideMorphOnNarrowStack ? (
       <div
         className="fixed flex flex-col overflow-hidden rounded-sm border border-[var(--line)] bg-[var(--panel)] shadow-lg"
         style={{
@@ -581,12 +543,12 @@ export default function CrashLabPage() {
           height: px(morphCollapsed ? CRASH_STRIP_H : geom.h),
           zIndex: morphZ,
         }}
-        onMouseDown={bringMorphFront}
+        onPointerDown={bringMorphFront}
       >
         {/* Title bar — drag the whole card */}
         <div
-          className={CRASH_PANEL_TITLE_BAR}
-          onMouseDown={startCardMove}
+          className={`${CRASH_PANEL_TITLE_BAR} touch-none`}
+          onPointerDown={startCardMove}
         >
           <h2 className={`${CRASH_PANEL_TITLE_COL} text-[var(--chrome)]`}>
             Crash Lab
@@ -884,13 +846,19 @@ export default function CrashLabPage() {
               role="separator"
               aria-orientation="vertical"
               title={trayOpen ? "Drag left to close · click to toggle" : "Click or drag to open"}
-              className={`flex w-1.5 shrink-0 cursor-col-resize items-center justify-center hover:bg-[var(--line)]/50 ${
+              className={`touch-none flex w-1.5 shrink-0 cursor-col-resize items-center justify-center hover:bg-[var(--line)]/50 ${
                 trayOpen ? "mx-0.5" : "absolute left-0 top-8 bottom-0 z-10"
               }`}
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                try {
+                  (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                } catch {
+                  /* ignore — drag still works via the window-level listeners */
+                }
                 dragRef.current = {
+                  pointerId: e.pointerId,
                   startX: e.clientX,
                   startW: trayOpen ? trayW : 0,
                   moved: false,
@@ -969,40 +937,41 @@ export default function CrashLabPage() {
 
         {/* Resize grips */}
         <div
-          className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize"
-          onMouseDown={startCardResize("se")}
+          className="crash-resize-handle touch-none absolute bottom-0 right-0 h-3 w-3 cursor-se-resize"
+          onPointerDown={startCardResize("se")}
         />
         <div
-          className="absolute bottom-0 left-0 h-3 w-3 cursor-sw-resize"
-          onMouseDown={startCardResize("sw")}
+          className="crash-resize-handle touch-none absolute bottom-0 left-0 h-3 w-3 cursor-sw-resize"
+          onPointerDown={startCardResize("sw")}
         />
         <div
-          className="absolute top-0 right-0 h-3 w-3 cursor-ne-resize"
-          onMouseDown={startCardResize("ne")}
+          className="crash-resize-handle touch-none absolute top-0 right-0 h-3 w-3 cursor-ne-resize"
+          onPointerDown={startCardResize("ne")}
         />
         <div
-          className="absolute top-0 left-0 h-3 w-3 cursor-nw-resize"
-          onMouseDown={startCardResize("nw")}
+          className="crash-resize-handle touch-none absolute top-0 left-0 h-3 w-3 cursor-nw-resize"
+          onPointerDown={startCardResize("nw")}
         />
         <div
-          className="absolute bottom-0 left-3 right-3 h-1.5 cursor-s-resize"
-          onMouseDown={startCardResize("s")}
+          className="crash-resize-handle touch-none absolute bottom-0 left-3 right-3 h-1.5 cursor-s-resize"
+          onPointerDown={startCardResize("s")}
         />
         <div
-          className="absolute top-0 left-3 right-3 h-1.5 cursor-n-resize"
-          onMouseDown={startCardResize("n")}
+          className="crash-resize-handle touch-none absolute top-0 left-3 right-3 h-1.5 cursor-n-resize"
+          onPointerDown={startCardResize("n")}
         />
         <div
-          className="absolute bottom-3 top-3 left-0 w-1.5 cursor-w-resize"
-          onMouseDown={startCardResize("w")}
+          className="crash-resize-handle touch-none absolute bottom-3 top-3 left-0 w-1.5 cursor-w-resize"
+          onPointerDown={startCardResize("w")}
         />
         <div
-          className="absolute bottom-3 top-3 right-0 w-1.5 cursor-e-resize"
-          onMouseDown={startCardResize("e")}
+          className="crash-resize-handle touch-none absolute bottom-3 top-3 right-0 w-1.5 cursor-e-resize"
+          onPointerDown={startCardResize("e")}
         />
         </>
         ) : null}
       </div>
+      ) : null}
 
       {preview ? (
         <div
