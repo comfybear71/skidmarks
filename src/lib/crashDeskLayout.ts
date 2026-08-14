@@ -1,7 +1,7 @@
 import type { CardGeom } from "@/components/CrashLabFloatingPanel";
 import { CRASH_SCRIPT_MIN_W } from "./crashLabPanel";
 
-export const CRASH_DESK_LAYOUT_VER = "19";
+export const CRASH_DESK_LAYOUT_VER = "20";
 export const CRASH_DESK_MODE_KEY = "crashlab-desk-mode";
 export const CRASH_DESK_MODE_EVENT = "crash-desk-mode";
 /** One-shot unjam stamp — not show style / episode / scene kit. */
@@ -55,7 +55,8 @@ export type CrashPanelId =
   | "script-upload"
   | "character-roster"
   | "script-storyboard"
-  | "compositor";
+  | "compositor"
+  | "script-voice";
 
 /**
  * Stack strip order (Animate-first). Character → Image gen → Voice → Scene kit → Animate
@@ -75,6 +76,7 @@ export const CRASH_DESK_LIVE_PANELS: CrashPanelId[] = [
   "character-roster",
   "script-storyboard",
   "compositor",
+  "script-voice",
 ];
 
 /** Full id list including retired Story (geom / old keys). Strip Y uses LIVE only. */
@@ -308,6 +310,12 @@ function openColumnsAt(
     w: 380,
     h: 560,
   };
+  const scriptVoice: CardGeom = {
+    x: viewW - 1520 > margin ? viewW - 1520 : margin,
+    y: top,
+    w: 380,
+    h: 560,
+  };
 
   return {
     script,
@@ -324,6 +332,7 @@ function openColumnsAt(
     "character-roster": characterRoster,
     "script-storyboard": scriptStoryboard,
     compositor,
+    "script-voice": scriptVoice,
   };
 }
 

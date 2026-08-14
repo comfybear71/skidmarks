@@ -1,0 +1,179 @@
+import type { ShowStyleId } from "./showStylePresets";
+import type { CrashStoryDoc } from "./crashStoryTypes";
+import { listCharacters } from "./characters";
+import {
+  ensureVoiceReadyWithDescription,
+  findCrashVoiceByName,
+} from "./crashVoice";
+import { suggestVoiceDescription } from "./scriptVoiceSuggest";
+import { synthesizeStoryBeat } from "./crashStorySpeak";
+import { readCrashStory } from "./crashStory";
+import { readVoiceQuota } from "./elevenQuota";
+import { openCrashLabEpisode, saveCrashLabEpisode } from "./crashLabEpisodes";
+import { persistCursorPackToCloud } from "./cursorCloudSync";
+import { writeScriptVoiceProgress } from "./scriptVoiceProgress";
+
+export type ScriptVoiceGenItemResult = {
+  name: string;
+  ok: boolean;
+  detail: string;
+};
+
+export type ScriptVoiceGenResult = {
+  folderName: string;
+  cast: ScriptVoiceGenItemResult[];
+  lines: ScriptVoiceGenItemResult[];
+  quotaExceeded: boolean;
+};
+
+function uniqueSpeakers(story: CrashStoryDoc): string[] {
+  const names = new Set<string>();
+  for (const scene of story.scenes) {
+    for (const shot of scene.shots) {
+      for (const beat of shot.beats) {
+        if (beat.speaker.trim()) names.add(beat.speaker.trim());
+      }
+    }
+  }
+  return Array.from(names);
+}
+
+async function castEpisodeVoices(
+  styleId: ShowStyleId,
+  story: CrashStoryDoc,
+): Promise<{ results: ScriptVoiceGenItemResult[]; quotaExceeded: boolean }> {
+  const speakers = uniqueSpeakers(story);
+  const byLowerName = new Map(
+    listCharacters().map((c) => [c.name.trim().toLowerCase(), c] as const),
+  );
+  const results: ScriptVoiceGenItemResult[] = [];
+  let quotaExceeded = false;
+
+  for (let i = 0; i < speakers.length; i++) {
+    const speaker = speakers[i];
+    writeScriptVoiceProgress({
+      phase: "casting",
+      current: i + 1,
+      total: speakers.length,
+      label: speaker,
+    });
+
+    const alreadyCast = Boolean(
+      findCrashVoiceByName(styleId, speaker)?.approvedVoiceId,
+    );
+    if (alreadyCast) {
+      results.push({ name: speaker, ok: true, detail: "Already cast" });
+      continue;
+    }
+
+    if (quotaExceeded || readVoiceQuota().remaining <= 0) {
+      quotaExceeded = true;
+      results.push({
+        name: speaker,
+        ok: false,
+        detail: "Monthly voice-design quota used up — try again next month",
+      });
+      continue;
+    }
+
+    try {
+      const character = byLowerName.get(speaker.toLowerCase());
+      await ensureVoiceReadyWithDescription(styleId, speaker, () =>
+        suggestVoiceDescription({
+          name: speaker,
+          pastNote: character?.pastNote,
+          tormentScratch: character?.tormentScratch,
+          lookNote: character?.lookNote,
+        }),
+      );
+      results.push({ name: speaker, ok: true, detail: "Cast" });
+    } catch (e) {
+      results.push({
+        name: speaker,
+        ok: false,
+        detail: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  return { results, quotaExceeded };
+}
+
+async function generateEpisodeLines(
+  styleId: ShowStyleId,
+  story: CrashStoryDoc,
+): Promise<ScriptVoiceGenItemResult[]> {
+  const beats: { beatId: string; speaker: string; text: string }[] = [];
+  for (const scene of story.scenes) {
+    for (const shot of scene.shots) {
+      for (const beat of shot.beats) {
+        if (!beat.text.trim() || beat.voiceFile?.trim()) continue;
+        beats.push({ beatId: beat.id, speaker: beat.speaker, text: beat.text });
+      }
+    }
+  }
+
+  const results: ScriptVoiceGenItemResult[] = [];
+  for (let i = 0; i < beats.length; i++) {
+    const beat = beats[i];
+    writeScriptVoiceProgress({
+      phase: "lines",
+      current: i + 1,
+      total: beats.length,
+      label: `${beat.speaker}: ${beat.text.slice(0, 40)}`,
+    });
+    try {
+      // synthesizeStoryBeat re-reads/re-writes the current desk story itself
+      // (including its own expired-voice-id retry) — no local story mutation
+      // needed here, each call persists immediately.
+      await synthesizeStoryBeat({ styleId, ...beat });
+      results.push({ name: beat.speaker, ok: true, detail: "Line generated" });
+    } catch (e) {
+      results.push({
+        name: beat.speaker,
+        ok: false,
+        detail: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  return results;
+}
+
+/**
+ * Batch-fill voices for a script-imported episode: cast every speaker who
+ * doesn't have an approved voice yet (LLM-suggested design description,
+ * falling back to the static table), then generate mp3s for every dialogue
+ * beat without one. Sequential with per-item try/catch, mirroring
+ * scriptImageGen.ts's batch shape.
+ */
+export async function generateEpisodeVoices(
+  styleId: ShowStyleId,
+  folderName: string,
+): Promise<ScriptVoiceGenResult> {
+  const opened = openCrashLabEpisode({ folderName, styleId });
+
+  writeScriptVoiceProgress({ phase: "casting", current: 0, total: 1, label: "Starting…" });
+  const { results: cast, quotaExceeded } = await castEpisodeVoices(styleId, opened.story);
+
+  const lines = await generateEpisodeLines(styleId, opened.story);
+
+  // synthesizeStoryBeat already persisted the current desk story per beat —
+  // re-read fresh rather than reusing opened.story, which has no voiceFile
+  // patches applied locally.
+  const finalStory = readCrashStory(styleId);
+  saveCrashLabEpisode({ styleId, folderName, label: finalStory.campaignLabel });
+  await persistCursorPackToCloud({
+    styleId,
+    folderName,
+    story: finalStory,
+    sceneKit: opened.sceneKit,
+  });
+
+  writeScriptVoiceProgress({
+    phase: "done",
+    current: cast.length + lines.length,
+    total: cast.length + lines.length,
+    label: "Done",
+  });
+
+  return { folderName, cast, lines, quotaExceeded };
+}
