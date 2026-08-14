@@ -179,8 +179,8 @@ export default function HomePage() {
               onClick={() => void openEpisode(ep)}
               className="block w-full rounded-sm border border-[var(--line)] bg-[var(--panel)] px-4 py-4 text-left transition hover:border-[var(--acid)] disabled:opacity-50"
             >
-              <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <span className="display text-xl text-[var(--chrome)]">
+              <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-3">
+                <span className="display min-w-0 break-words text-xl text-[var(--chrome)]">
                   {ep.label || ep.folderName}
                 </span>
                 <div className="flex flex-wrap gap-1.5">
