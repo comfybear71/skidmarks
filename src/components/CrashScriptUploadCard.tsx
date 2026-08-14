@@ -82,6 +82,13 @@ export function CrashScriptUploadCard() {
       setSuccess(
         `Parsed ${parsed.parsedEpisodes.length} episode(s), ${parsed.parsedCharacters.length} character(s)`,
       );
+
+      // Dispatch event for character roster panel
+      window.dispatchEvent(
+        new CustomEvent("crash-script-parsed", {
+          detail: { script: parsed, characters: parsed.parsedCharacters },
+        }),
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to parse script",
