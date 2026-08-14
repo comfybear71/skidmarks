@@ -14,6 +14,8 @@ import {
 import { bumpCrashLabZ } from "@/lib/crashLabZ";
 import { dispatchStorySaved } from "@/lib/crashStyleSync";
 import type { ImportedScriptEpisode } from "@/lib/scriptImport";
+import type { ScriptImageGenResult } from "@/lib/scriptImageGen";
+import type { ScriptImageProgress } from "@/lib/scriptImageProgress";
 import type { ProductionScript } from "@/lib/types";
 
 const SCRIPT_UPLOAD_MIN_W = 320;
@@ -45,6 +47,10 @@ export function CrashScriptUploadCard() {
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState<ImportedScriptEpisode[] | null>(null);
   const [importError, setImportError] = useState("");
+  const [genBusyFolder, setGenBusyFolder] = useState<string | null>(null);
+  const [genProgress, setGenProgress] = useState<ScriptImageProgress | null>(null);
+  const [genResults, setGenResults] = useState<Record<string, ScriptImageGenResult>>({});
+  const [genErrors, setGenErrors] = useState<Record<string, string>>({});
 
   const bringFront = useCallback(() => {
     setZ(bumpCrashLabZ());
@@ -132,6 +138,56 @@ export function CrashScriptUploadCard() {
       setImporting(false);
     }
   }, [parsedScript, activeStyle, importing]);
+
+  // Poll the batch's progress file while a generate run is in flight.
+  useEffect(() => {
+    if (!genBusyFolder) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/crash/script/image-progress");
+        const data = await res.json();
+        if (!cancelled && data.progress) setGenProgress(data.progress);
+      } catch {
+        /* ignore — next tick tries again */
+      }
+    };
+    void poll();
+    const id = window.setInterval(poll, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [genBusyFolder]);
+
+  const handleGenerateImages = useCallback(
+    async (folderName: string) => {
+      if (genBusyFolder) return;
+      setGenBusyFolder(folderName);
+      setGenProgress(null);
+      setGenErrors((prev) => ({ ...prev, [folderName]: "" }));
+      try {
+        const res = await fetch("/api/crash/script/image/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ styleId: activeStyle, folderName }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Image generation failed");
+        setGenResults((prev) => ({ ...prev, [folderName]: data as ScriptImageGenResult }));
+        dispatchStorySaved();
+      } catch (err) {
+        setGenErrors((prev) => ({
+          ...prev,
+          [folderName]: err instanceof Error ? err.message : "Image generation failed",
+        }));
+      } finally {
+        setGenBusyFolder(null);
+        setGenProgress(null);
+      }
+    },
+    [genBusyFolder, activeStyle],
+  );
 
   if (hideOnNarrowStack) return null;
 
@@ -329,11 +385,67 @@ export function CrashScriptUploadCard() {
               <div style={{ marginBottom: "4px" }}>
                 <strong>Imported {imported.length} episode(s) into {activeStyle}:</strong>
               </div>
-              {imported.map((ep) => (
-                <div key={ep.folderName} style={{ fontSize: "9px" }}>
-                  {ep.folderName} — {ep.scenes} scenes, {ep.lines} lines
-                </div>
-              ))}
+              {imported.map((ep) => {
+                const busy = genBusyFolder === ep.folderName;
+                const result = genResults[ep.folderName];
+                const genErr = genErrors[ep.folderName];
+                return (
+                  <div
+                    key={ep.folderName}
+                    style={{ fontSize: "9px", marginBottom: "8px" }}
+                  >
+                    <div>
+                      {ep.folderName} — {ep.scenes} scenes, {ep.lines} lines
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleGenerateImages(ep.folderName)}
+                      disabled={Boolean(genBusyFolder)}
+                      style={{
+                        marginTop: "4px",
+                        padding: "4px 8px",
+                        backgroundColor: "#1a2f1a",
+                        color: "#51cf66",
+                        border: "1px solid #2a5a2a",
+                        borderRadius: "3px",
+                        fontSize: "9px",
+                        cursor: genBusyFolder ? "default" : "pointer",
+                        opacity: genBusyFolder && !busy ? 0.5 : 1,
+                      }}
+                    >
+                      {busy
+                        ? genProgress
+                          ? `${genProgress.phase} ${genProgress.current}/${genProgress.total} — ${genProgress.label}`
+                          : "Starting…"
+                        : "Generate images (faces + locations)"}
+                    </button>
+                    {genErr ? (
+                      <div style={{ color: "#ff6b6b", marginTop: "4px" }}>
+                        ✗ {genErr}
+                      </div>
+                    ) : null}
+                    {result ? (
+                      <div style={{ marginTop: "4px", color: "#aaa" }}>
+                        <div>
+                          Characters:{" "}
+                          {result.characters.filter((r) => r.ok).length}/
+                          {result.characters.length} ·{" "}
+                          Locations:{" "}
+                          {result.locations.filter((r) => r.ok).length}/
+                          {result.locations.length}
+                        </div>
+                        {[...result.characters, ...result.locations]
+                          .filter((r) => !r.ok)
+                          .map((r, i) => (
+                            <div key={i} style={{ color: "#ff6b6b" }}>
+                              ✗ {r.name}: {r.detail}
+                            </div>
+                          ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           )}
 
