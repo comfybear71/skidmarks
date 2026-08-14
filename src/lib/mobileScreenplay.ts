@@ -1,6 +1,7 @@
 import { askGrok } from "./textGen";
 import { parseProductionScript } from "./scriptParser";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
+import type { ScriptCharacterData, ScriptEpisodeData } from "./types";
 
 const SCRIPT_FORMAT = `Show Name
 Episode 1: "Episode Title"
@@ -81,7 +82,12 @@ export async function generateScreenplayText(opts: {
   prompt: string;
   styleId: ShowStyleId;
   shotCount: number;
-}): Promise<{ text: string; title: string }> {
+}): Promise<{
+  text: string;
+  title: string;
+  parsedEpisodes: ScriptEpisodeData[];
+  parsedCharacters: ScriptCharacterData[];
+}> {
   const sceneCount = sceneCountFor(opts.shotCount);
   const preset = getShowStylePreset(opts.styleId);
 
@@ -109,7 +115,6 @@ export async function generateScreenplayText(opts: {
 
     const scenes: string[] = [];
     for (let i = 0; i < beats.length; i++) {
-      const actNum = i < Math.ceil(beats.length / 2) ? "I" : "II";
       const sceneText = await askGrok({
         system: SYSTEM_PROMPT(opts.styleId, preset.label, preset.tagline),
         user: [
@@ -145,5 +150,10 @@ export async function generateScreenplayText(opts: {
     );
   }
 
-  return { text, title: parsed.parsedEpisodes[0]!.title };
+  return {
+    text,
+    title: parsed.parsedEpisodes[0]!.title,
+    parsedEpisodes: parsed.parsedEpisodes,
+    parsedCharacters: parsed.parsedCharacters,
+  };
 }
