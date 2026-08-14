@@ -2,8 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Black_Ops_One, DM_Sans } from "next/font/google";
-import { HfStatus } from "@/components/HfStatus";
-import { RunpodStatus } from "@/components/RunpodStatus";
+import { SiteNav } from "@/components/SiteNav";
 import { runningOnVercel } from "@/lib/cloudEnv";
 import "./globals.css";
 
@@ -63,22 +62,7 @@ export default async function RootLayout({
                   </h1>
                 </div>
               </Link>
-              <nav className="flex flex-wrap items-center gap-2 text-sm">
-                <Link
-                  href="/crash"
-                  className="touch-manipulation rounded-sm border border-[var(--acid)] bg-[var(--acid)]/10 px-3 py-2.5 text-[var(--acid)] hover:bg-[var(--acid)]/20"
-                >
-                  Crash Lab
-                </Link>
-                <Link
-                  href="/"
-                  className="touch-manipulation rounded-sm border border-[var(--line)] px-3 py-2.5 text-[var(--chrome-dim)] hover:border-[var(--acid)] hover:text-[var(--acid)]"
-                >
-                  Home
-                </Link>
-                <HfStatus />
-                <RunpodStatus />
-              </nav>
+              <SiteNav />
             </div>
           </header>
           <main className="mx-auto max-w-6xl px-5 py-8">{children}</main>
