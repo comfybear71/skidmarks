@@ -4,7 +4,9 @@
  * route falls back to disk. Never sends the Blob token to the browser.
  */
 import { NextResponse } from "next/server";
-import { useCloudStore } from "./cloudEnv";
+// Aliased: a plain env check, not a React hook — the `use` prefix otherwise
+// trips rules-of-hooks in every non-component file that calls it.
+import { useCloudStore as cloudStoreEnabled } from "./cloudEnv";
 import {
   blobContentType,
   getBlobPayload,
@@ -26,7 +28,7 @@ export async function cloudShowAssetRedirect(
   kind: ShowAssetKind,
   filename: string,
 ): Promise<NextResponse | null> {
-  if (!useCloudStore()) return null;
+  if (!cloudStoreEnabled()) return null;
   if (!isSafeMediaName(filename)) return null;
   let row = await findNeonShowFile({ showId, kind, filename });
   if (!row && kind === "cast") {
@@ -43,11 +45,41 @@ export async function cloudShowAssetRedirect(
   });
 }
 
+/**
+ * Bytes for one show-level asset, for server-side work that needs the file
+ * itself rather than a response to stream back. Plate compositing runs on a
+ * different Vercel invocation than the approval did, so the local gallery it
+ * used to read is always empty there.
+ */
+export async function readShowAssetBytes(
+  showId: ShowStyleId,
+  kind: ShowAssetKind,
+  filename: string,
+): Promise<Buffer | null> {
+  if (!cloudStoreEnabled()) return null;
+  if (!isSafeMediaName(filename)) return null;
+  let row = await findNeonShowFile({ showId, kind, filename });
+  if (!row && kind === "cast") {
+    row = await findNeonShowFileAnyShow({ kind, filename });
+  }
+  if (!row?.blob_url && !row?.blob_pathname) return null;
+  const payload = await getBlobPayload(row.blob_url || row.blob_pathname);
+  if (!payload) return null;
+  const chunks: Uint8Array[] = [];
+  const reader = payload.stream.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
 export async function cloudListShowFiles(
   showId: ShowStyleId,
   kind: BlobFileKind,
 ): Promise<NeonFileRow[]> {
-  if (!useCloudStore()) return [];
+  if (!cloudStoreEnabled()) return [];
   return listNeonShowFiles({ showId, kind });
 }
 

@@ -131,8 +131,12 @@ export async function POST(req: Request) {
         const shots = job.shots.map((s) => (s.shotId === next.shotId ? { ...s, plateFile: fileName } : s));
         job = (await patchMobileGenJob(jobId, { shots }))!;
       } catch (e) {
+        // The reason compositing failed used to be discarded here, leaving
+        // animate to report only that a plate was missing.
+        const why = e instanceof Error ? e.message : String(e);
+        console.error(`Plate failed for shot ${next.shotId}: ${why}`);
         const shots = job.shots.map((s) =>
-          s.shotId === next.shotId ? { ...s, plateFile: "__error__" } : s,
+          s.shotId === next.shotId ? { ...s, plateFile: "__error__", error: why } : s,
         );
         job = (await patchMobileGenJob(jobId, {
           shots,
@@ -221,7 +225,9 @@ export async function POST(req: Request) {
         }
         if (shot.plateFile === "__error__") {
           throw new Error(
-            `Shot ${next.shotId} failed to plate — check its cast and location were both picked`,
+            shot.error
+              ? `Shot ${next.shotId} failed to plate — ${shot.error}`
+              : `Shot ${next.shotId} failed to plate — check its cast and location were both picked`,
           );
         }
         if (!shot.plateFile) {
