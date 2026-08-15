@@ -70,7 +70,14 @@ export default function MobileHomePage() {
       return;
     }
     stopPoll();
+    // A step can take far longer than the poll interval — voices and plates
+    // take minutes. Without this guard the timer kept firing and several
+    // copies of the same phase ran at once, which is what tripped ElevenLabs'
+    // 5-concurrent-request limit.
+    let inFlight = false;
     pollRef.current = window.setInterval(async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const data = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/step", {
           jobId: job.id,
@@ -79,6 +86,8 @@ export default function MobileHomePage() {
       } catch (e) {
         setError(e instanceof Error ? e.message : "Step failed");
         stopPoll();
+      } finally {
+        inFlight = false;
       }
     }, 1500);
     return stopPoll;
@@ -387,6 +396,10 @@ export default function MobileHomePage() {
           title={job.phase === "plates" ? "Building the shots…" : "Casting voices…"}
           subtitle="This runs on its own — sit tight."
         >
+          {/* Everything picked stays on screen while the slow phases run. A
+              bare spinner threw the whole cast and every location away and
+              left nothing to look at. */}
+          <PickedSoFar job={job} characterIds={characterIds} />
           <BusySpinner />
         </ActiveStepPanel>
       )}
@@ -470,6 +483,71 @@ function BusySpinner() {
   );
 }
 
+/** Cast and locations already chosen, kept on screen through the long
+ * unattended phases so the run still shows what it is building. */
+function PickedSoFar({
+  job,
+  characterIds,
+}: {
+  job: MobileGenJob;
+  characterIds: Record<string, string>;
+}) {
+  const cast = job.speakers
+    .map((name) => ({
+      key: `cast-${name}`,
+      label: name,
+      src: (() => {
+        const chosen = (job.castCandidates[name] || []).find((c) => c.approved);
+        return chosen
+          ? `/api/crash/mobile/cast-face?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&characterId=${encodeURIComponent(characterIds[name] || "")}&fileName=${encodeURIComponent(chosen.fileName)}`
+          : "";
+      })(),
+    }))
+    .filter((r) => r.src);
+
+  const places = job.scenes
+    .map((scene) => ({
+      key: `loc-${scene.id}`,
+      label: scene.placeName,
+      src: (() => {
+        const chosen = (job.locationCandidates[scene.id] || []).find((c) => c.approved);
+        return chosen
+          ? `/api/crash/gen/file?name=${encodeURIComponent(chosen.fileName)}`
+          : "";
+      })(),
+    }))
+    .filter((r) => r.src);
+
+  const rows = [...cast, ...places];
+  if (!rows.length) return null;
+
+  return (
+    <div style={{ marginBottom: "16px" }}>
+      {rows.map((row) => (
+        <div
+          key={row.key}
+          style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 0" }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={row.src}
+            alt=""
+            style={{
+              width: "40px",
+              height: "40px",
+              objectFit: "cover",
+              borderRadius: "8px",
+              flex: "0 0 auto",
+            }}
+          />
+          <span style={{ fontSize: "13px", color: "var(--chrome)" }}>{row.label}</span>
+          <span style={{ marginLeft: "auto", color: "var(--acid)", fontSize: "13px" }}>✓</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CastLocationStep({
   title,
   subtitle,
@@ -534,12 +612,10 @@ function CastLocationStep({
         return (
           <div
             style={{
-              maxHeight: "132px",
-              overflowY: "auto",
+              // Sits on the page background rather than in a boxed panel with
+              // its own scrollbar — an inner scroller fights the page and hides
+              // the picks it is meant to show.
               marginBottom: "12px",
-              border: "1px solid var(--line)",
-              borderRadius: "10px",
-              background: "var(--panel-2)",
             }}
           >
             {picked.map(({ id, chosen }) => (
