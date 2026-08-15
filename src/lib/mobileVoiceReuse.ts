@@ -6,7 +6,12 @@ import {
 } from "./crashVoice";
 import { readVoiceLibrary } from "./voiceLibrary";
 import { listLibraryVoices } from "./elevenLabs";
-import type { ShowStyleId } from "./showStylePresets";
+import { defaultCrashVoicePrompt } from "./crashVoicePrompt";
+import {
+  getShowStylePreset,
+  SHOW_STYLE_PRESETS,
+  type ShowStyleId,
+} from "./showStylePresets";
 
 /** Same speaker → same voice on every run, without persisting the choice.
  * The local voice records live in per-invocation /tmp on Vercel, so nothing
@@ -50,7 +55,39 @@ export async function assignReusedVoice(
     const library = await listLibraryVoices().catch(() => []);
     const usable = library.filter((v) => v.voiceId?.trim());
     if (usable.length) {
-      donorId = usable[stableIndex(speaker, usable.length)]?.voiceId || "";
+      const sp = speaker.trim().toLowerCase();
+      const showLabel = getShowStylePreset(styleId).label.toLowerCase();
+      const otherLabels = SHOW_STYLE_PRESETS.filter((p) => p.id !== styleId).map(
+        (p) => p.label.toLowerCase(),
+      );
+
+      // The account already holds voices named after these characters —
+      // "Sunny Banks Nan", "Dazza", "Skidmarks Narrator". Matching on the name
+      // gets the character's actual voice rather than a stranger's, and costs
+      // no add/edit operation. Prefer one tagged with this show, then one
+      // belonging to no other show, so "Shazza" does not pick up
+      // "Skidmarks Shazza Crack" while making Sunny Banks.
+      const named = usable.filter((v) => v.name.toLowerCase().includes(sp));
+      const thisShow = named.filter((v) => v.name.toLowerCase().includes(showLabel));
+      const unclaimed = named.filter(
+        (v) => !otherLabels.some((o) => v.name.toLowerCase().includes(o)),
+      );
+
+      // Nothing named for them: any voice will do, but a wrong-sex one will
+      // not. defaultCrashVoicePrompt already encodes the name-to-sex guess, so
+      // read the answer off it rather than keeping a second list in sync.
+      const wanted = /\bfemale voice\b/i.test(defaultCrashVoicePrompt(speaker))
+        ? "female"
+        : "male";
+      const bySex = usable.filter((v) => v.gender === wanted);
+      const pool = bySex.length ? bySex : usable;
+
+      donorId =
+        thisShow[0]?.voiceId ||
+        unclaimed[0]?.voiceId ||
+        named[0]?.voiceId ||
+        pool[stableIndex(speaker, pool.length)]?.voiceId ||
+        "";
     }
   }
   if (!donorId) return false;
