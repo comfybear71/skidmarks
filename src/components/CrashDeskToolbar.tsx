@@ -582,6 +582,10 @@ export function CrashDeskToolbar() {
             styleId={liveStyle}
             mode={episodeMode}
             onClose={() => setEpisodeMode(null)}
+            onNewEpisode={() => {
+              setEpisodeMode(null);
+              void onNewEpisode();
+            }}
           />
         ) : null}
     </>

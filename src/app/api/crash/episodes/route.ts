@@ -1,13 +1,19 @@
+import fs from "fs";
 import { NextResponse } from "next/server";
 import {
+  episodePackDir,
   listCrashLabEpisodes,
   openCrashLabEpisode,
   saveCrashLabEpisode,
 } from "@/lib/crashLabEpisodes";
+import { deleteNeonEpisode } from "@/lib/neonStore";
+import { deleteBlobFiles } from "@/lib/blobStore";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { crashLabShowFolderName } from "@/lib/showArchivePaths";
 import { readActivePack } from "@/lib/crashActivePack";
-import { useCloudStore } from "@/lib/cloudEnv";
+// Aliased: a plain env check, not a React hook — the `use` prefix
+// otherwise trips rules-of-hooks at every call site in this route.
+import { useCloudStore as cloudStoreEnabled } from "@/lib/cloudEnv";
 import {
   cloudActivePack,
   listCloudEpisodes,
@@ -26,7 +32,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     if (url.searchParams.get("active") === "1") {
       const styleId = parseStyleCardId(url.searchParams.get("styleId"));
-      if (useCloudStore()) {
+      if (cloudStoreEnabled()) {
         return NextResponse.json({
           pack: await cloudActivePack(styleId || undefined),
         });
@@ -41,7 +47,7 @@ export async function GET(req: Request) {
     if (!styleId) {
       return NextResponse.json({ error: "Need styleId" }, { status: 400 });
     }
-    if (useCloudStore()) {
+    if (cloudStoreEnabled()) {
       return NextResponse.json({
         episodes: await listCloudEpisodes(styleId),
         root: `shows/${styleId}/episodes`,
@@ -82,7 +88,7 @@ export async function POST(req: Request) {
       if (!styleId) {
         return NextResponse.json({ error: "Need styleId" }, { status: 400 });
       }
-      if (useCloudStore()) {
+      if (cloudStoreEnabled()) {
         const story = (await readCloudStory(styleId)) || emptyStory(styleId);
         const label =
           body.label?.trim() || story.campaignLabel || "Untitled episode";
@@ -139,7 +145,7 @@ export async function POST(req: Request) {
       if (!styleId) {
         return NextResponse.json({ error: "Need styleId" }, { status: 400 });
       }
-      if (useCloudStore()) {
+      if (cloudStoreEnabled()) {
         const opened = await openCloudEpisode({ folderName, styleId });
         return NextResponse.json({
           ok: true,
@@ -170,6 +176,43 @@ export async function POST(req: Request) {
       { error: 'action must be "save" or "open"' },
       { status: 400 },
     );
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * DELETE ?styleId=&folderName= — remove one episode pack for good. No
+ * confirmation short of this call itself, so the client is responsible for
+ * asking first; this endpoint just does it.
+ */
+export async function DELETE(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const styleId = parseStyleCardId(url.searchParams.get("styleId"));
+    const folderName = (url.searchParams.get("folderName") || "").trim();
+    if (!styleId) {
+      return NextResponse.json({ error: "Need styleId" }, { status: 400 });
+    }
+    if (!folderName) {
+      return NextResponse.json({ error: "Need folderName" }, { status: 400 });
+    }
+
+    if (cloudStoreEnabled()) {
+      const { blobPathnames } = await deleteNeonEpisode(styleId, folderName);
+      await deleteBlobFiles(blobPathnames);
+      return NextResponse.json({ ok: true, blobFilesRemoved: blobPathnames.length });
+    }
+
+    const dir = episodePackDir(folderName, styleId);
+    if (!dir || !fs.existsSync(dir)) {
+      return NextResponse.json({ error: "Episode not found" }, { status: 404 });
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+    return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },

@@ -11,7 +11,7 @@ import {
   type NeonEpisodeRow,
 } from "./neonStore";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
-import type { CrashLabEpisodeListItem, CrashLabEpisodeMeta } from "./crashLabEpisodes";
+import { firstPlateFile, type CrashLabEpisodeListItem, type CrashLabEpisodeMeta } from "./crashLabEpisodes";
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import type { SceneKitDiskDraft } from "./crashSceneKitStore";
 import { listComfyBeats, type ComfyDraft } from "./crashComfyStack";
@@ -31,6 +31,7 @@ function toListItem(row: NeonEpisodeRow): CrashLabEpisodeListItem {
     path: `shows/${row.show_id}/episodes/${row.folder_name}`,
     hasStory: Boolean(row.has_story || row.story_json),
     hasSceneKit: Boolean(row.has_scene_kit || row.scene_kit_json),
+    thumbFile: firstPlateFile(row.story_json as never),
   };
 }
 

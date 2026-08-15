@@ -78,7 +78,21 @@ export type CrashLabEpisodeListItem = CrashLabEpisodeMeta & {
   path: string;
   hasStory: boolean;
   hasSceneKit: boolean;
+  /** First plate found in the story, for a thumbnail in the open-episode
+   * picker — a text list of forty saved runs is not something you can tell
+   * apart at a glance. */
+  thumbFile?: string;
 };
+
+/** First shot with a plate — the picker's one thumbnail per episode. */
+export function firstPlateFile(story: { scenes?: { shots?: { plateFile?: string }[] }[] } | null): string | undefined {
+  for (const scene of story?.scenes || []) {
+    for (const shot of scene.shots || []) {
+      if (shot.plateFile?.trim()) return shot.plateFile.trim();
+    }
+  }
+  return undefined;
+}
 
 const FORBIDDEN = new Set(["gen", "morph"]);
 
@@ -643,10 +657,12 @@ export function listCrashLabEpisodes(
       /* ignore */
     }
     let packStyle = (meta.styleId || styleId) as ShowStyleId;
+    let thumbFile: string | undefined;
     if (storyFp) {
       try {
         const st = JSON.parse(fs.readFileSync(storyFp, "utf8")) as CrashStoryDoc;
         if (st.styleId) packStyle = st.styleId;
+        thumbFile = firstPlateFile(st);
       } catch {
         /* ignore */
       }
@@ -660,6 +676,7 @@ export function listCrashLabEpisodes(
       path: dir,
       hasStory,
       hasSceneKit,
+      thumbFile,
     });
   }
   out.sort((a, b) => {

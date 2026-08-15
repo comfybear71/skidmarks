@@ -206,6 +206,28 @@ export async function upsertNeonEpisode(row: {
   `;
 }
 
+/**
+ * Delete an episode and everything scoped to it. files.episode_id has
+ * ON DELETE CASCADE (sql/001_init.sql), so removing the episode row also
+ * removes its plates/audio/mp4 rows — this only has to fetch their blob
+ * pathnames first, since cascade doesn't touch Blob storage.
+ */
+export async function deleteNeonEpisode(
+  showId: ShowStyleId,
+  folderName: string,
+): Promise<{ blobPathnames: string[] }> {
+  const sql = getSql();
+  if (!sql) return { blobPathnames: [] };
+  const id = episodeRowId(showId, folderName);
+  const fileRows = (await sql`
+    SELECT blob_pathname FROM files WHERE episode_id = ${id}
+  `) as { blob_pathname: string | null }[];
+  await sql`DELETE FROM episodes WHERE id = ${id}`;
+  return {
+    blobPathnames: fileRows.map((r) => r.blob_pathname).filter((p): p is string => Boolean(p)),
+  };
+}
+
 export async function markEpisodeOpened(
   showId: ShowStyleId,
   folderName: string,

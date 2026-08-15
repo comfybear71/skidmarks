@@ -10,6 +10,7 @@ import {
   mobileCardSelected,
 } from "@/components/mobile/MobileUi";
 import { SwipeCarousel } from "@/components/mobile/SwipeCarousel";
+import { StoryFeed } from "@/components/mobile/StoryFeed";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
@@ -400,6 +401,7 @@ export default function MobileHomePage() {
               bare spinner threw the whole cast and every location away and
               left nothing to look at. */}
           <PickedSoFar job={job} characterIds={characterIds} />
+          <StoryFeed job={job} />
           <BusySpinner />
         </ActiveStepPanel>
       )}
@@ -427,6 +429,7 @@ export default function MobileHomePage() {
               : "Stitching it all together…"
           }
         >
+          <StoryFeed job={job} />
           <BusySpinner />
         </ActiveStepPanel>
       )}
@@ -458,6 +461,7 @@ export default function MobileHomePage() {
               {reason}
             </div>
           ))}
+          <StoryFeed job={job} />
           <MobilePrimaryButton onClick={() => void refreshJob(job.id)}>Check again</MobilePrimaryButton>
         </ActiveStepPanel>
       )}

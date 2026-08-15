@@ -54,6 +54,12 @@ export type MobileClipUnit = {
   clipFile: string;
   clipStatus: "pending" | "done" | "error";
   error: string;
+  speaker?: string;
+  line?: string;
+  /** The exact IMAGE MOTION text sent to LTX for this clip — kept so the
+   * build can be watched as it happens instead of reconstructed after the
+   * fact from route code. Testing wants this visible, not just correct. */
+  imageMotion?: string;
 };
 
 export type MobileSceneRef = {
