@@ -518,32 +518,58 @@ function PickedSoFar({
     }))
     .filter((r) => r.src);
 
-  const rows = [...cast, ...places];
-  if (!rows.length) return null;
+  if (!cast.length && !places.length) return null;
+
+  const section = (heading: string, rows: typeof cast) =>
+    rows.length ? (
+      <div style={{ marginBottom: "14px" }}>
+        <div
+          style={{
+            color: "var(--chrome-dim)",
+            fontSize: "10px",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            margin: "0 2px 6px",
+          }}
+        >
+          {heading}
+        </div>
+        <div style={{ ...mobileCard, padding: "4px 10px" }}>
+          {rows.map((row, i) => (
+            <div
+              key={row.key}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "8px 0",
+                borderTop: i === 0 ? "none" : "1px solid var(--line)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={row.src}
+                alt=""
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  objectFit: "cover",
+                  borderRadius: "10px",
+                  flex: "0 0 auto",
+                }}
+              />
+              <span style={{ fontSize: "13px", color: "var(--chrome)" }}>{row.label}</span>
+              <span style={{ marginLeft: "auto", color: "var(--acid)", fontSize: "13px" }}>✓</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : null;
 
   return (
     <div style={{ marginBottom: "16px" }}>
-      {rows.map((row) => (
-        <div
-          key={row.key}
-          style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 0" }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={row.src}
-            alt=""
-            style={{
-              width: "40px",
-              height: "40px",
-              objectFit: "cover",
-              borderRadius: "8px",
-              flex: "0 0 auto",
-            }}
-          />
-          <span style={{ fontSize: "13px", color: "var(--chrome)" }}>{row.label}</span>
-          <span style={{ marginLeft: "auto", color: "var(--acid)", fontSize: "13px" }}>✓</span>
-        </div>
-      ))}
+      {section("Cast", cast)}
+      {section("Locations", places)}
     </div>
   );
 }

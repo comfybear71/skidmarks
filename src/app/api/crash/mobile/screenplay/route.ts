@@ -85,16 +85,23 @@ export async function POST(req: Request) {
     // Cast cards used to come from dialogue beats alone, so anyone in the
     // story who never speaks — "a monkey holding hands with Elon Musk" — was
     // silently dropped and never got a face. Take the parsed roster too.
-    const speakers = [
-      ...new Set(
-        [
-          ...story.scenes.flatMap((sc) =>
-            sc.shots.flatMap((sh) => sh.beats.map((b) => b.speaker.trim())),
-          ),
-          ...screenplay.parsedCharacters.map((c) => c.name.trim()),
-        ].filter(Boolean),
-      ),
-    ];
+    // Character cues are ALL CAPS by screenplay convention while the roster
+    // keeps normal casing, so a plain Set treated WALLY and Wally as two
+    // people — two cast cards, two sets of generations, two plates. Fold on
+    // lowercase and keep the roster's casing, which is the readable one.
+    const beatSpeakers = story.scenes.flatMap((sc) =>
+      sc.shots.flatMap((sh) => sh.beats.map((b) => b.speaker.trim())),
+    );
+    const byLower = new Map<string, string>();
+    for (const raw of [
+      ...screenplay.parsedCharacters.map((c) => c.name.trim()),
+      ...beatSpeakers,
+    ]) {
+      if (!raw) continue;
+      const key = raw.toLowerCase();
+      if (!byLower.has(key)) byLower.set(key, raw);
+    }
+    const speakers = [...byLower.values()];
 
     // A series keeps the same faces every episode, so any speaker who already
     // has a locked card for this show starts pre-picked instead of costing
