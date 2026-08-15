@@ -7,7 +7,7 @@ import { saveGenStillAsWorldCard } from "./worldCardThumbs";
 import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { uploadMobileMedia, resolveMobileMedia } from "./mobileMediaStore";
-import type { ShowStyleId } from "./showStylePresets";
+import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import type { MobileImageCandidate } from "./mobileGenJob";
 
 const CANDIDATES_PER_BATCH = 4;
@@ -26,19 +26,20 @@ export async function generateCastCandidates(
   const character = getCharacter(characterId);
   if (!character) throw new Error("Character not found");
 
+  const styleRealism = getShowStylePreset(styleId).defaultRealism;
   const note = [character.lookNote, character.pastNote].filter(Boolean).join(". ");
   const prompt = buildFacePrompt({
     name: character.name,
     pastNote: character.pastNote,
     note,
-    styleRealism: 60,
+    styleRealism,
     rejectHints: [],
   });
 
   const out: MobileImageCandidate[] = [];
   for (let i = 0; i < count; i++) {
     const { buffer, ext } = await generateFaceImage({ prompt, referencePaths: [] });
-    const saved = addFaceAttempt(characterId, { note, buffer, ext, styleRealism: 60, source: "generated" });
+    const saved = addFaceAttempt(characterId, { note, buffer, ext, styleRealism, source: "generated" });
     if (!saved) continue;
     const filePath = faceFilePath(characterId, saved.attempt.fileName);
     if (filePath) {
@@ -116,7 +117,7 @@ export async function generateLocationCandidates(
     notes: "",
     lookNote: "",
     note: "",
-    styleRealism: 60,
+    styleRealism: getShowStylePreset(styleId).defaultRealism,
     rejectHints: [],
     residentNames: [],
   });
