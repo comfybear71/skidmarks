@@ -7,7 +7,7 @@ import {
   generateLocationCandidates,
 } from "@/lib/mobileCandidates";
 import { listCharacters } from "@/lib/characters";
-import { readCrashStory, writeCrashStory } from "@/lib/crashStory";
+import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 
 export const runtime = "nodejs";
@@ -97,11 +97,11 @@ export async function POST(req: Request) {
     const thumbKey = approveLocationCandidate(job.styleId, scene.placeName, candidateId);
 
     // Patch the real story doc so the plates phase can find it — not just the job doc.
-    const story = readCrashStory(job.styleId);
+    const story = await readMobileStory(job.styleId, job.folderName);
     const nextScenes = story.scenes.map((sc) =>
       sc.id === target ? { ...sc, worldThumbKey: thumbKey } : sc,
     );
-    writeCrashStory({ ...story, scenes: nextScenes });
+    await writeMobileStory({ ...story, scenes: nextScenes }, job.folderName);
 
     const nextCandidates = (job.locationCandidates[target] || []).map((c) => ({
       ...c,
