@@ -81,6 +81,7 @@ export async function POST(req: Request) {
           job.folderName,
           character.id,
           CANDIDATES_PER_BATCH,
+          job.prompt,
           body.customPrompt,
         );
         const updated = await patchMobileGenJob(jobId, {
