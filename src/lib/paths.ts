@@ -2,8 +2,17 @@ import os from "os";
 import path from "path";
 import { runningOnVercel } from "./cloudEnv";
 
-/** PC root for MY MOVIES */
-export const MOVIES_ROOT = path.resolve(process.cwd(), "..", "..");
+/**
+ * PC root for MY MOVIES.
+ * - Local Studio: two levels above the repo, where the real MY MOVIES tree lives.
+ * - On Vercel that tree doesn't exist and /var/task is read-only, so any
+ *   Crash Lab pack write there throws ENOENT/EROFS. Redirect to the OS temp
+ *   dir like DATA_DIR — per-invocation scratch only; the cloud-sync helpers
+ *   in cursorCloudSync.ts mirror packs to/from Neon+Blob around that scratch.
+ */
+export const MOVIES_ROOT = runningOnVercel()
+  ? path.join(os.tmpdir(), "skidmarks-movies-root")
+  : path.resolve(process.cwd(), "..", "..");
 
 export const SKIDMARKS_EPISODES = path.join(
   MOVIES_ROOT,

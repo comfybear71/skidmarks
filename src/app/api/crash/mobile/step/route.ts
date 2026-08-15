@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { compositeShotPlate } from "@/lib/mobilePlates";
 import { assignReusedVoice } from "@/lib/mobileVoiceReuse";
 import { generateEpisodeVoices } from "@/lib/scriptVoiceGen";
-import { readCrashStory, writeCrashStory } from "@/lib/crashStory";
+import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
 import { resolveBeatAudioPath } from "@/lib/crashStorySpeak";
 import { runLtxSmoke } from "@/lib/ltxSmoke";
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     }
 
     if (job.phase === "plates") {
-      const story = readCrashStory(job.styleId);
+      const story = await readMobileStory(job.styleId, job.folderName);
       const next = job.shots.find((s) => !s.plateFile);
       if (!next) {
         job = (await patchMobileGenJob(jobId, { phase: "voices" }))!;
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
             ? sc
             : { ...sc, shots: sc.shots.map((sh) => (sh.id === shot.id ? { ...sh, plateFile: fileName } : sh)) },
         );
-        writeCrashStory({ ...story, scenes: nextScenes });
+        await writeMobileStory({ ...story, scenes: nextScenes }, job.folderName);
         const shots = job.shots.map((s) => (s.shotId === next.shotId ? { ...s, plateFile: fileName } : s));
         job = (await patchMobileGenJob(jobId, { shots }))!;
       } catch (e) {
@@ -120,6 +120,7 @@ export async function POST(req: Request) {
         await assignReusedVoice(job.styleId, speaker);
       }
       if (!job.folderName) throw new Error("Job has no folder — screenplay phase incomplete");
+      await hydrateMobilePackOnDisk(job.styleId, job.folderName);
       await generateEpisodeVoices(job.styleId, job.folderName);
       job = (await patchMobileGenJob(jobId, { phase: "review" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
@@ -140,7 +141,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, job, advanced: true });
       }
       const shot = job.shots.find((s) => s.shotId === next.shotId);
-      const story = readCrashStory(job.styleId);
+      const story = await readMobileStory(job.styleId, job.folderName);
       const scene = story.scenes.find((sc) => sc.id === next.sceneId);
       const beat = scene?.shots.find((sh) => sh.id === next.shotId)?.beats.find((b) => b.id === next.beatId);
       try {
