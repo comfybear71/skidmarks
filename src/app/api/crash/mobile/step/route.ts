@@ -299,6 +299,17 @@ export async function POST(req: Request) {
             ? buildGroupHoldMotion({ styleId: job.styleId, names: shotCast })
             : buildHoldMotion({ styleId: job.styleId, speaker: beat.speaker, lookLock });
 
+        // Recorded on the clip before the render even starts, so the prompt is
+        // visible on screen the moment the clip is queued — not only once it
+        // succeeds or fails.
+        job = (await patchMobileGenJob(jobId, {
+          clips: job.clips.map((c) =>
+            c.beatId === next.beatId
+              ? { ...c, speaker: beat.speaker, line: beat.text, imageMotion }
+              : c,
+          ),
+        }))!;
+
         const comfyUrl = await ensureComfyReady();
         const result = await runLtxSmoke({
           platePath,

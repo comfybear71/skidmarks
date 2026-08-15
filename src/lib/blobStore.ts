@@ -1,4 +1,4 @@
-import { get, list, put } from "@vercel/blob";
+import { del, get, list, put } from "@vercel/blob";
 
 /** Episode-scoped media (uploaded per pack) + show-level shelf assets. */
 export type BlobFileKind =
@@ -113,6 +113,18 @@ export async function listBlobPrefix(prefix: string): Promise<
     cursor = page.hasMore ? page.cursor : undefined;
   } while (cursor);
   return out;
+}
+
+/** Delete blob objects by pathname/url. Best effort — the Neon row is the
+ * source of truth for what exists; a failed delete here leaves an orphaned
+ * object in storage, not a broken app. */
+export async function deleteBlobFiles(pathnames: string[]): Promise<void> {
+  if (!pathnames.length) return;
+  try {
+    await del(pathnames, { token: blobToken() });
+  } catch {
+    /* orphaned object, not a functional problem */
+  }
 }
 
 /** Read blob bytes on the server. Never send the token to the browser. */

@@ -32,6 +32,9 @@ export function CrashEpisodeModal({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [mounted, setMounted] = useState(false);
+  // Second tap confirms — a delete has no undo, so a single stray tap should
+  // not be able to trigger one.
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -67,6 +70,31 @@ export function CrashEpisodeModal({
       onClose();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Open failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDelete(folderName: string) {
+    if (busy) return;
+    if (confirmDelete !== folderName) {
+      setConfirmDelete(folderName);
+      return;
+    }
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = await fetch(
+        `/api/crash/episodes?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(folderName)}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Delete failed");
+      setMsg(`Deleted: ${folderName}`);
+      setConfirmDelete(null);
+      await loadList();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Delete failed");
     } finally {
       setBusy(false);
     }
@@ -140,6 +168,17 @@ export function CrashEpisodeModal({
                     className="shrink-0 rounded-sm border border-[var(--magenta-hot)]/60 px-2 py-1 text-[11px] text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/10 disabled:opacity-40"
                   >
                     Open
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onDelete(ep.folderName)}
+                    onBlur={() =>
+                      setConfirmDelete((cur) => (cur === ep.folderName ? null : cur))
+                    }
+                    className="shrink-0 rounded-sm border border-[var(--line)] px-2 py-1 text-[11px] text-[var(--mute)] hover:border-[var(--magenta-hot)]/60 hover:text-[var(--magenta-hot)] disabled:opacity-40"
+                  >
+                    {confirmDelete === ep.folderName ? "Confirm?" : "Delete"}
                   </button>
                 </li>
               ))}
