@@ -6,13 +6,20 @@ import { saveUploadAsStyleCard } from "./styleCardThumbs";
 import { saveGenStillAsWorldCard } from "./worldCardThumbs";
 import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
+import { uploadMobileMedia, resolveMobileMedia } from "./mobileMediaStore";
 import type { ShowStyleId } from "./showStylePresets";
 import type { MobileImageCandidate } from "./mobileGenJob";
 
 const CANDIDATES_PER_BATCH = 4;
+/** Pre-approval candidate stills reuse the "plates" Blob bucket — same
+ * episode-scoped shape gen/file's cloudBlobRedirect("plates", …) already
+ * checks, so location candidates need no separate lookup path. */
+const CANDIDATE_BLOB_KIND = "plates" as const;
 
 /** Generate N face candidates for a Character — pending faceAttempts, not yet approved. */
 export async function generateCastCandidates(
+  styleId: ShowStyleId,
+  folderName: string,
   characterId: string,
   count = CANDIDATES_PER_BATCH,
 ): Promise<MobileImageCandidate[]> {
@@ -33,6 +40,14 @@ export async function generateCastCandidates(
     const { buffer, ext } = await generateFaceImage({ prompt, referencePaths: [] });
     const saved = addFaceAttempt(characterId, { note, buffer, ext, styleRealism: 60, source: "generated" });
     if (!saved) continue;
+    const filePath = faceFilePath(characterId, saved.attempt.fileName);
+    if (filePath) {
+      try {
+        await uploadMobileMedia({ styleId, folderName, kind: CANDIDATE_BLOB_KIND, localPath: filePath });
+      } catch {
+        /* best effort — approve falls back to local disk on the same instance */
+      }
+    }
     out.push({ id: saved.attempt.id, fileName: saved.attempt.fileName, approved: false });
   }
   return out;
@@ -40,30 +55,44 @@ export async function generateCastCandidates(
 
 /**
  * Approve one cast candidate: locks it as the Character's approvedFaceId
- * (setAttemptStatus already does this) and mirrors it into the style-card
- * gallery — a separate cast gallery plateCastIntoGen/crashVoice.ts read
- * from, confirmed via research to be distinct from Character.faceAttempts.
- * Without this mirror the plate-compositing and voice-reuse phases can't
- * find this character by name.
+ * when the local record is still around (best effort — a different
+ * instance than the one that generated it may have no faceAttempts entry
+ * at all) and mirrors it into the style-card gallery — a separate cast
+ * gallery plateCastIntoGen/crashVoice.ts read from, confirmed via research
+ * to be distinct from Character.faceAttempts. Without this mirror the
+ * plate-compositing and voice-reuse phases can't find this character by
+ * name. Takes fileName directly (from the job's own candidate list, always
+ * available regardless of instance) rather than depending on the local
+ * faceAttempts record to supply it.
  */
-export function approveCastCandidate(
+export async function approveCastCandidate(
   styleId: ShowStyleId,
+  folderName: string,
   characterId: string,
   attemptId: string,
-): void {
+  fileName: string,
+): Promise<void> {
   const character = setAttemptStatus(characterId, attemptId, "approved");
-  if (!character) throw new Error("Character not found");
-  const attempt = character.faceAttempts.find((a) => a.id === attemptId);
-  if (!attempt?.fileName) throw new Error("Approved attempt has no file");
-  const filePath = faceFilePath(characterId, attempt.fileName);
-  if (!filePath) throw new Error("Approved face file missing on disk");
+  const name = character?.name || "";
+
+  const localPath = faceFilePath(characterId, fileName);
+  const resolved =
+    (localPath && fs.existsSync(localPath) ? localPath : null) ||
+    (await resolveMobileMedia({
+      styleId,
+      folderName,
+      kind: CANDIDATE_BLOB_KIND,
+      fileName,
+      destPath: path.join(candidateGenDir(), fileName),
+    }));
+  if (!resolved) throw new Error("Approved face file missing");
 
   saveUploadAsStyleCard({
-    buffer: fs.readFileSync(filePath),
-    ext: path.extname(attempt.fileName) || ".png",
+    buffer: fs.readFileSync(resolved),
+    ext: path.extname(fileName) || ".png",
     styleId,
-    name: character.name,
-    brief: character.name,
+    name: name || fileName,
+    brief: name || fileName,
   });
 }
 
@@ -76,6 +105,7 @@ function candidateGenDir(): string {
 /** Generate N location-still candidates — plain files, not yet a World card. */
 export async function generateLocationCandidates(
   styleId: ShowStyleId,
+  folderName: string,
   placeName: string,
   customPrompt?: string,
   count = CANDIDATES_PER_BATCH,
@@ -100,17 +130,35 @@ export async function generateLocationCandidates(
     });
     const fileName = `${sortableId("mloc")}${ext.startsWith(".") ? ext : `.${ext}`}`;
     fs.writeFileSync(path.join(candidateGenDir(), fileName), buffer);
+    try {
+      await uploadMobileMedia({
+        styleId,
+        folderName,
+        kind: CANDIDATE_BLOB_KIND,
+        localPath: path.join(candidateGenDir(), fileName),
+      });
+    } catch {
+      /* best effort — approve falls back to local disk on the same instance */
+    }
     out.push({ id: fileName, fileName, approved: false });
   }
   return out;
 }
 
 /** Approve one location candidate: registers it as a real World card, returns the thumb key. */
-export function approveLocationCandidate(
+export async function approveLocationCandidate(
   styleId: ShowStyleId,
+  folderName: string,
   placeName: string,
   fileName: string,
-): string {
+): Promise<string> {
+  await resolveMobileMedia({
+    styleId,
+    folderName,
+    kind: CANDIDATE_BLOB_KIND,
+    fileName,
+    destPath: path.join(candidateGenDir(), fileName),
+  });
   const saved = saveGenStillAsWorldCard({
     genFileName: fileName,
     styleId,
