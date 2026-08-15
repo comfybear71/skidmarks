@@ -41,18 +41,28 @@ export async function generateCastCandidates(
 
   const out: MobileImageCandidate[] = [];
   for (let i = 0; i < count; i++) {
-    const { buffer, ext } = await generateFaceImage({ prompt, referencePaths: [] });
-    const saved = addFaceAttempt(characterId, { note, buffer, ext, styleRealism, source: "generated" });
-    if (!saved) continue;
-    const filePath = faceFilePath(characterId, saved.attempt.fileName);
-    if (filePath) {
-      try {
-        await uploadMobileMedia({ styleId, folderName, kind: CANDIDATE_BLOB_KIND, localPath: filePath });
-      } catch {
-        /* best effort — approve falls back to local disk on the same instance */
+    try {
+      const { buffer, ext } = await Promise.race([
+        generateFaceImage({ prompt, referencePaths: [] }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Image generation timeout (60s)")), 60000)
+        ),
+      ]) as { buffer: Buffer; ext: string };
+      const saved = addFaceAttempt(characterId, { note, buffer, ext, styleRealism, source: "generated" });
+      if (!saved) continue;
+      const filePath = faceFilePath(characterId, saved.attempt.fileName);
+      if (filePath) {
+        try {
+          await uploadMobileMedia({ styleId, folderName, kind: CANDIDATE_BLOB_KIND, localPath: filePath });
+        } catch {
+          /* best effort — approve falls back to local disk on the same instance */
+        }
       }
+      out.push({ id: saved.attempt.id, fileName: saved.attempt.fileName, approved: false });
+    } catch (e) {
+      console.error(`Face generation failed for ${character.name}:`, e);
+      continue;
     }
-    out.push({ id: saved.attempt.id, fileName: saved.attempt.fileName, approved: false });
   }
   return out;
 }
@@ -127,24 +137,34 @@ export async function generateLocationCandidates(
 
   const out: MobileImageCandidate[] = [];
   for (let i = 0; i < count; i++) {
-    const { buffer, ext } = await generateFaceImage({
-      prompt,
-      referencePaths: [],
-      aspectRatio: "16:9",
-    });
-    const fileName = `${sortableId("mloc")}${ext.startsWith(".") ? ext : `.${ext}`}`;
-    fs.writeFileSync(path.join(candidateGenDir(), fileName), buffer);
     try {
-      await uploadMobileMedia({
-        styleId,
-        folderName,
-        kind: CANDIDATE_BLOB_KIND,
-        localPath: path.join(candidateGenDir(), fileName),
-      });
-    } catch {
-      /* best effort — approve falls back to local disk on the same instance */
+      const { buffer, ext } = await Promise.race([
+        generateFaceImage({
+          prompt,
+          referencePaths: [],
+          aspectRatio: "16:9",
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Image generation timeout (60s)")), 60000)
+        ),
+      ]) as { buffer: Buffer; ext: string };
+      const fileName = `${sortableId("mloc")}${ext.startsWith(".") ? ext : `.${ext}`}`;
+      fs.writeFileSync(path.join(candidateGenDir(), fileName), buffer);
+      try {
+        await uploadMobileMedia({
+          styleId,
+          folderName,
+          kind: CANDIDATE_BLOB_KIND,
+          localPath: path.join(candidateGenDir(), fileName),
+        });
+      } catch {
+        /* best effort — approve falls back to local disk on the same instance */
+      }
+      out.push({ id: fileName, fileName, approved: false });
+    } catch (e) {
+      console.error(`Location generation failed for ${placeName}:`, e);
+      continue;
     }
-    out.push({ id: fileName, fileName, approved: false });
   }
   return out;
 }
