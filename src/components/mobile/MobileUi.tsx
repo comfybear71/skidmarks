@@ -1,6 +1,29 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+
+/**
+ * Card surface shared by every tappable panel: rounder corners, a soft
+ * top-down gradient instead of a flat fill, and a lift shadow with a hairline
+ * inset highlight. Flat panels with a 1px border read as a form; this reads as
+ * something you press.
+ */
+export const mobileCard: CSSProperties = {
+  borderRadius: "16px",
+  border: "1px solid var(--line)",
+  background: "linear-gradient(160deg, var(--panel-2) 0%, var(--panel) 100%)",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.045), 0 10px 28px rgba(0,0,0,0.45)",
+};
+
+/** Selected variant — accent edge plus a tighter, warmer lift. */
+export const mobileCardSelected: CSSProperties = {
+  ...mobileCard,
+  border: "1px solid var(--acid)",
+  background: "linear-gradient(160deg, var(--panel-2) 0%, var(--panel) 100%)",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.07), 0 10px 30px rgba(0,0,0,0.5), 0 0 0 1px var(--acid)",
+};
 
 /** Small collapsed row for a finished step — the "stepper" trail up top. */
 export function CompletedStepRow({
@@ -99,12 +122,22 @@ export function MobilePrimaryButton({
       style={{
         width: "100%",
         padding: "16px",
-        borderRadius: "10px",
+        borderRadius: "14px",
         fontSize: "16px",
         fontWeight: 600,
         border: accent ? "none" : "1px solid var(--line)",
-        background: disabled ? "var(--panel-2)" : accent ? "var(--acid)" : "transparent",
+        // Gradient rather than a flat fill, darkening toward the bottom so the
+        // button reads as lit from above like the cards around it.
+        background: disabled
+          ? "var(--panel-2)"
+          : accent
+            ? "linear-gradient(180deg, var(--acid) 0%, var(--acid) 58%, rgba(0,0,0,0.20) 100%)"
+            : "transparent",
         color: disabled ? "var(--chrome-dim)" : accent ? "var(--void)" : "var(--chrome)",
+        boxShadow:
+          disabled || !accent
+            ? "none"
+            : "inset 0 1px 0 rgba(255,255,255,0.28), 0 8px 22px rgba(0,0,0,0.42)",
         touchAction: "manipulation",
       }}
     >
@@ -130,11 +163,9 @@ export function MobileTextInput({
       onChange(e.target.value),
     placeholder,
     style: {
+      ...mobileCard,
       width: "100%",
       padding: "14px",
-      borderRadius: "10px",
-      border: "1px solid var(--line)",
-      background: "var(--panel-2)",
       color: "var(--chrome)",
       fontSize: "15px",
       fontFamily: "inherit",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSwipeCarousel } from "@/hooks/useSwipeCarousel";
+import { mobileCard } from "./MobileUi";
 import type { MobileImageCandidate } from "@/lib/mobileGenJob";
 
 /** Swipeable candidate picker — one big image at a time, dot trail below. */
@@ -25,13 +26,11 @@ export function SwipeCarousel({
       <div
         {...handlers}
         style={{
+          ...mobileCard,
           position: "relative",
           flex: 1,
           minHeight: 0,
-          borderRadius: "14px",
           overflow: "hidden",
-          background: "var(--panel-2)",
-          border: "1px solid var(--line)",
           touchAction: "pan-y",
         }}
       >

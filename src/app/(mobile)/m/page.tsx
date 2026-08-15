@@ -6,6 +6,8 @@ import {
   CompletedStepRow,
   MobilePrimaryButton,
   MobileTextInput,
+  mobileCard,
+  mobileCardSelected,
 } from "@/components/mobile/MobileUi";
 import { SwipeCarousel } from "@/components/mobile/SwipeCarousel";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
@@ -279,11 +281,9 @@ export default function MobileHomePage() {
                   setStyleRealism(p.defaultRealism);
                 }}
                 style={{
+                  ...(p.id === styleId ? mobileCardSelected : mobileCard),
                   textAlign: "left",
                   padding: "14px",
-                  borderRadius: "10px",
-                  border: p.id === styleId ? "2px solid var(--acid)" : "1px solid var(--line)",
-                  background: "var(--panel-2)",
                   color: "var(--chrome)",
                 }}
               >
@@ -309,11 +309,9 @@ export default function MobileHomePage() {
                 type="button"
                 onClick={() => setTargetDurationSec(d.seconds)}
                 style={{
+                  ...(d.seconds === targetDurationSec ? mobileCardSelected : mobileCard),
                   textAlign: "left",
                   padding: "14px",
-                  borderRadius: "10px",
-                  border: d.seconds === targetDurationSec ? "2px solid var(--acid)" : "1px solid var(--line)",
-                  background: "var(--panel-2)",
                   color: "var(--chrome)",
                   display: "flex",
                   justifyContent: "space-between",
