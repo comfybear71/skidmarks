@@ -37,6 +37,7 @@ export async function generateCastCandidates(
     note,
     styleRealism,
     rejectHints: [],
+    styleId,
   });
 
   const out: MobileImageCandidate[] = [];
@@ -133,6 +134,7 @@ export async function generateLocationCandidates(
     styleRealism: getShowStylePreset(styleId).defaultRealism,
     rejectHints: [],
     residentNames: [],
+    styleId,
   });
 
   const out: MobileImageCandidate[] = [];

@@ -183,6 +183,7 @@ export function buildLocationPrompt(opts: {
   styleRealism: number;
   rejectHints: string[];
   residentNames: string[];
+  styleId?: ShowStyleId;
 }): string {
   // Positive-only: naming people/animals pulls them into the frame.
   const bits = [
@@ -196,8 +197,12 @@ export function buildLocationPrompt(opts: {
     opts.rejectHints.length
       ? `Fix previous rejects: ${opts.rejectHints.join("; ")}`
       : "",
-    locationStylePrompt(opts.styleRealism),
-    "Name real materials for THIS specific place — bank counters, cafe tables, street kerbs, lava rock, whatever the notes ask for. Sculpted 3D diorama feel.",
+    opts.styleId
+      ? buildCrashGenLook(opts.styleId, opts.styleRealism)
+      : locationStylePrompt(opts.styleRealism),
+    opts.styleId
+      ? "Name real materials for THIS specific place — bank counters, cafe tables, street kerbs, lava rock, whatever the notes ask for."
+      : "Name real materials for THIS specific place — bank counters, cafe tables, street kerbs, lava rock, whatever the notes ask for. Sculpted 3D diorama feel.",
     "Empty of people and animals. No writing, no signage text, no labels, no captions, no watermarks.",
   ];
   return bits.filter(Boolean).join("\n\n");
@@ -209,6 +214,7 @@ export function buildFacePrompt(opts: {
   note: string;
   styleRealism: number;
   rejectHints: string[];
+  styleId?: ShowStyleId;
 }): string {
   // Prefer the live attempt note (what's on screen). Don't double-print the same line.
   const who = (opts.note || opts.pastNote || "").trim();
@@ -218,8 +224,12 @@ export function buildFacePrompt(opts: {
     opts.rejectHints.length
       ? `Fix previous rejects: ${opts.rejectHints.join("; ")}`
       : "",
-    stylePrompt(opts.styleRealism),
-    "Use the reference image(s) for identity when provided. Portrait or upper body, facing camera. English/Australian grotesque comedy energy.",
+    opts.styleId
+      ? buildCrashGenLook(opts.styleId, opts.styleRealism)
+      : stylePrompt(opts.styleRealism),
+    opts.styleId
+      ? "Use the reference image(s) for identity when provided. Portrait or upper body, facing camera."
+      : "Use the reference image(s) for identity when provided. Portrait or upper body, facing camera. English/Australian grotesque comedy energy.",
   ];
   return bits.filter(Boolean).join("\n\n");
 }
