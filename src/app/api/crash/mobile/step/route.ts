@@ -11,10 +11,15 @@ import { storyDialogueDir } from "@/lib/crashStoryLocations";
 import { runLtxSmoke } from "@/lib/ltxSmoke";
 import { resolveComfyUrl } from "@/lib/comfyClient";
 import { listRunpodPods, probeComfyUrl, resumeRunpodPod } from "@/lib/runpod";
-import { CRASH_COMFY_DEFAULT_GLOBAL } from "@/lib/crashComfyStack";
 import { stitchClips, mobileFinalVideoPath } from "@/lib/mobileStitch";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
 import { CRASH_DIR } from "@/lib/paths";
+import {
+  buildSpeakingMotion,
+  buildHoldMotion,
+  buildSegmentText,
+  buildGlobalPrompt,
+} from "@/lib/mobileImageMotion";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -263,13 +268,32 @@ export async function POST(req: Request) {
             }))
           : null;
 
+        // Bare `NAME says: "line"` was the whole prompt LTX got — nothing held
+        // the plate, so nothing stopped strangers walking in or the actual
+        // character disappearing after the first frame. Reworked into the
+        // shape docs/SUNNY_BANKS_IMAGE_MOTION_STANDARD.md logged as working
+        // 100%: first-frame lock, look lock, "nothing new enters frame",
+        // "same person and objects as the start image".
+        const speaking = beat.text.trim().length > 0;
+        const lookLock = job.roster.find(
+          (c) => c.name.trim().toLowerCase() === beat.speaker.trim().toLowerCase(),
+        )?.appearance;
+        const imageMotion = speaking
+          ? buildSpeakingMotion({
+              styleId: job.styleId,
+              speaker: beat.speaker,
+              line: beat.text,
+              lookLock,
+            })
+          : buildHoldMotion({ styleId: job.styleId, speaker: beat.speaker, lookLock });
+
         const comfyUrl = await ensureComfyReady();
         const result = await runLtxSmoke({
           platePath,
           audioPath,
-          imageMotion: `${beat.speaker} says: "${beat.text.slice(0, 200)}"`,
-          segmentText: "",
-          globalPrompt: CRASH_COMFY_DEFAULT_GLOBAL,
+          imageMotion,
+          segmentText: buildSegmentText(beat.speaker, speaking),
+          globalPrompt: buildGlobalPrompt(job.styleId),
           comfyUrl,
           styleId: job.styleId,
           beatId: beat.id,
