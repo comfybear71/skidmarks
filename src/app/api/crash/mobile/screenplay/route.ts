@@ -95,6 +95,7 @@ export async function POST(req: Request) {
       shots,
       clips,
       speakers,
+      roster: screenplay.parsedCharacters,
     });
 
     return NextResponse.json({ ok: true, job: updated });

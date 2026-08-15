@@ -5,6 +5,7 @@ import { sortableId } from "./types";
 import { useCloudStore } from "./cloudEnv";
 import { readMobileJobRow, saveMobileJobRow } from "./neonStore";
 import type { ShowStyleId } from "./showStylePresets";
+import type { ScriptCharacterData } from "./types";
 
 /**
  * Checkpointed job document for the mobile Auto Studio pipeline. A run can
@@ -68,6 +69,13 @@ export type MobileGenJob = {
   phase: MobileGenPhase;
   /** Unique speaker names — drives the cast_images approval cursor. */
   speakers: string[];
+  /**
+   * Parsed screenplay roster — kept on the job (already Neon-backed) so a
+   * later request on a different Vercel instance can re-create Character
+   * rows locally before looking one up. createCharactersFromScriptRoster is
+   * idempotent by name, so re-running it here is always safe.
+   */
+  roster: ScriptCharacterData[];
   /** Scenes needing a location — drives the location_images approval cursor. */
   scenes: MobileSceneRef[];
   /** Candidate portraits per speaker name, awaiting a swipe pick. */
@@ -108,6 +116,7 @@ export async function createMobileGenJob(opts: {
     secondsPerShot: opts.secondsPerShot,
     phase: "screenplay",
     speakers: [],
+    roster: [],
     scenes: [],
     castCandidates: {},
     locationCandidates: {},

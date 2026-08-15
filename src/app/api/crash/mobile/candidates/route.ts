@@ -7,6 +7,7 @@ import {
   generateLocationCandidates,
 } from "@/lib/mobileCandidates";
 import { listCharacters } from "@/lib/characters";
+import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 
@@ -50,9 +51,19 @@ export async function POST(req: Request) {
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
     if (kind === "cast") {
-      const character = listCharacters().find(
+      let character = listCharacters().find(
         (c) => c.name.trim().toLowerCase() === target.toLowerCase(),
       );
+      if (!character && job.roster.length) {
+        // A different Vercel instance than the one that created this job's
+        // roster is handling this request — its local Character store is
+        // empty. Re-create the roster here (idempotent by name) before
+        // giving up.
+        createCharactersFromScriptRoster(job.roster);
+        character = listCharacters().find(
+          (c) => c.name.trim().toLowerCase() === target.toLowerCase(),
+        );
+      }
       if (!character) return NextResponse.json({ error: `No character named ${target}` }, { status: 404 });
 
       if (action === "generate") {
