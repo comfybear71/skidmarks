@@ -538,13 +538,20 @@ function CastLocationStep({
             }}
           >
             {picked.map(({ id, chosen }) => (
-              <div
+              <button
                 key={id}
+                type="button"
+                onClick={() => setCursor(items.indexOf(id))}
+                aria-label={`Edit ${labelOf ? labelOf(id) : id}`}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: "10px",
                   padding: "6px 8px",
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  textAlign: "left",
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -562,8 +569,11 @@ function CastLocationStep({
                 <span style={{ fontSize: "13px", color: "var(--chrome)" }}>
                   {labelOf ? labelOf(id) : id}
                 </span>
-                <span style={{ marginLeft: "auto", color: "var(--acid)", fontSize: "13px" }}>✓</span>
-              </div>
+                <span style={{ marginLeft: "auto", color: "var(--chrome-dim)", fontSize: "11px" }}>
+                  Edit
+                </span>
+                <span style={{ color: "var(--acid)", fontSize: "13px" }}>✓</span>
+              </button>
             ))}
           </div>
         );

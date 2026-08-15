@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useSwipeCarousel } from "@/hooks/useSwipeCarousel";
 import { mobileCard } from "./MobileUi";
 import type { MobileImageCandidate } from "@/lib/mobileGenJob";
@@ -17,21 +18,25 @@ export function SwipeCarousel({
   busy?: boolean;
 }) {
   const { index, setIndex, dragOffset, handlers } = useSwipeCarousel(candidates.length);
+  const [zoomed, setZoomed] = useState(false);
   const current = candidates[index];
 
   if (!candidates.length) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      {/* A card, not the whole screen — the step stays scrollable around it.
+          Tap the image for full screen. */}
       <div
         {...handlers}
+        onClick={() => setZoomed(true)}
         style={{
           ...mobileCard,
           position: "relative",
-          flex: 1,
-          minHeight: 0,
+          height: "300px",
           overflow: "hidden",
           touchAction: "pan-y",
+          cursor: "zoom-in",
         }}
       >
         {current ? (
@@ -50,6 +55,21 @@ export function SwipeCarousel({
             }}
           />
         ) : null}
+        <span
+          style={{
+            position: "absolute",
+            bottom: "10px",
+            right: "10px",
+            padding: "4px 8px",
+            borderRadius: "999px",
+            background: "rgba(0,0,0,0.55)",
+            color: "var(--chrome)",
+            fontSize: "11px",
+            pointerEvents: "none",
+          }}
+        >
+          Tap to enlarge
+        </span>
         {current?.approved ? (
           <div
             style={{
@@ -158,6 +178,43 @@ export function SwipeCarousel({
       >
         {current?.approved ? "Picked ✓" : "Pick this one"}
       </button>
+
+      {zoomed && current ? (
+        <div
+          onClick={() => setZoomed(false)}
+          role="dialog"
+          aria-label="Full screen image"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 60,
+            background: "rgba(0,0,0,0.94)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "12px",
+            cursor: "zoom-out",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageSrc(current)}
+            alt="Candidate, full screen"
+            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+          />
+          <span
+            style={{
+              position: "absolute",
+              top: "16px",
+              right: "18px",
+              color: "var(--chrome)",
+              fontSize: "24px",
+            }}
+          >
+            ✕
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
