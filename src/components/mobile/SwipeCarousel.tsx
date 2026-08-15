@@ -73,21 +73,73 @@ export function SwipeCarousel({
         ) : null}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "center", gap: "6px", padding: "10px 0" }}>
+      {/* Dots said "there are four" but not what they were, so a picked image
+          vanished the moment the batch moved on. Thumbnails keep every
+          candidate on screen and let a pick be changed. */}
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          padding: "10px 2px",
+          overflowX: "auto",
+          scrollbarWidth: "none",
+        }}
+      >
         {candidates.map((c, i) => (
           <button
             key={c.id}
             type="button"
             onClick={() => setIndex(i)}
+            aria-label={`Candidate ${i + 1}${c.approved ? " (picked)" : ""}`}
+            aria-current={i === index}
             style={{
-              width: i === index ? "20px" : "8px",
-              height: "8px",
-              borderRadius: "999px",
-              border: "none",
-              background: i === index ? "var(--acid)" : "var(--line)",
-              transition: "width 150ms",
+              position: "relative",
+              flex: "0 0 auto",
+              width: "64px",
+              height: "64px",
+              padding: 0,
+              borderRadius: "10px",
+              overflow: "hidden",
+              background: "var(--panel-2)",
+              border:
+                i === index
+                  ? "2px solid var(--acid)"
+                  : c.approved
+                    ? "2px solid var(--acid)"
+                    : "1px solid var(--line)",
+              opacity: i === index || c.approved ? 1 : 0.55,
+              transition: "opacity 150ms",
             }}
-          />
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageSrc(c)}
+              alt=""
+              draggable={false}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+            {c.approved ? (
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: "2px",
+                  right: "2px",
+                  background: "var(--acid)",
+                  color: "var(--void)",
+                  borderRadius: "999px",
+                  width: "16px",
+                  height: "16px",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ✓
+              </span>
+            ) : null}
+          </button>
         ))}
       </div>
 

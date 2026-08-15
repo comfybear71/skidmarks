@@ -521,6 +521,56 @@ function CastLocationStep({
 
   return (
     <ActiveStepPanel title={title} subtitle={`${subtitle} (${cursor + 1}/${items.length})`}>
+      {/* Everything picked so far, so the cast/locations you have built stay
+          visible instead of disappearing the moment the cursor moves on. */}
+      {(() => {
+        const picked = items
+          .map((id) => ({ id, chosen: candidatesOf(id).find((c) => c.approved) }))
+          .filter((p) => p.chosen && p.id !== current);
+        if (!picked.length) return null;
+        return (
+          <div
+            style={{
+              maxHeight: "132px",
+              overflowY: "auto",
+              marginBottom: "12px",
+              border: "1px solid var(--line)",
+              borderRadius: "10px",
+              background: "var(--panel-2)",
+            }}
+          >
+            {picked.map(({ id, chosen }) => (
+              <div
+                key={id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "6px 8px",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imageSrc(id, chosen!)}
+                  alt=""
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    objectFit: "cover",
+                    borderRadius: "8px",
+                    flex: "0 0 auto",
+                  }}
+                />
+                <span style={{ fontSize: "13px", color: "var(--chrome)" }}>
+                  {labelOf ? labelOf(id) : id}
+                </span>
+                <span style={{ marginLeft: "auto", color: "var(--acid)", fontSize: "13px" }}>✓</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       <div style={{ color: "var(--acid)", fontWeight: 700, marginBottom: "8px" }}>
         {labelOf ? labelOf(current) : current}
       </div>
