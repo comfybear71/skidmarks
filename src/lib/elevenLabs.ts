@@ -182,6 +182,8 @@ export type ElevenVoiceSummary = {
   voiceId: string;
   name: string;
   category?: string;
+  /** "male" / "female" from the account's voice labels, when tagged. */
+  gender?: string;
 };
 
 /** List voices on the ElevenLabs account (custom + default). */
@@ -195,6 +197,7 @@ export async function listLibraryVoices(): Promise<ElevenVoiceSummary[]> {
       voiceId?: string;
       name?: string;
       category?: string;
+      labels?: Record<string, string> | null;
     }[];
     detail?: { message?: string } | string;
   };
@@ -210,6 +213,9 @@ export async function listLibraryVoices(): Promise<ElevenVoiceSummary[]> {
       voiceId: (v.voice_id || v.voiceId || "").trim(),
       name: (v.name || "").trim(),
       category: v.category,
+      // ElevenLabs tags most voices with a gender label. Carried through so a
+      // reused voice can at least match the character's sex.
+      gender: (v.labels?.gender || "").trim().toLowerCase() || undefined,
     }))
     .filter((v) => v.voiceId);
 }

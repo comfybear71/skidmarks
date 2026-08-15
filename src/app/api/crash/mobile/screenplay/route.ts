@@ -4,9 +4,11 @@ import { generateScreenplayText } from "@/lib/mobileScreenplay";
 import { importScriptEpisodes } from "@/lib/scriptImport";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { openCrashLabEpisode } from "@/lib/crashLabEpisodes";
+import { findReusableCastCards } from "@/lib/mobileCastReuse";
 import {
   patchMobileGenJob,
   readMobileGenJob,
+  type MobileGenJob,
   type MobileClipUnit,
   type MobileSceneRef,
   type MobileShotUnit,
@@ -94,9 +96,23 @@ export async function POST(req: Request) {
       ),
     ];
 
+    // A series keeps the same faces every episode, so any speaker who already
+    // has a locked card for this show starts pre-picked instead of costing
+    // four fresh generations and drifting away from how they looked last time.
+    // Shown as a normal pick rather than skipped, so a wrong name match is
+    // visible and can be overridden.
+    const reusable = await findReusableCastCards(job.styleId, speakers);
+    const castCandidates: MobileGenJob["castCandidates"] = {};
+    for (const [speaker, card] of Object.entries(reusable)) {
+      castCandidates[speaker] = [
+        { id: card.fileName, fileName: card.fileName, approved: true },
+      ];
+    }
+
     const updated = await patchMobileGenJob(jobId, {
       folderName,
       phase: "cast_images",
+      castCandidates,
       scenes,
       shots,
       clips,

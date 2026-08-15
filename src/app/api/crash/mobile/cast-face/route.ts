@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { faceFilePath } from "@/lib/characters";
 import { resolveMobileMedia } from "@/lib/mobileMediaStore";
 import { isSafeMediaName } from "@/lib/cloudMedia";
+import { cloudShowAssetRedirect } from "@/lib/cloudShelf";
 import { CRASH_DIR } from "@/lib/paths";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
@@ -46,6 +47,10 @@ export async function GET(req: Request) {
       destPath: path.join(CRASH_DIR, "gen", fileName),
     }));
   if (!filePath) {
+    // A reused cast card is not a candidate from this run — it lives on the
+    // show's cast shelf, not in this episode's plates bucket.
+    const shelf = await cloudShowAssetRedirect(styleId, "cast", fileName);
+    if (shelf) return shelf;
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
