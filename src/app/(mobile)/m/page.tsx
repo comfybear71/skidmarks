@@ -6,6 +6,8 @@ import {
   CompletedStepRow,
   MobilePrimaryButton,
   MobileTextInput,
+  mobileCard,
+  mobileCardSelected,
 } from "@/components/mobile/MobileUi";
 import { SwipeCarousel } from "@/components/mobile/SwipeCarousel";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
@@ -279,11 +281,9 @@ export default function MobileHomePage() {
                   setStyleRealism(p.defaultRealism);
                 }}
                 style={{
+                  ...(p.id === styleId ? mobileCardSelected : mobileCard),
                   textAlign: "left",
                   padding: "14px",
-                  borderRadius: "10px",
-                  border: p.id === styleId ? "2px solid var(--acid)" : "1px solid var(--line)",
-                  background: "var(--panel-2)",
                   color: "var(--chrome)",
                 }}
               >
@@ -309,11 +309,9 @@ export default function MobileHomePage() {
                 type="button"
                 onClick={() => setTargetDurationSec(d.seconds)}
                 style={{
+                  ...(d.seconds === targetDurationSec ? mobileCardSelected : mobileCard),
                   textAlign: "left",
                   padding: "14px",
-                  borderRadius: "10px",
-                  border: d.seconds === targetDurationSec ? "2px solid var(--acid)" : "1px solid var(--line)",
-                  background: "var(--panel-2)",
                   color: "var(--chrome)",
                   display: "flex",
                   justifyContent: "space-between",
@@ -540,13 +538,20 @@ function CastLocationStep({
             }}
           >
             {picked.map(({ id, chosen }) => (
-              <div
+              <button
                 key={id}
+                type="button"
+                onClick={() => setCursor(items.indexOf(id))}
+                aria-label={`Edit ${labelOf ? labelOf(id) : id}`}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: "10px",
                   padding: "6px 8px",
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  textAlign: "left",
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -564,8 +569,11 @@ function CastLocationStep({
                 <span style={{ fontSize: "13px", color: "var(--chrome)" }}>
                   {labelOf ? labelOf(id) : id}
                 </span>
-                <span style={{ marginLeft: "auto", color: "var(--acid)", fontSize: "13px" }}>✓</span>
-              </div>
+                <span style={{ marginLeft: "auto", color: "var(--chrome-dim)", fontSize: "11px" }}>
+                  Edit
+                </span>
+                <span style={{ color: "var(--acid)", fontSize: "13px" }}>✓</span>
+              </button>
             ))}
           </div>
         );
