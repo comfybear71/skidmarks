@@ -530,9 +530,18 @@ export function AnimateTimeline({
     setPlateOpen(false);
   }, [shotLoc?.shot.id, shotLoc?.sceneIndex, story.updatedAt]);
 
+  // layoutClips in the dep array meant any legitimate reason for it to change
+  // identity — zoom, a clip added or resized — re-ran this and snapped the
+  // view back to the selection, fighting a scroll the user had made on
+  // purpose after selecting. Reading layoutClips from a ref instead means
+  // this only fires on an actual selection change, which is the one time
+  // recentering is wanted.
+  const layoutClipsRef = useRef(layoutClips);
+  layoutClipsRef.current = layoutClips;
+
   useEffect(() => {
     if (!selectedBeatId || !scrollRef.current) return;
-    const clip = layoutClips.find((c) => c.row.beatId === selectedBeatId);
+    const clip = layoutClipsRef.current.find((c) => c.row.beatId === selectedBeatId);
     if (!clip) return;
     const el = scrollRef.current;
     const mid = clip.left + clip.width / 2;
@@ -540,7 +549,8 @@ export function AnimateTimeline({
       left: Math.max(0, mid - el.clientWidth / 2),
       behavior: "smooth",
     });
-  }, [selectedBeatId, layoutClips]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBeatId]);
 
   const fontPx = Math.round(11 * layout.zoom);
   const fontSm = Math.round(13 * layout.zoom);

@@ -962,7 +962,15 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
     return () => window.clearInterval(id);
   }, [anyLtxInFlight, anyLipsyncInFlight]);
 
-  const rows = story ? listComfyBeats(story) : [];
+  // listComfyBeats ran fresh on every render of this panel, even though
+  // `story` (useState) is itself stable between renders. AnimateTimeline
+  // re-centers its scroll on the selected clip whenever its rows array
+  // changes identity, so any unrelated re-render here — typing, hover,
+  // the 1s LTX-progress tick above — produced a new array and snapped the
+  // timeline back to center, making it impossible to scroll away from the
+  // selection. Memoizing on the actual story reference stops the array from
+  // changing identity except when the story really did.
+  const rows = useMemo(() => (story ? listComfyBeats(story) : []), [story]);
   const visibleRows = useMemo(() => {
     if (showHidden) return rows;
     const hide = new Set(hiddenIds);
