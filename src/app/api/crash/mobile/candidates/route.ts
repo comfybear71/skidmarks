@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Need jobId, kind, target, action" }, { status: 400 });
     }
 
-    const job = readMobileGenJob(jobId);
+    const job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
     if (kind === "cast") {
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
 
       if (action === "generate") {
         const candidates = await generateCastCandidates(character.id);
-        const updated = patchMobileGenJob(jobId, {
+        const updated = await patchMobileGenJob(jobId, {
           castCandidates: { ...job.castCandidates, [target]: candidates },
         });
         return NextResponse.json({ ok: true, job: updated });
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
         ...c,
         approved: c.id === candidateId,
       }));
-      const updated = patchMobileGenJob(jobId, {
+      const updated = await patchMobileGenJob(jobId, {
         castCandidates: { ...job.castCandidates, [target]: nextCandidates },
       });
       return NextResponse.json({ ok: true, job: updated });
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
         scene.placeName,
         body.customPrompt,
       );
-      const updated = patchMobileGenJob(jobId, {
+      const updated = await patchMobileGenJob(jobId, {
         locationCandidates: { ...job.locationCandidates, [target]: candidates },
       });
       return NextResponse.json({ ok: true, job: updated });
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
     const nextJobScenes = job.scenes.map((s) =>
       s.id === target ? { ...s, worldThumbKey: thumbKey } : s,
     );
-    const updated = patchMobileGenJob(jobId, {
+    const updated = await patchMobileGenJob(jobId, {
       locationCandidates: { ...job.locationCandidates, [target]: nextCandidates },
       scenes: nextJobScenes,
     });

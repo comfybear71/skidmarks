@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     const secondsPerShot =
       Number(body.secondsPerShot) > 0 ? Number(body.secondsPerShot) : DEFAULT_SECONDS_PER_SHOT;
 
-    const job = createMobileGenJob({
+    const job = await createMobileGenJob({
       styleId,
       prompt,
       targetDurationSec,

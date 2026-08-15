@@ -400,3 +400,21 @@ export async function findNeonFile(opts: {
     return (rows[0] as NeonFileRow) || null;
   }, null);
 }
+
+export async function saveMobileJobRow(id: string, data: unknown): Promise<void> {
+  await safeQuery(async (sql) => {
+    await sql`
+      INSERT INTO mobile_jobs (id, data, updated_at)
+      VALUES (${id}, ${JSON.stringify(data)}, now())
+      ON CONFLICT (id) DO UPDATE SET data = ${JSON.stringify(data)}, updated_at = now()
+    `;
+    return null;
+  }, null);
+}
+
+export async function readMobileJobRow<T>(id: string): Promise<T | null> {
+  return safeQuery(async (sql) => {
+    const rows = await sql`SELECT data FROM mobile_jobs WHERE id = ${id} LIMIT 1`;
+    return (rows[0]?.data as T) ?? null;
+  }, null);
+}

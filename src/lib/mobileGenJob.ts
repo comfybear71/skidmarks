@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
+import { useCloudStore } from "./cloudEnv";
+import { readMobileJobRow, saveMobileJobRow } from "./neonStore";
 import type { ShowStyleId } from "./showStylePresets";
 
 /**
@@ -9,6 +11,12 @@ import type { ShowStyleId } from "./showStylePresets";
  * span many /api/crash/mobile/step calls (each doing one bounded unit of
  * work), so unlike every other progress-file in this codebase this is the
  * actual state machine, not just a status readout — losing it loses the run.
+ *
+ * On Vercel, local disk is per-invocation scratch — a different serverless
+ * instance can (and does) handle the next request, so a job written to
+ * /tmp by one call is simply gone by the next ("Job not found" in
+ * production). Persists through Neon when useCloudStore() is true; local
+ * disk otherwise, matching every other dual-mode store in this codebase.
  */
 export type MobileGenPhase =
   | "screenplay"
@@ -84,12 +92,12 @@ function jobPath(id: string): string {
   return path.join(jobsDir(), `${id}.json`);
 }
 
-export function createMobileGenJob(opts: {
+export async function createMobileGenJob(opts: {
   styleId: ShowStyleId;
   prompt: string;
   targetDurationSec: number;
   secondsPerShot: number;
-}): MobileGenJob {
+}): Promise<MobileGenJob> {
   const now = new Date().toISOString();
   const job: MobileGenJob = {
     id: sortableId("mgen"),
@@ -110,11 +118,14 @@ export function createMobileGenJob(opts: {
     createdAt: now,
     updatedAt: now,
   };
-  writeMobileGenJob(job);
+  await writeMobileGenJob(job);
   return job;
 }
 
-export function readMobileGenJob(id: string): MobileGenJob | null {
+export async function readMobileGenJob(id: string): Promise<MobileGenJob | null> {
+  if (useCloudStore()) {
+    return readMobileJobRow<MobileGenJob>(id);
+  }
   const p = jobPath(id);
   if (!fs.existsSync(p)) return null;
   try {
@@ -124,18 +135,22 @@ export function readMobileGenJob(id: string): MobileGenJob | null {
   }
 }
 
-export function writeMobileGenJob(job: MobileGenJob): void {
+export async function writeMobileGenJob(job: MobileGenJob): Promise<void> {
   job.updatedAt = new Date().toISOString();
+  if (useCloudStore()) {
+    await saveMobileJobRow(job.id, job);
+    return;
+  }
   fs.writeFileSync(jobPath(job.id), JSON.stringify(job, null, 2));
 }
 
-export function patchMobileGenJob(
+export async function patchMobileGenJob(
   id: string,
   patch: Partial<MobileGenJob>,
-): MobileGenJob | null {
-  const job = readMobileGenJob(id);
+): Promise<MobileGenJob | null> {
+  const job = await readMobileGenJob(id);
   if (!job) return null;
   const next = { ...job, ...patch };
-  writeMobileGenJob(next);
+  await writeMobileGenJob(next);
   return next;
 }
