@@ -72,6 +72,18 @@ export async function POST(req: Request) {
     let job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
+    // "error" is terminal and outside autoPhases, so nothing ever polled it
+    // again — a clip attached from the error screen (clip/upload/route.ts)
+    // updated the clip but had no way to make the run continue. If any clip
+    // now has a file, there's something to stitch; send it back to animate
+    // to pick up whatever is still pending, or straight to stitch if none
+    // is. Otherwise leave the job in error — nothing actually changed.
+    if (job.phase === "error" && job.clips.some((c) => c.clipStatus === "done")) {
+      const nextPhase = job.clips.some((c) => c.clipStatus === "pending") ? "animate" : "stitch";
+      job = (await patchMobileGenJob(jobId, { phase: nextPhase, error: "" }))!;
+      return NextResponse.json({ ok: true, job, advanced: true });
+    }
+
     if (job.phase === "cast_images") {
       if (allCastApproved(job)) {
         job = (await patchMobileGenJob(jobId, { phase: "location_images" }))!;

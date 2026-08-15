@@ -56,10 +56,19 @@ export default function MobileHomePage() {
     pollRef.current = null;
   }, []);
 
-  const refreshJob = useCallback(async (jobId: string) => {
-    const res = await fetch(`/api/crash/mobile/job/${jobId}`);
-    const data = await res.json();
-    if (res.ok && data.job) setJob(data.job as MobileGenJob);
+  // "Check again" on the error screen used to just re-fetch the same stuck
+  // job — a GET can't move a terminal "error" phase anywhere. This POSTs to
+  // /step, which now knows how to resume once a clip has been attached
+  // manually; the auto-poll effect below picks up from there since it
+  // restarts whenever job.phase changes.
+  const retryFromError = useCallback(async (jobId: string) => {
+    setError("");
+    try {
+      const data = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/step", { jobId });
+      setJob(data.job);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Retry failed");
+    }
   }, []);
 
   // Drive the automatic phases (plates/voices/animate/stitch) by polling
@@ -429,7 +438,7 @@ export default function MobileHomePage() {
               : "Stitching it all together…"
           }
         >
-          <StoryFeed job={job} />
+          <StoryFeed job={job} onClipUploaded={setJob} />
           <BusySpinner />
         </ActiveStepPanel>
       )}
@@ -461,8 +470,8 @@ export default function MobileHomePage() {
               {reason}
             </div>
           ))}
-          <StoryFeed job={job} />
-          <MobilePrimaryButton onClick={() => void refreshJob(job.id)}>Check again</MobilePrimaryButton>
+          <StoryFeed job={job} onClipUploaded={setJob} />
+          <MobilePrimaryButton onClick={() => void retryFromError(job.id)}>Check again</MobilePrimaryButton>
         </ActiveStepPanel>
       )}
     </main>
@@ -483,6 +492,40 @@ function BusySpinner() {
         }}
       />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+/** Half-size, left-aligned, with a single animated status word next to it —
+ * the centered full-screen spinner on the swipe picker read as a dead end
+ * rather than "generating", and sat where the eye expects the next card. */
+function InlineBusy({ label }: { label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "24px 0" }}>
+      <div
+        style={{
+          width: "20px",
+          height: "20px",
+          flex: "0 0 auto",
+          borderRadius: "999px",
+          border: "2px solid var(--line)",
+          borderTopColor: "var(--acid)",
+          animation: "spin 900ms linear infinite",
+        }}
+      />
+      <span
+        style={{
+          fontSize: "13px",
+          color: "var(--chrome-dim)",
+          animation: "pulseLabel 1400ms ease-in-out infinite",
+        }}
+      >
+        {label}
+      </span>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulseLabel { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+      `}</style>
     </div>
   );
 }
@@ -720,8 +763,14 @@ function CastLocationStep({
           </MobilePrimaryButton>
         </div>
       ) : (
-        <BusySpinner />
+        <InlineBusy label="Generating" />
       )}
+      {/* Nothing exists yet to steer on the first load of a batch, so the
+          tweak row is just clutter until there is something on screen —
+          shown once candidates (or a failure) actually land. It stays after
+          that: it's the one control that lets a batch be re-rolled toward a
+          specific look. */}
+      {candidates.length || (!busy && error) ? (
       <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
         <input
           value={customPrompt}
@@ -756,6 +805,7 @@ function CastLocationStep({
           More
         </button>
       </div>
+      ) : null}
     </ActiveStepPanel>
   );
 }
