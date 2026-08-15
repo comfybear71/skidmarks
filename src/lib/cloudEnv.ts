@@ -21,7 +21,7 @@ export function cloudEnvReady(): boolean {
   return Boolean(env("DATABASE_URL") && env("BLOB_READ_WRITE_TOKEN"));
 }
 
-/** True on Vercel when Blob + Neon env are set. Never true on localhost. */
+/** True when Blob + Neon env are set. Use cloud store if credentials available, not just on Vercel. */
 export function useCloudStore(): boolean {
-  return runningOnVercel() && cloudEnvReady();
+  return cloudEnvReady();
 }
