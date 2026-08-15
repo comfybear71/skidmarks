@@ -9,6 +9,7 @@ import {
   deleteLibraryVoice,
   synthesizeSpeech,
   VOICE_CLONE_SAMPLE_SCRIPT,
+  MIN_VOICE_DESCRIPTION_CHARS,
 } from "./elevenLabs";
 import type { ShowStyleId } from "./showStylePresets";
 import { getShowStylePreset, SHOW_STYLE_PRESETS } from "./showStylePresets";
@@ -502,10 +503,19 @@ export async function ensureVoiceReadyWithDescription(
   }
 
   if (!slot.attempts.length) {
-    const desc =
-      slot.voiceDescription.trim() ||
-      (await descriptionIfMissing()) ||
-      defaultCrashVoicePrompt(castName);
+    // `||` only falls through on empty, so a short-but-present description —
+    // mobile fills this from the script's one-word voiceType — won the chain
+    // and then failed ElevenLabs' minimum, leaving the perfectly good static
+    // fallback below unused. Take the first candidate that is actually long
+    // enough instead, and only pay for the LLM suggestion if we still need one.
+    let desc = slot.voiceDescription.trim();
+    if (desc.length < MIN_VOICE_DESCRIPTION_CHARS) {
+      const suggested = (await descriptionIfMissing())?.trim() || "";
+      desc = suggested.length >= MIN_VOICE_DESCRIPTION_CHARS ? suggested : "";
+    }
+    if (desc.length < MIN_VOICE_DESCRIPTION_CHARS) {
+      desc = defaultCrashVoicePrompt(castName);
+    }
     await designCrashVoice({
       styleId,
       castKey: slot.castKey,
