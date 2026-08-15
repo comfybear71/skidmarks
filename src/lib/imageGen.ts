@@ -416,33 +416,70 @@ async function xaiImageRequest(
   let lastErr = "";
   for (const model of tryModels) {
     const payload = { ...body, model };
-    // Without a signal this fetch can hang indefinitely, and the retry loop
-    // makes it hang twice — that is what stalled the phone on a spinner with
-    // nothing to show and no error.
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(XAI_REQUEST_TIMEOUT_MS),
-      });
-    } catch (e) {
-      const aborted = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
-      lastErr = aborted
-        ? `xAI image request timed out after ${XAI_REQUEST_TIMEOUT_MS / 1000}s (model ${model})`
-        : `xAI image request failed: ${e instanceof Error ? e.message : String(e)}`;
-      break;
+    let status = 0;
+
+    for (let attempt = 0; ; attempt++) {
+      // Without a signal this fetch can hang indefinitely, and the model
+      // fallback makes it hang twice — that is what stalled the phone on a
+      // spinner with nothing to show and no error.
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(XAI_REQUEST_TIMEOUT_MS),
+        });
+      } catch (e) {
+        const aborted = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+        lastErr = aborted
+          ? `xAI image request timed out after ${XAI_REQUEST_TIMEOUT_MS / 1000}s (model ${model})`
+          : `xAI image request failed: ${e instanceof Error ? e.message : String(e)}`;
+        return Promise.reject(new Error(lastErr));
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) return decodeImagePayload(data);
+      status = res.status;
+      lastErr = xaiErrorMessage(res.status, data);
+
+      // Rate limits and server blips are the whole reason a second batch came
+      // back empty in ~2s. They are transient — wait and ask again rather than
+      // returning an empty batch that looks like a hang.
+      const transient = res.status === 429 || res.status >= 500;
+      if (!transient || attempt >= XAI_MAX_RETRIES) break;
+      await sleep(retryDelayMs(res, attempt));
     }
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) return decodeImagePayload(data);
-    lastErr = xaiErrorMessage(res.status, data);
-    if (res.status !== 403 && res.status !== 404) break;
+
+    // Only a wrong/unavailable model is worth re-asking under the other name.
+    if (status !== 403 && status !== 404) break;
   }
   throw new Error(lastErr);
+}
+
+const XAI_MAX_RETRIES = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Honour Retry-After when xAI sends one, else exponential backoff. */
+function retryDelayMs(res: Response, attempt: number): number {
+  const header = res.headers.get("retry-after");
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(seconds * 1000, 10_000);
+    }
+    const when = Date.parse(header);
+    if (Number.isFinite(when)) {
+      return Math.min(Math.max(when - Date.now(), 0), 10_000);
+    }
+  }
+  return Math.min(1000 * 2 ** attempt, 8000);
 }
 
 async function decodeImagePayload(data: {

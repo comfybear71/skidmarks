@@ -11,10 +11,11 @@ import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import type { MobileImageCandidate } from "./mobileGenJob";
 
 const CANDIDATES_PER_BATCH = 4;
-/** Per-image ceiling. A batch runs in parallel, so this is also the batch's
- * rough worst case — sequential generation blew past the route's maxDuration
- * and the phone just sat on a spinner. */
-const IMAGE_TIMEOUT_MS = 45_000;
+/** Per-image ceiling, generous enough to cover imageGen's own rate-limit
+ * retries. A batch runs in parallel, so this is also the batch's rough worst
+ * case — sequential generation blew past the route's maxDuration and the
+ * phone just sat on a spinner. */
+const IMAGE_TIMEOUT_MS = 90_000;
 
 /** Reject a slow image instead of hanging the request, and always clear the
  * timer so a resolved generation can't hold the process open. */
