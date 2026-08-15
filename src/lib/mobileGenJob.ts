@@ -41,6 +41,9 @@ export type MobileShotUnit = {
   shotId: string;
   sceneId: string;
   plateFile: string;
+  /** Why compositing failed, when it did — otherwise animate can only report
+   * that a plate is missing, not what went wrong making it. */
+  error?: string;
 };
 
 /** One per dialogue beat — the LTX/Comfy pipeline animates per-line, not per-shot (a shot's plate is shared across its beats, but each line gets its own short clip matched to its own audio). */

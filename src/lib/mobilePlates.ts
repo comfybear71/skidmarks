@@ -12,7 +12,45 @@ import {
 import { resolveWorldCardThumbPath } from "./worldCardThumbs";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import { CRASH_DIR } from "./paths";
+import { cloudListShowFiles, readShowAssetBytes } from "./cloudShelf";
 import type { CrashStoryScene, CrashStoryShot } from "./crashStoryTypes";
+
+/** Pull a show-shelf asset down to a temp file so code that needs a path works
+ * the same whether the bytes came from disk or Blob. Keys arrive as "g:name". */
+async function cacheShelfAsset(
+  styleId: ShowStyleId,
+  kind: "world" | "cast",
+  key: string,
+): Promise<string | null> {
+  const fileName = key.startsWith("g:") ? key.slice(2) : key;
+  if (!fileName) return null;
+  const bytes = await readShowAssetBytes(styleId, kind, fileName).catch(() => null);
+  if (!bytes?.length) return null;
+  const dir = path.join(CRASH_DIR, "gen");
+  fs.mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, fileName);
+  fs.writeFileSync(dest, bytes);
+  return dest;
+}
+
+/** A character's approved card from the show's cast shelf, matched by name the
+ * same way the local manifest is. */
+async function cacheShelfCastByName(
+  styleId: ShowStyleId,
+  name: string,
+): Promise<string | null> {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return null;
+  const rows = await cloudListShowFiles(styleId, "cast").catch(() => []);
+  const named = rows
+    .map((r) => ({ label: (r.label_name || "").trim().toLowerCase(), filename: r.filename }))
+    .filter((r) => r.label && r.filename);
+  const hit =
+    named.find((r) => r.label === wanted) ||
+    named.find((r) => r.label.includes(wanted) || wanted.includes(r.label));
+  if (!hit) return null;
+  return cacheShelfAsset(styleId, "cast", hit.filename);
+}
 
 function resolveCastKeyByName(
   manifest: Record<string, StyleCardThumbLabel>,
@@ -62,8 +100,17 @@ export async function compositeShotPlate(
   if (!scene.worldThumbKey.trim()) {
     throw new Error(`Scene "${scene.title}" has no approved location yet`);
   }
-  const bgPath = resolveWorldCardThumbPath(styleId, scene.worldThumbKey);
-  if (!bgPath) throw new Error("Location image missing on disk");
+  // Local galleries are written by the request that approved the pick, and on
+  // Vercel this phase runs on a different invocation with empty /tmp — so the
+  // approved location and cast are only reachable from the cloud shelves.
+  const bgPath =
+    resolveWorldCardThumbPath(styleId, scene.worldThumbKey) ||
+    (await cacheShelfAsset(styleId, "world", scene.worldThumbKey));
+  if (!bgPath) {
+    throw new Error(
+      `Location image for "${scene.placeName}" not found on disk or in the show's world shelf`,
+    );
+  }
 
   const silent = (opts.silentCast || []).map((n) => n.trim()).filter(Boolean);
   const speakers = [...new Set([...uniqueShotSpeakers(shot), ...silent])];
@@ -84,10 +131,13 @@ export async function compositeShotPlate(
     const castNames: string[] = [];
     for (const name of batch) {
       const key = resolveCastKeyByName(manifest, name);
-      if (!key) continue;
-      const p = resolveStyleCardThumbPath(styleId, key);
+      const localPath = key ? resolveStyleCardThumbPath(styleId, key) : null;
+      // Same story as the background: the card was approved on another
+      // invocation, so fall back to the show's cast shelf by character name.
+      const cloudPath = localPath ? null : await cacheShelfCastByName(styleId, name);
+      const p = localPath || cloudPath;
       if (!p) continue;
-      castNames.push(manifest[key]?.name || name);
+      castNames.push((key && manifest[key]?.name) || name);
       castFiles.push({ buf: fs.readFileSync(p), ext: path.extname(p).toLowerCase() || ".png" });
     }
     if (!castFiles.length) continue;
