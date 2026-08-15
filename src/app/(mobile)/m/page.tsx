@@ -495,7 +495,12 @@ function CastLocationStep({
   error: string;
   promptPlaceholder: string;
 }) {
-  const [cursor, setCursor] = useState(0);
+  // Start on the first thing still needing a pick. Reused cast arrives already
+  // approved, and opening on an item that is done makes you tap past it.
+  const [cursor, setCursor] = useState(() => {
+    const firstOpen = items.findIndex((id) => !candidatesOf(id).some((c) => c.approved));
+    return firstOpen === -1 ? 0 : firstOpen;
+  });
   const [customPrompt, setCustomPrompt] = useState("");
   const requested = useRef<Record<string, boolean>>({});
   const current = items[cursor];

@@ -12,6 +12,7 @@ import { readVoiceQuota } from "./elevenQuota";
 import { openCrashLabEpisode, saveCrashLabEpisode } from "./crashLabEpisodes";
 import { persistCursorPackToCloud } from "./cursorCloudSync";
 import { writeScriptVoiceProgress } from "./scriptVoiceProgress";
+import { assignReusedVoice } from "./mobileVoiceReuse";
 
 export type ScriptVoiceGenItemResult = {
   name: string;
@@ -66,13 +67,22 @@ async function castEpisodeVoices(
       continue;
     }
 
+    // Designing a voice is an ElevenLabs add/edit operation and the monthly
+    // allowance is small. Reusing a voice that already exists is not, so try
+    // that before spending one — and once the allowance is gone, reuse is the
+    // only thing that still works. Silence is worse than a shared voice.
     if (quotaExceeded || readVoiceQuota().remaining <= 0) {
       quotaExceeded = true;
-      results.push({
-        name: speaker,
-        ok: false,
-        detail: "Monthly voice-design quota used up — try again next month",
-      });
+      const reused = await assignReusedVoice(styleId, speaker).catch(() => false);
+      results.push(
+        reused
+          ? { name: speaker, ok: true, detail: "Reused an existing voice — design quota used up" }
+          : {
+              name: speaker,
+              ok: false,
+              detail: "Monthly voice-design quota used up — try again next month",
+            },
+      );
       continue;
     }
 
@@ -88,11 +98,23 @@ async function castEpisodeVoices(
       );
       results.push({ name: speaker, ok: true, detail: "Cast" });
     } catch (e) {
-      results.push({
-        name: speaker,
-        ok: false,
-        detail: e instanceof Error ? e.message : String(e),
-      });
+      // ElevenLabs reports the allowance mid-run too, not just via our own
+      // counter — that counter lives on disk and resets on every Vercel
+      // invocation, so it can read "plenty left" when there is none.
+      const why = e instanceof Error ? e.message : String(e);
+      if (/limit|quota/i.test(why)) {
+        quotaExceeded = true;
+        const reused = await assignReusedVoice(styleId, speaker).catch(() => false);
+        if (reused) {
+          results.push({
+            name: speaker,
+            ok: true,
+            detail: "Reused an existing voice — design quota used up",
+          });
+          continue;
+        }
+      }
+      results.push({ name: speaker, ok: false, detail: why });
     }
   }
   return { results, quotaExceeded };
