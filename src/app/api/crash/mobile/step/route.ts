@@ -17,6 +17,7 @@ import { CRASH_DIR } from "@/lib/paths";
 import {
   buildSpeakingMotion,
   buildHoldMotion,
+  buildGroupHoldMotion,
   buildSegmentText,
   buildGlobalPrompt,
 } from "@/lib/mobileImageMotion";
@@ -226,7 +227,8 @@ export async function POST(req: Request) {
       const shot = job.shots.find((s) => s.shotId === next.shotId);
       const story = await readMobileStory(job.styleId, job.folderName);
       const scene = story.scenes.find((sc) => sc.id === next.sceneId);
-      const beat = scene?.shots.find((sh) => sh.id === next.shotId)?.beats.find((b) => b.id === next.beatId);
+      const storyShot = scene?.shots.find((sh) => sh.id === next.shotId);
+      const beat = storyShot?.beats.find((b) => b.id === next.beatId);
       try {
         // One message for three different failures told us nothing about
         // which. They need separate answers: a failed plate is a cast/location
@@ -278,6 +280,14 @@ export async function POST(req: Request) {
         const lookLock = job.roster.find(
           (c) => c.name.trim().toLowerCase() === beat.speaker.trim().toLowerCase(),
         )?.appearance;
+        // A hold beat's own speaker is only who is "on" this beat, not who is
+        // in the plate — the plate is shared across the whole shot. Naming
+        // just one person during a hold reads as permission for everyone else
+        // in frame to drift, which is the group-hold shape the standard
+        // documents separately.
+        const shotCast = [
+          ...new Set((storyShot?.beats || []).map((b) => b.speaker.trim()).filter(Boolean)),
+        ];
         const imageMotion = speaking
           ? buildSpeakingMotion({
               styleId: job.styleId,
@@ -285,7 +295,9 @@ export async function POST(req: Request) {
               line: beat.text,
               lookLock,
             })
-          : buildHoldMotion({ styleId: job.styleId, speaker: beat.speaker, lookLock });
+          : shotCast.length > 1
+            ? buildGroupHoldMotion({ styleId: job.styleId, names: shotCast })
+            : buildHoldMotion({ styleId: job.styleId, speaker: beat.speaker, lookLock });
 
         const comfyUrl = await ensureComfyReady();
         const result = await runLtxSmoke({
