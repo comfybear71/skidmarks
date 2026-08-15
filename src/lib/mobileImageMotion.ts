@@ -57,7 +57,7 @@ export function buildSpeakingMotion(opts: {
   );
 }
 
-/** Beat with no dialogue. */
+/** Beat with no dialogue, one character in shot. */
 export function buildHoldMotion(opts: {
   styleId: ShowStyleId;
   speaker: string;
@@ -69,10 +69,39 @@ export function buildHoldMotion(opts: {
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} holds their pose, subtle idle motion, weight shift, breathing.`,
+      `${who} holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies.`,
       "Props and background stay exactly as the start image, nothing new enters frame.",
       "No dialogue. Camera holds, no cuts. Same person and objects as the start image.",
       "No new people enter the frame.",
+      motionStyleLock(opts.styleId),
+    ].join(" "),
+  );
+}
+
+/**
+ * Hold beat where the shot's cast is more than one person and none of them
+ * speaks in it. The single-person hold names one character as the subject,
+ * which reads as permission for anyone else in the plate to drift or change
+ * — the group form pins the whole cast and silences every mouth at once, per
+ * the standard's documented "Group hold" shape.
+ */
+export function buildGroupHoldMotion(opts: {
+  styleId: ShowStyleId;
+  names: string[];
+}): string {
+  const names = opts.names.map(clean).filter(Boolean);
+  const roll =
+    names.length <= 1
+      ? names[0] || "The characters"
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return clean(
+    [
+      "Use the provided start image as the first frame.",
+      `Only ${roll} in frame, no one else appears.`,
+      "Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies.",
+      "All mouths stay closed.",
+      "Props and background stay exactly as the start image, nothing new enters frame.",
+      "No dialogue. Camera holds, no cuts. Same people and objects as the start image.",
       motionStyleLock(opts.styleId),
     ].join(" "),
   );
