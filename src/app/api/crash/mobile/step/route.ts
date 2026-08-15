@@ -98,7 +98,20 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, job, advanced: true });
       }
       try {
-        const fileName = await compositeShotPlate(job.styleId, scene, shot);
+        // job.speakers carries the whole roster (cast cards are made for
+        // non-speakers too); anyone with no dialogue anywhere would otherwise
+        // never be composited into a plate.
+        const talking = new Set(
+          story.scenes.flatMap((sc) =>
+            sc.shots.flatMap((sh) => sh.beats.map((b) => b.speaker.trim()).filter(Boolean)),
+          ),
+        );
+        const silentCast = job.speakers.filter((n) => n.trim() && !talking.has(n.trim()));
+
+        const fileName = await compositeShotPlate(job.styleId, scene, shot, {
+          silentCast,
+          styleRealism: job.styleRealism,
+        });
         try {
           await uploadMobileMedia({
             styleId: job.styleId,
