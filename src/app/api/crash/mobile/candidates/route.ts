@@ -11,6 +11,8 @@ import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 
+const CANDIDATES_PER_BATCH = 4;
+
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
@@ -78,6 +80,8 @@ export async function POST(req: Request) {
           job.styleId,
           job.folderName,
           character.id,
+          CANDIDATES_PER_BATCH,
+          body.customPrompt,
         );
         const updated = await patchMobileGenJob(jobId, {
           castCandidates: { ...job.castCandidates, [target]: candidates },

@@ -22,12 +22,13 @@ export async function generateCastCandidates(
   folderName: string,
   characterId: string,
   count = CANDIDATES_PER_BATCH,
+  customPrompt?: string,
 ): Promise<MobileImageCandidate[]> {
   const character = getCharacter(characterId);
   if (!character) throw new Error("Character not found");
 
   const styleRealism = getShowStylePreset(styleId).defaultRealism;
-  const note = [character.lookNote, character.pastNote].filter(Boolean).join(". ");
+  const note = customPrompt || [character.lookNote, character.pastNote].filter(Boolean).join(". ");
   const prompt = buildFacePrompt({
     name: character.name,
     pastNote: character.pastNote,
