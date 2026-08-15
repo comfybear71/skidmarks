@@ -18,6 +18,8 @@ import { sortableId } from "./types";
 /** Production default — v1b crop settings (NOT v1c). */
 const WF_CANDIDATES = [
   path.join(MOVIES_ROOT, "workflow", "lipsync", "WF_lipsync_v1d.json"),
+  // MOVIES_ROOT only exists on the PC; a repo copy is what a deploy carries.
+  path.join(process.cwd(), "workflow", "lipsync", "WF_lipsync_v1d.json"),
 ];
 
 const UPLOAD_SUB = "lipsync_test";
