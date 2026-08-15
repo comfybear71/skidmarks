@@ -52,12 +52,20 @@ function extractCharacterRoster(text: string): ScriptCharacterData[] {
     const lines = block.trim().split("\n");
     if (lines.length === 0) continue;
 
-    // First line is character name
-    const nameLine = lines[0].replace(/:.*$/, "").trim();
-    const name = nameLine.replace(/[:\-].*$/, "").trim();
+    // "NAME:" may carry its description inline on the same line, or put it on
+    // the lines below. Both shapes appear in real scripts, so take either —
+    // reading only the lines below silently dropped every inline description.
+    const nameLine = lines[0];
+    const colonAt = nameLine.indexOf(":");
+    const name = (colonAt >= 0 ? nameLine.slice(0, colonAt) : nameLine)
+      .replace(/[-–—].*$/, "")
+      .trim();
+    const inlineDescription = colonAt >= 0 ? nameLine.slice(colonAt + 1).trim() : "";
 
-    // Rest is description
-    const description = lines.slice(1).join("\n").trim();
+    const description = [inlineDescription, ...lines.slice(1)]
+      .filter((l) => l.trim())
+      .join("\n")
+      .trim();
 
     // Try to extract appearance from description (usually after first sentence or age descriptor)
     const appearance = extractAppearanceFromDescription(description);

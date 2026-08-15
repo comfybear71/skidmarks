@@ -220,7 +220,14 @@ export function buildFacePrompt(opts: {
   const who = (opts.note || opts.pastNote || "").trim();
   const bits = [
     "Character face still.",
-    who ? `Who they are: ${who}` : "",
+    // With a styleId the note is the whole story prompt (mobile Auto Studio),
+    // so it has to read as background for ONE cast member — dumping it raw
+    // made the generator draw the entire scene: both speakers, mid-dialogue.
+    opts.styleId && who
+      ? `Design ONE character only — ${opts.name}. ${opts.name} is: ${who}`
+      : who
+        ? `Who they are: ${who}`
+        : "",
     opts.rejectHints.length
       ? `Fix previous rejects: ${opts.rejectHints.join("; ")}`
       : "",
@@ -230,6 +237,11 @@ export function buildFacePrompt(opts: {
     opts.styleId
       ? "Use the reference image(s) for identity when provided. Portrait or upper body, facing camera."
       : "Use the reference image(s) for identity when provided. Portrait or upper body, facing camera. English/Australian grotesque comedy energy.",
+    // Cast cards get composited onto plates later — a second body or a baked-in
+    // speech bubble makes the card unusable.
+    opts.styleId
+      ? "Exactly one character alone in frame — no second character, no crowd. No speech bubbles, no dialogue balloons, no writing, no text, no captions, no subtitles, no watermarks."
+      : "",
   ];
   return bits.filter(Boolean).join("\n\n");
 }
@@ -386,6 +398,10 @@ function xaiErrorMessage(status: number, data: unknown): string {
   return detail || `xAI failed (${status})`;
 }
 
+/** Hard ceiling on a single xAI image call. Kept under the callers' own
+ * per-image timeout so the abort fires first and the socket is released. */
+const XAI_REQUEST_TIMEOUT_MS = 40_000;
+
 async function xaiImageRequest(
   url: string,
   body: Record<string, unknown>,
@@ -400,14 +416,27 @@ async function xaiImageRequest(
   let lastErr = "";
   for (const model of tryModels) {
     const payload = { ...body, model };
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    // Without a signal this fetch can hang indefinitely, and the retry loop
+    // makes it hang twice — that is what stalled the phone on a spinner with
+    // nothing to show and no error.
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(XAI_REQUEST_TIMEOUT_MS),
+      });
+    } catch (e) {
+      const aborted = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+      lastErr = aborted
+        ? `xAI image request timed out after ${XAI_REQUEST_TIMEOUT_MS / 1000}s (model ${model})`
+        : `xAI image request failed: ${e instanceof Error ? e.message : String(e)}`;
+      break;
+    }
     const data = await res.json().catch(() => ({}));
     if (res.ok) return decodeImagePayload(data);
     lastErr = xaiErrorMessage(res.status, data);
