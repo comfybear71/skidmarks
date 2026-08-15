@@ -360,6 +360,7 @@ export default function MobileHomePage() {
           onGenerate={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApprove={(name, candidateId) => approveCandidate("cast", name, candidateId)}
           busy={busy}
+          error={error}
           promptPlaceholder="e.g. more like a grumpy dad"
         />
       )}
@@ -377,6 +378,7 @@ export default function MobileHomePage() {
           onGenerate={(id, customPrompt) => genCandidates("location", id, customPrompt)}
           onApprove={(id, candidateId) => approveCandidate("location", id, candidateId)}
           busy={busy}
+          error={error}
           promptPlaceholder="e.g. Mars, a dive bar, outer space"
         />
       )}
@@ -462,6 +464,7 @@ function CastLocationStep({
   onGenerate,
   onApprove,
   busy,
+  error,
   promptPlaceholder,
 }: {
   title: string;
@@ -473,19 +476,28 @@ function CastLocationStep({
   onGenerate: (id: string, customPrompt?: string) => void;
   onApprove: (id: string, candidateId: string) => void;
   busy: boolean;
+  error: string;
   promptPlaceholder: string;
 }) {
   const [cursor, setCursor] = useState(0);
   const [customPrompt, setCustomPrompt] = useState("");
+  const requested = useRef<Record<string, boolean>>({});
   const current = items[cursor];
   const candidates = current ? candidatesOf(current) : [];
 
+  // Approving advances the cursor while the approve POST is still in flight,
+  // so this fires for the next item with busy already true. Watching busy as
+  // well means the skipped generate is picked up the moment approve lands —
+  // without it the second character sat on a spinner and never asked for
+  // anything. attempted[] keeps that from re-firing forever when a batch
+  // legitimately comes back empty.
   useEffect(() => {
-    if (current && !candidatesOf(current).length && !busy) {
-      onGenerate(current);
-    }
+    if (!current || busy) return;
+    if (candidatesOf(current).length || requested.current[current]) return;
+    requested.current[current] = true;
+    onGenerate(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current]);
+  }, [current, busy]);
 
   if (!current) return null;
 
@@ -504,6 +516,22 @@ function CastLocationStep({
             if (cursor < items.length - 1) setCursor((n) => n + 1);
           }}
         />
+      ) : !busy && error ? (
+        // Idle, asked for, nothing to show. Previously this rendered a spinner
+        // that never resolved and gave no way out.
+        <div style={{ textAlign: "center", padding: "24px 0" }}>
+          <div style={{ color: "var(--chrome-dim)", fontSize: "13px", marginBottom: "12px" }}>
+            Nothing came back for this one.
+          </div>
+          <MobilePrimaryButton
+            onClick={() => {
+              requested.current[current] = false;
+              onGenerate(current);
+            }}
+          >
+            Try again
+          </MobilePrimaryButton>
+        </div>
       ) : (
         <BusySpinner />
       )}
