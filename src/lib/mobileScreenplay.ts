@@ -54,15 +54,13 @@ async function writeWholeScript(opts: {
   sceneCount: number;
 }): Promise<string> {
   const preset = getShowStylePreset(opts.styleId);
-  const castNote = preset.presetCast.length
-    ? `Existing cast to use where relevant: ${preset.presetCast.map((c) => c.name).join(", ")}.`
-    : "";
+  // Mobile pipeline: prompt is the only source of truth for characters.
+  // Don't suggest existing cast — let the prompt drive character creation.
   const text = await askGrok({
     system: SYSTEM_PROMPT(opts.styleId, preset.label, preset.tagline),
     user: [
       `Idea / prompt: ${opts.prompt}`,
       `Write ${opts.sceneCount} scene(s) total, spread across ACT I${opts.sceneCount > 4 ? " and ACT II" : ""}.`,
-      castNote,
     ]
       .filter(Boolean)
       .join("\n"),
