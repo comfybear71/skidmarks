@@ -71,7 +71,6 @@ export async function writeMobileStory(
   story: CrashStoryDoc,
   folderName: string,
 ): Promise<void> {
-  writeCrashStory(story);
   if (useCloudStore()) {
     await saveCloudEpisodeMeta({
       styleId: story.styleId,
@@ -79,5 +78,7 @@ export async function writeMobileStory(
       label: story.campaignLabel?.trim() || folderName,
       story,
     });
+  } else {
+    writeCrashStory(story);
   }
 }
