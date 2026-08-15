@@ -219,7 +219,8 @@ export function buildFacePrompt(opts: {
   // Prefer the live attempt note (what's on screen). Don't double-print the same line.
   const who = (opts.note || opts.pastNote || "").trim();
   const bits = [
-    "Character face still.",
+    // "face still" biases toward a human head-shot on a non-human subject.
+    opts.styleId ? "Single character reference still." : "Character face still.",
     // With a styleId the note is the whole story prompt (mobile Auto Studio),
     // so it has to read as background for ONE cast member — dumping it raw
     // made the generator draw the entire scene: both speakers, mid-dialogue.
@@ -234,8 +235,10 @@ export function buildFacePrompt(opts: {
     opts.styleId
       ? buildCrashGenLook(opts.styleId, opts.styleRealism)
       : stylePrompt(opts.styleRealism),
+    // "Portrait or upper body" is a human framing — it fights a fish, a bird or
+    // a toaster. Let the subject decide the crop instead.
     opts.styleId
-      ? "Use the reference image(s) for identity when provided. Portrait or upper body, facing camera."
+      ? "Use the reference image(s) for identity when provided. Facing camera, filling the frame: head and shoulders if it has them, otherwise the whole creature or object. Keep its real anatomy — do not humanise it, do not give it a human body or human hands unless the description says so."
       : "Use the reference image(s) for identity when provided. Portrait or upper body, facing camera. English/Australian grotesque comedy energy.",
     // Cast cards get composited onto plates later — a second body or a baked-in
     // speech bubble makes the card unusable.

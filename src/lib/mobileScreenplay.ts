@@ -47,7 +47,12 @@ const SYSTEM_PROMPT = (styleId: ShowStyleId, label: string, tagline: string) =>
     "- Then a CHARACTERS: block, before ACT I. One line per character: NAME: what they look like. Then who they are.",
     "- Appearance comes FIRST on the line, before personality — the first sentence is what the image generator gets.",
     "- EVERY character named in the idea must have a line in the CHARACTERS: block, including animals, creatures and anyone who never speaks",
-    "- Describe appearance literally — species, build, age, clothing, colours. This text is fed straight to an image generator, so write what a camera would see, not backstory.",
+    "- Describe appearance literally — species, body shape, size, colours, markings, and clothing if any. This text is fed straight to an image generator, so write what a camera would see, not backstory.",
+    // The cast is whatever the idea says it is. A talking monkey, a flying
+    // goldfish that whistles, a sentient toaster — the description has to keep
+    // the impossible bits or the image comes back as an ordinary animal.
+    "- A character can be a person, an animal, a creature, or an object. Never turn a non-human character into a human, and never give it a human body unless the idea says so.",
+    "- Keep every impossible trait from the idea in the appearance — if it flies, glows, wears a hat, has wings or stands upright, say so plainly.",
     "- Each character is drawn on their own, so describe each one alone. Never describe two characters together in one line.",
     "- ACT headings are roman numerals on their own line: ACT I, ACT II, etc.",
     "- Scene headings: INT. or EXT. PLACE - DAY/NIGHT (all caps place + time)",
