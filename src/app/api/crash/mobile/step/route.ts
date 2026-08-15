@@ -213,8 +213,22 @@ export async function POST(req: Request) {
       const scene = story.scenes.find((sc) => sc.id === next.sceneId);
       const beat = scene?.shots.find((sh) => sh.id === next.shotId)?.beats.find((b) => b.id === next.beatId);
       try {
-        if (!shot?.plateFile || shot.plateFile === "__error__" || !beat) {
-          throw new Error("No plate/line ready for this clip");
+        // One message for three different failures told us nothing about
+        // which. They need separate answers: a failed plate is a cast/location
+        // problem, a missing beat is a story/job mismatch.
+        if (!shot) {
+          throw new Error(`Clip references shot ${next.shotId}, which is not in this job`);
+        }
+        if (shot.plateFile === "__error__") {
+          throw new Error(
+            `Shot ${next.shotId} failed to plate — check its cast and location were both picked`,
+          );
+        }
+        if (!shot.plateFile) {
+          throw new Error(`Shot ${next.shotId} has no plate yet`);
+        }
+        if (!beat) {
+          throw new Error(`Line ${next.beatId} is missing from the story for shot ${next.shotId}`);
         }
         const platePath =
           resolveGenOrPackPlate(shot.plateFile) ||
