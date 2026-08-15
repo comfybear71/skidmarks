@@ -12,15 +12,12 @@ import {
 } from "./comfyClient";
 import { uiWorkflowToApiPrompt, type UiWorkflow } from "./comfyWorkflowApi";
 import { comfyLipsyncPreflight } from "./lipsyncPreflight";
-import { CRASH_DIR, MOVIES_ROOT } from "./paths";
+import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
+import { loadWorkflowTemplate } from "./workflowTemplates";
 
 /** Production default — v1b crop settings (NOT v1c). */
-const WF_CANDIDATES = [
-  path.join(MOVIES_ROOT, "workflow", "lipsync", "WF_lipsync_v1d.json"),
-  // MOVIES_ROOT only exists on the PC; a repo copy is what a deploy carries.
-  path.join(process.cwd(), "workflow", "lipsync", "WF_lipsync_v1d.json"),
-];
+const WF_FILE = "WF_lipsync_v1d.json";
 
 const UPLOAD_SUB = "lipsync_test";
 
@@ -82,14 +79,7 @@ export type LipsyncSmokeResult = {
 };
 
 function loadLipsyncUi(): UiWorkflow {
-  for (const p of WF_CANDIDATES) {
-    if (p && fs.existsSync(p)) {
-      return JSON.parse(fs.readFileSync(p, "utf8")) as UiWorkflow;
-    }
-  }
-  throw new Error(
-    "Lipsync WF not found. Expected MY MOVIES\\workflow\\lipsync\\WF_lipsync_v1d.json",
-  );
+  return loadWorkflowTemplate<UiWorkflow>({ fileName: WF_FILE, subdir: "lipsync" });
 }
 
 function lipsyncOutDir(): string {

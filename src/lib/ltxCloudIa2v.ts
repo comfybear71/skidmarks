@@ -14,8 +14,9 @@ import {
 } from "./comfyCloudClient";
 import type { LtxSmokeInput, LtxSmokeResult } from "./ltxSmoke";
 import { getEnv } from "./env";
-import { MOVIES_ROOT, CRASH_DIR } from "./paths";
+import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
+import { loadWorkflowTemplate } from "./workflowTemplates";
 
 function estimateMp3DurationSec(filePath: string): number {
   try {
@@ -29,30 +30,6 @@ function estimateMp3DurationSec(filePath: string): number {
 }
 
 const IA2V_TEMPLATE_FILE = "LTX_2.3_IA2V_Cloud.json";
-
-/**
- * The template used to be read only from MOVIES_ROOT, which is the PC's
- * MY MOVIES tree. On Vercel that resolves into per-invocation /tmp and is
- * always empty, so animate could never run there. Check MOVIES_ROOT first so
- * the PC keeps using its own copy, then fall back to one committed to the
- * repo, which is the only copy a deploy can actually carry.
- */
-const IA2V_TEMPLATE_CANDIDATES = [
-  path.join(MOVIES_ROOT, "workflow", IA2V_TEMPLATE_FILE),
-  path.join(process.cwd(), "workflow", IA2V_TEMPLATE_FILE),
-  path.join(process.cwd(), "workflows", IA2V_TEMPLATE_FILE),
-];
-
-function findIa2vTemplate(): string | null {
-  for (const candidate of IA2V_TEMPLATE_CANDIDATES) {
-    try {
-      if (fs.existsSync(candidate)) return candidate;
-    } catch {
-      /* unreadable path — try the next one */
-    }
-  }
-  return null;
-}
 
 /** Dam done by hand + laundry Dazza (not on plate). */
 export { LTX_CLOUD_SKIP_BEAT_IDS } from "./ltxCloudSkip";
@@ -150,18 +127,7 @@ export function buildCloudIa2vPrompt(opts: {
 }
 
 function loadIa2vTemplate(): Record<string, unknown> {
-  const found = findIa2vTemplate();
-  if (!found) {
-    throw new Error(
-      `Missing Cloud IA2V template ${IA2V_TEMPLATE_FILE}. Looked in: ${IA2V_TEMPLATE_CANDIDATES.join(
-        ", ",
-      )}. Commit the workflow to workflow/${IA2V_TEMPLATE_FILE} so deploys carry it.`,
-    );
-  }
-  return JSON.parse(fs.readFileSync(found, "utf8")) as Record<
-    string,
-    unknown
-  >;
+  return loadWorkflowTemplate<Record<string, unknown>>({ fileName: IA2V_TEMPLATE_FILE });
 }
 
 function patchNodeInputs(
