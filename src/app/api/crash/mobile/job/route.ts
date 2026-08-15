@@ -14,6 +14,7 @@ export async function POST(req: Request) {
       styleId?: string;
       targetDurationSec?: number;
       secondsPerShot?: number;
+      styleRealism?: number;
     };
     const prompt = (body.prompt || "").trim();
     if (!prompt) {
@@ -30,11 +31,19 @@ export async function POST(req: Request) {
     const secondsPerShot =
       Number(body.secondsPerShot) > 0 ? Number(body.secondsPerShot) : DEFAULT_SECONDS_PER_SHOT;
 
+    // Omitted (or out of range) leaves it undefined so the style preset's own
+    // default still applies — same as before the slider existed.
+    const rawRealism = Number(body.styleRealism);
+    const styleRealism = Number.isFinite(rawRealism)
+      ? Math.max(0, Math.min(100, Math.round(rawRealism)))
+      : undefined;
+
     const job = await createMobileGenJob({
       styleId,
       prompt,
       targetDurationSec,
       secondsPerShot,
+      styleRealism,
     });
     return NextResponse.json({ ok: true, job });
   } catch (e) {
