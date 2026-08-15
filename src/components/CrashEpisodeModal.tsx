@@ -15,6 +15,7 @@ type EpisodeRow = {
   savedAt: string;
   hasStory: boolean;
   hasSceneKit: boolean;
+  thumbFile?: string;
 };
 
 type Mode = "open";
@@ -23,10 +24,16 @@ export function CrashEpisodeModal({
   styleId,
   mode,
   onClose,
+  onNewEpisode,
 }: {
   styleId: ShowStyleId;
   mode: Mode;
   onClose: () => void;
+  /** New Episode clears live desk state and has a documented history of
+   * wiping packs when re-implemented casually — this modal never touches
+   * that logic itself, only hands off to the toolbar's existing, guarded
+   * handler. Omit to hide the tile entirely rather than fake the action. */
+  onNewEpisode?: () => void;
 }) {
   const [episodes, setEpisodes] = useState<EpisodeRow[]>([]);
   const [busy, setBusy] = useState(false);
@@ -109,7 +116,7 @@ export function CrashEpisodeModal({
       role="dialog"
       aria-label="Open episode"
     >
-      <div className="w-full max-w-lg rounded-sm border border-[var(--acid)]/40 bg-[var(--panel)] p-3 shadow-xl">
+      <div className="w-full max-w-2xl rounded-sm border border-[var(--acid)]/40 bg-[var(--panel)] p-3 shadow-xl">
         <div className="mb-2 flex items-center justify-between gap-2">
           <h2 className="text-[12px] font-medium uppercase tracking-wide text-[var(--acid)]">
             Open episode
@@ -138,51 +145,72 @@ export function CrashEpisodeModal({
           \_CRASH_LAB\
         </p>
 
-        <div className="max-h-64 overflow-auto rounded-sm border border-[var(--line)]">
-          {episodes.length === 0 ? (
+        <div className="max-h-[28rem] overflow-auto rounded-sm border border-[var(--line)] p-2">
+          {episodes.length === 0 && !onNewEpisode ? (
             <p className="p-3 text-[12px] text-[var(--mute)]">
               No episodes saved yet.
             </p>
           ) : (
-            <ul className="divide-y divide-[var(--line)]">
-              {episodes.map((ep) => (
-                <li
-                  key={ep.folderName}
-                  className="flex items-center gap-2 px-2 py-2"
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {onNewEpisode ? (
+                <button
+                  type="button"
+                  onClick={onNewEpisode}
+                  className="flex aspect-square flex-col items-center justify-center gap-1 rounded-sm border border-dashed border-[var(--acid)]/50 text-[var(--acid)] hover:bg-[var(--acid)]/10"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] text-[var(--chrome)]">
-                      {ep.label}
-                    </p>
-                    <p className="truncate text-[10px] text-[var(--mute)]">
-                      {ep.folderName}
-                      {ep.savedAt
-                        ? ` · ${new Date(ep.savedAt).toLocaleString()}`
-                        : ""}
-                    </p>
+                  <span className="text-2xl leading-none">+</span>
+                  <span className="text-[11px]">New project</span>
+                </button>
+              ) : null}
+              {episodes.map((ep) => (
+                <div
+                  key={ep.folderName}
+                  className="flex flex-col overflow-hidden rounded-sm border border-[var(--line)] bg-[var(--panel-2)]"
+                >
+                  <div className="relative aspect-square w-full bg-[var(--void)]">
+                    {ep.thumbFile ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`/api/crash/gen/file?name=${encodeURIComponent(ep.thumbFile)}`}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[10px] text-[var(--mute)]">
+                        No plate yet
+                      </div>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    disabled={busy || !ep.hasStory}
-                    onClick={() => void onOpen(ep.folderName)}
-                    className="shrink-0 rounded-sm border border-[var(--magenta-hot)]/60 px-2 py-1 text-[11px] text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/10 disabled:opacity-40"
-                  >
-                    Open
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void onDelete(ep.folderName)}
-                    onBlur={() =>
-                      setConfirmDelete((cur) => (cur === ep.folderName ? null : cur))
-                    }
-                    className="shrink-0 rounded-sm border border-[var(--line)] px-2 py-1 text-[11px] text-[var(--mute)] hover:border-[var(--magenta-hot)]/60 hover:text-[var(--magenta-hot)] disabled:opacity-40"
-                  >
-                    {confirmDelete === ep.folderName ? "Confirm?" : "Delete"}
-                  </button>
-                </li>
+                  <div className="min-w-0 p-1.5">
+                    <p className="truncate text-[12px] text-[var(--chrome)]">{ep.label}</p>
+                    <p className="truncate text-[9px] text-[var(--mute)]">
+                      {ep.savedAt ? new Date(ep.savedAt).toLocaleDateString() : ep.folderName}
+                    </p>
+                    <div className="mt-1 flex gap-1">
+                      <button
+                        type="button"
+                        disabled={busy || !ep.hasStory}
+                        onClick={() => void onOpen(ep.folderName)}
+                        className="flex-1 rounded-sm border border-[var(--magenta-hot)]/60 py-1 text-[10px] text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/10 disabled:opacity-40"
+                      >
+                        Open
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void onDelete(ep.folderName)}
+                        onBlur={() =>
+                          setConfirmDelete((cur) => (cur === ep.folderName ? null : cur))
+                        }
+                        className="flex-1 rounded-sm border border-[var(--line)] py-1 text-[10px] text-[var(--mute)] hover:border-[var(--magenta-hot)]/60 hover:text-[var(--magenta-hot)] disabled:opacity-40"
+                      >
+                        {confirmDelete === ep.folderName ? "Confirm?" : "Delete"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
 
