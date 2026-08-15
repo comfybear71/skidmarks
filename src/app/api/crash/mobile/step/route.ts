@@ -8,6 +8,7 @@ import { uploadMobileMedia, resolveMobileMedia } from "@/lib/mobileMediaStore";
 import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
 import { resolveBeatAudioPath } from "@/lib/crashStorySpeak";
 import { storyDialogueDir } from "@/lib/crashStoryLocations";
+import { writeSilentMp3 } from "@/lib/silentAudio";
 import { runLtxSmoke } from "@/lib/ltxSmoke";
 import { resolveComfyUrl, probeComfyUrl } from "@/lib/comfyClient";
 import { stitchClips, mobileFinalVideoPath } from "@/lib/mobileStitch";
@@ -177,15 +178,29 @@ export async function POST(req: Request) {
       const voiceRun = await generateEpisodeVoices(job.styleId, job.folderName);
       const voicedStory = await readMobileStory(job.styleId, job.folderName);
 
+      // A dialogue-less scene (scriptToStory.ts's "hold" beat) has no line
+      // for ElevenLabs to synthesize, but the animate phase still needs an
+      // mp3 to feed Cloud IA2V's LoadAudio node — a few seconds of silence
+      // does the job, same file location a real line would land in.
+      for (const scene of voicedStory.scenes) {
+        for (const shot of scene.shots) {
+          for (const beat of shot.beats) {
+            if (beat.text.trim() || !beat.voiceFile?.trim()) continue;
+            writeSilentMp3(path.join(storyDialogueDir(job.styleId), beat.voiceFile), 3);
+          }
+        }
+      }
+
       // Every mp4 is built from its beat's mp3, so a voices phase that made
       // no audio guarantees the animate phase fails on every clip with
       // "Cloud IA2V needs the beat mp3". Its per-line failures and the
       // ElevenLabs quota flag were both discarded here, and the run advanced
-      // as if it had worked.
+      // as if it had worked. Counts real dialogue only — a fully silent
+      // episode's hold beats shouldn't mask every line actually failing.
       const voicedBeats = voicedStory.scenes
         .flatMap((sc) => sc.shots.flatMap((sh) => sh.beats))
-        .filter((b) => b.voiceFile?.trim()).length;
-      if (!voicedBeats) {
+        .filter((b) => b.text.trim() && b.voiceFile?.trim()).length;
+      if (!voicedBeats && voicedStory.scenes.some((sc) => sc.shots.some((sh) => sh.beats.some((b) => b.text.trim())))) {
         const why =
           (voiceRun.quotaExceeded ? "ElevenLabs quota exceeded. " : "") +
           (voiceRun.lines.find((l) => !l.ok)?.detail ||

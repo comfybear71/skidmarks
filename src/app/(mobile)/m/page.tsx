@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActiveStepPanel,
   CompletedStepRow,
@@ -397,6 +397,7 @@ export default function MobileHomePage() {
           busy={busy}
           error={error}
           promptPlaceholder="e.g. Mars, a dive bar, outer space"
+          topExtra={<PickedSoFar job={job} characterIds={characterIds} categories={["cast"]} />}
         />
       )}
 
@@ -535,9 +536,11 @@ function InlineBusy({ label }: { label: string }) {
 function PickedSoFar({
   job,
   characterIds,
+  categories = ["cast", "locations"],
 }: {
   job: MobileGenJob;
   characterIds: Record<string, string>;
+  categories?: ("cast" | "locations")[];
 }) {
   const cast = job.speakers
     .map((name) => ({
@@ -615,8 +618,8 @@ function PickedSoFar({
 
   return (
     <div style={{ marginBottom: "16px" }}>
-      {section("Cast", cast)}
-      {section("Locations", places)}
+      {categories.includes("cast") ? section("Cast", cast) : null}
+      {categories.includes("locations") ? section("Locations", places) : null}
     </div>
   );
 }
@@ -633,6 +636,7 @@ function CastLocationStep({
   busy,
   error,
   promptPlaceholder,
+  topExtra,
 }: {
   title: string;
   subtitle: string;
@@ -645,6 +649,8 @@ function CastLocationStep({
   busy: boolean;
   error: string;
   promptPlaceholder: string;
+  /** Picks from an earlier step (e.g. cast) kept visible above this step's own picks. */
+  topExtra?: ReactNode;
 }) {
   // Start on the first thing still needing a pick. Reused cast arrives already
   // approved, and opening on an item that is done makes you tap past it.
@@ -675,6 +681,7 @@ function CastLocationStep({
 
   return (
     <ActiveStepPanel title={title} subtitle={`${subtitle} (${cursor + 1}/${items.length})`}>
+      {topExtra}
       {/* Everything picked so far, so the cast/locations you have built stay
           visible instead of disappearing the moment the cursor moves on. */}
       {(() => {
