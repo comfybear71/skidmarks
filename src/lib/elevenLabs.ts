@@ -37,6 +37,10 @@ type DesignResponse = {
 export const VOICE_CLONE_SAMPLE_SCRIPT =
   "Right, this is a working sample for the voice bank. Speak clear for about fifteen seconds so we can clone it later. Overcast grey English daylight, ordinary room, no polish, no radio presenter. Keep it dry and human when you finish the line.";
 
+/** ElevenLabs voice design rejects anything shorter than this, so callers
+ * building a description need the same number to pick a usable candidate. */
+export const MIN_VOICE_DESCRIPTION_CHARS = 20;
+
 /** Design voice previews from a text cast description. */
 export async function designVoicePreviews(opts: {
   voiceDescription: string;
@@ -47,7 +51,7 @@ export async function designVoicePreviews(opts: {
   { generatedVoiceId: string; audioBase64: string; previewText: string }[]
 > {
   const base = opts.voiceDescription.trim();
-  if (base.length < 20) {
+  if (base.length < MIN_VOICE_DESCRIPTION_CHARS) {
     throw new Error("Voice description too short — write a proper cast note.");
   }
 
