@@ -148,8 +148,30 @@ export async function POST(req: Request) {
       }
       if (!job.folderName) throw new Error("Job has no folder — screenplay phase incomplete");
       await hydrateMobilePackOnDisk(job.styleId, job.folderName);
-      await generateEpisodeVoices(job.styleId, job.folderName);
+      const voiceRun = await generateEpisodeVoices(job.styleId, job.folderName);
       const voicedStory = await readMobileStory(job.styleId, job.folderName);
+
+      // Every mp4 is built from its beat's mp3, so a voices phase that made
+      // no audio guarantees the animate phase fails on every clip with
+      // "Cloud IA2V needs the beat mp3". Its per-line failures and the
+      // ElevenLabs quota flag were both discarded here, and the run advanced
+      // as if it had worked.
+      const voicedBeats = voicedStory.scenes
+        .flatMap((sc) => sc.shots.flatMap((sh) => sh.beats))
+        .filter((b) => b.voiceFile?.trim()).length;
+      if (!voicedBeats) {
+        const why =
+          (voiceRun.quotaExceeded ? "ElevenLabs quota exceeded. " : "") +
+          (voiceRun.lines.find((l) => !l.ok)?.detail ||
+            voiceRun.cast.find((c) => !c.ok)?.detail ||
+            "no dialogue lines were synthesised");
+        job = (await patchMobileGenJob(jobId, {
+          phase: "error",
+          error: `Voices produced no audio — ${why}`,
+        }))!;
+        return NextResponse.json({ ok: true, job, advanced: true });
+      }
+
       for (const scene of voicedStory.scenes) {
         for (const shot of scene.shots) {
           for (const beat of shot.beats) {
