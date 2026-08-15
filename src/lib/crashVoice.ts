@@ -19,6 +19,19 @@ import {
 } from "./crashVoicePrompt";
 import { readStyleCardManifest } from "./styleCardThumbs";
 
+/**
+ * ElevenLabs rejects a description under MIN_VOICE_DESCRIPTION_CHARS, and a
+ * slot's stored description can come from anywhere — mobile fills it from the
+ * script's one-word voiceType. Normalise at every point one is about to be
+ * sent, rather than trusting whatever was saved.
+ */
+function usableVoiceDescription(raw: string, castName: string): string {
+  const desc = (raw || "").trim();
+  return desc.length >= MIN_VOICE_DESCRIPTION_CHARS
+    ? desc
+    : defaultCrashVoicePrompt(castName);
+}
+
 /** Story speaker → locked voice cast name (per show). */
 const SPEAKER_VOICE_ALIASES: Partial<
   Record<ShowStyleId, Record<string, string>>
@@ -387,8 +400,10 @@ export async function refreshCrashVoiceId(
   }
   const slot = findCrashVoiceByName(styleId, castName);
   if (!slot) throw new Error(`No voice slot for ${castName}`);
-  const desc = slot.voiceDescription.trim();
-  if (!desc) throw new Error(`Write a voice description for ${castName} first`);
+  // Runs straight after voice creation, and previously re-sent the slot's raw
+  // description — so a short one failed here even when creation had just
+  // substituted a good one.
+  const desc = usableVoiceDescription(slot.voiceDescription, castName);
 
   const manifest = readCrashVoiceManifestRaw(styleId);
   const entry = manifest[slot.castKey] ?? slot;
@@ -510,12 +525,9 @@ export async function ensureVoiceReadyWithDescription(
     // enough instead, and only pay for the LLM suggestion if we still need one.
     let desc = slot.voiceDescription.trim();
     if (desc.length < MIN_VOICE_DESCRIPTION_CHARS) {
-      const suggested = (await descriptionIfMissing())?.trim() || "";
-      desc = suggested.length >= MIN_VOICE_DESCRIPTION_CHARS ? suggested : "";
+      desc = (await descriptionIfMissing())?.trim() || "";
     }
-    if (desc.length < MIN_VOICE_DESCRIPTION_CHARS) {
-      desc = defaultCrashVoicePrompt(castName);
-    }
+    desc = usableVoiceDescription(desc, castName);
     await designCrashVoice({
       styleId,
       castKey: slot.castKey,
@@ -549,8 +561,11 @@ export async function designCrashVoice(opts: {
     );
   }
 
-  const desc = sanitizeVoiceDescriptionForApi(opts.voiceDescription);
-  if (!desc) throw new Error("Write a voice description first");
+  // Scrubbing banned words can itself shorten a description below the minimum.
+  const desc = usableVoiceDescription(
+    sanitizeVoiceDescriptionForApi(opts.voiceDescription),
+    opts.castName,
+  );
 
   const manifest = readCrashVoiceManifestRaw(opts.styleId);
   const slot = manifest[opts.castKey] ?? {
