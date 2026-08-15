@@ -6,6 +6,10 @@ import type { ScriptCharacterData, ScriptEpisodeData } from "./types";
 const SCRIPT_FORMAT = `Show Name
 Episode 1: "Episode Title"
 
+CHARACTERS:
+FIRST NAME: What they physically look like — species, build, age, face, clothing, colours. Then one sentence on who they are.
+SECOND NAME: What they physically look like — species, build, age, face, clothing, colours. Then one sentence on who they are.
+
 ACT I
 
 INT. LOCATION NAME - DAY
@@ -37,6 +41,14 @@ const SYSTEM_PROMPT = (styleId: ShowStyleId, label: string, tagline: string) =>
     "Rules:",
     `- First line is the show name, exactly: ${label}`,
     `- Second line: Episode 1: "Title" (title in double quotes)`,
+    // The CHARACTERS: block is not decoration — scriptParser.extractCharacterRoster()
+    // keys off it, and without it every character is created with no appearance
+    // for the image generator to work from.
+    "- Then a CHARACTERS: block, before ACT I. One line per character: NAME: what they look like. Then who they are.",
+    "- Appearance comes FIRST on the line, before personality — the first sentence is what the image generator gets.",
+    "- EVERY character who speaks must have a line in the CHARACTERS: block",
+    "- Describe appearance literally — species, build, age, clothing, colours. This text is fed straight to an image generator, so write what a camera would see, not backstory.",
+    "- Each character is drawn on their own, so describe each one alone. Never describe two characters together in one line.",
     "- ACT headings are roman numerals on their own line: ACT I, ACT II, etc.",
     "- Scene headings: INT. or EXT. PLACE - DAY/NIGHT (all caps place + time)",
     "- Character cues are ALL CAPS on their own line, immediately followed by their spoken line",
@@ -126,10 +138,27 @@ export async function generateScreenplayText(opts: {
       scenes.push(sceneText.trim());
     }
 
+    // Scene-by-scene assembly skips the whole-script format, so ask for the
+    // CHARACTERS: block on its own — the roster parse needs it either way.
+    const roster = await askGrok({
+      system: `You cast episodes for "${preset.label}" (${preset.tagline}).`,
+      user: [
+        `Idea / prompt: ${opts.prompt}`,
+        `Scenes:\n${beats.join("\n")}`,
+        "List every character who speaks, one per line, exactly: NAME: who they are. What they look like — species, build, age, clothing, colours.",
+        "Describe each character alone, never two together. This text goes straight to an image generator. Nothing else — no heading, no numbering.",
+      ].join("\n"),
+      temperature: 0.7,
+      maxTokens: 500,
+    });
+
     const half = Math.ceil(scenes.length / 2);
     text = [
       preset.label,
       `Episode 1: "${opts.prompt.slice(0, 60)}"`,
+      "",
+      "CHARACTERS:",
+      roster.trim(),
       "",
       "ACT I",
       "",

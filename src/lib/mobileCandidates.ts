@@ -11,6 +11,30 @@ import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import type { MobileImageCandidate } from "./mobileGenJob";
 
 const CANDIDATES_PER_BATCH = 4;
+/** Per-image ceiling, generous enough to cover imageGen's own rate-limit
+ * retries. A batch runs in parallel, so this is also the batch's rough worst
+ * case — sequential generation blew past the route's maxDuration and the
+ * phone just sat on a spinner. */
+const IMAGE_TIMEOUT_MS = 90_000;
+
+/** Reject a slow image instead of hanging the request, and always clear the
+ * timer so a resolved generation can't hold the process open. */
+async function withImageTimeout<T>(work: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} timed out after ${IMAGE_TIMEOUT_MS / 1000}s`)),
+          IMAGE_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 /** Pre-approval candidate stills reuse the "plates" Blob bucket — same
  * episode-scoped shape gen/file's cloudBlobRedirect("plates", …) already
  * checks, so location candidates need no separate lookup path. */
@@ -29,8 +53,17 @@ export async function generateCastCandidates(
   if (!character) throw new Error("Character not found");
 
   const styleRealism = getShowStylePreset(styleId).defaultRealism;
-  // Use custom prompt (manual refinement), original job prompt, or character notes — in that order.
-  const note = customPrompt || jobPrompt || [character.lookNote, character.pastNote].filter(Boolean).join(". ");
+  // Same order the working desktop path uses: this character's own appearance
+  // description first. The job prompt is only a fallback for when the roster
+  // parse produced nothing — feeding it as the description made every portrait
+  // try to draw the whole scene.
+  // lookNote is parsed as the first sentence of pastNote, so joining them blind
+  // prints the appearance twice.
+  const look = (character.lookNote || "").trim();
+  const past = (character.pastNote || "").trim();
+  const characterNote =
+    look && past.includes(look) ? past : [look, past].filter(Boolean).join(". ");
+  const note = customPrompt || characterNote || jobPrompt || "";
   const prompt = buildFacePrompt({
     name: character.name,
     pastNote: character.pastNote,
@@ -40,30 +73,50 @@ export async function generateCastCandidates(
     styleId,
   });
 
-  const out: MobileImageCandidate[] = [];
-  for (let i = 0; i < count; i++) {
-    try {
-      const { buffer, ext } = await Promise.race([
+  // Whole batch at once — 4 sequential calls could not finish inside the
+  // route's budget, which is what the endless spinner actually was.
+  const settled = await Promise.allSettled(
+    Array.from({ length: count }, () =>
+      withImageTimeout(
         generateFaceImage({ prompt, referencePaths: [] }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Image generation timeout (60s)")), 60000)
-        ),
-      ]) as { buffer: Buffer; ext: string };
-      const saved = addFaceAttempt(characterId, { note, buffer, ext, styleRealism, source: "generated" });
-      if (!saved) continue;
-      const filePath = faceFilePath(characterId, saved.attempt.fileName);
-      if (filePath) {
-        try {
-          await uploadMobileMedia({ styleId, folderName, kind: CANDIDATE_BLOB_KIND, localPath: filePath });
-        } catch {
-          /* best effort — approve falls back to local disk on the same instance */
-        }
-      }
-      out.push({ id: saved.attempt.id, fileName: saved.attempt.fileName, approved: false });
-    } catch (e) {
-      console.error(`Face generation failed for ${character.name}:`, e);
+        `Face image for ${character.name}`,
+      ),
+    ),
+  );
+
+  const out: MobileImageCandidate[] = [];
+  const uploads: Promise<unknown>[] = [];
+  const failures: string[] = [];
+  for (const result of settled) {
+    if (result.status === "rejected") {
+      const why = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      console.error(`Face generation failed for ${character.name}: ${why}`);
+      failures.push(why);
       continue;
     }
+    const { buffer, ext } = result.value;
+    const saved = addFaceAttempt(characterId, { note, buffer, ext, styleRealism, source: "generated" });
+    if (!saved) continue;
+    const filePath = faceFilePath(characterId, saved.attempt.fileName);
+    if (filePath) {
+      uploads.push(
+        uploadMobileMedia({ styleId, folderName, kind: CANDIDATE_BLOB_KIND, localPath: filePath }).catch(
+          () => {
+            /* best effort — approve falls back to local disk on the same instance */
+          },
+        ),
+      );
+    }
+    out.push({ id: saved.attempt.id, fileName: saved.attempt.fileName, approved: false });
+  }
+  await Promise.allSettled(uploads);
+
+  // An empty batch used to come back as a success with nothing to swipe —
+  // indistinguishable from a hang on the phone. Say what went wrong instead.
+  if (!out.length) {
+    throw new Error(
+      `Couldn't generate faces for ${character.name}: ${failures[0] || "no images returned"}`,
+    );
   }
   return out;
 }
@@ -137,36 +190,46 @@ export async function generateLocationCandidates(
     styleId,
   });
 
+  const settled = await Promise.allSettled(
+    Array.from({ length: count }, () =>
+      withImageTimeout(
+        generateFaceImage({ prompt, referencePaths: [], aspectRatio: "16:9" }),
+        `Location image for ${placeName}`,
+      ),
+    ),
+  );
+
   const out: MobileImageCandidate[] = [];
-  for (let i = 0; i < count; i++) {
-    try {
-      const { buffer, ext } = await Promise.race([
-        generateFaceImage({
-          prompt,
-          referencePaths: [],
-          aspectRatio: "16:9",
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Image generation timeout (60s)")), 60000)
-        ),
-      ]) as { buffer: Buffer; ext: string };
-      const fileName = `${sortableId("mloc")}${ext.startsWith(".") ? ext : `.${ext}`}`;
-      fs.writeFileSync(path.join(candidateGenDir(), fileName), buffer);
-      try {
-        await uploadMobileMedia({
-          styleId,
-          folderName,
-          kind: CANDIDATE_BLOB_KIND,
-          localPath: path.join(candidateGenDir(), fileName),
-        });
-      } catch {
-        /* best effort — approve falls back to local disk on the same instance */
-      }
-      out.push({ id: fileName, fileName, approved: false });
-    } catch (e) {
-      console.error(`Location generation failed for ${placeName}:`, e);
+  const uploads: Promise<unknown>[] = [];
+  const failures: string[] = [];
+  for (const result of settled) {
+    if (result.status === "rejected") {
+      const why = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      console.error(`Location generation failed for ${placeName}: ${why}`);
+      failures.push(why);
       continue;
     }
+    const { buffer, ext } = result.value;
+    const fileName = `${sortableId("mloc")}${ext.startsWith(".") ? ext : `.${ext}`}`;
+    fs.writeFileSync(path.join(candidateGenDir(), fileName), buffer);
+    uploads.push(
+      uploadMobileMedia({
+        styleId,
+        folderName,
+        kind: CANDIDATE_BLOB_KIND,
+        localPath: path.join(candidateGenDir(), fileName),
+      }).catch(() => {
+        /* best effort — approve falls back to local disk on the same instance */
+      }),
+    );
+    out.push({ id: fileName, fileName, approved: false });
+  }
+  await Promise.allSettled(uploads);
+
+  if (!out.length) {
+    throw new Error(
+      `Couldn't generate locations for ${placeName}: ${failures[0] || "no images returned"}`,
+    );
   }
   return out;
 }
