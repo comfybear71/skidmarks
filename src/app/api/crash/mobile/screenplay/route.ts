@@ -4,6 +4,7 @@ import { generateScreenplayText } from "@/lib/mobileScreenplay";
 import { importScriptEpisodes } from "@/lib/scriptImport";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { openCrashLabEpisode } from "@/lib/crashLabEpisodes";
+import { writeMobileStory } from "@/lib/mobileStoryStore";
 import { findReusableCastCards } from "@/lib/mobileCastReuse";
 import {
   patchMobileGenJob,
@@ -57,6 +58,12 @@ export async function POST(req: Request) {
 
     const opened = openCrashLabEpisode({ folderName, styleId: job.styleId });
     const story = opened.story;
+
+    // The imported pack only exists on this instance's disk. Every later phase
+    // reads the story back through readMobileStory, which falls back to the
+    // empty local desk story when the cloud has none — so without this write
+    // plates found no scenes at all and failed every shot.
+    await writeMobileStory(story, folderName);
 
     const scenes: MobileSceneRef[] = story.scenes.map((sc) => ({
       id: sc.id,

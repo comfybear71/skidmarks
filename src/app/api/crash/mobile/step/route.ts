@@ -91,8 +91,14 @@ export async function POST(req: Request) {
       const scene = story.scenes.find((sc) => sc.id === next.sceneId);
       const shot = scene?.shots.find((sh) => sh.id === next.shotId);
       if (!scene || !shot) {
+        // Marked failed with no reason, which is what made an empty story look
+        // like a cast/location problem for four rounds.
+        const why = story.scenes.length
+          ? `Shot ${next.shotId} is not in scene ${next.sceneId} of the saved story`
+          : `The saved story has no scenes — the pack did not reach cloud storage`;
+        console.error(why);
         const shots = job.shots.map((s) =>
-          s.shotId === next.shotId ? { ...s, plateFile: "__error__" } : s,
+          s.shotId === next.shotId ? { ...s, plateFile: "__error__", error: why } : s,
         );
         job = (await patchMobileGenJob(jobId, { shots }))!;
         return NextResponse.json({ ok: true, job, advanced: true });

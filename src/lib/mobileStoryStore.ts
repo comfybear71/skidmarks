@@ -72,6 +72,13 @@ export async function writeMobileStory(
   folderName: string,
 ): Promise<void> {
   if (useCloudStore()) {
+    // A scene-less story is what readMobileStory returns when it falls back to
+    // the empty local desk doc. Writing that over a real one wipes the pack for
+    // every later phase, so refuse rather than persist it.
+    if (!story.scenes?.length) {
+      const existing = await readCloudEpisodeStory(story.styleId, folderName);
+      if (existing?.scenes?.length) return;
+    }
     await saveCloudEpisodeMeta({
       styleId: story.styleId,
       folderName,
