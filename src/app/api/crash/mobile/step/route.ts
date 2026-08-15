@@ -1,16 +1,20 @@
+import path from "path";
 import { NextResponse } from "next/server";
 import { compositeShotPlate } from "@/lib/mobilePlates";
 import { assignReusedVoice } from "@/lib/mobileVoiceReuse";
 import { generateEpisodeVoices } from "@/lib/scriptVoiceGen";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
+import { uploadMobileMedia, resolveMobileMedia } from "@/lib/mobileMediaStore";
 import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
 import { resolveBeatAudioPath } from "@/lib/crashStorySpeak";
+import { storyDialogueDir } from "@/lib/crashStoryLocations";
 import { runLtxSmoke } from "@/lib/ltxSmoke";
 import { resolveComfyUrl } from "@/lib/comfyClient";
 import { listRunpodPods, probeComfyUrl, resumeRunpodPod } from "@/lib/runpod";
 import { CRASH_COMFY_DEFAULT_GLOBAL } from "@/lib/crashComfyStack";
 import { stitchClips, mobileFinalVideoPath } from "@/lib/mobileStitch";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
+import { CRASH_DIR } from "@/lib/paths";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -95,6 +99,16 @@ export async function POST(req: Request) {
       }
       try {
         const fileName = await compositeShotPlate(job.styleId, scene, shot);
+        try {
+          await uploadMobileMedia({
+            styleId: job.styleId,
+            folderName: job.folderName,
+            kind: "plates",
+            localPath: path.join(CRASH_DIR, "gen", fileName),
+          });
+        } catch {
+          /* best effort — plate still usable this request; animate falls back to local disk */
+        }
         const nextScenes = story.scenes.map((sc) =>
           sc.id !== scene.id
             ? sc
@@ -122,6 +136,25 @@ export async function POST(req: Request) {
       if (!job.folderName) throw new Error("Job has no folder — screenplay phase incomplete");
       await hydrateMobilePackOnDisk(job.styleId, job.folderName);
       await generateEpisodeVoices(job.styleId, job.folderName);
+      const voicedStory = await readMobileStory(job.styleId, job.folderName);
+      for (const scene of voicedStory.scenes) {
+        for (const shot of scene.shots) {
+          for (const beat of shot.beats) {
+            if (!beat.voiceFile) continue;
+            try {
+              await uploadMobileMedia({
+                styleId: job.styleId,
+                folderName: job.folderName,
+                kind: "audio",
+                localPath:
+                  resolveBeatAudioPath(job.styleId, beat.id, beat.voiceFile) || "",
+              });
+            } catch {
+              /* best effort */
+            }
+          }
+        }
+      }
       job = (await patchMobileGenJob(jobId, { phase: "review" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
@@ -148,10 +181,25 @@ export async function POST(req: Request) {
         if (!shot?.plateFile || shot.plateFile === "__error__" || !beat) {
           throw new Error("No plate/line ready for this clip");
         }
-        const platePath = resolveGenOrPackPlate(shot.plateFile);
+        const platePath =
+          resolveGenOrPackPlate(shot.plateFile) ||
+          (await resolveMobileMedia({
+            styleId: job.styleId,
+            folderName: job.folderName,
+            kind: "plates",
+            fileName: shot.plateFile,
+            destPath: path.join(CRASH_DIR, "gen", shot.plateFile),
+          }));
         if (!platePath) throw new Error("Plate file missing on disk");
         const audioPath = beat.voiceFile
-          ? resolveBeatAudioPath(job.styleId, beat.id, beat.voiceFile)
+          ? resolveBeatAudioPath(job.styleId, beat.id, beat.voiceFile) ||
+            (await resolveMobileMedia({
+              styleId: job.styleId,
+              folderName: job.folderName,
+              kind: "audio",
+              fileName: beat.voiceFile,
+              destPath: path.join(storyDialogueDir(job.styleId), beat.voiceFile),
+            }))
           : null;
 
         const comfyUrl = await ensureComfyReady();
@@ -165,6 +213,16 @@ export async function POST(req: Request) {
           styleId: job.styleId,
           beatId: beat.id,
         });
+        try {
+          await uploadMobileMedia({
+            styleId: job.styleId,
+            folderName: job.folderName,
+            kind: "mp4",
+            localPath: result.localMp4,
+          });
+        } catch {
+          /* best effort — clip still usable this request; stitch falls back to local disk */
+        }
         const clips = job.clips.map((c) =>
           c.beatId === next.beatId
             ? { ...c, clipFile: result.localMp4, clipStatus: "done" as const }
@@ -191,8 +249,35 @@ export async function POST(req: Request) {
         }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
-      const clipPaths = done.map((c) => c.clipFile);
+      const clipPaths: string[] = [];
+      for (const c of done) {
+        const resolved = await resolveMobileMedia({
+          styleId: job.styleId,
+          folderName: job.folderName,
+          kind: "mp4",
+          fileName: path.basename(c.clipFile),
+          destPath: c.clipFile,
+        });
+        if (resolved) clipPaths.push(resolved);
+      }
+      if (!clipPaths.length) {
+        job = (await patchMobileGenJob(jobId, {
+          phase: "error",
+          error: "Clips were generated but aren't available anymore — try Animate again",
+        }))!;
+        return NextResponse.json({ ok: true, job, advanced: true });
+      }
       const finalVideoFile = stitchClips(clipPaths);
+      try {
+        await uploadMobileMedia({
+          styleId: job.styleId,
+          folderName: job.folderName,
+          kind: "mp4",
+          localPath: mobileFinalVideoPath(finalVideoFile),
+        });
+      } catch {
+        /* best effort — final/route.ts falls back to local disk first anyway */
+      }
       job = (await patchMobileGenJob(jobId, { phase: "done", finalVideoFile }))!;
       return NextResponse.json({ ok: true, job, advanced: true, finalVideoPath: mobileFinalVideoPath(finalVideoFile) });
     }

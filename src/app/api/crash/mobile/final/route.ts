@@ -2,6 +2,7 @@ import fs from "fs";
 import { NextResponse } from "next/server";
 import { readMobileGenJob } from "@/lib/mobileGenJob";
 import { mobileFinalVideoPath } from "@/lib/mobileStitch";
+import { resolveMobileMedia } from "@/lib/mobileMediaStore";
 
 export const runtime = "nodejs";
 
@@ -13,8 +14,14 @@ export async function GET(req: Request) {
   if (!job?.finalVideoFile) {
     return NextResponse.json({ error: "No finished video for this job" }, { status: 404 });
   }
-  const filePath = mobileFinalVideoPath(job.finalVideoFile);
-  if (!fs.existsSync(filePath)) {
+  const filePath = await resolveMobileMedia({
+    styleId: job.styleId,
+    folderName: job.folderName,
+    kind: "mp4",
+    fileName: job.finalVideoFile,
+    destPath: mobileFinalVideoPath(job.finalVideoFile),
+  });
+  if (!filePath) {
     return NextResponse.json({ error: "Video file missing on disk" }, { status: 404 });
   }
   return new NextResponse(fs.readFileSync(filePath), {
