@@ -47,6 +47,17 @@ export async function compositeShotPlate(
   styleId: ShowStyleId,
   scene: CrashStoryScene,
   shot: CrashStoryShot,
+  opts: {
+    /** Cast who never speak anywhere in the story. Shots are keyed off
+     * dialogue beats, so without this a silent character — the monkey in
+     * "a monkey holding hands with Elon Musk" — gets a cast card approved
+     * and then never appears in a single plate. */
+    silentCast?: string[];
+    /** The job's slider. Plates used to fall back to the style preset, so
+     * dragging to photoreal changed the cast and location but not the plate
+     * they were composited into. */
+    styleRealism?: number;
+  } = {},
 ): Promise<string> {
   if (!scene.worldThumbKey.trim()) {
     throw new Error(`Scene "${scene.title}" has no approved location yet`);
@@ -54,8 +65,9 @@ export async function compositeShotPlate(
   const bgPath = resolveWorldCardThumbPath(styleId, scene.worldThumbKey);
   if (!bgPath) throw new Error("Location image missing on disk");
 
-  const speakers = uniqueShotSpeakers(shot);
-  if (!speakers.length) throw new Error("Shot has no speakers to composite");
+  const silent = (opts.silentCast || []).map((n) => n.trim()).filter(Boolean);
+  const speakers = [...new Set([...uniqueShotSpeakers(shot), ...silent])];
+  if (!speakers.length) throw new Error("Shot has no cast to composite");
 
   const manifest = readStyleCardManifest(styleId);
   const preset = getShowStylePreset(styleId);
@@ -93,7 +105,9 @@ export async function compositeShotPlate(
       ]
         .filter(Boolean)
         .join(". "),
-      styleRealism: preset.defaultRealism,
+      styleRealism: Number.isFinite(opts.styleRealism)
+        ? Math.max(0, Math.min(100, Math.round(opts.styleRealism as number)))
+        : preset.defaultRealism,
       chainPass,
       skipMeta: remaining.length > 0, // only register the final composite
     });
