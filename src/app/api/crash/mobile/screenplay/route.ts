@@ -80,11 +80,17 @@ export async function POST(req: Request) {
         })),
       ),
     );
+    // Cast cards used to come from dialogue beats alone, so anyone in the
+    // story who never speaks — "a monkey holding hands with Elon Musk" — was
+    // silently dropped and never got a face. Take the parsed roster too.
     const speakers = [
       ...new Set(
-        story.scenes.flatMap((sc) =>
-          sc.shots.flatMap((sh) => sh.beats.map((b) => b.speaker.trim()).filter(Boolean)),
-        ),
+        [
+          ...story.scenes.flatMap((sc) =>
+            sc.shots.flatMap((sh) => sh.beats.map((b) => b.speaker.trim())),
+          ),
+          ...screenplay.parsedCharacters.map((c) => c.name.trim()),
+        ].filter(Boolean),
       ),
     ];
 

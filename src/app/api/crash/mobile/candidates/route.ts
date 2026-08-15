@@ -83,6 +83,7 @@ export async function POST(req: Request) {
           CANDIDATES_PER_BATCH,
           job.prompt,
           body.customPrompt,
+          job.styleRealism,
         );
         const updated = await patchMobileGenJob(jobId, {
           castCandidates: { ...job.castCandidates, [target]: candidates },
@@ -115,6 +116,8 @@ export async function POST(req: Request) {
         job.folderName,
         scene.placeName,
         body.customPrompt,
+        CANDIDATES_PER_BATCH,
+        job.styleRealism,
       );
       const updated = await patchMobileGenJob(jobId, {
         locationCandidates: { ...job.locationCandidates, [target]: candidates },

@@ -66,6 +66,9 @@ export type MobileGenJob = {
   prompt: string;
   targetDurationSec: number;
   secondsPerShot: number;
+  /** Cartoon 0 <-> photo 100, same scale as the desktop Image gen slider.
+   * Older jobs predate the field, so readers fall back to the style preset. */
+  styleRealism?: number;
   phase: MobileGenPhase;
   /** Unique speaker names — drives the cast_images approval cursor. */
   speakers: string[];
@@ -105,6 +108,7 @@ export async function createMobileGenJob(opts: {
   prompt: string;
   targetDurationSec: number;
   secondsPerShot: number;
+  styleRealism?: number;
 }): Promise<MobileGenJob> {
   const now = new Date().toISOString();
   const job: MobileGenJob = {
@@ -114,6 +118,7 @@ export async function createMobileGenJob(opts: {
     prompt: opts.prompt,
     targetDurationSec: opts.targetDurationSec,
     secondsPerShot: opts.secondsPerShot,
+    styleRealism: opts.styleRealism,
     phase: "screenplay",
     speakers: [],
     roster: [],

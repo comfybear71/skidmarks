@@ -9,6 +9,7 @@ import {
 } from "@/components/mobile/MobileUi";
 import { SwipeCarousel } from "@/components/mobile/SwipeCarousel";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
+import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 
 type LocalStep = "prompt" | "style" | "duration";
@@ -36,6 +37,9 @@ export default function MobileHomePage() {
   const [localStep, setLocalStep] = useState<LocalStep>("prompt");
   const [prompt, setPrompt] = useState("");
   const [styleId, setStyleId] = useState<(typeof SHOW_STYLE_PRESETS)[number]["id"]>("skidmarks");
+  const [styleRealism, setStyleRealism] = useState<number>(
+    SHOW_STYLE_PRESETS.find((p) => p.id === "skidmarks")?.defaultRealism ?? 60,
+  );
   const [targetDurationSec, setTargetDurationSec] = useState(60);
 
   const [job, setJob] = useState<MobileGenJob | null>(null);
@@ -115,6 +119,7 @@ export default function MobileHomePage() {
       const { job: created } = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/job", {
         prompt,
         styleId,
+        styleRealism,
         targetDurationSec,
         secondsPerShot: SECONDS_PER_SHOT,
       });
@@ -125,7 +130,7 @@ export default function MobileHomePage() {
       setError(e instanceof Error ? e.message : "Couldn't start");
       setBusy(false);
     }
-  }, [prompt, styleId, targetDurationSec, runScreenplay]);
+  }, [prompt, styleId, styleRealism, targetDurationSec, runScreenplay]);
 
   const genCandidates = useCallback(
     async (kind: "cast" | "location", target: string, customPrompt?: string) => {
@@ -230,13 +235,49 @@ export default function MobileHomePage() {
 
       {/* Step 2: Style */}
       {!job && localStep === "style" && (
-        <ActiveStepPanel title="Pick a style" subtitle="Cartoon to photoreal — your shows, or anything else.">
+        <ActiveStepPanel title="Pick a style" subtitle="Drag the slider. The show recipes below are just starting points.">
+          {/* Slider first — it is the control that actually decides the look.
+              Same cartoon <-> photo scale as the desktop Image gen. */}
+          <div style={{ marginBottom: "22px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: "12px",
+                color: "var(--chrome-dim)",
+                marginBottom: "8px",
+              }}
+            >
+              <span>Cartoon</span>
+              <span style={{ color: "var(--acid)", fontWeight: 700, fontSize: "15px" }}>
+                {styleRealism} · {styleRealismLabel(styleRealism)}
+              </span>
+              <span>Photoreal</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={styleRealism}
+              onChange={(e) => setStyleRealism(Number(e.target.value))}
+              aria-label="Cartoon to photoreal"
+              style={{ width: "100%", accentColor: "var(--acid)" }}
+            />
+          </div>
+
+          <div style={{ fontSize: "12px", color: "var(--chrome-dim)", marginBottom: "8px" }}>
+            Start from a show recipe
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", overflow: "auto" }}>
             {SHOW_STYLE_PRESETS.map((p) => (
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setStyleId(p.id)}
+                onClick={() => {
+                  setStyleId(p.id);
+                  setStyleRealism(p.defaultRealism);
+                }}
                 style={{
                   textAlign: "left",
                   padding: "14px",
@@ -251,6 +292,7 @@ export default function MobileHomePage() {
               </button>
             ))}
           </div>
+
           <div style={{ marginTop: "16px" }}>
             <MobilePrimaryButton onClick={() => setLocalStep("duration")}>Next</MobilePrimaryButton>
           </div>

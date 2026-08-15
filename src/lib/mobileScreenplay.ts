@@ -46,7 +46,7 @@ const SYSTEM_PROMPT = (styleId: ShowStyleId, label: string, tagline: string) =>
     // for the image generator to work from.
     "- Then a CHARACTERS: block, before ACT I. One line per character: NAME: what they look like. Then who they are.",
     "- Appearance comes FIRST on the line, before personality — the first sentence is what the image generator gets.",
-    "- EVERY character who speaks must have a line in the CHARACTERS: block",
+    "- EVERY character named in the idea must have a line in the CHARACTERS: block, including animals, creatures and anyone who never speaks",
     "- Describe appearance literally — species, build, age, clothing, colours. This text is fed straight to an image generator, so write what a camera would see, not backstory.",
     "- Each character is drawn on their own, so describe each one alone. Never describe two characters together in one line.",
     "- ACT headings are roman numerals on their own line: ACT I, ACT II, etc.",

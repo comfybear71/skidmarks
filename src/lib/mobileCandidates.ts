@@ -40,6 +40,13 @@ async function withImageTimeout<T>(work: Promise<T>, label: string): Promise<T> 
  * checks, so location candidates need no separate lookup path. */
 const CANDIDATE_BLOB_KIND = "plates" as const;
 
+/** The job's slider value when it has one, else undefined so the caller can
+ * fall back to the style preset's default. */
+function clampRealism(n: number | undefined): number | undefined {
+  if (!Number.isFinite(n)) return undefined;
+  return Math.max(0, Math.min(100, Math.round(n as number)));
+}
+
 /** Generate N face candidates for a Character — pending faceAttempts, not yet approved. */
 export async function generateCastCandidates(
   styleId: ShowStyleId,
@@ -48,11 +55,12 @@ export async function generateCastCandidates(
   count = CANDIDATES_PER_BATCH,
   jobPrompt?: string,
   customPrompt?: string,
+  jobRealism?: number,
 ): Promise<MobileImageCandidate[]> {
   const character = getCharacter(characterId);
   if (!character) throw new Error("Character not found");
 
-  const styleRealism = getShowStylePreset(styleId).defaultRealism;
+  const styleRealism = clampRealism(jobRealism) ?? getShowStylePreset(styleId).defaultRealism;
   // Same order the working desktop path uses: this character's own appearance
   // description first. The job prompt is only a fallback for when the roster
   // parse produced nothing — feeding it as the description made every portrait
@@ -177,6 +185,7 @@ export async function generateLocationCandidates(
   placeName: string,
   customPrompt?: string,
   count = CANDIDATES_PER_BATCH,
+  jobRealism?: number,
 ): Promise<MobileImageCandidate[]> {
   const name = (customPrompt || placeName).trim();
   const prompt = buildLocationPrompt({
@@ -184,7 +193,7 @@ export async function generateLocationCandidates(
     notes: "",
     lookNote: "",
     note: "",
-    styleRealism: getShowStylePreset(styleId).defaultRealism,
+    styleRealism: clampRealism(jobRealism) ?? getShowStylePreset(styleId).defaultRealism,
     rejectHints: [],
     residentNames: [],
     styleId,
