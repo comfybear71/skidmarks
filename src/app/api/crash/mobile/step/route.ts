@@ -26,6 +26,16 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 async function ensureComfyReady(): Promise<string> {
+  // runLtxSmoke checks preferComfyCloudLtx() first and, when true, goes
+  // straight to Comfy Cloud — the comfyUrl this returns is discarded either
+  // way. But this ran unconditionally before every clip regardless, so a
+  // RunPod hiccup (no pods, API down) threw here and blocked the cloud path
+  // from ever getting a chance, even though it didn't need this result at
+  // all. RunPod/local-pod resolution is now only attempted when the cloud
+  // path isn't the one that's actually going to run.
+  const { preferComfyCloudLtx } = await import("@/lib/ltxCloudIa2v");
+  if (preferComfyCloudLtx()) return "";
+
   const resolved = await resolveComfyUrl();
   if (resolved.ok) {
     const status = await probeComfyUrl(resolved.url);
