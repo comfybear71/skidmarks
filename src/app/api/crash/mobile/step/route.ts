@@ -9,8 +9,7 @@ import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
 import { resolveBeatAudioPath } from "@/lib/crashStorySpeak";
 import { storyDialogueDir } from "@/lib/crashStoryLocations";
 import { runLtxSmoke } from "@/lib/ltxSmoke";
-import { resolveComfyUrl } from "@/lib/comfyClient";
-import { listRunpodPods, probeComfyUrl, resumeRunpodPod } from "@/lib/runpod";
+import { resolveComfyUrl, probeComfyUrl } from "@/lib/comfyClient";
 import { stitchClips, mobileFinalVideoPath } from "@/lib/mobileStitch";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
 import { CRASH_DIR } from "@/lib/paths";
@@ -28,11 +27,10 @@ export const maxDuration = 300;
 async function ensureComfyReady(): Promise<string> {
   // runLtxSmoke checks preferComfyCloudLtx() first and, when true, goes
   // straight to Comfy Cloud — the comfyUrl this returns is discarded either
-  // way. But this ran unconditionally before every clip regardless, so a
-  // RunPod hiccup (no pods, API down) threw here and blocked the cloud path
-  // from ever getting a chance, even though it didn't need this result at
-  // all. RunPod/local-pod resolution is now only attempted when the cloud
-  // path isn't the one that's actually going to run.
+  // way, so resolving one is only needed when the cloud path isn't what's
+  // about to run. RunPod auto-discovery (list pods, resume, guess a port)
+  // was the testing-phase fallback here and is gone; a self-hosted Comfy is
+  // reached by setting COMFY_URL directly.
   const { preferComfyCloudLtx } = await import("@/lib/ltxCloudIa2v");
   if (preferComfyCloudLtx()) return "";
 
@@ -41,17 +39,7 @@ async function ensureComfyReady(): Promise<string> {
     const status = await probeComfyUrl(resolved.url);
     if (status === "up") return resolved.url;
   }
-  const pods = await listRunpodPods();
-  if (pods.ok && pods.pods.length) {
-    const pod = pods.pods[0]!;
-    if (!/RUNNING/i.test(pod.desiredStatus)) {
-      await resumeRunpodPod(pod.id, pod.gpuCount);
-      throw new Error("Comfy pod is starting — try again in a minute or two");
-    }
-    if (pod.comfyUrl) return pod.comfyUrl;
-    throw new Error("Pod is running but Comfy port 3000 isn't mapped yet — try again shortly");
-  }
-  throw new Error("No Comfy pod available — start one, or set COMFY_URL");
+  throw new Error("No Comfy Cloud key and no reachable COMFY_URL — set one to animate");
 }
 
 function allCastApproved(job: MobileGenJob): boolean {

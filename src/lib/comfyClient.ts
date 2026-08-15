@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import { getEnv } from "./env";
-import { listRunpodPods } from "./runpod";
 
 export type ComfyUploadResult = {
   name: string;
@@ -24,7 +23,12 @@ export type ComfyHistoryOutputs = {
   [key: string]: unknown;
 };
 
-/** Resolve Comfy base URL: COMFY_URL env, else first running pod with :3000. */
+/**
+ * Resolve Comfy base URL: an explicit override, else COMFY_URL env.
+ * RunPod auto-discovery (list pods, resume, pick the first :3000) was the
+ * testing-phase path and is gone — Comfy Cloud is the real backend now, and
+ * a self-hosted Comfy is reached by setting COMFY_URL directly.
+ */
 export async function resolveComfyUrl(
   override?: string,
 ): Promise<{ ok: true; url: string; source: string } | { ok: false; error: string }> {
@@ -34,26 +38,29 @@ export async function resolveComfyUrl(
   const fromEnv = getEnv("COMFY_URL").replace(/\/$/, "");
   if (fromEnv) return { ok: true, url: fromEnv, source: "COMFY_URL" };
 
-  const listed = await listRunpodPods();
-  if (!listed.ok) {
-    return {
-      ok: false,
-      error:
-        listed.error ||
-        "No COMFY_URL and RunPod list failed. Set COMFY_URL or start a pod.",
-    };
+  return {
+    ok: false,
+    error: "No COMFY_URL set, and no Comfy Cloud key configured.",
+  };
+}
+
+/** Plain reachability check — any HTTP response means the URL is alive
+ * (even a 404), it doesn't need to be a valid Comfy route. Not RunPod-
+ * specific despite once living next to that code; kept here since resolving
+ * a manually-set COMFY_URL still benefits from knowing it's actually up. */
+export async function probeComfyUrl(url: string): Promise<"up" | "down" | "skip"> {
+  if (!url) return "skip";
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      signal: AbortSignal.timeout(8000),
+      cache: "no-store",
+    });
+    if (res.status > 0) return "up";
+    return "down";
+  } catch {
+    return "down";
   }
-  const hit = listed.pods.find(
-    (p) => /RUNNING/i.test(p.desiredStatus) && p.comfyUrl,
-  );
-  if (!hit?.comfyUrl) {
-    return {
-      ok: false,
-      error:
-        "No running pod with Comfy :3000. Start the pod, or set COMFY_URL in MY MOVIES\\.env",
-    };
-  }
-  return { ok: true, url: hit.comfyUrl.replace(/\/$/, ""), source: `pod:${hit.name}` };
 }
 
 function comfyNetError(where: string, e: unknown): Error {
