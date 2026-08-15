@@ -520,8 +520,10 @@ function BeatRow({
     : undefined;
   const isNuggets = beat.speaker.toLowerCase().includes("nugget");
   const locked = Boolean(voiceSlot?.approvedAttemptId);
+  // The GET handler only reads "f"/"voiceFile" — "t" was silently ignored,
+  // so playback always fell back to guessing "<beatId>.mp3".
   const audioSrc = beat.voiceFile
-    ? `/api/crash/story/speak?styleId=${encodeURIComponent(styleId)}&beatId=${encodeURIComponent(beat.id)}&t=${beat.voiceFile}`
+    ? `/api/crash/story/speak?styleId=${encodeURIComponent(styleId)}&beatId=${encodeURIComponent(beat.id)}&f=${encodeURIComponent(beat.voiceFile)}`
     : null;
 
   async function genMp3() {

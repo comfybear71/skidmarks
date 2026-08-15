@@ -59,9 +59,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Need styleId and beatId" }, { status: 400 });
   }
 
+  // Three client call sites sent this as "t" — a name this handler never
+  // read — so every one of them always fell back to guessing the filename
+  // was "<beatId>.mp3" instead of using the real voiceFile. Fixed at the
+  // callers; accepted here too so a future caller using "t" fails the same
+  // way the others did, not silently.
   const voiceFile =
     url.searchParams.get("f")?.trim() ||
     url.searchParams.get("voiceFile")?.trim() ||
+    url.searchParams.get("t")?.trim() ||
     undefined;
 
   const cloudName =
