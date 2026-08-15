@@ -50,7 +50,18 @@ export async function POST(req: Request) {
       shotCount,
     });
 
-    const imported = await importScriptEpisodes(job.styleId, screenplay.parsedEpisodes);
+    // The pack folder is derived from the episode title, and on Vercel the
+    // disk is empty on every invocation, so re-running the same prompt handed
+    // back the same folder name. Neon still held the previous run's story, and
+    // saveCloudEpisodeMeta rightly keeps the older one when it has plated shots
+    // and the incoming import has none — leaving this run's job pointing at
+    // scene and shot ids from a different run. Each run is its own episode, so
+    // give it its own folder.
+    const runTag = jobId.slice(-6);
+    const episodesForImport = screenplay.parsedEpisodes.map((ep, i) =>
+      i === 0 ? { ...ep, title: `${ep.title} ${runTag}` } : ep,
+    );
+    const imported = await importScriptEpisodes(job.styleId, episodesForImport);
     const folderName = imported[0]?.folderName;
     if (!folderName) throw new Error("Import produced no episode pack");
 
