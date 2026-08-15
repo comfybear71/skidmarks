@@ -186,8 +186,19 @@ export function buildLocationPrompt(opts: {
   styleId?: ShowStyleId;
 }): string {
   // Positive-only: naming people/animals pulls them into the frame.
+  const place = (opts.name || "").trim();
   const bits = [
-    "Empty establishing location still — architecture, furniture, weather and materials only. Cast arrives later on separate shot plates.",
+    // opts.name used to be accepted and never printed. With notes/lookNote/note
+    // all empty — which is every mobile location — nothing in the prompt said
+    // what the place was, so the example materials below became the subject and
+    // every location came back as the same cafe-table street.
+    place
+      ? `Empty establishing location still of: ${place}. Everything in frame must belong to ${place} — if that place has no buildings, streets or furniture, show none.`
+      : "Empty establishing location still — architecture, furniture, weather and materials only.",
+    // Naming architecture/furniture up front fights a place that has neither.
+    place && opts.styleId
+      ? "Environment only, no characters. Cast arrives later on separate shot plates."
+      : "Architecture, furniture, weather and materials only. Cast arrives later on separate shot plates.",
     opts.residentNames.length
       ? `Place vibe associated with: ${opts.residentNames.join(", ")}. Show their mess and lived-in clutter in the environment only.`
       : "",
@@ -200,8 +211,10 @@ export function buildLocationPrompt(opts: {
     opts.styleId
       ? buildCrashGenLook(opts.styleId, opts.styleRealism)
       : locationStylePrompt(opts.styleRealism),
+    // The old wording listed bank counters / cafe tables / street kerbs as
+    // examples. With no place named, the generator drew the examples.
     opts.styleId
-      ? "Name real materials for THIS specific place — bank counters, cafe tables, street kerbs, lava rock, whatever the notes ask for."
+      ? `Show the real materials, surfaces and light of ${place || "this specific place"} and nothing borrowed from anywhere else.`
       : "Name real materials for THIS specific place — bank counters, cafe tables, street kerbs, lava rock, whatever the notes ask for. Sculpted 3D diorama feel.",
     "Empty of people and animals. No writing, no signage text, no labels, no captions, no watermarks.",
   ];
