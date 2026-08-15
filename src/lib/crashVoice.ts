@@ -466,7 +466,38 @@ export function ensureVoiceSlotFromCards(
     writeCrashVoiceManifest(styleId, manifest);
     return slot;
   }
-  return null;
+
+  // No style card matched. On Vercel readStyleCardManifest reads
+  // per-invocation /tmp, so it is empty on the request that runs voices even
+  // though the cast was approved minutes earlier on another instance — every
+  // speaker then failed with "No voice slot for X". A slot only needs a key, a
+  // name and a description, none of which require a card, so derive one from
+  // the speaker rather than giving up. The key is a slug of the name so the
+  // same speaker maps to the same slot on every run.
+  const slug = castName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (!slug) return null;
+
+  const castKey = `speaker_${slug}`;
+  const manifest = readCrashVoiceManifestRaw(styleId);
+  if (manifest[castKey]) return manifest[castKey]!;
+
+  const slot: CrashVoiceSlot = {
+    castKey,
+    castName: castName.trim(),
+    // Left empty on purpose — the callers substitute a usable default rather
+    // than sending a too-short description to ElevenLabs.
+    voiceDescription: "",
+    approvedAttemptId: "",
+    approvedVoiceId: "",
+    attempts: [],
+  };
+  manifest[castKey] = slot;
+  writeCrashVoiceManifest(styleId, manifest);
+  return slot;
 }
 
 /** Cursor tour — design + lock voice automatically when not approved yet. */
