@@ -106,7 +106,7 @@ export type ParsedPromptScript = {
   shots: ParsedPromptShot[];
 };
 
-function resolvePlaceKey(styleId: ShowStyleId, placeName: string): string {
+export function resolvePlaceKey(styleId: ShowStyleId, placeName: string): string {
   const manifest = readWorldCardManifest(styleId);
   const want = placeName.trim().toLowerCase();
   for (const [key, label] of Object.entries(manifest)) {

@@ -14,6 +14,11 @@ import { CursorTourBanner } from "@/components/CursorTourBanner";
 import { CursorCastGateModal } from "@/components/CursorCastGateModal";
 import { CrashVoiceCard } from "@/components/CrashVoiceCard";
 import { CrashSceneKitCard } from "@/components/CrashSceneKitCard";
+import { CrashScriptUploadCard } from "@/components/CrashScriptUploadCard";
+import { CrashCharacterRosterCard } from "@/components/CrashCharacterRosterCard";
+import { CrashScriptStoryboardCard } from "@/components/CrashScriptStoryboardCard";
+import { CrashCompositorCard } from "@/components/CrashCompositorCard";
+import { CrashScriptVoiceCard } from "@/components/CrashScriptVoiceCard";
 import { useCrashDeskMode } from "@/hooks/useCrashDeskMode";
 import { usePanelPointerDrag } from "@/hooks/usePanelPointerDrag";
 import { coldStartEmptyCrashDesk } from "@/lib/crashRestoreDesk";
@@ -533,6 +538,11 @@ export default function CrashLabPage() {
       <CrashComfyCard />
       <CrashStoryboardCard />
       <CrashSpxCard />
+      <CrashScriptUploadCard />
+      <CrashCharacterRosterCard />
+      <CrashScriptStoryboardCard />
+      <CrashCompositorCard />
+      <CrashScriptVoiceCard />
       {!hideMorphOnNarrowStack ? (
       <div
         className="fixed flex flex-col overflow-hidden rounded-sm border border-[var(--line)] bg-[var(--panel)] shadow-lg"

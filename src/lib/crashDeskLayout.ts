@@ -1,7 +1,7 @@
 import type { CardGeom } from "@/components/CrashLabFloatingPanel";
 import { CRASH_SCRIPT_MIN_W } from "./crashLabPanel";
 
-export const CRASH_DESK_LAYOUT_VER = "19";
+export const CRASH_DESK_LAYOUT_VER = "20";
 export const CRASH_DESK_MODE_KEY = "crashlab-desk-mode";
 export const CRASH_DESK_MODE_EVENT = "crash-desk-mode";
 /** One-shot unjam stamp — not show style / episode / scene kit. */
@@ -51,7 +51,12 @@ export type CrashPanelId =
   | "morph"
   | "story"
   | "comfy"
-  | "storyboard";
+  | "storyboard"
+  | "script-upload"
+  | "character-roster"
+  | "script-storyboard"
+  | "compositor"
+  | "script-voice";
 
 /**
  * Stack strip order (Animate-first). Character → Image gen → Voice → Scene kit → Animate
@@ -67,6 +72,11 @@ export const CRASH_DESK_LIVE_PANELS: CrashPanelId[] = [
   "morph",
   "spx",
   "storyboard",
+  "script-upload",
+  "character-roster",
+  "script-storyboard",
+  "compositor",
+  "script-voice",
 ];
 
 /** Full id list including retired Story (geom / old keys). Strip Y uses LIVE only. */
@@ -275,6 +285,38 @@ function openColumnsAt(
   };
   const story: CardGeom = { x, y: top, w: colW, h: CRASH_STRIP_H };
 
+  // New script pipeline panels (positioned off-screen initially, user drags into view)
+  const scriptUpload: CardGeom = {
+    x: viewW - 380,
+    y: top,
+    w: 360,
+    h: 320,
+  };
+  const characterRoster: CardGeom = {
+    x: viewW - 380,
+    y: top + 340,
+    w: 360,
+    h: 400,
+  };
+  const scriptStoryboard: CardGeom = {
+    x: viewW - 760,
+    y: top,
+    w: 360,
+    h: 500,
+  };
+  const compositor: CardGeom = {
+    x: viewW - 1140 > margin ? viewW - 1140 : margin,
+    y: top,
+    w: 380,
+    h: 560,
+  };
+  const scriptVoice: CardGeom = {
+    x: viewW - 1520 > margin ? viewW - 1520 : margin,
+    y: top,
+    w: 380,
+    h: 560,
+  };
+
   return {
     script,
     character,
@@ -286,6 +328,11 @@ function openColumnsAt(
     story,
     comfy,
     storyboard,
+    "script-upload": scriptUpload,
+    "character-roster": characterRoster,
+    "script-storyboard": scriptStoryboard,
+    compositor,
+    "script-voice": scriptVoice,
   };
 }
 

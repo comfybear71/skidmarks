@@ -12,7 +12,10 @@ import {
 } from "./elevenLabs";
 import type { ShowStyleId } from "./showStylePresets";
 import { getShowStylePreset, SHOW_STYLE_PRESETS } from "./showStylePresets";
-import { sanitizeVoiceDescriptionForApi } from "./crashVoicePrompt";
+import {
+  defaultCrashVoicePrompt,
+  sanitizeVoiceDescriptionForApi,
+} from "./crashVoicePrompt";
 import { readStyleCardManifest } from "./styleCardThumbs";
 
 /** Story speaker → locked voice cast name (per show). */
@@ -249,6 +252,16 @@ export function findCrashVoiceByName(
   return pickBestVoiceSlot(loose);
 }
 
+/** Every cast slot in this show with a locked voice_id — donor pool for reuse-only casting. */
+export function listApprovedCrashVoiceSlots(
+  styleId: ShowStyleId,
+): CrashVoiceSlot[] {
+  const manifest = readCrashVoiceManifestRaw(styleId);
+  return Object.values(manifest).filter((slot) =>
+    slot.approvedVoiceId?.trim(),
+  );
+}
+
 function voiceLimitError(msg: string): boolean {
   const m = msg.toLowerCase();
   return m.includes("maximum amount") || m.includes("custom voice limit");
@@ -415,7 +428,7 @@ export async function refreshCrashVoiceId(
   return voiceId;
 }
 
-function ensureVoiceSlotFromCards(
+export function ensureVoiceSlotFromCards(
   styleId: ShowStyleId,
   castName: string,
 ): CrashVoiceSlot | null {
@@ -456,6 +469,43 @@ export async function ensureCursorVoiceReady(
 
   const desc = slot.voiceDescription.trim() || slot.castName;
   if (!slot.attempts.length) {
+    await designCrashVoice({
+      styleId,
+      castKey: slot.castKey,
+      castName: slot.castName,
+      voiceDescription: desc,
+    });
+  }
+
+  await refreshCrashVoiceId(styleId, castName);
+}
+
+/**
+ * Same as ensureCursorVoiceReady, but when a cast slot has no
+ * voiceDescription yet, tries an async description provider (Stage 3's LLM
+ * suggestion) before falling back to the static defaultCrashVoicePrompt
+ * table — ensureCursorVoiceReady itself is untouched so Populate's existing
+ * behavior doesn't change.
+ */
+export async function ensureVoiceReadyWithDescription(
+  styleId: ShowStyleId,
+  castName: string,
+  descriptionIfMissing: () => Promise<string>,
+): Promise<void> {
+  let slot = findCrashVoiceByName(styleId, castName);
+  if (!slot) slot = ensureVoiceSlotFromCards(styleId, castName);
+  if (!slot) throw new Error(`No voice slot for ${castName} — add them in Characters`);
+
+  if (slot.approvedAttemptId && slot.approvedVoiceId) {
+    const att = slot.attempts.find((a) => a.id === slot.approvedAttemptId);
+    if (att?.voiceId?.trim() && att.voiceId === slot.approvedVoiceId) return;
+  }
+
+  if (!slot.attempts.length) {
+    const desc =
+      slot.voiceDescription.trim() ||
+      (await descriptionIfMissing()) ||
+      defaultCrashVoicePrompt(castName);
     await designCrashVoice({
       styleId,
       castKey: slot.castKey,

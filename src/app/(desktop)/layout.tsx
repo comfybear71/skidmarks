@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { Black_Ops_One, DM_Sans } from "next/font/google";
 import { SiteNav } from "@/components/SiteNav";
 import { runningOnVercel } from "@/lib/cloudEnv";
-import "./globals.css";
+import "../globals.css";
 
 const display = Black_Ops_One({
   weight: "400",

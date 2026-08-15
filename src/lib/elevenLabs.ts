@@ -1,4 +1,5 @@
 import { getEnv } from "./env";
+import { recordVoiceDesignGeneration } from "./elevenQuota";
 
 export function elevenKeyPresent(): boolean {
   return Boolean(getEnv("ELEVENLABS_API_KEY"));
@@ -99,6 +100,10 @@ export async function designVoicePreviews(opts: {
         : data.detail?.message || `ElevenLabs design failed (${res.status})`;
     throw new Error(msg);
   }
+
+  // Counts against the monthly voice-design quota — one design call here
+  // produces the whole batch of previews, so this is one "generation".
+  recordVoiceDesignGeneration();
 
   const spoken = data.text || line || "";
   const out: {
