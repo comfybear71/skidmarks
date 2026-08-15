@@ -6,7 +6,7 @@ import {
   generateCastCandidates,
   generateLocationCandidates,
 } from "@/lib/mobileCandidates";
-import { listCharacters } from "@/lib/characters";
+import { createCharacter, listCharacters } from "@/lib/characters";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
@@ -64,10 +64,21 @@ export async function POST(req: Request) {
           (c) => c.name.trim().toLowerCase() === target.toLowerCase(),
         );
       }
-      if (!character) return NextResponse.json({ error: `No character named ${target}` }, { status: 404 });
+      if (!character) {
+        // job.speakers (what drives "Pick your cast") comes straight from
+        // beat.speaker text, not from the parsed roster — the screenplay
+        // step can produce a speaker the roster parse missed entirely, not
+        // just one lost to a different instance. Last resort: create a
+        // bare character from the name so the flow never dead-ends here.
+        character = createCharacter({ name: target });
+      }
 
       if (action === "generate") {
-        const candidates = await generateCastCandidates(character.id);
+        const candidates = await generateCastCandidates(
+          job.styleId,
+          job.folderName,
+          character.id,
+        );
         const updated = await patchMobileGenJob(jobId, {
           castCandidates: { ...job.castCandidates, [target]: candidates },
         });
@@ -76,7 +87,9 @@ export async function POST(req: Request) {
 
       const candidateId = (body.candidateId || "").trim();
       if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
-      approveCastCandidate(job.styleId, character.id, candidateId);
+      const candidate = (job.castCandidates[target] || []).find((c) => c.id === candidateId);
+      if (!candidate) return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
+      await approveCastCandidate(job.styleId, job.folderName, character.id, candidateId, candidate.fileName);
       const nextCandidates = (job.castCandidates[target] || []).map((c) => ({
         ...c,
         approved: c.id === candidateId,
@@ -94,6 +107,7 @@ export async function POST(req: Request) {
     if (action === "generate") {
       const candidates = await generateLocationCandidates(
         job.styleId,
+        job.folderName,
         scene.placeName,
         body.customPrompt,
       );
@@ -105,7 +119,7 @@ export async function POST(req: Request) {
 
     const candidateId = (body.candidateId || "").trim();
     if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
-    const thumbKey = approveLocationCandidate(job.styleId, scene.placeName, candidateId);
+    const thumbKey = await approveLocationCandidate(job.styleId, job.folderName, scene.placeName, candidateId);
 
     // Patch the real story doc so the plates phase can find it — not just the job doc.
     const story = await readMobileStory(job.styleId, job.folderName);

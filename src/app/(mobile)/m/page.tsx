@@ -312,7 +312,9 @@ export default function MobileHomePage() {
           subtitle="Swipe to see faces, tap to pick one. Type to steer a fresh batch."
           items={job.speakers}
           candidatesOf={(name) => job.castCandidates[name] || []}
-          imageSrc={(name, c) => `/api/characters/${characterIds[name]}/faces/${c.id}`}
+          imageSrc={(name, c) =>
+            `/api/crash/mobile/cast-face?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&characterId=${encodeURIComponent(characterIds[name] || "")}&fileName=${encodeURIComponent(c.fileName)}`
+          }
           onGenerate={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApprove={(name, candidateId) => approveCandidate("cast", name, candidateId)}
           busy={busy}
