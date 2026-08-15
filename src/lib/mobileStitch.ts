@@ -1,8 +1,32 @@
 import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
+import ffmpegStatic from "ffmpeg-static";
 import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
+
+/**
+ * Vercel's runtime has no ffmpeg on PATH, so the stitch died with ENOENT at
+ * the very last step. ffmpeg-static ships a binary the deploy carries. The PC
+ * keeps using whatever is on PATH if the packaged one is missing.
+ */
+function ffmpegBin(): string {
+  const packaged = typeof ffmpegStatic === "string" ? ffmpegStatic : "";
+  if (packaged && fs.existsSync(packaged)) {
+    try {
+      // Lambda unpacks without the executable bit on some runtimes.
+      fs.accessSync(packaged, fs.constants.X_OK);
+    } catch {
+      try {
+        fs.chmodSync(packaged, 0o755);
+      } catch {
+        return "ffmpeg";
+      }
+    }
+    return packaged;
+  }
+  return "ffmpeg";
+}
 
 function stitchDir(): string {
   const dir = path.join(CRASH_DIR, "mobile", "final");
@@ -38,7 +62,7 @@ export function stitchClips(clipPaths: string[]): string {
 
   try {
     execFileSync(
-      "ffmpeg",
+      ffmpegBin(),
       ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outPath],
       { timeout: 120_000 },
     );
