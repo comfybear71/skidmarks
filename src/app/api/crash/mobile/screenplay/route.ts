@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     const jobId = (body.jobId || "").trim();
     if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
 
-    const job = readMobileGenJob(jobId);
+    const job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
     if (job.phase !== "screenplay") {
       return NextResponse.json({ ok: true, job }); // already past this phase — idempotent
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
       ),
     ];
 
-    const updated = patchMobileGenJob(jobId, {
+    const updated = await patchMobileGenJob(jobId, {
       folderName,
       phase: "cast_images",
       scenes,

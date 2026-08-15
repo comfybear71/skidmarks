@@ -59,19 +59,19 @@ export async function POST(req: Request) {
     const jobId = (body.jobId || "").trim();
     if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
 
-    let job = readMobileGenJob(jobId);
+    let job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
     if (job.phase === "cast_images") {
       if (allCastApproved(job)) {
-        job = patchMobileGenJob(jobId, { phase: "location_images" })!;
+        job = (await patchMobileGenJob(jobId, { phase: "location_images" }))!;
       }
       return NextResponse.json({ ok: true, job, advanced: job.phase !== "cast_images" });
     }
 
     if (job.phase === "location_images") {
       if (allLocationsApproved(job)) {
-        job = patchMobileGenJob(jobId, { phase: "plates" })!;
+        job = (await patchMobileGenJob(jobId, { phase: "plates" }))!;
       } else {
         return NextResponse.json({ ok: true, job, advanced: false });
       }
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
       const story = readCrashStory(job.styleId);
       const next = job.shots.find((s) => !s.plateFile);
       if (!next) {
-        job = patchMobileGenJob(jobId, { phase: "voices" })!;
+        job = (await patchMobileGenJob(jobId, { phase: "voices" }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
       const scene = story.scenes.find((sc) => sc.id === next.sceneId);
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
         const shots = job.shots.map((s) =>
           s.shotId === next.shotId ? { ...s, plateFile: "__error__" } : s,
         );
-        job = patchMobileGenJob(jobId, { shots })!;
+        job = (await patchMobileGenJob(jobId, { shots }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
       try {
@@ -102,15 +102,15 @@ export async function POST(req: Request) {
         );
         writeCrashStory({ ...story, scenes: nextScenes });
         const shots = job.shots.map((s) => (s.shotId === next.shotId ? { ...s, plateFile: fileName } : s));
-        job = patchMobileGenJob(jobId, { shots })!;
+        job = (await patchMobileGenJob(jobId, { shots }))!;
       } catch (e) {
         const shots = job.shots.map((s) =>
           s.shotId === next.shotId ? { ...s, plateFile: "__error__" } : s,
         );
-        job = patchMobileGenJob(jobId, {
+        job = (await patchMobileGenJob(jobId, {
           shots,
           error: e instanceof Error ? e.message : String(e),
-        })!;
+        }))!;
       }
       return NextResponse.json({ ok: true, job, advanced: true });
     }
@@ -121,7 +121,7 @@ export async function POST(req: Request) {
       }
       if (!job.folderName) throw new Error("Job has no folder — screenplay phase incomplete");
       await generateEpisodeVoices(job.styleId, job.folderName);
-      job = patchMobileGenJob(jobId, { phase: "review" })!;
+      job = (await patchMobileGenJob(jobId, { phase: "review" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
@@ -129,14 +129,14 @@ export async function POST(req: Request) {
       if (!body.approveReview) {
         return NextResponse.json({ ok: true, job, advanced: false });
       }
-      job = patchMobileGenJob(jobId, { phase: "animate" })!;
+      job = (await patchMobileGenJob(jobId, { phase: "animate" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
     if (job.phase === "animate") {
       const next = job.clips.find((c) => c.clipStatus === "pending");
       if (!next) {
-        job = patchMobileGenJob(jobId, { phase: "stitch" })!;
+        job = (await patchMobileGenJob(jobId, { phase: "stitch" }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
       const shot = job.shots.find((s) => s.shotId === next.shotId);
@@ -169,14 +169,14 @@ export async function POST(req: Request) {
             ? { ...c, clipFile: result.localMp4, clipStatus: "done" as const }
             : c,
         );
-        job = patchMobileGenJob(jobId, { clips })!;
+        job = (await patchMobileGenJob(jobId, { clips }))!;
       } catch (e) {
         const clips = job.clips.map((c) =>
           c.beatId === next.beatId
             ? { ...c, clipStatus: "error" as const, error: e instanceof Error ? e.message : String(e) }
             : c,
         );
-        job = patchMobileGenJob(jobId, { clips })!;
+        job = (await patchMobileGenJob(jobId, { clips }))!;
       }
       return NextResponse.json({ ok: true, job, advanced: true });
     }
@@ -184,15 +184,15 @@ export async function POST(req: Request) {
     if (job.phase === "stitch") {
       const done = job.clips.filter((c) => c.clipStatus === "done" && c.clipFile);
       if (!done.length) {
-        job = patchMobileGenJob(jobId, {
+        job = (await patchMobileGenJob(jobId, {
           phase: "error",
           error: "No clips generated successfully — nothing to stitch",
-        })!;
+        }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
       const clipPaths = done.map((c) => c.clipFile);
       const finalVideoFile = stitchClips(clipPaths);
-      job = patchMobileGenJob(jobId, { phase: "done", finalVideoFile })!;
+      job = (await patchMobileGenJob(jobId, { phase: "done", finalVideoFile }))!;
       return NextResponse.json({ ok: true, job, advanced: true, finalVideoPath: mobileFinalVideoPath(finalVideoFile) });
     }
 

@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const jobId = url.searchParams.get("jobId") || "";
-  const job = readMobileGenJob(jobId);
+  const job = await readMobileGenJob(jobId);
   if (!job?.finalVideoFile) {
     return NextResponse.json({ error: "No finished video for this job" }, { status: 404 });
   }
