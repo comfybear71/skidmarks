@@ -10,10 +10,20 @@ export type BlobFileKind =
   | "spx_sfx"
   | "spx_video"
   | "story_sfx"
-  | "placeholder";
+  | "placeholder"
+  | "character_plate";
 
 /** Show-level shelves shared across episodes (not tied to one episode). */
-export type ShowAssetKind = "world" | "cast" | "spx_sfx" | "spx_video";
+export type ShowAssetKind =
+  | "world"
+  | "cast"
+  | "spx_sfx"
+  | "spx_video"
+  /** Multi-view character sheet — front/three-quarter/profile/back plus
+   * expressions. The show's continuity reference, kept separate from `cast`
+   * because a cast card is a single figure used as an identity reference and
+   * a sheet is not safe to hand a plate compositor as one. */
+  | "character_plate";
 
 const AUDIO_KINDS = new Set<BlobFileKind>(["audio", "spx_sfx", "story_sfx"]);
 const VIDEO_KINDS = new Set<BlobFileKind>(["mp4", "spx_video"]);
@@ -44,9 +54,11 @@ export function showAssetPathname(
       ? "world-cards"
       : kind === "cast"
         ? "style-cards"
-        : kind === "spx_sfx"
-          ? "spx/sfx"
-          : "spx/video";
+        : kind === "character_plate"
+          ? "character-plates"
+          : kind === "spx_sfx"
+            ? "spx/sfx"
+            : "spx/video";
   return `shows/${showId}/${seg}/${filename}`;
 }
 
