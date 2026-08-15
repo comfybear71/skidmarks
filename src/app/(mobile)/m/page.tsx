@@ -429,6 +429,24 @@ export default function MobileHomePage() {
 
       {job && job.phase === "error" && (
         <ActiveStepPanel title="Something went wrong" subtitle={job.error || "Unknown error"}>
+          {/* Per-clip failures are server-side, so they never reach the browser
+              console. Without them on screen this panel is a dead end. */}
+          {[...new Set(job.clips.map((c) => (c.error || "").trim()).filter(Boolean))].map((reason) => (
+            <div
+              key={reason}
+              style={{
+                margin: "0 0 8px",
+                padding: "10px",
+                borderRadius: "8px",
+                background: "var(--panel-2)",
+                color: "var(--chrome-dim)",
+                fontSize: "12px",
+                wordBreak: "break-word",
+              }}
+            >
+              {reason}
+            </div>
+          ))}
           <MobilePrimaryButton onClick={() => void refreshJob(job.id)}>Check again</MobilePrimaryButton>
         </ActiveStepPanel>
       )}

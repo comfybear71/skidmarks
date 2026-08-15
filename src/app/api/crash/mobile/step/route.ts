@@ -256,9 +256,17 @@ export async function POST(req: Request) {
     if (job.phase === "stitch") {
       const done = job.clips.filter((c) => c.clipStatus === "done" && c.clipFile);
       if (!done.length) {
+        // Every clip's real failure is recorded on the clip and was then
+        // thrown away here, leaving a dead end with no reason on screen and
+        // nothing in the browser console (these failures are server-side).
+        const reasons = [
+          ...new Set(job.clips.map((c) => (c.error || "").trim()).filter(Boolean)),
+        ];
         job = (await patchMobileGenJob(jobId, {
           phase: "error",
-          error: "No clips generated successfully — nothing to stitch",
+          error: reasons.length
+            ? `No clips generated — ${reasons[0]}${reasons.length > 1 ? ` (+${reasons.length - 1} other reason${reasons.length > 2 ? "s" : ""})` : ""}`
+            : "No clips generated successfully — nothing to stitch",
         }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
