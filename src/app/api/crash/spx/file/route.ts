@@ -5,6 +5,7 @@ import { crashSpxFilePath, type CrashSpxKind } from "@/lib/crashSpx";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { morphKeepersDir } from "@/lib/morph";
 import { cloudShowAssetRedirect } from "@/lib/cloudShelf";
+import { serveMediaFile } from "@/lib/serveMediaFile";
 
 export const runtime = "nodejs";
 
@@ -58,11 +59,5 @@ export async function GET(req: Request) {
                 ? "video/quicktime"
                 : "video/mp4";
 
-  const buf = fs.readFileSync(filePath);
-  return new NextResponse(new Uint8Array(buf), {
-    headers: {
-      "Content-Type": contentType,
-      "Cache-Control": "no-store",
-    },
-  });
+  return serveMediaFile(req, filePath, contentType, { "Cache-Control": "no-store" });
 }

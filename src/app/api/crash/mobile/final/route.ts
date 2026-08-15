@@ -1,8 +1,8 @@
-import fs from "fs";
 import { NextResponse } from "next/server";
 import { readMobileGenJob } from "@/lib/mobileGenJob";
 import { mobileFinalVideoPath } from "@/lib/mobileStitch";
 import { resolveMobileMedia } from "@/lib/mobileMediaStore";
+import { serveMediaFile } from "@/lib/serveMediaFile";
 
 export const runtime = "nodejs";
 
@@ -24,11 +24,8 @@ export async function GET(req: Request) {
   if (!filePath) {
     return NextResponse.json({ error: "Video file missing on disk" }, { status: 404 });
   }
-  return new NextResponse(fs.readFileSync(filePath), {
-    headers: {
-      "Content-Type": "video/mp4",
-      "Content-Disposition": `inline; filename="${job.finalVideoFile}"`,
-      "Cache-Control": "private, max-age=3600",
-    },
+  return serveMediaFile(req, filePath, "video/mp4", {
+    "Content-Disposition": `inline; filename="${job.finalVideoFile}"`,
+    "Cache-Control": "private, max-age=3600",
   });
 }

@@ -1,7 +1,7 @@
-import fs from "fs";
 import { NextResponse } from "next/server";
 import { lipsyncFilePath } from "@/lib/lipsyncSmoke";
 import { cloudBlobRedirect } from "@/lib/cloudMedia";
+import { serveMediaFile } from "@/lib/serveMediaFile";
 
 export const runtime = "nodejs";
 
@@ -14,12 +14,5 @@ export async function GET(req: Request) {
   if (!abs) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }
-  const buf = fs.readFileSync(abs);
-  return new NextResponse(buf, {
-    headers: {
-      "Content-Type": "video/mp4",
-      "Content-Length": String(buf.length),
-      "Cache-Control": "no-store",
-    },
-  });
+  return serveMediaFile(req, abs, "video/mp4", { "Cache-Control": "no-store" });
 }
