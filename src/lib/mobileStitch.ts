@@ -6,26 +6,46 @@ import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 
 /**
- * Vercel's runtime has no ffmpeg on PATH, so the stitch died with ENOENT at
- * the very last step. ffmpeg-static ships a binary the deploy carries. The PC
- * keeps using whatever is on PATH if the packaged one is missing.
+ * Vercel's runtime has no ffmpeg on PATH. Two packaged sources are tried
+ * because they fail differently: @ffmpeg-installer ships the binary as a real
+ * dependency, while ffmpeg-static downloads it in a postinstall that a build
+ * can skip — leaving the module present and the file absent.
  */
-function ffmpegBin(): string {
-  const packaged = typeof ffmpegStatic === "string" ? ffmpegStatic : "";
-  if (packaged && fs.existsSync(packaged)) {
+function ffmpegCandidates(): string[] {
+  const out: string[] = [];
+  if (typeof ffmpegStatic === "string" && ffmpegStatic) out.push(ffmpegStatic);
+  // @ffmpeg-installer is referenced by path, never required: its index.js uses
+  // dynamic requires that Turbopack cannot resolve and the build fails on them.
+  // The platform subpackage lays the binary down at a fixed location.
+  for (const root of [process.cwd(), "/var/task"]) {
+    out.push(
+      path.join(root, "node_modules", "@ffmpeg-installer", "linux-x64", "ffmpeg"),
+      path.join(root, "node_modules", "ffmpeg-static", "ffmpeg"),
+    );
+  }
+  return [...new Set(out)];
+}
+
+/** Chosen binary, or null with the list of what was tried. */
+function resolveFfmpeg(): { bin: string | null; tried: string[] } {
+  const tried: string[] = [];
+  for (const candidate of ffmpegCandidates()) {
+    const exists = fs.existsSync(candidate);
+    tried.push(`${candidate}${exists ? "" : " (missing)"}`);
+    if (!exists) continue;
     try {
-      // Lambda unpacks without the executable bit on some runtimes.
-      fs.accessSync(packaged, fs.constants.X_OK);
+      // Some lambda runtimes unpack without the executable bit.
+      fs.accessSync(candidate, fs.constants.X_OK);
     } catch {
       try {
-        fs.chmodSync(packaged, 0o755);
+        fs.chmodSync(candidate, 0o755);
       } catch {
-        return "ffmpeg";
+        continue;
       }
     }
-    return packaged;
+    return { bin: candidate, tried };
   }
-  return "ffmpeg";
+  return { bin: null, tried };
 }
 
 function stitchDir(): string {
@@ -60,15 +80,22 @@ export function stitchClips(clipPaths: string[]): string {
   const outName = `${sortableId("mfinal")}.mp4`;
   const outPath = path.join(stitchDir(), outName);
 
+  const { bin, tried } = resolveFfmpeg();
   try {
+    // "ffmpeg" on PATH is the PC's normal case and the last resort on Vercel,
+    // where it does not exist — so say what was looked for rather than only
+    // that it was not found.
     execFileSync(
-      ffmpegBin(),
+      bin || "ffmpeg",
       ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outPath],
       { timeout: 120_000 },
     );
   } catch (e) {
+    const why = e instanceof Error ? e.message : String(e);
     throw new Error(
-      `ffmpeg stitch failed — is ffmpeg installed? (${e instanceof Error ? e.message : String(e)})`,
+      bin
+        ? `ffmpeg stitch failed using ${bin} — ${why}`
+        : `No packaged ffmpeg found and none on PATH — ${why}. Looked in: ${tried.join(", ")}`,
     );
   } finally {
     fs.rmSync(listPath, { force: true });
