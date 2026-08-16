@@ -16,6 +16,7 @@ import { PlateReviewEditor } from "@/components/mobile/PlateReviewEditor";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
+import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 
 type LocalStep = "prompt" | "style" | "duration";
 
@@ -442,7 +443,7 @@ export default function MobileHomePage() {
           items={job.scenes.map((s) => s.id)}
           labelOf={(id) => job.scenes.find((s) => s.id === id)?.placeName || id}
           candidatesOf={(id) => job.locationCandidates[id] || []}
-          imageSrc={(_id, c) => `/api/crash/gen/file?name=${encodeURIComponent(c.fileName)}`}
+          imageSrc={(_id, c) => mobileLocationStillUrl(job, c.fileName)}
           onGenerate={(id, customPrompt) => genCandidates("location", id, customPrompt)}
           onApprove={(id, candidateId) => approveCandidate("location", id, candidateId)}
           onAddNew={(name) => addRosterItem("location", name)}
@@ -494,7 +495,7 @@ export default function MobileHomePage() {
           items={job.scenes.map((s) => s.id)}
           labelOf={(id) => job.scenes.find((s) => s.id === id)?.placeName || id}
           candidatesOf={(id) => job.locationCandidates[id] || []}
-          imageSrc={(_id, c) => `/api/crash/gen/file?name=${encodeURIComponent(c.fileName)}`}
+          imageSrc={(_id, c) => mobileLocationStillUrl(job, c.fileName)}
           onGenerate={(id, customPrompt) => genCandidates("location", id, customPrompt)}
           onApprove={(id, candidateId) => approveCandidate("location", id, candidateId)}
           onAddNew={(name) => addRosterItem("location", name)}
@@ -725,7 +726,7 @@ function PickedSoFar({
       src: (() => {
         const chosen = (job.locationCandidates[scene.id] || []).find((c) => c.approved);
         return chosen
-          ? `/api/crash/gen/file?name=${encodeURIComponent(chosen.fileName)}`
+          ? mobileLocationStillUrl(job, chosen.fileName)
           : "";
       })(),
     }))
