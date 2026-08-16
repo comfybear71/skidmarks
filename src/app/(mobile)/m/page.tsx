@@ -6,6 +6,7 @@ import {
   CompletedStepRow,
   MobilePrimaryButton,
   MobileTextInput,
+  ShimmerText,
   mobileCard,
   mobileCardSelected,
 } from "@/components/mobile/MobileUi";
@@ -44,6 +45,11 @@ export default function MobileHomePage() {
   const [styleRealism, setStyleRealism] = useState<number>(
     SHOW_STYLE_PRESETS.find((p) => p.id === "skidmarks")?.defaultRealism ?? 60,
   );
+  // A preset tap used to always drag the slider along with it — dragging the
+  // slider yourself, then tapping a different recipe, silently threw the
+  // drag away. Once the slider's been touched by hand it stays put; only an
+  // untouched slider still takes a preset's default.
+  const [realismTouched, setRealismTouched] = useState(false);
   const [targetDurationSec, setTargetDurationSec] = useState(60);
 
   const [job, setJob] = useState<MobileGenJob | null>(null);
@@ -247,18 +253,15 @@ export default function MobileHomePage() {
     <main style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
       {/* Completed-step trail */}
       {job || localStep !== "prompt" ? (
-        <div>
-          {prompt ? <CompletedStepRow title="Prompt" summary={prompt} /> : null}
-          {job || localStep === "duration" ? (
-            <CompletedStepRow title="Style" summary={preset.label} />
-          ) : null}
-          {job ? (
-            <CompletedStepRow
-              title="Duration"
-              summary={`~${Math.round(targetDurationSec / 60) || targetDurationSec / 60} min · ~${shotEstimate} clips`}
-            />
-          ) : null}
-        </div>
+        <CompletedTrail
+          prompt={prompt || undefined}
+          style={job || localStep === "duration" ? preset.label : undefined}
+          duration={
+            job
+              ? `~${Math.round(targetDurationSec / 60) || targetDurationSec / 60} min · ~${shotEstimate} clips`
+              : undefined
+          }
+        />
       ) : null}
 
       {error ? (
@@ -306,7 +309,10 @@ export default function MobileHomePage() {
               max={100}
               step={5}
               value={styleRealism}
-              onChange={(e) => setStyleRealism(Number(e.target.value))}
+              onChange={(e) => {
+                setRealismTouched(true);
+                setStyleRealism(Number(e.target.value));
+              }}
               aria-label="Cartoon to photoreal"
               style={{ width: "100%", accentColor: "var(--acid)" }}
             />
@@ -315,24 +321,26 @@ export default function MobileHomePage() {
           <div style={{ fontSize: "12px", color: "var(--chrome-dim)", marginBottom: "8px" }}>
             Start from a show recipe
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px", overflow: "auto" }}>
+          <div style={{ display: "flex", gap: "10px", overflowX: "auto", padding: "2px 2px 4px" }}>
             {SHOW_STYLE_PRESETS.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => {
                   setStyleId(p.id);
-                  setStyleRealism(p.defaultRealism);
+                  if (!realismTouched) setStyleRealism(p.defaultRealism);
                 }}
                 style={{
                   ...(p.id === styleId ? mobileCardSelected : mobileCard),
                   textAlign: "left",
-                  padding: "14px",
+                  padding: "12px",
                   color: "var(--chrome)",
+                  flex: "0 0 auto",
+                  width: "140px",
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: "15px" }}>{p.label}</div>
-                <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "2px" }}>{p.tagline}</div>
+                <div style={{ fontWeight: 700, fontSize: "14px" }}>{p.label}</div>
+                <div style={{ color: "var(--chrome-dim)", fontSize: "11px", marginTop: "2px" }}>{p.tagline}</div>
               </button>
             ))}
           </div>
@@ -435,7 +443,9 @@ export default function MobileHomePage() {
       {/* Steps 6-7: auto-build (plates + voices) */}
       {job && (job.phase === "plates" || job.phase === "voices") && (
         <ActiveStepPanel
-          title={job.phase === "plates" ? "Building the shots…" : "Casting voices…"}
+          title={
+            <ShimmerText>{job.phase === "plates" ? "Building the shots…" : "Casting voices…"}</ShimmerText>
+          }
           subtitle="This runs on its own — sit tight."
         >
           {/* Everything picked stays on screen while the slow phases run. A
@@ -464,7 +474,7 @@ export default function MobileHomePage() {
       {/* Step 9: Animate */}
       {job && (job.phase === "animate" || job.phase === "stitch") && (
         <ActiveStepPanel
-          title="Animating…"
+          title={<ShimmerText>Animating…</ShimmerText>}
           subtitle={
             job.phase === "animate"
               ? `${job.clips.filter((c) => c.clipStatus !== "pending").length}/${job.clips.length} clips`
@@ -511,6 +521,74 @@ export default function MobileHomePage() {
   );
 }
 
+/** Prompt/Style/Duration used to be three full-width rows eating the top of
+ * the screen before anything else could show — one line, tap to expand. */
+function CompletedTrail({
+  prompt,
+  style,
+  duration,
+}: {
+  prompt?: string;
+  style?: string;
+  duration?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const parts = [prompt, style, duration].filter(Boolean) as string[];
+  if (!parts.length) return null;
+
+  return (
+    <div style={{ borderBottom: "1px solid var(--line)" }}>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "10px 16px",
+          background: "none",
+          border: "none",
+          textAlign: "left",
+          cursor: "pointer",
+        }}
+      >
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            fontSize: "12px",
+            color: "var(--chrome-dim)",
+          }}
+        >
+          {parts.join("  ·  ")}
+        </span>
+        <span
+          style={{
+            color: "var(--chrome-dim)",
+            fontSize: "10px",
+            flex: "0 0 auto",
+            transform: expanded ? "rotate(180deg)" : "none",
+            transition: "transform 150ms",
+          }}
+        >
+          ▾
+        </span>
+      </button>
+      {expanded ? (
+        <div style={{ paddingBottom: "4px" }}>
+          {prompt ? <CompletedStepRow title="Prompt" summary={prompt} /> : null}
+          {style ? <CompletedStepRow title="Style" summary={style} /> : null}
+          {duration ? <CompletedStepRow title="Duration" summary={duration} /> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BusySpinner() {
   return (
     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -546,19 +624,8 @@ function InlineBusy({ label }: { label: string }) {
           animation: "spin 900ms linear infinite",
         }}
       />
-      <span
-        style={{
-          fontSize: "13px",
-          color: "var(--chrome-dim)",
-          animation: "pulseLabel 1400ms ease-in-out infinite",
-        }}
-      >
-        {label}
-      </span>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes pulseLabel { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
-      `}</style>
+      <ShimmerText style={{ fontSize: "13px", fontWeight: 600 }}>{label}</ShimmerText>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -616,16 +683,18 @@ function PickedSoFar({
         >
           {heading}
         </div>
-        <div style={{ ...mobileCard, padding: "4px 10px" }}>
-          {rows.map((row, i) => (
+        <div style={{ display: "flex", gap: "10px", overflowX: "auto", padding: "2px 2px 4px" }}>
+          {rows.map((row) => (
             <div
               key={row.key}
               style={{
+                position: "relative",
+                flex: "0 0 auto",
+                width: "64px",
                 display: "flex",
+                flexDirection: "column",
                 alignItems: "center",
-                gap: "10px",
-                padding: "8px 0",
-                borderTop: i === 0 ? "none" : "1px solid var(--line)",
+                gap: "4px",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -633,15 +702,44 @@ function PickedSoFar({
                 src={row.src}
                 alt=""
                 style={{
-                  width: "40px",
-                  height: "40px",
+                  width: "64px",
+                  height: "64px",
                   objectFit: "cover",
                   borderRadius: "10px",
-                  flex: "0 0 auto",
                 }}
               />
-              <span style={{ fontSize: "13px", color: "var(--chrome)" }}>{row.label}</span>
-              <span style={{ marginLeft: "auto", color: "var(--acid)", fontSize: "13px" }}>✓</span>
+              <span
+                style={{
+                  position: "absolute",
+                  top: "2px",
+                  right: "2px",
+                  background: "var(--acid)",
+                  color: "var(--void)",
+                  borderRadius: "999px",
+                  width: "16px",
+                  height: "16px",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ✓
+              </span>
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "var(--chrome-dim)",
+                  textAlign: "center",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  width: "100%",
+                }}
+              >
+                {row.label}
+              </span>
             </div>
           ))}
         </div>
