@@ -5,7 +5,7 @@ import {
   putBlobFile,
   showAssetPathname,
 } from "./blobStore";
-import { upsertNeonShowFile } from "./neonStore";
+import { findNeonShowFile, upsertNeonShowFile } from "./neonStore";
 import { cloudListShowFiles } from "./cloudShelf";
 // Aliased: it is a plain env check, not a React hook, and the `use` prefix
 // otherwise trips rules-of-hooks in every non-component file that calls it.
@@ -13,9 +13,19 @@ import { useCloudStore as cloudStoreEnabled } from "./cloudEnv";
 import { CRASH_DIR } from "./paths";
 import { buildCrashGenLook } from "./imageGen";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
-import { characterPlateFilename, characterPlateLayout } from "./characterPlatePrompt";
+import {
+  characterPlateFilename,
+  characterPlateLayout,
+  characterPlateOverwriteError,
+  characterPlateSlug,
+} from "./characterPlatePrompt";
 
-export { characterPlateFilename, characterPlateLayout } from "./characterPlatePrompt";
+export {
+  characterPlateFilename,
+  characterPlateLayout,
+  characterPlateOverwriteError,
+  characterPlateSlug,
+} from "./characterPlatePrompt";
 
 /**
  * Character plates — the multi-view sheet (front / three-quarter / profile /
@@ -118,14 +128,35 @@ export async function saveCharacterPlate(opts: {
   buffer: Buffer;
   ext: string;
   note?: string;
+  /** Default false — a series sheet is not replaced by a later pick or a test. */
+  replace?: boolean;
 }): Promise<CharacterPlate> {
   const name = opts.name.trim();
   if (!name) throw new Error("Character plate needs a character name");
 
   const filename = characterPlateFilename(name, opts.ext);
   const dir = characterPlateDir(opts.styleId);
+  const localPath = path.join(dir, filename);
+  const existing = opts.replace ? null : await findCharacterPlate(opts.styleId, name);
+  const cloudRow =
+    !opts.replace && cloudStoreEnabled()
+      ? await findNeonShowFile({
+          showId: opts.styleId,
+          kind: PLATE_KIND,
+          filename,
+        })
+      : null;
+  const blocked = characterPlateOverwriteError({
+    name,
+    filename,
+    replace: opts.replace,
+    existingFilename: existing?.filename || null,
+    localExists: fs.existsSync(localPath),
+    cloudExists: Boolean(cloudRow),
+  });
+  if (blocked) throw new Error(blocked);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, filename), opts.buffer);
+  fs.writeFileSync(localPath, opts.buffer);
   writeLocalManifest(opts.styleId, filename, name);
 
   let url = characterPlateFileUrl(opts.styleId, filename);
@@ -135,6 +166,7 @@ export async function saveCharacterPlate(opts: {
       pathname,
       body: opts.buffer,
       contentType: blobContentType(PLATE_KIND, filename),
+      allowOverwrite: !!opts.replace,
     });
     await upsertNeonShowFile({
       showId: opts.styleId,
@@ -180,21 +212,19 @@ export async function listCharacterPlates(
   return [...byName.values()];
 }
 
-/** One character's plate, matched the way the plate compositor matches cast:
- * exact name first, then a containment match either way. */
+/** One character's plate. Match the file slug, not a loose contains —
+ * "Jo" must not pick up Crazy Jo, and "Ranger Bazza" must still find
+ * a shelf row labelled RANGER BAZZA. */
 export async function findCharacterPlate(
   styleId: ShowStyleId,
   name: string,
 ): Promise<CharacterPlate | null> {
-  const wanted = name.trim().toLowerCase();
+  const wanted = characterPlateSlug(name);
   if (!wanted) return null;
   const plates = await listCharacterPlates(styleId);
   return (
-    plates.find((p) => p.name.trim().toLowerCase() === wanted) ||
-    plates.find((p) => {
-      const n = p.name.trim().toLowerCase();
-      return n.includes(wanted) || wanted.includes(n);
-    }) ||
+    plates.find((p) => characterPlateSlug(p.name) === wanted) ||
+    plates.find((p) => characterPlateSlug(p.filename.replace(/^plate_|\.[^.]+$/g, "")) === wanted) ||
     null
   );
 }

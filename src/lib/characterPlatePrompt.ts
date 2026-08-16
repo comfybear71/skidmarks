@@ -1,14 +1,42 @@
 /** Filename + sheet layout only — no cloud/image imports, so the check
  * script can load it. Live shelf: shows/{show}/character-plates/plate_baby.jpg */
 
-export function characterPlateFilename(name: string, ext: string): string {
-  const slug = name
+/** Same slug the file is stored under — "Ranger Bazza" and "RANGER BAZZA"
+ * are one character; "Jo" is not "Crazy Jo". */
+export function characterPlateSlug(name: string): string {
+  return name
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+export function characterPlateFilename(name: string, ext: string): string {
   const dotted = ext.startsWith(".") ? ext : `.${ext}`;
-  return `plate_${slug || "character"}${dotted}`;
+  return `plate_${characterPlateSlug(name) || "character"}${dotted}`;
+}
+
+/** Why a write must stop. Null means go ahead. Isolated so the check
+ * script can cover Baby-stays-Baby without touching Blob. */
+export function characterPlateOverwriteError(opts: {
+  name: string;
+  filename: string;
+  replace?: boolean;
+  existingFilename?: string | null;
+  localExists?: boolean;
+  cloudExists?: boolean;
+}): string | null {
+  if (opts.replace) return null;
+  if (opts.existingFilename) {
+    return `${opts.name} already has a character plate (${opts.existingFilename}) — will not overwrite`;
+  }
+  if (opts.localExists) {
+    return `${opts.filename} is already on the local shelf — will not overwrite`;
+  }
+  if (opts.cloudExists) {
+    return `${opts.filename} is already on the series shelf — will not overwrite`;
+  }
+  return null;
 }
 
 /** Skidmarks = four waist-up views. Sunny / cartoon slider = full-body plus heads. Never mix. */

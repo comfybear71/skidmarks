@@ -7,8 +7,9 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * POST multipart: file, styleId, name, note? — store one character's
- * multi-view sheet on the show's shelf.
+ * POST multipart: file, styleId, name, note?, replace? — store one
+ * character's multi-view sheet on the show's shelf. replace=1 is the
+ * only way to put a new file on a name that already has a sheet.
  *
  * name is required rather than inferred from the filename: the plate is
  * looked up by character name later, and a sheet filed under the wrong name
@@ -43,12 +44,16 @@ export async function POST(req: Request) {
           ? ".webp"
           : ".png");
 
+    const replaceRaw = String(form.get("replace") || "").trim().toLowerCase();
+    const replace = replaceRaw === "1" || replaceRaw === "true";
+
     const plate = await saveCharacterPlate({
       styleId,
       name,
       note,
       ext,
       buffer: Buffer.from(await file.arrayBuffer()),
+      replace,
     });
 
     return NextResponse.json({ ok: true, plate });

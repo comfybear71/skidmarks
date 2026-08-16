@@ -85,13 +85,16 @@ export async function putBlobFile(opts: {
   pathname: string;
   body: Buffer;
   contentType: string;
+  /** Default true for episode media. Character plates pass false unless
+   * the caller is an explicit replace (Baby stays Baby). */
+  allowOverwrite?: boolean;
 }): Promise<{ url: string; pathname: string }> {
   const result = await put(opts.pathname, opts.body, {
     access: "public",
     token: blobToken(),
     contentType: opts.contentType,
     addRandomSuffix: false,
-    allowOverwrite: true,
+    allowOverwrite: opts.allowOverwrite !== false,
   });
   return { url: result.url, pathname: result.pathname };
 }
