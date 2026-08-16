@@ -72,6 +72,7 @@ function voiceNamesMatch(speaker: string, castName: string): boolean {
 }
 import { emptyVoiceAttempt, newId, type VoiceAttempt } from "./types";
 import {
+  clearVoiceLibraryKeeperFile,
   getVoiceLibraryEntry,
   libraryKey,
   patchVoiceLibraryApprovedId,
@@ -837,6 +838,14 @@ export async function lockCrashVoiceByExternalId(opts: {
     slot.voiceDescription = castName;
   }
 
+  // A different voice_id taking over this slot means any mp3 already on
+  // disk for it — attempt file or keeper — was spoken by the OLD voice.
+  // Both lookups (ensureCrashVoiceSample's attemptPath and the keeper,
+  // which is keyed by castName alone, not by voice) treat an existing file
+  // as "already playable" and skip synthesis, so without clearing both a
+  // locked-over voice would keep answering in whatever voice came before.
+  const voiceChanged = Boolean(slot.approvedVoiceId?.trim() && slot.approvedVoiceId.trim() !== id);
+
   let attempt = slot.approvedAttemptId
     ? slot.attempts.find((a) => a.id === slot.approvedAttemptId)
     : undefined;
@@ -850,10 +859,13 @@ export async function lockCrashVoiceByExternalId(opts: {
     });
     slot.attempts = [attempt, ...slot.attempts];
   } else {
+    if (voiceChanged) attempt.fileName = "";
     attempt.status = "approved";
     attempt.voiceId = id;
     if (!attempt.generatedVoiceId?.trim()) attempt.generatedVoiceId = id;
   }
+
+  if (voiceChanged) clearVoiceLibraryKeeperFile(opts.styleId, slot.castName);
 
   slot.approvedAttemptId = attempt.id;
   slot.approvedVoiceId = id;

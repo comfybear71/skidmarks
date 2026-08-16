@@ -122,6 +122,23 @@ export function saveVoiceKeeper(opts: {
   return entry;
 }
 
+/**
+ * Un-point a character's keeper mp3 without deleting the file itself
+ * (park, don't delete). Used when a different voice_id gets locked onto
+ * the same character — the keeper is looked up by character name alone,
+ * so without this the old audio would keep answering under the new
+ * voice's label until something happens to regenerate it.
+ */
+export function clearVoiceLibraryKeeperFile(showId: string, characterName: string): void {
+  const key = libraryKey(showId, characterName);
+  const manifest = readVoiceLibrary();
+  const entry = manifest[key];
+  if (!entry || !entry.keeperRel) return;
+  entry.keeperRel = "";
+  manifest[key] = entry;
+  writeVoiceLibrary(manifest);
+}
+
 /** Update ElevenLabs voice_id only — never touches keeper mp3. */
 export function patchVoiceLibraryApprovedId(
   showId: string,
