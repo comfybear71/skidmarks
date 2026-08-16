@@ -1084,6 +1084,7 @@ export function StudioTree({
 
         {!canWrite &&
         !lockingScript &&
+        !job.folderName &&
         !job.shots.length &&
         job.phase !== "plates" &&
         job.phase !== "error" ? (

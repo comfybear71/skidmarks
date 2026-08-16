@@ -165,7 +165,17 @@ export async function POST(req: Request) {
         };
       }
       await writeMobileStory(nextStory, job.folderName);
-      const updated = await patchMobileGenJob(jobId, { shots: [], error: "" });
+      // finalVideoFile/clips were stitched from the shots just wiped — a
+      // stale "done" video has no business surviving Clear all. Undo puts
+      // the shots back but doesn't try to resurrect an old stitch.
+      const resetPast = job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error";
+      const updated = await patchMobileGenJob(jobId, {
+        shots: [],
+        clips: [],
+        error: "",
+        finalVideoFile: "",
+        ...(resetPast ? { phase: "review" as const } : {}),
+      });
       return NextResponse.json({ ok: true, job: updated, removed });
     }
 
