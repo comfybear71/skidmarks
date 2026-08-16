@@ -1,5 +1,6 @@
 import { voiceNamesMatch } from "./voiceNameMatch";
 import { joPhoneStagingExtra } from "./mobileImageMotion";
+import { isLeftoverPackVoiceFile } from "./mobileSavedVoice";
 
 export function leftoverHydrateBeat(shotId: string, beatId: string): boolean {
   if (!shotId || !beatId) return false;
@@ -51,7 +52,7 @@ export function voiceFileBelongsToSpeaker(
   return voiceNamesMatch(fromFile, speaker);
 }
 
-type LineBeat = { id: string; speaker: string; voiceFile?: string };
+type LineBeat = { id: string; speaker: string; voiceFile?: string; text?: string };
 
 /** Line editors on a plate: people actually on this card, not leftover Comfy/Land. */
 export function plateLineBeats<T extends LineBeat>(opts: {
@@ -64,12 +65,18 @@ export function plateLineBeats<T extends LineBeat>(opts: {
   beats: T[];
 }): T[] {
   const words = [opts.title, opts.staging, opts.summary].filter(Boolean).join(" ");
-  return opts.beats.filter((b) => {
-    if (!b.speaker.trim()) return false;
-    if (leftoverHydrateBeat(opts.shotId, b.id)) return false;
-    if (!voiceFileBelongsToSpeaker(b.voiceFile, b.speaker)) return false;
-    return speakerMentionedOnPlate(b.speaker, opts.jobSpeakers, words);
-  });
+  return opts.beats
+    .filter((b) => {
+      if (!b.speaker.trim()) return false;
+      if (leftoverHydrateBeat(opts.shotId, b.id)) return false;
+      if (!voiceFileBelongsToSpeaker(b.voiceFile, b.speaker)) return false;
+      return speakerMentionedOnPlate(b.speaker, opts.jobSpeakers, words);
+    })
+    .map((b) =>
+      isLeftoverPackVoiceFile(b.voiceFile)
+        ? { ...b, voiceFile: "", text: "" }
+        : b,
+    );
 }
 
 /** Before anyone is tapped, every face stays in colour. Grey is "the rest" after a pick. */

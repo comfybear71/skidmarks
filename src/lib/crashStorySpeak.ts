@@ -66,9 +66,10 @@ export function resolveBeatAudioPath(
   if (!beatId || beatId.includes("..")) return null;
   const dirs = [storyDialogueDir(styleId), legacyAudioDir(styleId)];
   const names = [
-    voiceFile?.trim(),
-    voiceFile?.trim() ? undefined : `${beatId}.mp3`,
-  ].filter(Boolean) as string[];
+    ...new Set(
+      [voiceFile?.trim(), `${beatId}.mp3`].filter((n): n is string => Boolean(n)),
+    ),
+  ];
 
   for (const dir of dirs) {
     for (const name of names) {

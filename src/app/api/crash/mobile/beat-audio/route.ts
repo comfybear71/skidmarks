@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { resolveBeatAudioPath, synthesizeStoryBeat } from "@/lib/crashStorySpeak";
-import { resolveMobileMedia, uploadMobileMedia } from "@/lib/mobileMediaStore";
+import { synthesizeStoryBeat } from "@/lib/crashStorySpeak";
+import { resolveMobileBeatAudio } from "@/lib/resolveMobileBeatAudio";
+import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { isSafeMediaName } from "@/lib/cloudMedia";
-import { storyDialogueDir } from "@/lib/crashStoryLocations";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { upsertPendingClip } from "@/lib/mobileClipQueue";
@@ -19,7 +19,6 @@ import {
   leftoverHydrateSpeakers,
   shotSpeakersOnCard,
 } from "@/lib/mobilePlateLines";
-import path from "path";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
 export const runtime = "nodejs";
@@ -40,15 +39,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  const filePath =
-    resolveBeatAudioPath(styleId, beatId, fileName) ||
-    (await resolveMobileMedia({
-      styleId,
-      folderName,
-      kind: "audio",
-      fileName,
-      destPath: path.join(storyDialogueDir(styleId), fileName),
-    }));
+  const filePath = await resolveMobileBeatAudio({
+    styleId,
+    folderName,
+    beatId,
+    voiceFile: fileName,
+  });
   if (!filePath) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -168,7 +164,12 @@ export async function POST(req: Request) {
     );
     const patched = await patchMobileGenJob(jobId, { clips, error: "" });
     try {
-      const localPath = resolveBeatAudioPath(job.styleId, beatId, result.voiceFile);
+      const localPath = await resolveMobileBeatAudio({
+        styleId: job.styleId,
+        folderName: job.folderName,
+        beatId,
+        voiceFile: result.voiceFile,
+      });
       if (localPath) {
         await uploadMobileMedia({
           styleId: job.styleId,
