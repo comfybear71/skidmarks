@@ -16,13 +16,16 @@ import { StoryFeed } from "./StoryFeed";
 import {
   allCastApproved,
   allLocationsApproved,
+  approvedCandidateFileName,
   canLockEpisode,
   candidateLookPrompt,
   latestCandidate,
   preferredCandidate,
 } from "@/lib/mobileJobReady";
-import { characterPlateFileUrl } from "@/lib/characterPlatePrompt";
+import { characterPlateFileUrl, characterPlateSlug } from "@/lib/characterPlatePrompt";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
+import { PlusTile, ThumbTile } from "./ThumbTile";
+import { ZoomOverlay } from "./ZoomableStill";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
@@ -43,6 +46,117 @@ function castFaceUrl(
 
 function locationStillUrl(job: MobileGenJob, fileName: string): string {
   return mobileLocationStillUrl(job, fileName);
+}
+
+type ShelfPlate = { name: string; filename: string };
+
+function CharacterPlateStrip({
+  job,
+  characterIds,
+}: {
+  job: MobileGenJob;
+  characterIds: Record<string, string>;
+}) {
+  const [shelf, setShelf] = useState<ShelfPlate[]>([]);
+  const [zoomSrc, setZoomSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/crash/character-plates?styleId=${encodeURIComponent(job.styleId)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        const plates = Array.isArray(d.plates) ? (d.plates as ShelfPlate[]) : [];
+        setShelf(plates);
+      })
+      .catch(() => {
+        if (!cancelled) setShelf([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [job.styleId, job.characterPlates]);
+
+  if (!job.speakers.length) return null;
+
+  const sheetFor = (name: string): { src: string; hasSheet: boolean; pending: boolean; failed: boolean } => {
+    const row = job.characterPlates?.[name];
+    const slug = characterPlateSlug(name);
+    const fromShelf = shelf.find(
+      (p) =>
+        characterPlateSlug(p.name) === slug ||
+        characterPlateSlug(p.filename.replace(/^plate_|\.[^.]+$/g, "")) === slug,
+    );
+    const file = (row?.status === "done" && row.fileName) || fromShelf?.filename || "";
+    if (file) {
+      return { src: characterPlateFileUrl(job.styleId, file), hasSheet: true, pending: false, failed: false };
+    }
+    const pick = approvedCandidateFileName(job.castCandidates, name);
+    const pickSrc = pick ? castFaceUrl(job, name, pick, characterIds) : "";
+    return {
+      src: pickSrc,
+      hasSheet: false,
+      pending: row?.status === "pending",
+      failed: row?.status === "error",
+    };
+  };
+
+  const missing = job.speakers.filter((name) => !sheetFor(name).hasSheet).length;
+
+  return (
+    <div style={{ marginTop: "12px" }}>
+      <div
+        style={{
+          color: "var(--chrome-dim)",
+          fontSize: "10px",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          margin: "0 2px 8px",
+        }}
+      >
+        Character plates — series lock
+      </div>
+      <div
+        className="mobile-scroll"
+        style={{
+          display: "flex",
+          gap: "10px",
+          overflowX: "auto",
+          padding: "2px 2px 6px",
+          touchAction: "pan-x pan-y",
+          overscrollBehaviorX: "contain",
+        }}
+      >
+        {job.speakers.map((name) => {
+          const state = sheetFor(name);
+          const label = state.pending ? "Making…" : state.failed ? "Failed" : name;
+          return (
+            <ThumbTile
+              key={`sheet-${name}`}
+              src={state.src}
+              label={label}
+              picked={state.hasSheet}
+              failed={state.failed}
+              onClick={() => {
+                if (state.src) setZoomSrc(state.src);
+              }}
+            />
+          );
+        })}
+      </div>
+      {missing ? (
+        <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "4px 2px 0" }}>
+          {missing} of {job.speakers.length} have no series sheet yet — shot plates used the pick
+          still, so faces can drift. Tap a thumb to enlarge. Say go if you want the sheets made.
+        </div>
+      ) : (
+        <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "4px 2px 0" }}>
+          Tap a sheet to enlarge. Shot plates still use the pick still, not this 4-view sheet.
+        </div>
+      )}
+      {zoomSrc ? <ZoomOverlay src={zoomSrc} alt="Character plate" onClose={() => setZoomSrc(null)} /> : null}
+    </div>
+  );
 }
 
 function TreeBranch({
@@ -79,124 +193,6 @@ function TreeBranch({
         {children}
       </div>
     </section>
-  );
-}
-
-function ThumbTile({
-  src,
-  label,
-  picked,
-  onClick,
-}: {
-  src: string;
-  label: string;
-  picked?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        flex: "0 0 auto",
-        width: "72px",
-        padding: 0,
-        border: "none",
-        background: "none",
-        color: "var(--chrome)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "4px",
-      }}
-    >
-      <span style={{ position: "relative", width: "72px", height: "72px" }}>
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt=""
-            style={{
-              width: "72px",
-              height: "72px",
-              objectFit: "cover",
-              borderRadius: "10px",
-              display: "block",
-              border: picked ? "2px solid var(--acid)" : "2px solid transparent",
-            }}
-          />
-        ) : (
-          <span
-            style={{
-              width: "72px",
-              height: "72px",
-              borderRadius: "10px",
-              display: "block",
-              background: "var(--panel-2)",
-              border: "2px solid var(--line)",
-            }}
-          />
-        )}
-        {picked ? (
-          <span
-            style={{
-              position: "absolute",
-              top: "2px",
-              right: "2px",
-              background: "var(--acid)",
-              color: "var(--void)",
-              borderRadius: "999px",
-              width: "16px",
-              height: "16px",
-              fontSize: "10px",
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            ✓
-          </span>
-        ) : null}
-      </span>
-      <span
-        style={{
-          fontSize: "11px",
-          color: "var(--chrome-dim)",
-          width: "100%",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          textAlign: "center",
-        }}
-      >
-        {label}
-      </span>
-    </button>
-  );
-}
-
-function PlusTile({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        flex: "0 0 auto",
-        width: "72px",
-        height: "72px",
-        borderRadius: "10px",
-        border: "1px dashed var(--line)",
-        background: "transparent",
-        color: "var(--acid)",
-        fontSize: "28px",
-        fontWeight: 400,
-        lineHeight: 1,
-      }}
-      aria-label={label}
-    >
-      +
-    </button>
   );
 }
 
@@ -797,46 +793,7 @@ export function StudioTree({
             onUpload={(file) => onUploadCast(castFocus, file)}
           />
         ) : null}
-        {job.speakers.map((name) => {
-          const row = job.characterPlates?.[name];
-          if (!row) return null;
-          return (
-            <div key={`plate-${name}`} style={{ marginTop: "12px" }}>
-              <div
-                style={{
-                  color: "var(--chrome-dim)",
-                  fontSize: "11px",
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  marginBottom: "6px",
-                }}
-              >
-                Character plate · {name}
-              </div>
-              {row?.status === "pending" ? (
-                <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "8px 0" }}>
-                  <ShimmerText>Locking {name} for the series</ShimmerText>
-                </div>
-              ) : row?.status === "error" ? (
-                <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>
-                  {row.error || "Couldn't make the character plate"}
-                </div>
-              ) : row?.fileName ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={characterPlateFileUrl(job.styleId, row.fileName)}
-                  alt={`${name} character plate`}
-                  style={{
-                    width: "100%",
-                    borderRadius: "10px",
-                    display: "block",
-                    border: "1px solid var(--line)",
-                  }}
-                />
-              ) : null}
-            </div>
-          );
-        })}
+        <CharacterPlateStrip job={job} characterIds={characterIds} />
       </TreeBranch>
 
       <TreeBranch label="Locations">
@@ -972,7 +929,13 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {plated.length && (job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error") ? (
+        {job.shots.length &&
+        (job.phase === "plates" ||
+          job.phase === "review" ||
+          job.phase === "animate" ||
+          job.phase === "stitch" ||
+          job.phase === "done" ||
+          job.phase === "error") ? (
           <PlateReviewEditor job={job} onJobChange={onJobChange} />
         ) : null}
 

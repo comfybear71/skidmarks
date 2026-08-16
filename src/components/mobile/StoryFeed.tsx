@@ -36,33 +36,6 @@ export function StoryFeed({
     return shotId;
   };
 
-  const platedShots = job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__");
-  if (platedShots.length) {
-    rows.push({
-      key: "plates",
-      node: (
-        <FeedCard key="plates" title={`Shots plated (${platedShots.length}/${job.shots.length})`}>
-          <div className="mobile-scroll" style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "2px" }}>
-            {platedShots.map((s) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={s.shotId}
-                src={`/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`}
-                alt={shotLabel(s.sceneId)}
-                style={{
-                  width: "84px",
-                  height: "84px",
-                  objectFit: "cover",
-                  borderRadius: "10px",
-                  flex: "0 0 auto",
-                }}
-              />
-            ))}
-          </div>
-        </FeedCard>
-      ),
-    });
-  }
   const failedShots = job.shots.filter((s) => s.plateFile === "__error__");
   if (failedShots.length) {
     rows.push({

@@ -13,7 +13,7 @@ Logged **2026-08-06** after cafe plating worked 100% better with stylised locati
 | **Remove** a character or location from the CAST / LOCATIONS row | + only adds. A wrong name or a leftover has no way off the tree. Must not delete the still — park it. Must not wipe the job. |
 | **Tap a picked cast thumb → series character plate** (the 4-view sheet), not a bigger profile pic | Profile is the pick still. The plate is the series lock (front / 3/4 / profile / back). If no plate exists yet, show the pick still and say the sheet is not made. |
 
-**No code until Stuie says go after this episode's script.** Script path is now: template → AI draft on the locked cast/places → refine → lock (Crash Lab pack). Do not build remove-cast mid-episode.
+The character-plate **row** now lists each speaker (empty = no sheet). **Do not generate** the eight CRAZY BIG HOLE JO sheets unless Stuie says go. Remove-cast still waits.
 
 ---
 

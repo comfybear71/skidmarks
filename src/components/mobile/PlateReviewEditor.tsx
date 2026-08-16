@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
+import { ThumbTile } from "./ThumbTile";
 import { ZoomableStill, ZoomOverlay } from "./ZoomableStill";
 import { useMobileAssist } from "./useMobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
@@ -50,11 +51,10 @@ export function PlateReviewEditor({
     };
   }, [job.styleId, job.folderName]);
 
-  const platedShots = job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__");
-  if (!platedShots.length) return null;
+  if (!job.shots.length) return null;
   const plateSrcFor = (fileName: string) =>
     `/api/crash/gen/file?name=${encodeURIComponent(fileName)}`;
-  const openPlate = platedShots.find((s) => s.shotId === openShotId);
+  const openPlate = job.shots.find((s) => s.shotId === openShotId && s.plateFile && s.plateFile !== "__error__");
 
   const shotById = (shotId: string): CrashStoryShot | null => {
     if (!story) return null;
@@ -78,38 +78,40 @@ export function PlateReviewEditor({
       >
         Shots — tap one to stage the plate and check the line
       </div>
-      <div className="mobile-scroll" style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "2px 2px 10px" }}>
-        {platedShots.map((s) => {
-          const src = plateSrcFor(s.plateFile);
+      <div
+        className="mobile-scroll"
+        style={{
+          display: "flex",
+          gap: "10px",
+          overflowX: "auto",
+          padding: "2px 2px 10px",
+          touchAction: "pan-x pan-y",
+          overscrollBehaviorX: "contain",
+        }}
+      >
+        {job.shots.map((s, i) => {
+          const failed = s.plateFile === "__error__";
+          const ready = Boolean(s.plateFile && !failed);
+          const src = ready ? plateSrcFor(s.plateFile) : "";
           const selected = s.shotId === openShotId;
+          const place = job.scenes.find((sc) => sc.id === s.sceneId)?.placeName || "";
+          const title = shotById(s.shotId)?.title || place || `Shot ${i + 1}`;
           return (
-            <button
+            <ThumbTile
               key={s.shotId}
-              type="button"
+              src={src}
+              label={failed ? "Failed" : ready ? title : "…"}
+              picked={selected}
+              failed={failed}
               onClick={() => {
+                if (!ready) return;
                 if (selected) {
                   setZoomSrc(src);
                   return;
                 }
                 setOpenShotId(s.shotId);
               }}
-              style={{
-                padding: "2px",
-                border: selected ? "2px solid var(--acid)" : "2px solid transparent",
-                borderRadius: "12px",
-                flex: "0 0 auto",
-                background: "none",
-                cursor: selected ? "zoom-in" : "pointer",
-                lineHeight: 0,
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={src}
-                alt=""
-                style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "9px", display: "block" }}
-              />
-            </button>
+            />
           );
         })}
       </div>
@@ -121,7 +123,7 @@ export function PlateReviewEditor({
           styleId={job.styleId}
           folderName={job.folderName}
           jobId={job.id}
-          plateSrc={openPlate ? plateSrcFor(openPlate.plateFile) : ""}
+          plateSrc={openPlate?.plateFile ? plateSrcFor(openPlate.plateFile) : ""}
           shot={shotById(openShotId)}
           loading={!story && !loadError}
           error={loadError}
