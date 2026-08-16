@@ -254,7 +254,7 @@ export function PlateReviewEditor({
           >
             Shots — tap one, tweak position, redraw. Tap the picture to inspect.
           </div>
-          {shots.length ? (
+          {shots.length || job.finalVideoFile ? (
             <button
               type="button"
               onClick={() => setClearConfirm((v) => !v)}
@@ -271,7 +271,7 @@ export function PlateReviewEditor({
                 cursor: "pointer",
               }}
             >
-              Clear all
+              {shots.length ? "Clear all" : "Clear video"}
             </button>
           ) : null}
         </div>
@@ -289,8 +289,9 @@ export function PlateReviewEditor({
           }}
         >
           <div style={{ flex: 1, fontSize: "12px", color: "var(--chrome)" }}>
-            Remove all {shots.length} shot{shots.length === 1 ? "" : "s"}? Plates and audio already made stay on
-            disk — Undo puts the cards straight back.
+            {shots.length
+              ? `Remove all ${shots.length} shot${shots.length === 1 ? "" : "s"}? Plates and audio already made stay on disk — Undo puts the cards straight back.`
+              : "Clear the leftover stitched video? It was built from shots that are already gone."}
           </div>
           <button
             type="button"
