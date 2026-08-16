@@ -4,7 +4,7 @@ import { compositeShotPlate } from "@/lib/mobilePlates";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
-import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
+import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 import { newId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
 
@@ -14,7 +14,7 @@ export const maxDuration = 180;
 function patchShotFields(
   story: CrashStoryDoc,
   shotId: string,
-  patch: { staging?: string; summary?: string; plateFile?: string },
+  patch: { staging?: string; summary?: string; plateFile?: string; plateTakes?: PlateTake[] },
 ): CrashStoryDoc {
   return {
     ...story,
@@ -35,8 +35,16 @@ function patchShotFields(
  * POST { jobId, sceneId, speaker, action: "add" } — add a new solo shot
  * card for one character at that location. One beat, that speaker only.
  * POST { jobId, shotId, action: "remove" } — take the shot out of the
- * strip entirely (add's undo). Any plate/audio it made stays on disk/Blob,
- * just unlinked — same park-don't-delete rule as "drop".
+ * strip entirely. Any plate/audio it made stays on disk/Blob, just
+ * unlinked — same park-don't-delete rule as "drop". Returns the removed
+ * shot + its sceneId so the caller can offer Undo.
+ * POST { jobId, action: "clear" } — remove every shot on this job in one
+ * go (start fresh). Returns the full removed list for Undo.
+ * POST { jobId, sceneId, shot, action: "restore" } — undo for "remove"/
+ * "clear": puts an exact shot object back where it came from.
+ * POST { jobId, shotId, takeId, action: "pick" } — a conversation shot can
+ * carry several takes (drawn on different position tweaks); this mirrors
+ * one onto plateFile/staging without drawing anything new.
  */
 export async function POST(req: Request) {
   try {
@@ -48,11 +56,14 @@ export async function POST(req: Request) {
       staging?: string;
       summary?: string;
       action?: string;
+      shot?: CrashStoryShot;
+      takeId?: string;
     };
     const jobId = (body.jobId || "").trim();
     const shotId = (body.shotId || "").trim();
     const sceneIdIn = (body.sceneId || "").trim();
     const speakerIn = (body.speaker || "").trim();
+    const takeIdIn = (body.takeId || "").trim();
     const stagingIn = body.staging !== undefined ? String(body.staging) : undefined;
     const summaryIn = body.summary !== undefined ? String(body.summary) : undefined;
     const action = (body.action || "rebuild").trim().toLowerCase();
@@ -60,11 +71,20 @@ export async function POST(req: Request) {
     const saveOnly = action === "save";
     const add = action === "add";
     const remove = action === "remove";
+    const clear = action === "clear";
+    const restore = action === "restore";
+    const pick = action === "pick";
     if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
-    if (!add && !shotId) return NextResponse.json({ error: "Need shotId" }, { status: 400 });
+    if (!add && !remove && !clear && !restore && !shotId) {
+      return NextResponse.json({ error: "Need shotId" }, { status: 400 });
+    }
     if (add && !sceneIdIn) return NextResponse.json({ error: "Need sceneId" }, { status: 400 });
     if (add && !speakerIn) return NextResponse.json({ error: "Need a character" }, { status: 400 });
-    if (!drop && !saveOnly && !add && !remove && !(stagingIn || "").trim()) {
+    if (restore && (!sceneIdIn || !body.shot?.id)) {
+      return NextResponse.json({ error: "Need sceneId and shot" }, { status: 400 });
+    }
+    if (pick && !takeIdIn) return NextResponse.json({ error: "Need takeId" }, { status: 400 });
+    if (!drop && !saveOnly && !add && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
       return NextResponse.json(
         { error: "Say who sits where — not two people stuck in the front." },
         { status: 400 },
@@ -107,23 +127,89 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, job: updated, shotId: newShot.id });
     }
 
+    if (restore) {
+      const sceneIn = story.scenes.find((sc) => sc.id === sceneIdIn);
+      if (!sceneIn) return NextResponse.json({ error: "That location is not in the story" }, { status: 404 });
+      const shotIn = body.shot as CrashStoryShot;
+      const already = sceneIn.shots.some((sh) => sh.id === shotIn.id);
+      const nextStory: CrashStoryDoc = already
+        ? story
+        : {
+            ...story,
+            scenes: story.scenes.map((sc) =>
+              sc.id === sceneIn.id ? { ...sc, shots: [...sc.shots, shotIn] } : sc,
+            ),
+          };
+      await writeMobileStory(nextStory, job.folderName);
+      const inShots = job.shots.some((s) => s.shotId === shotIn.id);
+      const shots = inShots
+        ? job.shots
+        : [...job.shots, { shotId: shotIn.id, sceneId: sceneIn.id, plateFile: shotIn.plateFile || "" }];
+      const updated = await patchMobileGenJob(jobId, { shots, error: "" });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (clear) {
+      const removed: { sceneId: string; shot: CrashStoryShot }[] = [];
+      let nextStory = story;
+      for (const s of job.shots) {
+        const sc = nextStory.scenes.find((sc) => sc.shots.some((sh) => sh.id === s.shotId));
+        const sh = sc?.shots.find((sh) => sh.id === s.shotId);
+        if (!sc || !sh) continue;
+        removed.push({ sceneId: sc.id, shot: sh });
+        nextStory = {
+          ...nextStory,
+          scenes: nextStory.scenes.map((x) =>
+            x.id === sc.id ? { ...x, shots: x.shots.filter((y) => y.id !== sh.id) } : x,
+          ),
+        };
+      }
+      await writeMobileStory(nextStory, job.folderName);
+      const updated = await patchMobileGenJob(jobId, { shots: [], error: "" });
+      return NextResponse.json({ ok: true, job: updated, removed });
+    }
+
     let scene = story.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId));
     let shot = scene?.shots.find((sh) => sh.id === shotId);
     if (!scene || !shot) {
       return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
     }
 
+    if (pick) {
+      const take = (shot.plateTakes || []).find((t) => t.id === takeIdIn);
+      if (!take) return NextResponse.json({ error: "That take is not on this shot" }, { status: 404 });
+      const plateTakes = (shot.plateTakes || []).map((t) => ({ ...t, approved: t.id === takeIdIn }));
+      const picked = patchShotFields(story, shotId, {
+        plateFile: take.fileName,
+        staging: take.staging,
+        plateTakes,
+      });
+      await writeMobileStory(picked, job.folderName);
+      const shots = job.shots.map((s) =>
+        s.shotId === shotId ? { ...s, plateFile: take.fileName, error: "" } : s,
+      );
+      const updated = await patchMobileGenJob(jobId, { shots, error: "" });
+      return NextResponse.json({ ok: true, job: updated, plateFile: take.fileName, staging: take.staging });
+    }
+
     if (remove) {
-      const removed: CrashStoryDoc = {
+      const removedShot = shot;
+      const removedSceneId = scene.id;
+      const removedStory: CrashStoryDoc = {
         ...story,
         scenes: story.scenes.map((sc) =>
-          sc.id === scene!.id ? { ...sc, shots: sc.shots.filter((sh) => sh.id !== shotId) } : sc,
+          sc.id === removedSceneId ? { ...sc, shots: sc.shots.filter((sh) => sh.id !== shotId) } : sc,
         ),
       };
-      await writeMobileStory(removed, job.folderName);
+      await writeMobileStory(removedStory, job.folderName);
       const shots = job.shots.filter((s) => s.shotId !== shotId);
       const updated = await patchMobileGenJob(jobId, { shots, error: "" });
-      return NextResponse.json({ ok: true, job: updated });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        removedShot,
+        sceneId: removedSceneId,
+      });
     }
 
     if (drop) {
@@ -183,13 +269,15 @@ export async function POST(req: Request) {
       /* still usable this request */
     }
 
-    const plated = patchShotFields(nextStory, shotId, { plateFile: fileName, staging });
+    const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: true };
+    const plateTakes = [...(shot.plateTakes || []).map((t) => ({ ...t, approved: false })), newTake];
+    const plated = patchShotFields(nextStory, shotId, { plateFile: fileName, staging, plateTakes });
     await writeMobileStory(plated, job.folderName);
     const shots = job.shots.map((s) =>
       s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
     );
     const updated = await patchMobileGenJob(jobId, { shots, error: "" });
-    return NextResponse.json({ ok: true, job: updated, plateFile: fileName });
+    return NextResponse.json({ ok: true, job: updated, plateFile: fileName, plateTakes });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },

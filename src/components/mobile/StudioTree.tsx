@@ -12,6 +12,7 @@ import {
 import { episodeTemplateFromJob } from "@/lib/mobilePasteParse";
 import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
+import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
 import {
@@ -48,9 +49,11 @@ function locationStillUrl(job: MobileGenJob, fileName: string): string {
 
 function TreeBranch({
   label,
+  headerRight,
   children,
 }: {
   label: string;
+  headerRight?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -68,7 +71,8 @@ function TreeBranch({
         }}
       >
         <span style={{ color: "var(--acid)", fontSize: "12px" }}>▸</span>
-        {label}
+        <span style={{ flex: 1 }}>{label}</span>
+        {headerRight}
       </div>
       <div
         style={{
@@ -213,6 +217,30 @@ function ThumbTile({
         </button>
       ) : null}
     </div>
+  );
+}
+
+function CollapseToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={open ? "Collapse to thumbnails" : "Expand"}
+      style={{
+        flex: "0 0 auto",
+        padding: "2px 8px",
+        borderRadius: "2px",
+        border: "1px solid var(--line)",
+        background: "transparent",
+        color: "var(--chrome-dim)",
+        fontSize: "10px",
+        letterSpacing: "0.06em",
+        textTransform: "none",
+        cursor: "pointer",
+      }}
+    >
+      {open ? "▾ Collapse" : "▸ Expand"}
+    </button>
   );
 }
 
@@ -413,6 +441,8 @@ function CandidatePicker({
   error,
   promptPlaceholder,
   promptLabel = "Look",
+  hideUpload,
+  extra,
   onGenerate,
   onApprove,
   onUpload,
@@ -426,6 +456,12 @@ function CandidatePicker({
   error: string;
   promptPlaceholder: string;
   promptLabel?: string;
+  /** Cast doesn't need "drop your own photo" now that voice lives in this
+   * same card — one less way in, one less thing to double-handle. */
+  hideUpload?: boolean;
+  /** Extra content rendered after the Look row — the per-character voice
+   * control, so face/look/voice are one card instead of three. */
+  extra?: ReactNode;
   onGenerate: (customPrompt?: string) => void;
   onApprove: (candidateId: string) => void;
   onUpload: (file: File) => void;
@@ -610,39 +646,42 @@ function CandidatePicker({
           </button>
         </div>
       ) : null}
-      <div style={{ marginTop: "8px" }}>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          hidden
-          onChange={(e) => {
-            takeFile(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => fileRef.current?.click()}
-          style={{
-            width: "100%",
-            padding: "10px",
-            borderRadius: "8px",
-            border: "1px dashed var(--line)",
-            background: "transparent",
-            color: "var(--chrome-dim)",
-            fontSize: "12px",
-          }}
-        >
-          {dragOver ? "Drop it here" : "Drop a photo — or tap to choose. More nudges the still on screen."}
-        </button>
-      </div>
+      {hideUpload ? null : (
+        <div style={{ marginTop: "8px" }}>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={(e) => {
+              takeFile(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: "8px",
+              border: "1px dashed var(--line)",
+              background: "transparent",
+              color: "var(--chrome-dim)",
+              fontSize: "12px",
+            }}
+          >
+            {dragOver ? "Drop it here" : "Drop a photo — or tap to choose. More nudges the still on screen."}
+          </button>
+        </div>
+      )}
       {promptAssist.aiError ? (
         <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
           {promptAssist.aiError}
         </div>
       ) : null}
+      {extra ? <div style={{ marginTop: "10px" }}>{extra}</div> : null}
     </div>
   );
 }
@@ -697,6 +736,9 @@ export function StudioTree({
   const [adding, setAdding] = useState<"cast" | "location" | null>(null);
   const [openCast, setOpenCast] = useState<string | null>(null);
   const [openPlace, setOpenPlace] = useState<string | null>(null);
+  const [castOpen, setCastOpen] = useState(true);
+  const [locationsOpen, setLocationsOpen] = useState(true);
+  const [platesOpen, setPlatesOpen] = useState(true);
   const [scriptDraft, setScriptDraft] = useState("");
   const episodeHint = [
     `Vibe: ${job.prompt}`,
@@ -759,7 +801,7 @@ export function StudioTree({
         </div>
       </TreeBranch>
 
-      <TreeBranch label="Cast">
+      <TreeBranch label="Cast" headerRight={<CollapseToggle open={castOpen} onToggle={() => setCastOpen((v) => !v)} />}>
         <div
           style={{
             display: "flex",
@@ -773,6 +815,7 @@ export function StudioTree({
           <PlusTile
             label="Add a character"
             onClick={() => {
+              setCastOpen(true);
               setAdding("cast");
               setOpenCast(null);
             }}
@@ -793,6 +836,7 @@ export function StudioTree({
                 label={name}
                 picked={Boolean(chosen)}
                 onClick={() => {
+                  setCastOpen(true);
                   setAdding(null);
                   setOpenCast(name);
                 }}
@@ -800,7 +844,7 @@ export function StudioTree({
             );
           })}
         </div>
-        {adding === "cast" ? (
+        {castOpen && adding === "cast" ? (
           <AddForm
             styleId={job.styleId}
             nameKind="cast_look"
@@ -815,7 +859,7 @@ export function StudioTree({
             onCancel={() => setAdding(null)}
           />
         ) : null}
-        {castFocus && adding !== "cast" ? (
+        {castOpen && castFocus && adding !== "cast" ? (
           <CandidatePicker
             key={`cast-${castFocus}`}
             styleId={job.styleId}
@@ -826,6 +870,8 @@ export function StudioTree({
             error={error}
             promptPlaceholder="e.g. more like a grumpy dad"
             promptLabel="Look"
+            hideUpload
+            extra={<CastVoiceRow key={castFocus} jobId={job.id} name={castFocus} />}
             onGenerate={(p) => onGenerateCast(castFocus, p)}
             onApprove={(id) => {
               void (async () => {
@@ -840,7 +886,10 @@ export function StudioTree({
         ) : null}
       </TreeBranch>
 
-      <TreeBranch label="Locations">
+      <TreeBranch
+        label="Locations"
+        headerRight={<CollapseToggle open={locationsOpen} onToggle={() => setLocationsOpen((v) => !v)} />}
+      >
         <div
           style={{
             display: "flex",
@@ -854,6 +903,7 @@ export function StudioTree({
           <PlusTile
             label="Add a location"
             onClick={() => {
+              setLocationsOpen(true);
               setAdding("location");
               setOpenPlace(null);
             }}
@@ -869,6 +919,7 @@ export function StudioTree({
                 label={scene.placeName}
                 picked={Boolean(chosen)}
                 onClick={() => {
+                  setLocationsOpen(true);
                   setAdding(null);
                   setOpenPlace(scene.id);
                 }}
@@ -876,7 +927,7 @@ export function StudioTree({
             );
           })}
         </div>
-        {adding === "location" ? (
+        {locationsOpen && adding === "location" ? (
           <AddForm
             styleId={job.styleId}
             nameKind="location"
@@ -889,7 +940,7 @@ export function StudioTree({
             onCancel={() => setAdding(null)}
           />
         ) : null}
-        {placeFocus && adding !== "location" ? (
+        {locationsOpen && placeFocus && adding !== "location" ? (
           <CandidatePicker
             key={`place-${placeFocus}`}
             styleId={job.styleId}
@@ -911,7 +962,10 @@ export function StudioTree({
         ) : null}
       </TreeBranch>
 
-      <TreeBranch label="Plates">
+      <TreeBranch
+        label="Plates"
+        headerRight={<CollapseToggle open={platesOpen} onToggle={() => setPlatesOpen((v) => !v)} />}
+      >
         {lockingScript ? (
           <div style={{ padding: "8px 0 16px" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Locking the episode…</ShimmerText>
@@ -921,7 +975,7 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {canWrite && !lockingScript ? (
+        {platesOpen && canWrite && !lockingScript ? (
           <div style={{ marginBottom: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
               {job.folderName
@@ -973,10 +1027,15 @@ export function StudioTree({
         ) : null}
 
         {job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error" ? (
-          <PlateReviewEditor job={job} onJobChange={onJobChange} />
+          <PlateReviewEditor
+            job={job}
+            onJobChange={onJobChange}
+            collapsed={!platesOpen}
+            onExpand={() => setPlatesOpen(true)}
+          />
         ) : null}
 
-        {job.phase === "review" ? (
+        {platesOpen && job.phase === "review" ? (
           <div style={{ marginTop: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "10px" }}>
               {plated.length}/{job.shots.length} plated · {job.clips.length} lines
@@ -987,7 +1046,7 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {(job.phase === "animate" || job.phase === "stitch") && (
+        {platesOpen && (job.phase === "animate" || job.phase === "stitch") && (
           <div style={{ padding: "8px 0" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>
               {job.phase === "animate"
@@ -998,7 +1057,7 @@ export function StudioTree({
           </div>
         )}
 
-        {job.phase === "done" && job.finalVideoFile ? (
+        {platesOpen && job.phase === "done" && job.finalVideoFile ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "8px" }}>
             <video
               src={`/api/crash/mobile/final?jobId=${job.id}`}
@@ -1014,7 +1073,7 @@ export function StudioTree({
             <div style={{ color: "var(--magenta-hot)", fontSize: "13px", marginBottom: "10px" }}>
               {job.error || "Something went wrong"}
             </div>
-            <StoryFeed job={job} onClipUploaded={onJobChange} />
+            {platesOpen ? <StoryFeed job={job} onClipUploaded={onJobChange} /> : null}
             <MobilePrimaryButton onClick={onRetryError}>Check again</MobilePrimaryButton>
           </div>
         ) : null}
