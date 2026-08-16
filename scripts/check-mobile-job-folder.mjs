@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { jobHasEpisodePack, mobileMediaFolder } from "../src/lib/mobileJobFolder.ts";
 import { mobileLocationStillUrl, mobileMediaFolderName } from "../src/lib/mobileCandidateUrls.ts";
-import { allCastApproved, allLocationsApproved, phaseAfterScreenplay } from "../src/lib/mobileJobReady.ts";
+import {
+  allCastApproved,
+  allLocationsApproved,
+  keepCandidateTakes,
+  latestCandidate,
+  phaseAfterScreenplay,
+} from "../src/lib/mobileJobReady.ts";
 import { screenplaySceneCount } from "../src/lib/mobileScreenplaySize.ts";
 
 const firstJob = { id: "mgen_20260816020100_abc", folderName: "" };
@@ -55,5 +61,13 @@ assert.equal(
   }),
   "location_images",
 );
+
+const first = { id: "1", fileName: "jo_1.png", approved: false, prompt: "grumpy dad Jo" };
+const raccoon = { id: "2", fileName: "jo_2.png", approved: false, prompt: "more feral" };
+const kept = keepCandidateTakes([first], [raccoon]);
+assert.equal(kept.length, 2);
+assert.equal(kept[0]!.prompt, "grumpy dad Jo");
+assert.equal(latestCandidate(kept)?.fileName, "jo_2.png");
+assert.equal(keepCandidateTakes(kept, [raccoon]).length, 2);
 
 console.log("check-mobile-job-folder: ok");

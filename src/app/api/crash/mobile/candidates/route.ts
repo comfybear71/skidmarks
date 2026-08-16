@@ -10,11 +10,11 @@ import { createCharacter, listCharacters } from "@/lib/characters";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { jobHasEpisodePack, mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { keepCandidateTakes } from "@/lib/mobileJobReady";
 import { newId } from "@/lib/types";
 
-// One candidate at a time, not a batch to swipe through — a dud gets
-// replaced outright by the next generate call, not compared against three
-// others that are probably just as wrong.
+// One new still per tap — but the earlier takes stay on the job so More
+// cannot throw away the one you wanted.
 const CANDIDATES_PER_BATCH = 1;
 
 export const runtime = "nodejs";
@@ -41,13 +41,6 @@ type Body = {
  */
 export async function POST(req: Request) {
   try {
-    if (!imageKeyPresent()) {
-      return NextResponse.json(
-        { error: "Missing XAI_API_KEY in MY MOVIES\\.env, then restart Studio." },
-        { status: 503 },
-      );
-    }
-
     const body = (await req.json().catch(() => ({}))) as Body;
     const jobId = (body.jobId || "").trim();
     const kind = body.kind;
@@ -58,6 +51,13 @@ export async function POST(req: Request) {
     }
     if (action !== "add" && !target) {
       return NextResponse.json({ error: "Need target" }, { status: 400 });
+    }
+    // Add a name does not generate an image. Only generate needs the key.
+    if (action === "generate" && !imageKeyPresent()) {
+      return NextResponse.json(
+        { error: "Missing XAI_API_KEY in MY MOVIES\\.env, then restart Studio." },
+        { status: 503 },
+      );
     }
 
     const job = await readMobileGenJob(jobId);
@@ -142,7 +142,10 @@ export async function POST(req: Request) {
           job.styleRealism,
         );
         const updated = await patchMobileGenJob(jobId, {
-          castCandidates: { ...job.castCandidates, [target]: candidates },
+          castCandidates: {
+            ...job.castCandidates,
+            [target]: keepCandidateTakes(job.castCandidates[target], candidates),
+          },
         });
         return NextResponse.json({ ok: true, job: updated });
       }
@@ -176,7 +179,10 @@ export async function POST(req: Request) {
         job.styleRealism,
       );
       const updated = await patchMobileGenJob(jobId, {
-        locationCandidates: { ...job.locationCandidates, [target]: candidates },
+        locationCandidates: {
+          ...job.locationCandidates,
+          [target]: keepCandidateTakes(job.locationCandidates[target], candidates),
+        },
       });
       return NextResponse.json({ ok: true, job: updated });
     }

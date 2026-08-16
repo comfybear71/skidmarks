@@ -46,6 +46,10 @@ export type MobileImageCandidate = {
   id: string;
   fileName: string;
   approved: boolean;
+  /** The words that made this take — the tweak box, or the look if
+   * that box was empty. More used to wipe the box, so the next tap
+   * threw the working prompt away and drifted. */
+  prompt?: string;
 };
 
 export type MobileShotUnit = {

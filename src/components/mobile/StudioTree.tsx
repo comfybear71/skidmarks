@@ -12,7 +12,7 @@ import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
-import { allCastApproved, allLocationsApproved } from "@/lib/mobileJobReady";
+import { allCastApproved, allLocationsApproved, latestCandidate } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
@@ -268,6 +268,7 @@ function CandidatePicker({
   promptPlaceholder,
   onGenerate,
   onApprove,
+  onUpload,
 }: {
   styleId: string;
   label: string;
@@ -278,8 +279,13 @@ function CandidatePicker({
   promptPlaceholder: string;
   onGenerate: (customPrompt?: string) => void;
   onApprove: (candidateId: string) => void;
+  onUpload: (file: File) => void;
 }) {
   const [customPrompt, setCustomPrompt] = useState("");
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const prevLen = useRef(candidates.length);
   const promptAssist = useMobileAssist(
     "image_prompt",
     styleId,
@@ -294,14 +300,53 @@ function CandidatePicker({
     onGenerate();
   }, [busy, candidates.length, onGenerate]);
 
+  useEffect(() => {
+    if (candidates.length > prevLen.current) {
+      const last = latestCandidate(candidates);
+      if (last) {
+        setFocusId(last.id);
+        if (last.prompt) setCustomPrompt(last.prompt);
+      }
+    }
+    prevLen.current = candidates.length;
+  }, [candidates]);
+
+  const newest = latestCandidate(candidates);
+  const focused =
+    candidates.find((c) => c.id === focusId) || newest || null;
+  const focusIndex = focused ? candidates.findIndex((c) => c.id === focused.id) : -1;
+  const canUndo = focusIndex > 0;
+
+  const takeFile = (file: File | undefined) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    onUpload(file);
+  };
+
   return (
-    <div style={{ marginTop: "10px" }}>
+    <div
+      style={{
+        marginTop: "10px",
+        outline: dragOver ? "2px dashed var(--acid)" : "none",
+        outlineOffset: "4px",
+        borderRadius: "12px",
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        takeFile(e.dataTransfer.files[0]);
+      }}
+    >
       <div style={{ color: "var(--acid)", fontWeight: 700, fontSize: "13px", marginBottom: "8px" }}>
         {label}
       </div>
-      {candidates.length ? (
+      {focused ? (
         <SingleCandidateCard
-          candidate={candidates[0]!}
+          candidate={focused}
           imageSrc={imageSrc}
           busy={busy}
           onApprove={(c) => onApprove(c.id)}
@@ -321,6 +366,22 @@ function CandidatePicker({
           Try again
         </MobilePrimaryButton>
       )}
+      {candidates.length > 1 ? (
+        <div style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "10px 2px 2px" }}>
+          {candidates.map((c, i) => (
+            <ThumbTile
+              key={c.id}
+              src={imageSrc(c)}
+              label={c.approved ? "Picked" : `${i + 1}`}
+              picked={focused?.id === c.id}
+              onClick={() => {
+                setFocusId(c.id);
+                setCustomPrompt(c.prompt || "");
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
       {candidates.length || error ? (
         <div style={{ display: "flex", gap: "8px", marginTop: "10px", alignItems: "center" }}>
           <input
@@ -343,10 +404,29 @@ function CandidatePicker({
           />
           <button
             type="button"
+            disabled={busy || !canUndo}
+            onClick={() => {
+              if (focusIndex <= 0) return;
+              const prev = candidates[focusIndex - 1]!;
+              setFocusId(prev.id);
+              setCustomPrompt(prev.prompt || "");
+            }}
+            style={{
+              padding: "10px 12px",
+              borderRadius: "8px",
+              border: "1px solid var(--line)",
+              background: "transparent",
+              color: canUndo && !busy ? "var(--chrome)" : "var(--chrome-dim)",
+              fontSize: "13px",
+            }}
+          >
+            Undo
+          </button>
+          <button
+            type="button"
             disabled={busy}
             onClick={() => {
               onGenerate(customPrompt || undefined);
-              setCustomPrompt("");
             }}
             style={{
               padding: "10px 14px",
@@ -361,6 +441,34 @@ function CandidatePicker({
           </button>
         </div>
       ) : null}
+      <div style={{ marginTop: "8px" }}>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          hidden
+          onChange={(e) => {
+            takeFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => fileRef.current?.click()}
+          style={{
+            width: "100%",
+            padding: "10px",
+            borderRadius: "8px",
+            border: "1px dashed var(--line)",
+            background: "transparent",
+            color: "var(--chrome-dim)",
+            fontSize: "12px",
+          }}
+        >
+          {dragOver ? "Drop it here" : "Drop a photo back — or tap to choose one"}
+        </button>
+      </div>
       {promptAssist.aiError ? (
         <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
           {promptAssist.aiError}
@@ -383,9 +491,11 @@ export function StudioTree({
   onGenerateCast,
   onApproveCast,
   onAddCast,
+  onUploadCast,
   onGenerateLocation,
   onApproveLocation,
   onAddLocation,
+  onUploadLocation,
   onWriteScript,
   onGenerateVideo,
   onRetryError,
@@ -399,9 +509,11 @@ export function StudioTree({
   onGenerateCast: (name: string, customPrompt?: string) => void;
   onApproveCast: (name: string, candidateId: string) => void;
   onAddCast: (name: string, description?: string) => void;
+  onUploadCast: (name: string, file: File) => void;
   onGenerateLocation: (sceneId: string, customPrompt?: string) => void;
   onApproveLocation: (sceneId: string, candidateId: string) => void;
   onAddLocation: (name: string) => void;
+  onUploadLocation: (sceneId: string, file: File) => void;
   onWriteScript: () => void;
   onGenerateVideo: () => void;
   onRetryError: () => void;
@@ -454,7 +566,7 @@ export function StudioTree({
           />
           {job.speakers.map((name) => {
             const chosen = (job.castCandidates[name] || []).find((c) => c.approved);
-            const pending = (job.castCandidates[name] || [])[0];
+            const pending = latestCandidate(job.castCandidates[name]);
             const src = chosen
               ? castFaceUrl(job, name, chosen.fileName, characterIds)
               : pending
@@ -504,6 +616,7 @@ export function StudioTree({
               onApproveCast(castFocus, id);
               setOpenCast(null);
             }}
+            onUpload={(file) => onUploadCast(castFocus, file)}
           />
         ) : null}
       </TreeBranch>
@@ -519,7 +632,7 @@ export function StudioTree({
           />
           {job.scenes.map((scene) => {
             const chosen = (job.locationCandidates[scene.id] || []).find((c) => c.approved);
-            const pending = (job.locationCandidates[scene.id] || [])[0];
+            const pending = latestCandidate(job.locationCandidates[scene.id]);
             const file = chosen?.fileName || pending?.fileName || "";
             return (
               <ThumbTile
@@ -563,6 +676,7 @@ export function StudioTree({
               onApproveLocation(placeFocus, id);
               setOpenPlace(null);
             }}
+            onUpload={(file) => onUploadLocation(placeFocus, file)}
           />
         ) : null}
       </TreeBranch>

@@ -34,3 +34,25 @@ export function phaseAfterScreenplay(
   if (!allLocationsApproved(job)) return "location_images";
   return "plates";
 }
+
+/** More / Not this one used to replace the list, which threw away the
+ * take you wanted. Keep every still; newest is last. Never delete. */
+export function keepCandidateTakes<T extends { id: string; fileName: string }>(
+  existing: T[] | undefined,
+  incoming: T[],
+): T[] {
+  const out = [...(existing || [])];
+  const seen = new Set(out.map((c) => (c.fileName || c.id).trim()).filter(Boolean));
+  for (const c of incoming) {
+    const key = (c.fileName || c.id).trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+  }
+  return out;
+}
+
+export function latestCandidate<T>(list: T[] | undefined): T | undefined {
+  if (!list?.length) return undefined;
+  return list[list.length - 1];
+}

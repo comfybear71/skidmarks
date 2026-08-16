@@ -115,7 +115,12 @@ export async function generateCastCandidates(
         ),
       );
     }
-    out.push({ id: saved.attempt.id, fileName: saved.attempt.fileName, approved: false });
+    out.push({
+      id: saved.attempt.id,
+      fileName: saved.attempt.fileName,
+      approved: false,
+      prompt: note,
+    });
   }
   await Promise.allSettled(uploads);
 
@@ -178,6 +183,69 @@ function candidateGenDir(): string {
   return dir;
 }
 
+function extFromUpload(fileName: string, mime: string): string {
+  const fromName = path.extname(fileName).toLowerCase();
+  if (fromName === ".jpeg") return ".jpg";
+  if (fromName === ".png" || fromName === ".jpg" || fromName === ".webp") return fromName;
+  if (mime === "image/jpeg") return ".jpg";
+  if (mime === "image/webp") return ".webp";
+  return ".png";
+}
+
+/** Drop / choose a photo as a take — same job list as a generated still.
+ * Does not delete anything. */
+export async function importUploadedCastCandidate(
+  styleId: ShowStyleId,
+  folderName: string,
+  characterId: string,
+  buffer: Buffer,
+  fileName: string,
+  mime: string,
+): Promise<MobileImageCandidate> {
+  const ext = extFromUpload(fileName, mime);
+  const saved = addFaceAttempt(characterId, {
+    note: "Dropped back in",
+    buffer,
+    ext,
+    source: "upload",
+  });
+  if (!saved) throw new Error("Could not keep that photo");
+  const filePath = faceFilePath(characterId, saved.attempt.fileName);
+  if (filePath) {
+    await uploadMobileMedia({
+      styleId,
+      folderName,
+      kind: CANDIDATE_BLOB_KIND,
+      localPath: filePath,
+    }).catch(() => {
+      /* same-instance approve can still read disk */
+    });
+  }
+  return { id: saved.attempt.id, fileName: saved.attempt.fileName, approved: false, prompt: "" };
+}
+
+export async function importUploadedLocationCandidate(
+  styleId: ShowStyleId,
+  folderName: string,
+  buffer: Buffer,
+  fileName: string,
+  mime: string,
+): Promise<MobileImageCandidate> {
+  const ext = extFromUpload(fileName, mime);
+  const savedName = `${sortableId("mloc")}${ext}`;
+  const dest = path.join(candidateGenDir(), savedName);
+  fs.writeFileSync(dest, buffer);
+  await uploadMobileMedia({
+    styleId,
+    folderName,
+    kind: CANDIDATE_BLOB_KIND,
+    localPath: dest,
+  }).catch(() => {
+    /* same-instance approve can still read disk */
+  });
+  return { id: savedName, fileName: savedName, approved: false, prompt: "" };
+}
+
 /** Generate N location-still candidates — plain files, not yet a World card. */
 export async function generateLocationCandidates(
   styleId: ShowStyleId,
@@ -231,7 +299,7 @@ export async function generateLocationCandidates(
         /* best effort — approve falls back to local disk on the same instance */
       }),
     );
-    out.push({ id: fileName, fileName, approved: false });
+    out.push({ id: fileName, fileName, approved: false, prompt: name });
   }
   await Promise.allSettled(uploads);
 
