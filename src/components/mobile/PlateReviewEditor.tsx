@@ -90,17 +90,12 @@ export function PlateReviewEditor({
   onJobChange,
   collapsed,
   onExpand,
-  focusShotId,
-  onFocusShotConsumed,
 }: {
   job: MobileGenJob;
   onJobChange?: (job: MobileGenJob) => void;
   /** Strip-only mode — everything below the thumbnails stays hidden. */
   collapsed?: boolean;
   onExpand?: () => void;
-  /** After Add to plate — highlight that new card. */
-  focusShotId?: string | null;
-  onFocusShotConsumed?: () => void;
 }) {
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -135,12 +130,6 @@ export function PlateReviewEditor({
       cancelled = true;
     };
   }, [job.styleId, job.folderName, shotIdsKey]);
-
-  useEffect(() => {
-    if (!focusShotId) return;
-    setOpenShotId(focusShotId);
-    onFocusShotConsumed?.();
-  }, [focusShotId, onFocusShotConsumed]);
 
   if (!shots.length && !story) return null;
 

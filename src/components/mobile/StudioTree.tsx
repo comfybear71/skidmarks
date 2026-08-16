@@ -746,7 +746,6 @@ export function StudioTree({
   const [addingPlateFor, setAddingPlateFor] = useState<string | null>(null);
   const [addPlateError, setAddPlateError] = useState("");
   const [addPlateDoneFor, setAddPlateDoneFor] = useState<string | null>(null);
-  const [focusPlateShotId, setFocusPlateShotId] = useState<string | null>(null);
   const [scriptDraft, setScriptDraft] = useState("");
 
   async function addLocationToPlate(sceneId: string) {
@@ -762,10 +761,7 @@ export function StudioTree({
       if (!res.ok) throw new Error(data.error || "Couldn't add a plate there");
       if (data.job) onJobChange(data.job);
       setAddPlateDoneFor(sceneId);
-      if (data.shotId) {
-        setPlatesOpen(true);
-        setFocusPlateShotId(data.shotId);
-      }
+      setPlatesOpen(true);
     } catch (e) {
       setAddPlateError(e instanceof Error ? e.message : "Couldn't add a plate there");
     } finally {
@@ -1083,8 +1079,6 @@ export function StudioTree({
             onJobChange={onJobChange}
             collapsed={!platesOpen}
             onExpand={() => setPlatesOpen(true)}
-            focusShotId={focusPlateShotId}
-            onFocusShotConsumed={() => setFocusPlateShotId(null)}
           />
         ) : null}
 
