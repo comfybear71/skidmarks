@@ -16,7 +16,6 @@ import { StoryFeed } from "./StoryFeed";
 import {
   allCastApproved,
   allLocationsApproved,
-  approvedCandidateFileName,
   canLockEpisode,
   candidateLookPrompt,
   latestCandidate,
@@ -25,7 +24,6 @@ import {
 import { characterPlateFileUrl, characterPlateSlug } from "@/lib/characterPlatePrompt";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { PlusTile, ThumbTile } from "./ThumbTile";
-import { ZoomOverlay } from "./ZoomableStill";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
@@ -50,113 +48,20 @@ function locationStillUrl(job: MobileGenJob, fileName: string): string {
 
 type ShelfPlate = { name: string; filename: string };
 
-function CharacterPlateStrip({
-  job,
-  characterIds,
-}: {
-  job: MobileGenJob;
-  characterIds: Record<string, string>;
-}) {
-  const [shelf, setShelf] = useState<ShelfPlate[]>([]);
-  const [zoomSrc, setZoomSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/crash/character-plates?styleId=${encodeURIComponent(job.styleId)}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (cancelled) return;
-        const plates = Array.isArray(d.plates) ? (d.plates as ShelfPlate[]) : [];
-        setShelf(plates);
-      })
-      .catch(() => {
-        if (!cancelled) setShelf([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [job.styleId, job.characterPlates]);
-
-  if (!job.speakers.length) return null;
-
-  const sheetFor = (name: string): { src: string; hasSheet: boolean; pending: boolean; failed: boolean } => {
-    const row = job.characterPlates?.[name];
-    const slug = characterPlateSlug(name);
-    const fromShelf = shelf.find(
-      (p) =>
-        characterPlateSlug(p.name) === slug ||
-        characterPlateSlug(p.filename.replace(/^plate_|\.[^.]+$/g, "")) === slug,
-    );
-    const file = (row?.status === "done" && row.fileName) || fromShelf?.filename || "";
-    if (file) {
-      return { src: characterPlateFileUrl(job.styleId, file), hasSheet: true, pending: false, failed: false };
-    }
-    const pick = approvedCandidateFileName(job.castCandidates, name);
-    const pickSrc = pick ? castFaceUrl(job, name, pick, characterIds) : "";
-    return {
-      src: pickSrc,
-      hasSheet: false,
-      pending: row?.status === "pending",
-      failed: row?.status === "error",
-    };
-  };
-
-  const missing = job.speakers.filter((name) => !sheetFor(name).hasSheet).length;
-
-  return (
-    <div style={{ marginTop: "12px" }}>
-      <div
-        style={{
-          color: "var(--chrome-dim)",
-          fontSize: "10px",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          margin: "0 2px 8px",
-        }}
-      >
-        Character plates — series lock
-      </div>
-      <div
-        className="mobile-scroll"
-        style={{
-          display: "flex",
-          gap: "10px",
-          overflowX: "auto",
-          padding: "2px 2px 6px",
-          touchAction: "pan-x pan-y",
-          overscrollBehaviorX: "contain",
-        }}
-      >
-        {job.speakers.map((name) => {
-          const state = sheetFor(name);
-          const label = state.pending ? "Making…" : state.failed ? "Failed" : name;
-          return (
-            <ThumbTile
-              key={`sheet-${name}`}
-              src={state.src}
-              label={label}
-              picked={state.hasSheet}
-              failed={state.failed}
-              onClick={() => {
-                if (state.src) setZoomSrc(state.src);
-              }}
-            />
-          );
-        })}
-      </div>
-      {missing ? (
-        <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "4px 2px 0" }}>
-          {missing} of {job.speakers.length} have no series sheet yet — shot plates used the pick
-          still, so faces can drift. Tap a thumb to enlarge. Say go if you want the sheets made.
-        </div>
-      ) : (
-        <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "4px 2px 0" }}>
-          Tap a sheet to enlarge. Shot plates still use the pick still, not this 4-view sheet.
-        </div>
-      )}
-      {zoomSrc ? <ZoomOverlay src={zoomSrc} alt="Character plate" onClose={() => setZoomSrc(null)} /> : null}
-    </div>
+function sheetFileForName(
+  name: string,
+  job: MobileGenJob,
+  shelf: ShelfPlate[],
+): string {
+  const row = job.characterPlates?.[name];
+  if (row?.status === "done" && row.fileName) return row.fileName;
+  const slug = characterPlateSlug(name);
+  const fromShelf = shelf.find(
+    (p) =>
+      characterPlateSlug(p.name) === slug ||
+      characterPlateSlug(p.filename.replace(/^plate_|\.[^.]+$/g, "")) === slug,
   );
+  return fromShelf?.filename || "";
 }
 
 function TreeBranch({
@@ -372,6 +277,7 @@ function CandidatePicker({
   onGenerate,
   onApprove,
   onUpload,
+  referenceSrc,
 }: {
   styleId: string;
   label: string;
@@ -384,6 +290,7 @@ function CandidatePicker({
   onGenerate: (customPrompt?: string) => void;
   onApprove: (candidateId: string) => void;
   onUpload: (file: File) => void;
+  referenceSrc?: string;
 }) {
   const seed = preferredCandidate(candidates);
   const [customPrompt, setCustomPrompt] = useState(seed?.prompt || "");
@@ -456,6 +363,7 @@ function CandidatePicker({
           busy={busy}
           onApprove={(c) => onApprove(c.id)}
           onReroll={() => onGenerate(customPrompt || undefined)}
+          referenceSrc={referenceSrc}
         />
       ) : busy || !error ? (
         <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "16px 0" }}>
@@ -654,6 +562,21 @@ export function StudioTree({
   const [openCast, setOpenCast] = useState<string | null>(null);
   const [openPlace, setOpenPlace] = useState<string | null>(null);
   const [scriptDraft, setScriptDraft] = useState("");
+  const [shelfPlates, setShelfPlates] = useState<ShelfPlate[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/crash/character-plates?styleId=${encodeURIComponent(job.styleId)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && Array.isArray(d.plates)) setShelfPlates(d.plates as ShelfPlate[]);
+      })
+      .catch(() => {
+        if (!cancelled) setShelfPlates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [job.styleId, job.characterPlates]);
   const episodeHint = [
     `Vibe: ${job.prompt}`,
     `Cast (spell these names exactly, nobody else): ${job.speakers.join(", ")}`,
@@ -682,6 +605,10 @@ export function StudioTree({
   const firstOpenPlace = job.scenes.find((s) => !job.locationCandidates[s.id]?.some((c) => c.approved));
   const castFocus = openCast || firstOpenCast || null;
   const placeFocus = openPlace || firstOpenPlace?.id || null;
+  const castSheetFile = castFocus ? sheetFileForName(castFocus, job, shelfPlates) : "";
+  const castSheetSrc = castSheetFile
+    ? characterPlateFileUrl(job.styleId, castSheetFile)
+    : undefined;
 
   useEffect(() => {
     if (job.speakers.length && !openCast && firstOpenCast) setOpenCast(firstOpenCast);
@@ -791,9 +718,9 @@ export function StudioTree({
               })();
             }}
             onUpload={(file) => onUploadCast(castFocus, file)}
+            referenceSrc={castSheetSrc}
           />
         ) : null}
-        <CharacterPlateStrip job={job} characterIds={characterIds} />
       </TreeBranch>
 
       <TreeBranch label="Locations">

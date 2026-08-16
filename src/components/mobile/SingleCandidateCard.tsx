@@ -15,19 +15,21 @@ export function SingleCandidateCard({
   busy,
   onApprove,
   onReroll,
+  referenceSrc,
 }: {
   candidate: MobileImageCandidate;
   imageSrc: (c: MobileImageCandidate) => string;
   busy?: boolean;
   onApprove: (c: MobileImageCandidate) => void;
   onReroll: () => void;
+  referenceSrc?: string;
 }) {
   const src = imageSrc(candidate);
 
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
       <div style={{ ...mobileCard, position: "relative", overflow: "hidden", borderRadius: "2px" }}>
-        <ZoomableStill src={src} alt="Candidate" height={380} fit="contain" />
+        <ZoomableStill src={src} alt="Candidate" height={380} fit="contain" referenceSrc={referenceSrc} />
         {candidate.approved ? (
           <div
             style={{
