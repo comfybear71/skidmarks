@@ -13,11 +13,13 @@ import { newId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import {
-  PLATE_LTX_CAMPAIGN_COUNT,
+  CAMPAIGN_CLIP_COUNT,
+  PLACEMENT_COUNT,
+  campaignBeatTitle,
   campaignImageMotion,
   campaignShotTitle,
   campaignStaging,
-  parseCampaignLines,
+  expandCampaignLines,
   type PlateLtxCampaign,
 } from "@/lib/mobilePlateLtxCampaign";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
@@ -27,11 +29,11 @@ export const maxDuration = 180;
 
 /**
  * POST { action: "start", jobId, speaker, sceneId, lines }
- *   — mint 20 solo shots (one character, one place). Does not wipe existing
- *     plates. Speech comes from the 20 lines. Position + LTX are paired.
+ *   — mint 20 solo plates (one character, one place). Each plate gets a
+ *     SHORT beat and a LONG beat. Does not wipe existing plates.
  * POST { action: "step", jobId }
- *   — one plate draw or one voice. When both are done, queues only those
- *     20 clips and sets phase animate (existing LTX poll takes over).
+ *   — one plate draw or one voice. Then queues 40 clips (20 poses × 2
+ *     lengths) and sets phase animate.
  */
 export async function POST(req: Request) {
   try {
@@ -71,17 +73,19 @@ export async function POST(req: Request) {
       if (!approvedCandidateFileName(job.castCandidates, speaker)) {
         return NextResponse.json({ error: "Approve that face first" }, { status: 400 });
       }
-      const rawLines = Array.isArray(body.lines)
-        ? body.lines.map((l) => String(l || "").trim()).filter(Boolean)
-        : parseCampaignLines(String(body.lines || ""));
-      if (rawLines.length !== PLATE_LTX_CAMPAIGN_COUNT) {
+      const expanded = expandCampaignLines(
+        Array.isArray(body.lines) ? body.lines : String(body.lines || ""),
+      );
+      if (expanded.error || expanded.lines.length !== CAMPAIGN_CLIP_COUNT) {
         return NextResponse.json(
           {
-            error: `Need exactly ${PLATE_LTX_CAMPAIGN_COUNT} spoken lines (got ${rawLines.length}). Paste all 20, then run.`,
+            error:
+              expanded.error || "Need at least one spoken line for the placements.",
           },
           { status: 400 },
         );
       }
+      const rawLines = expanded.lines;
 
       await hydrateMobilePackOnDisk(job.styleId, job.folderName);
       const story = await readMobileStory(job.styleId, job.folderName);
@@ -100,32 +104,33 @@ export async function POST(req: Request) {
       const place = scene.placeName || sceneRef.placeName;
       const shotIds: string[] = [];
       const beatIds: string[] = [];
-      const newShots = Array.from({ length: PLATE_LTX_CAMPAIGN_COUNT }, (_, i) => {
-        const beatId = newId("beat");
+      const newShots = Array.from({ length: PLACEMENT_COUNT }, (_, i) => {
         const shotId = newId("shot");
         shotIds.push(shotId);
-        beatIds.push(beatId);
         const staging = campaignStaging(i, speaker, place);
-        const line = rawLines[i]!;
+        const shortLine = rawLines[i * 2]!;
+        const longLine = rawLines[i * 2 + 1]!;
+        const shortBeat = newId("beat");
+        const longBeat = newId("beat");
+        beatIds.push(shortBeat, longBeat);
+        const beat = (id: string, line: string) => ({
+          id,
+          speaker,
+          text: line,
+          imageMotion: campaignImageMotion({
+            index: i,
+            styleId: job.styleId,
+            speaker,
+            line,
+          }),
+        });
         return {
           id: shotId,
           title: campaignShotTitle(i),
           summary: staging,
           staging,
           plateFile: "",
-          beats: [
-            {
-              id: beatId,
-              speaker,
-              text: line,
-              imageMotion: campaignImageMotion({
-                index: i,
-                styleId: job.styleId,
-                speaker,
-                line,
-              }),
-            },
-          ],
+          beats: [beat(shortBeat, shortLine), beat(longBeat, longLine)],
           sfx: [],
         };
       });
@@ -305,10 +310,10 @@ export async function POST(req: Request) {
           plateLtxCampaign: {
             ...campaign,
             phase: "error",
-            error: "Plates drew but none of the 20 lines voiced — check the CAST voice.",
+            error: "Plates drew but none of the lines voiced — check the CAST voice.",
           },
           phase: "review",
-          error: "20-test plates drew but none of the lines voiced — check the CAST voice.",
+          error: "Placement plates drew but none of the lines voiced — check the CAST voice.",
         });
         return NextResponse.json({ ok: true, job: updated, advanced: true });
       }
@@ -350,7 +355,7 @@ export async function POST(req: Request) {
                 ? {
                     ...b,
                     imageMotion: campaignImageMotion({
-                      index: nextVoice,
+                      index: Math.floor(nextVoice / 2),
                       styleId: job.styleId,
                       speaker,
                       line,
@@ -389,7 +394,7 @@ export async function POST(req: Request) {
         ok: true,
         job,
         advanced: true,
-        voiced: campaignShotTitle(nextVoice),
+        voiced: campaignBeatTitle(nextVoice),
       });
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
@@ -397,7 +402,7 @@ export async function POST(req: Request) {
         plateLtxCampaign: {
           ...campaign,
           voicedFailed: [...(campaign.voicedFailed || []), beatId],
-          error: `${campaignShotTitle(nextVoice)} voice failed — ${detail}`,
+          error: `${campaignBeatTitle(nextVoice)} voice failed — ${detail}`,
         },
       });
       return NextResponse.json({ ok: true, job: updated, advanced: true });

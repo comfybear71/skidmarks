@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import { MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
 import {
-  PLATE_LTX_CAMPAIGN_COUNT,
-  parseCampaignLines,
+  CAMPAIGN_CLIP_COUNT,
+  PLACEMENT_COUNT,
+  campaignSpeechScript,
+  expandCampaignLines,
   plateLtxCampaignScenarios,
 } from "@/lib/mobilePlateLtxCampaign";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
@@ -23,12 +25,13 @@ export function PlateLtxCampaignCard({
     speakers.find((n) => /crazy big hole jo/i.test(n)) || speakers[0] || "";
   const [speaker, setSpeaker] = useState(jo);
   const [sceneId, setSceneId] = useState(scenes[0]?.id || "");
-  const [rawLines, setRawLines] = useState("");
+  const [rawLines, setRawLines] = useState(campaignSpeechScript());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
 
-  const parsed = useMemo(() => parseCampaignLines(rawLines), [rawLines]);
+  const expanded = useMemo(() => expandCampaignLines(rawLines), [rawLines]);
+  const parsed = expanded.lines;
   const campaign = job.plateLtxCampaign;
   const working =
     campaign?.phase === "plating" ||
@@ -44,7 +47,8 @@ export function PlateLtxCampaignCard({
     Boolean(job.folderName) &&
     faceOk &&
     placeOk &&
-    parsed.length === PLATE_LTX_CAMPAIGN_COUNT &&
+    parsed.length === CAMPAIGN_CLIP_COUNT &&
+    !expanded.error &&
     !working &&
     !busy;
 
@@ -85,11 +89,11 @@ export function PlateLtxCampaignCard({
     ).length || 0;
   const status =
     campaign?.phase === "plating"
-      ? `Drawing plates ${plated}/${PLATE_LTX_CAMPAIGN_COUNT}`
+      ? `Drawing plates ${plated}/${PLACEMENT_COUNT}`
       : campaign?.phase === "voicing"
-        ? `Voicing lines ${plated} plates ready`
+        ? `Voicing short + long (${plated} plates ready)`
         : campaign?.phase === "animating"
-          ? `LTX ${clipsDone}/${PLATE_LTX_CAMPAIGN_COUNT}`
+          ? `LTX ${clipsDone}/${CAMPAIGN_CLIP_COUNT}`
           : campaign?.phase === "done"
             ? `Done — ${clipsDone} clips under the plates`
             : campaign?.phase === "error"
@@ -101,10 +105,10 @@ export function PlateLtxCampaignCard({
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: "13px", color: "var(--chrome)" }}>
-            20 plate + LTX tests
+            Plate + LTX placements
           </div>
           <div style={{ fontSize: "11px", color: "var(--chrome-dim)", marginTop: "2px" }}>
-            One character, one place. Position and Image motion paired. Not random CAST.
+            Short and long speech on every pose. Same plate, two LTX sends. One character, one place.
           </div>
         </div>
         <MobilePrimaryButton
@@ -112,7 +116,7 @@ export function PlateLtxCampaignCard({
           disabled={!job.folderName || busy || working}
           onClick={() => setOpen((v) => !v)}
         >
-          {open ? "Hide" : "20 tests"}
+          {open ? "Hide" : "Placements"}
         </MobilePrimaryButton>
       </div>
       {status ? (
@@ -184,15 +188,22 @@ export function PlateLtxCampaignCard({
           <MobileTextInput
             value={rawLines}
             onChange={setRawLines}
-            placeholder={`Paste ${PLATE_LTX_CAMPAIGN_COUNT} spoken lines — one per test, in that order. Blank line between paragraphs is fine.`}
+            placeholder="Jo texts, blank line between each. Short through long. The 20 is poses, not speeches."
             multiline
             rows={8}
           />
-          <div style={{ fontSize: "11px", color: parsed.length === 20 ? "var(--acid)" : "var(--chrome-dim)" }}>
-            {parsed.length}/{PLATE_LTX_CAMPAIGN_COUNT} lines
+          <div
+            style={{
+              fontSize: "11px",
+              color: parsed.length === 20 && !expanded.error ? "var(--acid)" : "var(--chrome-dim)",
+            }}
+          >
+            {expanded.error
+              ? expanded.error
+              : `${expanded.speechCount} texts (${expanded.shortCount} short / ${expanded.longCount} long) × ${PLACEMENT_COUNT} poses = ${CAMPAIGN_CLIP_COUNT} clips`}
           </div>
           <MobilePrimaryButton disabled={!canStart} onClick={() => void start()}>
-            {busy ? "Starting…" : working ? "Running…" : "Run 20 plate + LTX tests"}
+            {busy ? "Starting…" : working ? "Running…" : "Run thorough test"}
           </MobilePrimaryButton>
           {error ? (
             <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</div>
