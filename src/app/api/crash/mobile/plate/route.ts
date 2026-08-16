@@ -7,6 +7,7 @@ import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
 import { dropLeftoverHydrateBeats } from "@/lib/mobilePlateLines";
+import { clearAllStoryShots } from "@/lib/mobileClipQueue";
 import { defaultSoloStaging } from "@/lib/mobileImageMotion";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { newId } from "@/lib/types";
@@ -178,21 +179,8 @@ export async function POST(req: Request) {
     }
 
     if (clear) {
-      const removed: { sceneId: string; shot: CrashStoryShot }[] = [];
-      let nextStory = story;
-      for (const s of job.shots) {
-        const sc = nextStory.scenes.find((sc) => sc.shots.some((sh) => sh.id === s.shotId));
-        const sh = sc?.shots.find((sh) => sh.id === s.shotId);
-        if (!sc || !sh) continue;
-        removed.push({ sceneId: sc.id, shot: sh });
-        nextStory = {
-          ...nextStory,
-          scenes: nextStory.scenes.map((x) =>
-            x.id === sc.id ? { ...x, shots: x.shots.filter((y) => y.id !== sh.id) } : x,
-          ),
-        };
-      }
-      await writeMobileStory(nextStory, job.folderName);
+      const wiped = clearAllStoryShots(story);
+      await writeMobileStory(wiped.story, job.folderName);
       // finalVideoFile/clips were stitched from the shots just wiped — a
       // stale "done" video has no business surviving Clear all. Undo puts
       // the shots back but doesn't try to resurrect an old stitch.
@@ -204,7 +192,7 @@ export async function POST(req: Request) {
         finalVideoFile: "",
         ...(resetPast ? { phase: "review" as const } : {}),
       });
-      return NextResponse.json({ ok: true, job: updated, removed });
+      return NextResponse.json({ ok: true, job: updated, removed: wiped.removed });
     }
 
     let scene = story.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId));

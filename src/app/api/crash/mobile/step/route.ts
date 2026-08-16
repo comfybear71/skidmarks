@@ -18,7 +18,7 @@ import {
   phaseAfterErrorResume,
 } from "@/lib/mobilePipeline";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
-import { mergeClipsFromStory, clipQueueError } from "@/lib/mobileClipQueue";
+import { mergeClipsFromStory, clipQueueError, queueableStoryBeats } from "@/lib/mobileClipQueue";
 import { allCastApproved, allLocationsApproved, candidateLookPrompt } from "@/lib/mobileJobReady";
 import {
   imageMotionNamesLeftovers,
@@ -128,20 +128,27 @@ export async function POST(req: Request) {
 
       // Whatever the reviewer didn't explicitly Save-and-hear still needs
       // real audio before Animate can queue it — the AI-drafted line as
-      // written, or a few seconds of silence for a beat nobody gave a line
-      // to at all. generateEpisodeLines/castEpisodeVoices skip anything
-      // that already has a voiceFile, so a manually saved line is untouched.
+      // written. Do not voice leftover Matty/BC/Land still sitting in Neon.
       const takenVoices = new Set<string>();
       for (const speaker of job.speakers) {
         await assignReusedVoice(job.styleId, speaker, takenVoices);
       }
       if (!job.folderName) throw new Error("Job has no folder — screenplay phase incomplete");
       await hydrateMobilePackOnDisk(job.styleId, job.folderName);
-      const voiceRun = await generateEpisodeVoices(job.styleId, job.folderName);
-      const voicedStory = await readMobileStory(job.styleId, job.folderName);
+      let voicedStory = await readMobileStory(job.styleId, job.folderName);
+      const wantedBefore = queueableStoryBeats(voicedStory, job);
+      const needsVoice = wantedBefore.some((w) => w.line.trim() && !w.voiceFile);
+      const voiceRun = needsVoice
+        ? await generateEpisodeVoices(job.styleId, job.folderName)
+        : { quotaExceeded: false, lines: [], cast: [] };
+      if (needsVoice) {
+        voicedStory = await readMobileStory(job.styleId, job.folderName);
+      }
 
+      const shotIds = new Set(job.shots.map((s) => s.shotId));
       for (const scene of voicedStory.scenes) {
         for (const shot of scene.shots) {
+          if (!shotIds.has(shot.id)) continue;
           for (const beat of shot.beats) {
             if (beat.text.trim() || !beat.voiceFile?.trim()) continue;
             writeSilentMp3(path.join(storyDialogueDir(job.styleId), beat.voiceFile), 3);
@@ -151,12 +158,11 @@ export async function POST(req: Request) {
 
       // Every mp4 is built from its beat's mp3, so a pass that made no audio
       // at all guarantees Animate fails on every clip with "Cloud IA2V needs
-      // the beat mp3". Counts real dialogue only — a fully silent episode's
-      // hold beats shouldn't mask every line actually failing.
-      const voicedBeats = voicedStory.scenes
-        .flatMap((sc) => sc.shots.flatMap((sh) => sh.beats))
-        .filter((b) => b.text.trim() && b.voiceFile?.trim()).length;
-      if (!voicedBeats && voicedStory.scenes.some((sc) => sc.shots.some((sh) => sh.beats.some((b) => b.text.trim())))) {
+      // the beat mp3". Count this job's lines only — leftover screenplay
+      // text must not look like "voices failed".
+      const wanted = queueableStoryBeats(voicedStory, job);
+      const voicedBeats = wanted.filter((w) => w.line.trim() && w.voiceFile.trim()).length;
+      if (!voicedBeats && wanted.some((w) => w.line.trim())) {
         const why =
           (voiceRun.quotaExceeded ? "ElevenLabs quota exceeded. " : "") +
           (voiceRun.lines.find((l) => !l.ok)?.detail ||
@@ -169,10 +175,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, job, advanced: true });
       }
 
+      const wantedFiles = new Set(wanted.map((w) => w.voiceFile).filter(Boolean));
       for (const scene of voicedStory.scenes) {
         for (const shot of scene.shots) {
+          if (!shotIds.has(shot.id)) continue;
           for (const beat of shot.beats) {
-            if (!beat.voiceFile) continue;
+            if (!beat.voiceFile || !wantedFiles.has(beat.voiceFile)) continue;
             try {
               await uploadMobileMedia({
                 styleId: job.styleId,

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  clearAllStoryShots,
   mergeClipsFromStory,
   queueableStoryBeats,
   upsertPendingClip,
@@ -44,10 +45,6 @@ const story = {
   ],
 };
 
-const queued = queueableStoryBeats(story);
-assert.equal(queued.length, 1);
-assert.equal(queued[0].beatId, "beat_jo");
-
 const job = {
   id: "job1",
   styleId: "skidmarks",
@@ -68,6 +65,81 @@ const job = {
   createdAt: "",
   updatedAt: "",
 };
+
+const queued = queueableStoryBeats(story, job);
+assert.equal(queued.length, 1);
+assert.equal(queued[0].beatId, "beat_jo");
+
+const leftoverStory = {
+  ...story,
+  scenes: [
+    {
+      ...story.scenes[0],
+      shots: [
+        story.scenes[0].shots[0],
+        {
+          id: "shot_2qnv2g8",
+          title: "MATTY",
+          summary: "",
+          staging: "",
+          plateFile: "",
+          beats: [
+            {
+              id: "beat_matty",
+              speaker: "MATTY",
+              text: "Who's dry? Nobody stays dry in my place.",
+              voiceFile: "01_02_MATTY_Whos-dry.mp3",
+            },
+          ],
+        },
+        {
+          id: "shot_land",
+          title: "LAND LANDY",
+          summary: "",
+          staging: "",
+          plateFile: "",
+          beats: [
+            {
+              id: "beat_land",
+              speaker: "LAND LANDY",
+              text: "Is this the special drink service?",
+              voiceFile: "01_03_LAND_LANDY_Is-this.mp3",
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+assert.equal(queueableStoryBeats(leftoverStory, job).length, 1);
+assert.equal(queueableStoryBeats(leftoverStory, job)[0].speaker, "CRAZY BIG HOLE JO");
+assert.equal(mergeClipsFromStory(job, leftoverStory).length, 1);
+assert.equal(mergeClipsFromStory(job, leftoverStory)[0].speaker, "CRAZY BIG HOLE JO");
+
+const lockedLeftoverClips = mergeClipsFromStory(
+  {
+    ...job,
+    clips: [
+      {
+        beatId: "beat_matty",
+        shotId: "shot_2qnv2g8",
+        sceneId: "sc1",
+        clipFile: "",
+        clipStatus: "pending",
+        error: "",
+        speaker: "MATTY",
+        line: "Who's dry?",
+      },
+    ],
+  },
+  leftoverStory,
+);
+assert.equal(lockedLeftoverClips.length, 1);
+assert.equal(lockedLeftoverClips[0].beatId, "beat_jo");
+
+const wiped = clearAllStoryShots(leftoverStory);
+assert.equal(wiped.removed.length, 3);
+assert.equal(wiped.story.scenes[0].shots.length, 0);
 
 const emptyQueue = mergeClipsFromStory(job, story);
 assert.equal(emptyQueue.length, 1, "saved Jo line must queue even if job.clips was empty");

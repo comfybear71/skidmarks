@@ -1,6 +1,7 @@
-import type { CrashStoryDoc } from "./crashStoryTypes";
+import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import type { MobileClipUnit, MobileGenJob } from "./mobileGenJob";
+import { voiceNamesMatch } from "./voiceNameMatch";
 
 export function findBeatHome(story: CrashStoryDoc, beatId: string): {
   sceneId: string;
@@ -25,28 +26,42 @@ export function findBeatHome(story: CrashStoryDoc, beatId: string): {
   return null;
 }
 
-/** Beats Generate video should send to LTX — saved lines, not leftover Comfy. */
-export function queueableStoryBeats(story: CrashStoryDoc): {
+function speakerOnJob(speakers: string[], name: string): boolean {
+  const who = name.trim();
+  if (!who) return false;
+  if (!speakers.length) return false;
+  return speakers.some(
+    (s) =>
+      voiceNamesMatch(s, who) || s.trim().toLowerCase() === who.toLowerCase(),
+  );
+}
+
+type QueueableBeat = {
   beatId: string;
   shotId: string;
   sceneId: string;
   speaker: string;
   line: string;
   voiceFile: string;
-}[] {
-  const out: {
-    beatId: string;
-    shotId: string;
-    sceneId: string;
-    speaker: string;
-    line: string;
-    voiceFile: string;
-  }[] = [];
+};
+
+/**
+ * Beats Generate video should send to LTX — this job's plated shots and
+ * CAST, not leftover Matty/BC/Land screenplay still sitting in Neon.
+ */
+export function queueableStoryBeats(
+  story: CrashStoryDoc,
+  job: Pick<MobileGenJob, "shots" | "speakers">,
+): QueueableBeat[] {
+  const shotIds = new Set(job.shots.map((s) => s.shotId));
+  const out: QueueableBeat[] = [];
   for (const sc of story.scenes) {
     for (const sh of sc.shots) {
+      if (!shotIds.has(sh.id)) continue;
       for (const b of sh.beats) {
         if (!b.speaker.trim()) continue;
         if (leftoverHydrateBeat(sh.id, b.id)) continue;
+        if (!speakerOnJob(job.speakers, b.speaker)) continue;
         if (!b.text.trim() && !(b.voiceFile || "").trim()) continue;
         out.push({
           beatId: b.id,
@@ -62,6 +77,26 @@ export function queueableStoryBeats(story: CrashStoryDoc): {
   return out;
 }
 
+/** Clear all — every story shot, not only the ones on the job strip.
+ * Leftover screenplay shots were surviving refresh/Clear and then
+ * Generate video queued them. */
+export function clearAllStoryShots(story: CrashStoryDoc): {
+  story: CrashStoryDoc;
+  removed: { sceneId: string; shot: CrashStoryShot }[];
+} {
+  const removed: { sceneId: string; shot: CrashStoryShot }[] = [];
+  for (const sc of story.scenes) {
+    for (const sh of sc.shots) removed.push({ sceneId: sc.id, shot: sh });
+  }
+  return {
+    removed,
+    story: {
+      ...story,
+      scenes: story.scenes.map((sc) => ({ ...sc, shots: [] })),
+    },
+  };
+}
+
 /**
  * Keep existing clip status when the beat is already queued. Add missing
  * beats (Save-after-lock). Re-Save of a line puts that clip back on pending
@@ -72,7 +107,7 @@ export function mergeClipsFromStory(
   story: CrashStoryDoc,
   opts?: { requeueSaved?: boolean },
 ): MobileClipUnit[] {
-  const wanted = queueableStoryBeats(story);
+  const wanted = queueableStoryBeats(story, job);
   const byId = new Map(job.clips.map((c) => [c.beatId, c]));
   const next: MobileClipUnit[] = [];
   for (const row of wanted) {
