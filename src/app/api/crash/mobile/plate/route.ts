@@ -5,6 +5,7 @@ import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/li
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
+import { newId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
 
 export const runtime = "nodejs";
@@ -31,26 +32,39 @@ function patchShotFields(
  * action / tweak text. Does not composite.
  * POST { jobId, shotId, action: "drop" } — clear the shot still pointer.
  * Blob/disk stay (park, don't delete). The strip shows an empty slot.
+ * POST { jobId, sceneId, speaker, action: "add" } — add a new solo shot
+ * card for one character at that location. One beat, that speaker only.
+ * POST { jobId, shotId, action: "remove" } — take the shot out of the
+ * strip entirely (add's undo). Any plate/audio it made stays on disk/Blob,
+ * just unlinked — same park-don't-delete rule as "drop".
  */
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
       jobId?: string;
       shotId?: string;
+      sceneId?: string;
+      speaker?: string;
       staging?: string;
       summary?: string;
       action?: string;
     };
     const jobId = (body.jobId || "").trim();
     const shotId = (body.shotId || "").trim();
+    const sceneIdIn = (body.sceneId || "").trim();
+    const speakerIn = (body.speaker || "").trim();
     const stagingIn = body.staging !== undefined ? String(body.staging) : undefined;
     const summaryIn = body.summary !== undefined ? String(body.summary) : undefined;
     const action = (body.action || "rebuild").trim().toLowerCase();
     const drop = action === "drop";
     const saveOnly = action === "save";
+    const add = action === "add";
+    const remove = action === "remove";
     if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
-    if (!shotId) return NextResponse.json({ error: "Need shotId" }, { status: 400 });
-    if (!drop && !saveOnly && !(stagingIn || "").trim()) {
+    if (!add && !shotId) return NextResponse.json({ error: "Need shotId" }, { status: 400 });
+    if (add && !sceneIdIn) return NextResponse.json({ error: "Need sceneId" }, { status: 400 });
+    if (add && !speakerIn) return NextResponse.json({ error: "Need a character" }, { status: 400 });
+    if (!drop && !saveOnly && !add && !remove && !(stagingIn || "").trim()) {
       return NextResponse.json(
         { error: "Say who sits where — not two people stuck in the front." },
         { status: 400 },
@@ -68,10 +82,48 @@ export async function POST(req: Request) {
 
     await hydrateMobilePackOnDisk(job.styleId, job.folderName);
     const story = await readMobileStory(job.styleId, job.folderName);
+
+    if (add) {
+      const scene = story.scenes.find((sc) => sc.id === sceneIdIn);
+      if (!scene) return NextResponse.json({ error: "That location is not in the story" }, { status: 404 });
+      const newShot = {
+        id: newId("shot"),
+        title: speakerIn,
+        summary: `${speakerIn}, solo — position, voice, and lip sync only. No one else in frame.`,
+        staging: `${speakerIn} alone, standing centre-frame, facing camera, mid body.`,
+        plateFile: "",
+        beats: [{ id: newId("beat"), speaker: speakerIn, text: "" }],
+        sfx: [],
+      };
+      const added: CrashStoryDoc = {
+        ...story,
+        scenes: story.scenes.map((sc) =>
+          sc.id === scene.id ? { ...sc, shots: [...sc.shots, newShot] } : sc,
+        ),
+      };
+      await writeMobileStory(added, job.folderName);
+      const shots = [...job.shots, { shotId: newShot.id, sceneId: scene.id, plateFile: "" }];
+      const updated = await patchMobileGenJob(jobId, { shots, error: "" });
+      return NextResponse.json({ ok: true, job: updated, shotId: newShot.id });
+    }
+
     let scene = story.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId));
     let shot = scene?.shots.find((sh) => sh.id === shotId);
     if (!scene || !shot) {
       return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
+    }
+
+    if (remove) {
+      const removed: CrashStoryDoc = {
+        ...story,
+        scenes: story.scenes.map((sc) =>
+          sc.id === scene!.id ? { ...sc, shots: sc.shots.filter((sh) => sh.id !== shotId) } : sc,
+        ),
+      };
+      await writeMobileStory(removed, job.folderName);
+      const shots = job.shots.filter((s) => s.shotId !== shotId);
+      const updated = await patchMobileGenJob(jobId, { shots, error: "" });
+      return NextResponse.json({ ok: true, job: updated });
     }
 
     if (drop) {

@@ -6,6 +6,14 @@ import { useMobileAssist } from "./useMobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "@/lib/crashStoryTypes";
 
+/** A shot minted by the "+" solo-card picker: exactly one beat, and its
+ * speaker is the shot's whole title. Original script shots never look like
+ * this, so it's a safe way to tell "test card" apart without new state. */
+function isSoloTestShot(shot: CrashStoryShot | null | undefined): boolean {
+  if (!shot) return false;
+  return shot.beats.length === 1 && shot.title.trim() === (shot.beats[0]?.speaker || "").trim();
+}
+
 async function fetchStory(styleId: string, folderName: string): Promise<CrashStoryDoc | null> {
   const res = await fetch(
     `/api/crash/story?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(folderName)}`,
@@ -31,6 +39,9 @@ export function PlateReviewEditor({
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
   const [openShotId, setOpenShotId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [addBusySpeaker, setAddBusySpeaker] = useState<string | null>(null);
+  const [addError, setAddError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +60,7 @@ export function PlateReviewEditor({
   }, [job.styleId, job.folderName]);
 
   const shots = job.shots;
-  if (!shots.length) return null;
+  if (!shots.length && !story) return null;
 
   const shotById = (shotId: string): CrashStoryShot | null => {
     if (!story) return null;
@@ -59,6 +70,77 @@ export function PlateReviewEditor({
     }
     return null;
   };
+
+  function defaultSceneId(): string | null {
+    if (!story) return null;
+    if (openShotId) {
+      const sc = story.scenes.find((s) => s.shots.some((sh) => sh.id === openShotId));
+      if (sc) return sc.id;
+    }
+    if (shots.length) {
+      const lastSceneId = shots[shots.length - 1].sceneId;
+      if (story.scenes.some((s) => s.id === lastSceneId)) return lastSceneId;
+    }
+    return story.scenes[0]?.id || null;
+  }
+
+  const soloShotSpeakers = new Set(
+    shots
+      .map((s) => shotById(s.shotId))
+      .filter(isSoloTestShot)
+      .map((sh) => (sh as CrashStoryShot).title.trim()),
+  );
+
+  async function addSoloShot(speaker: string) {
+    const sceneId = defaultSceneId();
+    if (!sceneId) {
+      setAddError("No location yet — build one first.");
+      return;
+    }
+    setAddError("");
+    setAddBusySpeaker(speaker);
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, action: "add", sceneId, speaker }),
+      });
+      const data = (await res.json()) as { error?: string; job?: MobileGenJob; shotId?: string };
+      if (!res.ok) throw new Error(data.error || "Couldn't add that card");
+      const fresh = await fetchStory(job.styleId, job.folderName);
+      if (fresh) setStory(fresh);
+      if (data.job) onJobChange?.(data.job);
+      if (data.shotId) setOpenShotId(data.shotId);
+      setPickerOpen(false);
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : "Couldn't add that card");
+    } finally {
+      setAddBusySpeaker(null);
+    }
+  }
+
+  async function removeShot(shotId: string) {
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, shotId, action: "remove" }),
+      });
+      const data = (await res.json()) as { error?: string; job?: MobileGenJob };
+      if (!res.ok) throw new Error(data.error || "Couldn't remove that card");
+      setStory((cur) => {
+        if (!cur) return cur;
+        return {
+          ...cur,
+          scenes: cur.scenes.map((sc) => ({ ...sc, shots: sc.shots.filter((sh) => sh.id !== shotId) })),
+        };
+      });
+      if (openShotId === shotId) setOpenShotId(null);
+      if (data.job) onJobChange?.(data.job);
+    } catch {
+      /* card stays until the next job refresh */
+    }
+  }
 
   async function dropPlate(shotId: string) {
     try {
@@ -96,7 +178,7 @@ export function PlateReviewEditor({
           margin: "0 2px 8px",
         }}
       >
-        Shots — tap one, Tweak who sits where, Rebuild
+        Shots — tap one, Tweak position, Rebuild. Tap the picture to inspect.
       </div>
       <div
         style={{
@@ -109,6 +191,7 @@ export function PlateReviewEditor({
       >
         {shots.map((s, i) => {
           const plated = Boolean(s.plateFile && s.plateFile !== "__error__");
+          const solo = isSoloTestShot(shotById(s.shotId));
           return (
             <div key={s.shotId} style={{ position: "relative", flex: "0 0 auto" }}>
               <button
@@ -181,10 +264,102 @@ export function PlateReviewEditor({
                   ×
                 </button>
               ) : null}
+              {solo ? (
+                <button
+                  type="button"
+                  aria-label="Remove this character card"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void removeShot(s.shotId);
+                  }}
+                  style={{
+                    position: "absolute",
+                    bottom: "4px",
+                    right: "4px",
+                    width: "20px",
+                    height: "20px",
+                    padding: 0,
+                    borderRadius: "2px",
+                    border: "none",
+                    background: "rgba(0,0,0,0.72)",
+                    color: "var(--chrome)",
+                    fontSize: "14px",
+                    lineHeight: 1,
+                    cursor: "pointer",
+                  }}
+                >
+                  −
+                </button>
+              ) : null}
             </div>
           );
         })}
+
+        {story && story.scenes.length ? (
+          <button
+            type="button"
+            aria-label="Add a character test card"
+            onClick={() => setPickerOpen((v) => !v)}
+            style={{
+              flex: "0 0 auto",
+              width: "76px",
+              height: "76px",
+              borderRadius: "2px",
+              border: pickerOpen ? "2px solid var(--acid)" : "2px dashed var(--line)",
+              background: "var(--panel-2)",
+              color: "var(--chrome-dim)",
+              fontSize: "26px",
+              lineHeight: 1,
+              cursor: "pointer",
+            }}
+          >
+            +
+          </button>
+        ) : null}
       </div>
+
+      {pickerOpen ? (
+        <div style={{ ...mobileCard, padding: "10px", marginBottom: "10px" }}>
+          <div
+            style={{
+              color: "var(--chrome-dim)",
+              fontSize: "10px",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              marginBottom: "8px",
+            }}
+          >
+            One character, one card — pick who to test
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+            {job.speakers.map((name) => {
+              const already = soloShotSpeakers.has(name.trim());
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  disabled={Boolean(addBusySpeaker)}
+                  onClick={() => void addSoloShot(name)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "2px",
+                    border: "1px solid var(--line)",
+                    background: already ? "var(--panel-2)" : "transparent",
+                    color: addBusySpeaker === name ? "var(--acid)" : "var(--chrome)",
+                    fontSize: "13px",
+                    cursor: addBusySpeaker ? "default" : "pointer",
+                  }}
+                >
+                  {addBusySpeaker === name ? "Adding…" : already ? `${name} · another` : name}
+                </button>
+              );
+            })}
+          </div>
+          {addError ? (
+            <div style={{ fontSize: "12px", color: "var(--magenta-hot)", marginTop: "8px" }}>{addError}</div>
+          ) : null}
+        </div>
+      ) : null}
 
       {openShotId ? (
         <ShotLineEditor
@@ -240,6 +415,80 @@ export function PlateReviewEditor({
   );
 }
 
+/** The strip thumb is 72px — too small to check for artifacts. Tap it to
+ * see the actual plate full screen, same zoom-to-inspect pattern as cast
+ * and location candidates. */
+function PlatePreview({ plateFile, title }: { plateFile: string; title: string }) {
+  const [zoomed, setZoomed] = useState(false);
+  if (!plateFile || plateFile === "__error__") return null;
+  const src = `/api/crash/gen/file?name=${encodeURIComponent(plateFile)}`;
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setZoomed(true)}
+        aria-label="Enlarge this plate"
+        style={{
+          display: "block",
+          width: "100%",
+          padding: 0,
+          border: "1px solid var(--line)",
+          borderRadius: "2px",
+          background: "var(--panel-2)",
+          cursor: "zoom-in",
+          lineHeight: 0,
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={title}
+          style={{ width: "100%", maxHeight: "260px", objectFit: "contain", display: "block" }}
+        />
+      </button>
+      <span
+        style={{
+          position: "absolute",
+          bottom: "8px",
+          right: "8px",
+          padding: "4px 8px",
+          borderRadius: "999px",
+          background: "rgba(0,0,0,0.55)",
+          color: "var(--chrome)",
+          fontSize: "11px",
+          pointerEvents: "none",
+        }}
+      >
+        Tap to enlarge
+      </span>
+      {zoomed ? (
+        <div
+          onClick={() => setZoomed(false)}
+          role="dialog"
+          aria-label="Full screen plate"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 60,
+            background: "rgba(0,0,0,0.94)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "12px",
+            cursor: "zoom-out",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={title} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+          <span style={{ position: "absolute", top: "16px", right: "18px", color: "var(--chrome)", fontSize: "24px" }}>
+            ✕
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ShotLineEditor({
   styleId,
   folderName,
@@ -281,6 +530,7 @@ function ShotLineEditor({
 
   return (
     <div style={{ ...mobileCard, padding: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
+      <PlatePreview plateFile={shot.plateFile} title={shot.title} />
       <PlateStagingEditor
         styleId={styleId}
         jobId={jobId}
@@ -437,7 +687,7 @@ function PlateStagingEditor({
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          {fieldLabel("Tweak")}
+          {fieldLabel("Position tweak")}
           <div style={{ flex: 1 }} />
           <MobileAiButton onClick={() => void plateAssist.runAssist()} busy={plateAssist.aiBusy} />
           <MobilePrimaryButton
@@ -456,6 +706,9 @@ function PlateStagingEditor({
           placeholder="Who sits, leans, presents — Jo on the bar, Matty behind it"
           style={shotFieldStyle}
         />
+        <div style={{ fontSize: "11px", color: "var(--chrome-dim)" }}>
+          Rebuild redraws this shot&apos;s picture from the position notes above — same faces, same place.
+        </div>
       </div>
       {actionAssist.aiError ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{actionAssist.aiError}</div>
@@ -527,6 +780,7 @@ function BeatLineEditor({
       <MobileTextInput
         value={text}
         onChange={setText}
+        placeholder="What they say — aim for 20-30 seconds, about 60-90 words for a test line."
         multiline
         rows={2}
         onAi={() => void lineAssist.runAssist()}
