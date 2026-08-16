@@ -1,9 +1,8 @@
 import path from "path";
 import { NextResponse } from "next/server";
-import { compositeShotPlate } from "@/lib/mobilePlates";
 import { assignReusedVoice } from "@/lib/mobileVoiceReuse";
 import { generateEpisodeVoices } from "@/lib/scriptVoiceGen";
-import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
+import { hydrateMobilePackOnDisk, readMobileStory } from "@/lib/mobileStoryStore";
 import { uploadMobileMedia, resolveMobileMedia } from "@/lib/mobileMediaStore";
 import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
 import { resolveBeatAudioPath } from "@/lib/crashStorySpeak";
@@ -92,79 +91,11 @@ export async function POST(req: Request) {
     }
 
     if (job.phase === "plates") {
-      const story = await readMobileStory(job.styleId, job.folderName);
-      const next = job.shots.find((s) => !s.plateFile);
-      if (!next) {
-        // Straight to review, not an automatic bulk voice pass — plates need
-        // to actually be right first, and voice/dialogue is a deliberate
-        // step after that (PlateReviewEditor), not something committed to
-        // sight unseen. Whatever's still untouched when Generate is hit gets
-        // auto-voiced then (see the "review" branch below).
-        job = (await patchMobileGenJob(jobId, { phase: "review" }))!;
-        return NextResponse.json({ ok: true, job, advanced: true });
-      }
-      const scene = story.scenes.find((sc) => sc.id === next.sceneId);
-      const shot = scene?.shots.find((sh) => sh.id === next.shotId);
-      if (!scene || !shot) {
-        // Marked failed with no reason, which is what made an empty story look
-        // like a cast/location problem for four rounds.
-        const why = story.scenes.length
-          ? `Shot ${next.shotId} is not in scene ${next.sceneId} of the saved story`
-          : `The saved story has no scenes — the pack did not reach cloud storage`;
-        console.error(why);
-        const shots = job.shots.map((s) =>
-          s.shotId === next.shotId ? { ...s, plateFile: "__error__", error: why } : s,
-        );
-        job = (await patchMobileGenJob(jobId, { shots }))!;
-        return NextResponse.json({ ok: true, job, advanced: true });
-      }
-      try {
-        // job.speakers carries the whole roster (cast cards are made for
-        // non-speakers too); anyone with no dialogue anywhere would otherwise
-        // never be composited into a plate.
-        const talking = new Set(
-          story.scenes.flatMap((sc) =>
-            sc.shots.flatMap((sh) => sh.beats.map((b) => b.speaker.trim()).filter(Boolean)),
-          ),
-        );
-        const silentCast = job.speakers.filter((n) => n.trim() && !talking.has(n.trim()));
-
-        const fileName = await compositeShotPlate(job.styleId, scene, shot, {
-          silentCast,
-          styleRealism: job.styleRealism,
-          job,
-        });
-        try {
-          await uploadMobileMedia({
-            styleId: job.styleId,
-            folderName: job.folderName,
-            kind: "plates",
-            localPath: path.join(CRASH_DIR, "gen", fileName),
-          });
-        } catch {
-          /* best effort — plate still usable this request; animate falls back to local disk */
-        }
-        const nextScenes = story.scenes.map((sc) =>
-          sc.id !== scene.id
-            ? sc
-            : { ...sc, shots: sc.shots.map((sh) => (sh.id === shot.id ? { ...sh, plateFile: fileName } : sh)) },
-        );
-        await writeMobileStory({ ...story, scenes: nextScenes }, job.folderName);
-        const shots = job.shots.map((s) => (s.shotId === next.shotId ? { ...s, plateFile: fileName } : s));
-        job = (await patchMobileGenJob(jobId, { shots }))!;
-      } catch (e) {
-        // The reason compositing failed used to be discarded here, leaving
-        // animate to report only that a plate was missing.
-        const why = e instanceof Error ? e.message : String(e);
-        console.error(`Plate failed for shot ${next.shotId}: ${why}`);
-        const shots = job.shots.map((s) =>
-          s.shotId === next.shotId ? { ...s, plateFile: "__error__", error: why } : s,
-        );
-        job = (await patchMobileGenJob(jobId, {
-          shots,
-          error: e instanceof Error ? e.message : String(e),
-        }))!;
-      }
+      // Empty shot strip on purpose. Auto-compositing every shot from the
+      // lock used to mint an early-dev still nobody asked to start from.
+      // Rebuild one shot at a time from Tweak. In-flight jobs already in
+      // this phase skip the lottery the same way.
+      job = (await patchMobileGenJob(jobId, { phase: "review" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
@@ -178,8 +109,9 @@ export async function POST(req: Request) {
       // written, or a few seconds of silence for a beat nobody gave a line
       // to at all. generateEpisodeLines/castEpisodeVoices skip anything
       // that already has a voiceFile, so a manually saved line is untouched.
+      const takenVoices = new Set<string>();
       for (const speaker of job.speakers) {
-        await assignReusedVoice(job.styleId, speaker);
+        await assignReusedVoice(job.styleId, speaker, takenVoices);
       }
       if (!job.folderName) throw new Error("Job has no folder — screenplay phase incomplete");
       await hydrateMobilePackOnDisk(job.styleId, job.folderName);

@@ -226,6 +226,7 @@ export async function compositeShotPlate(
         looks,
         placeLook ? `This place: ${placeLook}` : "",
         castNames[0] ? `${castNames[0]} is prominent if this is their line.` : "",
+        "Identity from each single face card — one person per reference. Never a turnaround sheet with several copies of the same character.",
         "Bodies in the room — sitting, leaning, mid-stride, using the bar or furniture. Matching light. Not a lineup of people standing in the foreground like cutouts.",
       ]
         .filter(Boolean)

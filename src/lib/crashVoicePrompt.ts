@@ -43,20 +43,41 @@ const FEMALE_FIRST = new Set([
   "brittany",
   "jum",
   "nan",
+  "nanna",
   "moira",
   "bev",
   "auntie",
   "kim",
   "chloe",
   "sarah",
+  "jo",
+  "tee",
+  "landy",
 ]);
 
+function nameTokens(name: string): string[] {
+  return name
+    .trim()
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+/** Prefer a known character token over the first adjective.
+ * "Crazy Big Hole Jo Too" is Jo, not Crazy. */
+export function speakerVoiceKey(name: string): string {
+  const parts = nameTokens(name);
+  if (!parts.length) return "";
+  const hit = parts.find((p) => FEMALE_FIRST.has(p) || Boolean(VOICE_BY_NAME[p]));
+  return hit || parts[0] || "";
+}
+
 function firstName(name: string): string {
-  return (name.trim().split(/\s+/)[0] || "").toLowerCase();
+  return speakerVoiceKey(name);
 }
 
 function voiceSafeWho(name: string): string {
-  const first = name.trim().split(/\s+/)[0] || "";
+  const first = speakerVoiceKey(name) || name.trim().split(/\s+/)[0] || "";
   const cleaned = first.replace(/[^a-zA-Z'-]+/g, "").trim();
   if (!cleaned) return "speaker";
   if (/crack|meth|smack|whore|junkie/i.test(cleaned)) return "speaker";

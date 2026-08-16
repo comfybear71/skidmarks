@@ -5,58 +5,41 @@ import {
   patchCrashVoiceApprovedId,
   type CrashVoiceSlot,
 } from "./crashVoice";
-import { readVoiceLibrary } from "./voiceLibrary";
-import { listLibraryVoices, type ElevenVoiceSummary } from "./elevenLabs";
-import { defaultCrashVoicePrompt } from "./crashVoicePrompt";
-import {
-  getShowStylePreset,
-  SHOW_STYLE_PRESETS,
-  type ShowStyleId,
-} from "./showStylePresets";
+import { listLibraryVoices } from "./elevenLabs";
+import { pickLibraryVoiceId, usableLibraryVoices } from "./mobileVoicePick";
+import type { ShowStyleId } from "./showStylePresets";
 
-const STOCK_ADAM_VOICE_ID = "pNInz6obpgDQGcFmaJgB";
-
-/** Same speaker → same voice on every run, without persisting the choice.
- * The local voice records live in per-invocation /tmp on Vercel, so nothing
- * about this decision survives; deriving it from the name keeps a character
- * sounding the same anyway. */
-function stableIndex(name: string, count: number): number {
-  let hash = 0;
-  for (const ch of name.trim().toLowerCase()) {
-    hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  }
-  return count > 0 ? hash % count : 0;
-}
+export { pickLibraryVoiceId } from "./mobileVoicePick";
 
 /**
  * Mobile Auto Studio never designs a new ElevenLabs voice — Stuie's call
  * for this experiment (cost/quota reasons; upgrade later if it's worth it).
- * If a speaker has no approved voice yet, alias them to any already-approved
- * voice_id (this show first, any show as fallback) via patchCrashVoiceApprovedId
- * — a pure local JSON patch, zero ElevenLabs calls. Returns false only when
- * there is truly nothing to reuse yet (first-ever run, nothing cast anywhere).
+ * Pick a unique library voice per speaker (name match, then unused). Never
+ * alias everyone to the first archive slot — that made the whole roster
+ * sound like one person. Returns false only when there is truly nothing
+ * to reuse yet.
  */
 export async function assignReusedVoice(
   styleId: ShowStyleId,
   speaker: string,
+  taken: Set<string> = new Set(),
 ): Promise<boolean> {
   const existing = findCrashVoiceByName(styleId, speaker);
-  if (existing?.approvedVoiceId?.trim()) return true;
+  const already = existing?.approvedVoiceId?.trim() || "";
+  if (already) {
+    taken.add(already);
+    return true;
+  }
 
-  let donorId =
-    listApprovedCrashVoiceSlots(styleId)[0]?.approvedVoiceId ||
-    Object.values(readVoiceLibrary()).find((e) => e.approvedVoiceId?.trim())
-      ?.approvedVoiceId ||
-    "";
+  for (const slot of listApprovedCrashVoiceSlots(styleId)) {
+    const id = slot.approvedVoiceId?.trim();
+    if (id) taken.add(id);
+  }
 
-  // Both lookups above read local JSON, which on Vercel is per-invocation
-  // /tmp — empty on every run. So this returned false every time and the
-  // caller designed a brand new voice per speaker instead, which is what
-  // burned through the monthly add/edit allowance. Voices already on the
-  // account cost nothing to reuse, so fall back to those.
+  const library = await listLibraryVoices().catch(() => []);
+  let donorId = pickLibraryVoiceId(styleId, speaker, library, taken);
   if (!donorId) {
-    const library = await listLibraryVoices().catch(() => []);
-    donorId = pickLibraryVoiceId(styleId, speaker, library);
+    donorId = pickLibraryVoiceId(styleId, speaker, library, []);
   }
   if (!donorId) return false;
 
@@ -64,48 +47,8 @@ export async function assignReusedVoice(
   if (!slot) return false;
 
   patchCrashVoiceApprovedId(styleId, slot.castKey, donorId);
+  taken.add(donorId);
   return true;
-}
-
-function usableLibraryVoices(library: ElevenVoiceSummary[]): ElevenVoiceSummary[] {
-  return library.filter(
-    (v) =>
-      v.voiceId?.trim() &&
-      v.voiceId !== STOCK_ADAM_VOICE_ID &&
-      (v.category || "").toLowerCase() !== "premade",
-  );
-}
-
-/** Pick an existing ElevenLabs voice for this speaker. Never Adam. */
-export function pickLibraryVoiceId(
-  styleId: ShowStyleId,
-  speaker: string,
-  library: ElevenVoiceSummary[],
-): string {
-  const usable = usableLibraryVoices(library);
-  if (!usable.length) return "";
-  const sp = speaker.trim().toLowerCase();
-  const showLabel = getShowStylePreset(styleId).label.toLowerCase();
-  const otherLabels = SHOW_STYLE_PRESETS.filter((p) => p.id !== styleId).map(
-    (p) => p.label.toLowerCase(),
-  );
-  const named = usable.filter((v) => v.name.toLowerCase().includes(sp));
-  const thisShow = named.filter((v) => v.name.toLowerCase().includes(showLabel));
-  const unclaimed = named.filter(
-    (v) => !otherLabels.some((o) => v.name.toLowerCase().includes(o)),
-  );
-  const wanted = /\bfemale voice\b/i.test(defaultCrashVoicePrompt(speaker))
-    ? "female"
-    : "male";
-  const bySex = usable.filter((v) => v.gender === wanted);
-  const pool = bySex.length ? bySex : usable;
-  return (
-    thisShow[0]?.voiceId ||
-    unclaimed[0]?.voiceId ||
-    named[0]?.voiceId ||
-    pool[stableIndex(speaker, pool.length)]?.voiceId ||
-    ""
-  );
 }
 
 /**

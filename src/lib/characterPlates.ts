@@ -41,6 +41,11 @@ export {
  * the same character and would invite the duplicates the plate prompt
  * explicitly forbids. Both describe one character, only one is safe as a
  * compositor reference.
+ *
+ * Consistency: pick one face → bake this sheet once (never overwrite) → every
+ * shot plate uses that same single face card + look words + Tweak staging.
+ * LTX starts from the shot plate, not this sheet. Do not crop the 4-up into
+ * the compositor. A later front-view crop is the only safe extra lock.
  */
 const PLATE_KIND = "character_plate" as const;
 

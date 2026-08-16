@@ -48,8 +48,8 @@ export function PlateReviewEditor({
     };
   }, [job.styleId, job.folderName]);
 
-  const platedShots = job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__");
-  if (!platedShots.length) return null;
+  const shots = job.shots;
+  if (!shots.length) return null;
 
   const shotById = (shotId: string): CrashStoryShot | null => {
     if (!story) return null;
@@ -59,6 +59,31 @@ export function PlateReviewEditor({
     }
     return null;
   };
+
+  async function dropPlate(shotId: string) {
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, shotId, action: "drop" }),
+      });
+      const data = (await res.json()) as { error?: string; job?: MobileGenJob };
+      if (!res.ok) throw new Error(data.error || "Couldn't park that plate");
+      setStory((cur) => {
+        if (!cur) return cur;
+        return {
+          ...cur,
+          scenes: cur.scenes.map((sc) => ({
+            ...sc,
+            shots: sc.shots.map((sh) => (sh.id === shotId ? { ...sh, plateFile: "" } : sh)),
+          })),
+        };
+      });
+      if (data.job) onJobChange?.(data.job);
+    } catch {
+      /* strip stays until the next job refresh */
+    }
+  }
 
   return (
     <div style={{ marginBottom: "16px" }}>
@@ -71,32 +96,94 @@ export function PlateReviewEditor({
           margin: "0 2px 8px",
         }}
       >
-        Shots — tap one to stage the plate and check the line
+        Shots — tap one, Tweak who sits where, Rebuild
       </div>
-      <div style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "2px 2px 10px" }}>
-        {platedShots.map((s) => (
-          <button
-            key={s.shotId}
-            type="button"
-            onClick={() => setOpenShotId((cur) => (cur === s.shotId ? null : s.shotId))}
-            style={{
-              padding: "2px",
-              border: s.shotId === openShotId ? "2px solid var(--acid)" : "2px solid transparent",
-              borderRadius: "2px",
-              flex: "0 0 auto",
-              background: "none",
-              cursor: "pointer",
-              lineHeight: 0,
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`}
-              alt=""
-              style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "2px", display: "block" }}
-            />
-          </button>
-        ))}
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          overflowX: "auto",
+          padding: "2px 2px 10px",
+          touchAction: "pan-x pan-y",
+        }}
+      >
+        {shots.map((s, i) => {
+          const plated = Boolean(s.plateFile && s.plateFile !== "__error__");
+          return (
+            <div key={s.shotId} style={{ position: "relative", flex: "0 0 auto" }}>
+              <button
+                type="button"
+                onClick={() => setOpenShotId((cur) => (cur === s.shotId ? null : s.shotId))}
+                style={{
+                  padding: "2px",
+                  border: s.shotId === openShotId ? "2px solid var(--acid)" : "2px solid var(--line)",
+                  borderRadius: "2px",
+                  background: "var(--panel-2)",
+                  cursor: "pointer",
+                  lineHeight: 0,
+                }}
+              >
+                {plated ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`}
+                    alt=""
+                    style={{
+                      width: "72px",
+                      height: "72px",
+                      objectFit: "cover",
+                      borderRadius: "2px",
+                      display: "block",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "72px",
+                      height: "72px",
+                      borderRadius: "2px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--chrome-dim)",
+                      fontSize: "11px",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+                )}
+              </button>
+              {plated ? (
+                <button
+                  type="button"
+                  aria-label="Park this shot plate"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void dropPlate(s.shotId);
+                  }}
+                  style={{
+                    position: "absolute",
+                    top: "4px",
+                    left: "4px",
+                    width: "20px",
+                    height: "20px",
+                    padding: 0,
+                    borderRadius: "2px",
+                    border: "none",
+                    background: "rgba(0,0,0,0.72)",
+                    color: "var(--chrome)",
+                    fontSize: "14px",
+                    lineHeight: 1,
+                    cursor: "pointer",
+                  }}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
 
       {openShotId ? (
