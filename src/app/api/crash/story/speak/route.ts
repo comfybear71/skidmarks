@@ -1,9 +1,15 @@
 import fs from "fs";
+import path from "path";
 import { NextResponse } from "next/server";
 import { readCrashStory } from "@/lib/crashStory";
 import { resolveBeatAudioPath, synthesizeStoryBeat } from "@/lib/crashStorySpeak";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { cloudBlobRedirect, isSafeMediaName } from "@/lib/cloudMedia";
+import { useCloudStore } from "@/lib/cloudEnv";
+import { cloudActivePack } from "@/lib/cloudPack";
+import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
+import { resolveMobileMedia, uploadMobileMedia } from "@/lib/mobileMediaStore";
+import { storyDialogueDir } from "@/lib/crashStoryLocations";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,12 +35,31 @@ export async function POST(req: Request) {
       );
     }
 
+    const pack = useCloudStore() ? await cloudActivePack(styleId) : null;
+    if (pack?.folderName) {
+      await hydrateMobilePackOnDisk(styleId, pack.folderName);
+      await readMobileStory(styleId, pack.folderName);
+    }
+
     const result = await synthesizeStoryBeat({
       styleId,
       beatId,
       speaker,
       text,
     });
+
+    if (pack?.folderName && result.story.scenes?.length) {
+      await writeMobileStory(result.story, pack.folderName);
+      const localPath =
+        resolveBeatAudioPath(styleId, beatId, result.voiceFile) ||
+        path.join(storyDialogueDir(styleId), result.voiceFile);
+      await uploadMobileMedia({
+        styleId,
+        folderName: pack.folderName,
+        kind: "audio",
+        localPath,
+      });
+    }
 
     return NextResponse.json({
       ok: true,
@@ -79,6 +104,18 @@ export async function GET(req: Request) {
   }
 
   let filePath = resolveBeatAudioPath(styleId, beatId, voiceFile);
+  if (!filePath && cloudName && useCloudStore()) {
+    const pack = await cloudActivePack(styleId);
+    if (pack?.folderName) {
+      filePath = await resolveMobileMedia({
+        styleId,
+        folderName: pack.folderName,
+        kind: "audio",
+        fileName: cloudName,
+        destPath: path.join(storyDialogueDir(styleId), cloudName),
+      });
+    }
+  }
   if (!filePath) {
     try {
       const story = readCrashStory(styleId);
