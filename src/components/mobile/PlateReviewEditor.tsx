@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MobileAiButton, MobileAudioPlayer, MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
+import {
+  MobileAiButton,
+  MobileAudioPlayer,
+  MobilePrimaryButton,
+  MobileTextInput,
+  mobileCard,
+  mobileMediaFrame,
+} from "./MobileUi";
 import { useMobileAssist } from "./useMobileAssist";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import {
@@ -10,7 +17,7 @@ import {
   preferredCandidate,
 } from "@/lib/mobileJobReady";
 import { imageMotionAssistHint, platePositionAssistHint } from "@/lib/mobileAssist";
-import type { MobileGenJob } from "@/lib/mobileGenJob";
+import type { MobileClipUnit, MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 import {
   leftoverHydrateBeat,
@@ -32,6 +39,11 @@ import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSav
 
 /** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
 const PLATE_TILE_PX = 96;
+
+function mobileClipSrc(job: Pick<MobileGenJob, "styleId" | "folderName">, clipFile: string): string {
+  const fileName = clipFile.split(/[\\/]/).pop() || clipFile;
+  return `/api/crash/mobile/clip?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&fileName=${encodeURIComponent(fileName)}`;
+}
 
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
   const file =
@@ -750,6 +762,7 @@ export function PlateReviewEditor({
             ""
           }
           shot={displayShot(openShotId)}
+          clips={job.clips}
           loading={!story && !loadError}
           error={loadError}
           placeSrc={
@@ -1294,6 +1307,7 @@ function ShotLineEditor({
   jobVoices,
   lookForSpeaker,
   shot,
+  clips,
   loading,
   error,
   placeSrc,
@@ -1308,6 +1322,7 @@ function ShotLineEditor({
   jobVoices?: Record<string, JobSpeakerVoice>;
   lookForSpeaker: (name: string) => string;
   shot: CrashStoryShot | null;
+  clips: MobileClipUnit[];
   loading: boolean;
   error: string;
   placeSrc?: string;
@@ -1354,6 +1369,37 @@ function ShotLineEditor({
         jobPlated={jobPlated}
         onPicked={(plateFile, staging) => onPlateRebuilt(plateFile, staging, shot.summary)}
       />
+      {clips
+        .filter((c) => c.shotId === shot.id && Boolean(c.clipFile))
+        .map((clip) => (
+          <div key={`${clip.beatId}:${clip.clipFile}`}>
+            <div
+              style={{
+                fontSize: "10px",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: "var(--chrome-dim)",
+                marginBottom: "6px",
+              }}
+            >
+              {clip.clipStatus === "error" ? "Clip failed" : "Clip"}
+            </div>
+            {clip.clipStatus === "error" && clip.error ? (
+              <div style={{ fontSize: "12px", color: "var(--magenta-hot)", marginBottom: "6px" }}>
+                {clip.error}
+              </div>
+            ) : null}
+            {clip.clipFile ? (
+              <video
+                src={mobileClipSrc({ styleId, folderName }, clip.clipFile)}
+                controls
+                playsInline
+                preload="metadata"
+                style={{ ...mobileMediaFrame, width: "100%" }}
+              />
+            ) : null}
+          </div>
+        ))}
       {speakingBeats.length ? (
         speakingBeats.map((beat) => (
           <BeatLineEditor
