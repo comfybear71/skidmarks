@@ -82,11 +82,15 @@ export async function POST(req: Request) {
     // now has a file, there's something to stitch; send it back to animate
     // to pick up whatever is still pending, or straight to stitch if none
     // is. Otherwise leave the job in error — nothing actually changed.
-    if (job.phase === "error" && job.clips.some((c) => c.clipStatus === "done")) {
-      const nextPhase = phaseAfterErrorResume(
-        job.clips.some((c) => c.clipStatus === "pending"),
-      );
-      job = (await patchMobileGenJob(jobId, { phase: nextPhase, error: "" }))!;
+    if (job.phase === "error") {
+      if (job.clips.some((c) => c.clipStatus === "done")) {
+        const nextPhase = phaseAfterErrorResume(
+          job.clips.some((c) => c.clipStatus === "pending"),
+        );
+        job = (await patchMobileGenJob(jobId, { phase: nextPhase, error: "" }))!;
+        return NextResponse.json({ ok: true, job, advanced: true });
+      }
+      job = (await patchMobileGenJob(jobId, { phase: "review", error: "" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
