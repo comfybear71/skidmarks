@@ -743,7 +743,30 @@ export function StudioTree({
   const [castOpen, setCastOpen] = useState(true);
   const [locationsOpen, setLocationsOpen] = useState(true);
   const [platesOpen, setPlatesOpen] = useState(true);
+  const [addingPlateFor, setAddingPlateFor] = useState<string | null>(null);
+  const [addPlateError, setAddPlateError] = useState("");
+  const [addPlateDoneFor, setAddPlateDoneFor] = useState<string | null>(null);
   const [scriptDraft, setScriptDraft] = useState("");
+
+  async function addLocationToPlate(sceneId: string) {
+    setAddingPlateFor(sceneId);
+    setAddPlateError("");
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, action: "add", sceneId }),
+      });
+      const data = (await res.json()) as { error?: string; job?: MobileGenJob };
+      if (!res.ok) throw new Error(data.error || "Couldn't add a plate there");
+      if (data.job) onJobChange(data.job);
+      setAddPlateDoneFor(sceneId);
+    } catch (e) {
+      setAddPlateError(e instanceof Error ? e.message : "Couldn't add a plate there");
+    } finally {
+      setAddingPlateFor(null);
+    }
+  }
   const episodeHint = [
     `Vibe: ${job.prompt}`,
     `Cast (spell these names exactly, nobody else): ${job.speakers.join(", ")}`,
@@ -955,6 +978,25 @@ export function StudioTree({
             error={error}
             promptPlaceholder="e.g. Mars, a dive bar, outer space"
             promptLabel="Place"
+            extra={
+              job.folderName ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <MobilePrimaryButton
+                    size="chip"
+                    disabled={addingPlateFor === placeFocus}
+                    onClick={() => void addLocationToPlate(placeFocus)}
+                  >
+                    {addingPlateFor === placeFocus ? "…" : "Add to plate"}
+                  </MobilePrimaryButton>
+                  {addPlateDoneFor === placeFocus ? (
+                    <span style={{ fontSize: "11px", color: "var(--acid)" }}>Added — see Plates below</span>
+                  ) : null}
+                  {addPlateError ? (
+                    <span style={{ fontSize: "11px", color: "var(--magenta-hot)" }}>{addPlateError}</span>
+                  ) : null}
+                </div>
+              ) : null
+            }
             onGenerate={(p) => onGenerateLocation(placeFocus, p)}
             onApprove={(id) => {
               onApproveLocation(placeFocus, id);
@@ -979,7 +1021,7 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {platesOpen && canWrite && !lockingScript ? (
+        {platesOpen && canWrite && !lockingScript && !job.folderName ? (
           <div style={{ marginBottom: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
               {job.folderName

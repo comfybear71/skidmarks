@@ -552,8 +552,14 @@ export function PlateReviewEditor({
           folderName={job.folderName}
           jobId={job.id}
           shot={shotById(openShotId)}
+          speakers={job.speakers}
           loading={!story && !loadError}
           error={loadError}
+          onCastAdded={() => {
+            void fetchStory(job.styleId, job.folderName).then((fresh) => {
+              if (fresh) setStory(fresh);
+            });
+          }}
           onPlateRebuilt={(plateFile, staging, summary, plateTakes) => {
             setStory((cur) => {
               if (!cur || !openShotId) return cur;
@@ -796,21 +802,109 @@ function PlatePreview({
   );
 }
 
+function AddCastRow({
+  jobId,
+  shot,
+  speakers,
+  onAdded,
+}: {
+  jobId: string;
+  shot: CrashStoryShot;
+  speakers: string[];
+  onAdded: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const inShot = new Set(shot.beats.map((b) => b.speaker.trim().toLowerCase()));
+  const available = speakers.filter((n) => !inShot.has(n.trim().toLowerCase()));
+
+  async function add(speaker: string) {
+    setBusy(speaker);
+    setError("");
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, shotId: shot.id, speaker, action: "add-cast" }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || "Couldn't add them");
+      setOpen(false);
+      onAdded();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't add them");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          padding: "6px 10px",
+          borderRadius: "2px",
+          border: "1px dashed var(--line)",
+          background: "transparent",
+          color: "var(--acid)",
+          fontSize: "12px",
+          cursor: "pointer",
+        }}
+      >
+        + Add cast
+      </button>
+      {open ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+          {available.length ? (
+            available.map((name) => (
+              <button
+                key={name}
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => void add(name)}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: "2px",
+                  border: "1px solid var(--line)",
+                  background: "transparent",
+                  color: busy === name ? "var(--acid)" : "var(--chrome)",
+                  fontSize: "12px",
+                }}
+              >
+                {busy === name ? "…" : name}
+              </button>
+            ))
+          ) : (
+            <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>Everyone&apos;s already in this shot.</div>
+          )}
+        </div>
+      ) : null}
+      {error ? <div style={{ fontSize: "11px", color: "var(--magenta-hot)", marginTop: "4px" }}>{error}</div> : null}
+    </div>
+  );
+}
+
 function ShotLineEditor({
   styleId,
   folderName,
   jobId,
   shot,
+  speakers,
   loading,
   error,
   onBeatSaved,
   onPlateRebuilt,
+  onCastAdded,
   onJobChange,
 }: {
   styleId: string;
   folderName: string;
   jobId: string;
   shot: CrashStoryShot | null;
+  speakers: string[];
   loading: boolean;
   error: string;
   onBeatSaved: (beatId: string, text: string, voiceFile: string) => void;
@@ -820,6 +914,7 @@ function ShotLineEditor({
     summary: string,
     plateTakes?: PlateTake[],
   ) => void;
+  onCastAdded: () => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
   if (loading) {
@@ -868,9 +963,10 @@ function ShotLineEditor({
         ))
       ) : (
         <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
-          No dialogue in this shot — plays as a held shot.
+          No one in this shot yet — add cast below.
         </div>
       )}
+      <AddCastRow jobId={jobId} shot={shot} speakers={speakers} onAdded={onCastAdded} />
     </div>
   );
 }

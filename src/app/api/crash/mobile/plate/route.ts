@@ -32,8 +32,12 @@ function patchShotFields(
  * action / tweak text. Does not composite.
  * POST { jobId, shotId, action: "drop" } — clear the shot still pointer.
  * Blob/disk stay (park, don't delete). The strip shows an empty slot.
- * POST { jobId, sceneId, speaker, action: "add" } — add a new solo shot
- * card for one character at that location. One beat, that speaker only.
+ * POST { jobId, sceneId, speaker, action: "add" } — add a shot card at
+ * that location. With speaker: a solo card, one beat, that speaker only.
+ * Without speaker: an empty plate — add cast to it with "add-cast".
+ * POST { jobId, shotId, speaker, action: "add-cast" } — put one more
+ * character into an existing shot (repeat to build a conversation).
+ * Appends a beat for that speaker if they're not already in it.
  * POST { jobId, shotId, action: "remove" } — take the shot out of the
  * strip entirely. Any plate/audio it made stays on disk/Blob, just
  * unlinked — same park-don't-delete rule as "drop". Returns the removed
@@ -70,6 +74,7 @@ export async function POST(req: Request) {
     const drop = action === "drop";
     const saveOnly = action === "save";
     const add = action === "add";
+    const addCast = action === "add-cast";
     const remove = action === "remove";
     const clear = action === "clear";
     const restore = action === "restore";
@@ -79,12 +84,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Need shotId" }, { status: 400 });
     }
     if (add && !sceneIdIn) return NextResponse.json({ error: "Need sceneId" }, { status: 400 });
-    if (add && !speakerIn) return NextResponse.json({ error: "Need a character" }, { status: 400 });
+    if (addCast && !speakerIn) return NextResponse.json({ error: "Need a character" }, { status: 400 });
     if (restore && (!sceneIdIn || !body.shot?.id)) {
       return NextResponse.json({ error: "Need sceneId and shot" }, { status: 400 });
     }
     if (pick && !takeIdIn) return NextResponse.json({ error: "Need takeId" }, { status: 400 });
-    if (!drop && !saveOnly && !add && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
+    if (!drop && !saveOnly && !add && !addCast && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
       return NextResponse.json(
         { error: "Say who sits where — not two people stuck in the front." },
         { status: 400 },
@@ -106,13 +111,16 @@ export async function POST(req: Request) {
     if (add) {
       const scene = story.scenes.find((sc) => sc.id === sceneIdIn);
       if (!scene) return NextResponse.json({ error: "That location is not in the story" }, { status: 404 });
+      const solo = Boolean(speakerIn);
       const newShot = {
         id: newId("shot"),
-        title: speakerIn,
-        summary: `${speakerIn}, solo — position, voice, and lip sync only. No one else in frame.`,
-        staging: `${speakerIn} alone, standing centre-frame, facing camera, mid body.`,
+        title: solo ? speakerIn : scene.placeName,
+        summary: solo
+          ? `${speakerIn}, solo — position, voice, and lip sync only. No one else in frame.`
+          : "",
+        staging: solo ? `${speakerIn} alone, standing centre-frame, facing camera, mid body.` : "",
         plateFile: "",
-        beats: [{ id: newId("beat"), speaker: speakerIn, text: "" }],
+        beats: solo ? [{ id: newId("beat"), speaker: speakerIn, text: "" }] : [],
         sfx: [],
       };
       const added: CrashStoryDoc = {
@@ -183,6 +191,37 @@ export async function POST(req: Request) {
     let shot = scene?.shots.find((sh) => sh.id === shotId);
     if (!scene || !shot) {
       return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
+    }
+
+    if (addCast) {
+      const already = shot.beats.some((b) => b.speaker.trim().toLowerCase() === speakerIn.toLowerCase());
+      if (already) {
+        return NextResponse.json({ error: `${speakerIn} is already in this shot` }, { status: 400 });
+      }
+      const beats = [...shot.beats, { id: newId("beat"), speaker: speakerIn, text: "" }];
+      const cast = beats.map((b) => b.speaker.trim()).filter(Boolean);
+      const withBeat: CrashStoryDoc = {
+        ...story,
+        scenes: story.scenes.map((sc) =>
+          sc.id === scene!.id
+            ? {
+                ...sc,
+                shots: sc.shots.map((sh) =>
+                  sh.id === shotId
+                    ? {
+                        ...sh,
+                        beats,
+                        title: cast.join(", ") || sh.title,
+                        staging: sh.staging?.trim() || `${cast.join(", ")} · ${scene!.placeName}`,
+                      }
+                    : sh,
+                ),
+              }
+            : sc,
+        ),
+      };
+      await writeMobileStory(withBeat, job.folderName);
+      return NextResponse.json({ ok: true, job });
     }
 
     if (pick) {
