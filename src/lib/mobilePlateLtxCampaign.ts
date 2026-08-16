@@ -3,9 +3,10 @@ import type { ShowStyleId } from "./showStylePresets";
 
 /**
  * Thorough plate + LTX test: 20 positions, each with SHORT and LONG speech.
- * Same still, two mp3s, two Image motion bodies (same pose, different NAME says).
- * MCU + wide longs are the duration PUSH (full Jummie letter, not split).
- * One locked character, one locked place. Not leftover CAST.
+ * Words are a length pool — not whose line, not a cast split. Same still,
+ * two mp3s, two Image motion bodies (same pose, different NAME says).
+ * MCU + wide longs are the duration PUSH (longest pasted block, unsplit).
+ * One locked face, one locked place. Not leftover CAST.
  *
  * Each clip is a numbered test (T01…) with a 1–5 score + comment so we
  * know plating, distance, artifacts, and hallucination before this is
@@ -426,8 +427,8 @@ function oneLine(text: string): string {
 }
 
 /**
- * Jo texts Stuie sent — split into 26+ spoken takes, short through long.
- * The full Hi Jummie letter stays whole as CAMPAIGN_PUSH_SPEECH.
+ * Spoken takes, short through long. Whose words they were does not matter —
+ * only character length. The longest block is CAMPAIGN_PUSH_SPEECH.
  */
 export const CAMPAIGN_SPEECH: string[] = [
   oneLine(
@@ -528,13 +529,37 @@ export const CAMPAIGN_SPEECH: string[] = [
   ),
   oneLine("An acknowledgment and some respect and understanding would be nice."),
   oneLine("I just had it out with her in the kitchen. She needs to go."),
+  oneLine("I've sent this to Jummie."),
+  oneLine(
+    "Stuie, she's ok to chat to, but she's not a good fit for here. I've been there Bub and I can tell you know, she's where I was a few years back. It's sad. I hope she finds somewhere that fits, but it isn't here.",
+  ),
+  oneLine(
+    "Hi Jummie. Very disappointed with your new tenant. She has her boyfriend here again today. He stayed last night and he's back again today. This woman is nice to chat to, but she's a drug user and so is her boyfriend. She has had mental illness issues and she doesn't work and she's up all night walking around and making noise and making food at 1 am in the morning. This is unacceptable Jummie. We don't want people like that here. It's just like Chris. I don't want drug addicts in the house. She's got her boyfriend here again today and looks like he is staying the night again. This is totally unacceptable. There are way too many people in this house already. We are good, quiet and drug free people and these people are not good people. Most people work here and are asleep early and don't have boyfriends here. This is not the type of person we need in the house. It is unfair to us existing, long term good tenants. I wish you would please wait until the get the right person to rent that room out. It is very stressful for me and I don't feel safe having people like that around me. I She has to go Jummie. Her boyfriend is not happy where he is living and she wants him to stay here. It's totally unacceptable. We have a child downstairs and it's totally unacceptable to have people like that around a child. They've taken over the back veranda. Smoking and taking out there all night above Laddiwan. No privacy for her and the noise will eventually and lack of privacy will get to her.",
+  ),
+  oneLine("Where's your messenger gone? I can't find u."),
+  oneLine(
+    "Jummie asked me to send you a list of kitchen items to buy. Plates. Bowls. Mugs. A good cooking pan and pot. A sharp knife set. Mine is 12 years old.",
+  ),
+  oneLine(
+    "I've got heaps of knives and forks and cooking utensils, so no need to buy more there. IDK about the micro and air fryer. You'll have to ask Jason how he feels about everyone using those.",
+  ),
+  oneLine("Thank you Both so much. Xoxoxoxozo"),
+  oneLine(
+    "Hey hun. Would you mind pls passing this message onto Laddiwan for me. She's blocked my number. It's very dangerous tying her dog up out the front. I almost ran him over myself one day. She had him tied up to the treadmill, but right where I park my car. Thanks you.",
+  ),
+  oneLine(
+    "Hey Laddiwan. Would you please put your dog out the back. I'm having a lay down and he's barking. It's also very dangerous tying him up out the front. He could easily get run over. Thank you.",
+  ),
+  oneLine(
+    "Hey Bub. Kimmy Pastrikos is looking for a place to rent for him and his 2 girls. Have you rented out Mads old donga yet?",
+  ),
 ];
 
 if (CAMPAIGN_SPEECH.length < 26) {
   throw new Error(`Need 26+ campaign speeches, got ${CAMPAIGN_SPEECH.length}`);
 }
 
-/** Full Hi Jummie letter — duration push. Do not split. MCU + wide longs only. */
+/** Longest baked block — duration push. Do not split. MCU + wide longs only. */
 export const CAMPAIGN_PUSH_SPEECH = oneLine(
   `Howdy. Stuie I've sent Jummie a very lengthy text following our screaming match yesterday. I am only sending it to you FYI and to help her understand, if you would please? It is important to put things in writing to cover both sides. Hi Jummie. I have washed the lounge room entry door curtain and both single curtains. Have also cleaned the windows and doors. I will do the back and other front door curtains and doors tomorrow. There are holes in the louvred fly screens. These have been here since we moved in and have got worse over the past few months due to the trees hitting the louvres and the trees being cut down for the donga. The screens throughout the entire house are old and perished and very fragile. You can practically flick it out it's that thin and old. The lounge room, bathroom, toilet, kitchen, dining and verandas are common areas, shared by all upstairs tenants and we are all responsible for cleaning these areas, including fans, aircon, floors, walls, cupboards, doors and windows. Regardless of who works and who doesn't, or who spends more time in the house. Just because I have cats does not mean I am solely responsible for these areas and surfaces. The cat hair just gets vacuumed off, which I do regularly. It's that simple. The curtains are cleaned on an annual basis or when needed. Jummie, if you wanted me to clean the curtains in the end room, all you had to do was ask. I apologize I forgot to vacuum the cat hair off them. It's just hair Jummie and some of it would've been mine. The cats are extremely clean animals. They are indoor cats, so they have no parasites or dirts. They've been vaccinated and are regularly worked. They also eat all the roaches and flies and other bugs so that keeps the house bug free. Jummie, I don't appreciate you coming over here every day poking your nose in and ordering me around. I'm a 57 year old woman, not a child. I am also your tenant who pays rent and has rights. I am fully aware of my responsibilities. Just because something is dirty, doesn't mean I'm ignoring it. I just haven't got around to it. I have cleaned that end room many, many times, including when you let Chris move downstairs without checking the room and making him clean it. I cleaned that room for you and I told you about that face to face. I told you he left food wrappers and leftover food and shit all over the floor and in the cupboards. He didn't clean the fan or the aircon either. I did that. I also washed the black sheets you gave him for his bed. He ripped the fitted sheet to fit his big arse bed. I did not rip it. I haven't used them. I just cleaned them for you. Jummie, I love you to bits, but you need to back off. You are too full on and in my face and you're causing me stress and anxiety being here almost every day. It's been like that since I moved in and it's caused me heart problems. You just cannot keep doing that. You are required to advise tenants in writing, 24 hours in advance before you come to the house and you need to tell us what you are coming to the house to do. Not just text when you're on your way. Yesterday you didn't even message. You just turned up unannounced and started letting yourself in, again and started ordering me around and screaming at me. That's why I screamed at you and told you to fuck off. Every time you come to the house without giving the required 24 hours notice, you are breaching tenancy laws. Just because there is not written agreement, doesn't mean the law doesn't apply. You cannot just come over and let yourself inside, without giving the required notice. I love living here, but I'm sick and tired of being harassed, bullied, screamed at and ordered around. I show you respect by paying my rent on time, keeping the house clean and tidy and letting you know what's going on here. I'm entitled to the same level of respect. I am not moving out. I have nowhere to go and I simply cannot afford my own place yet. My furniture will be here at the end of July, so we will have a lounge and I'll put my TV in the lounge as well. I also have a big rug for the lounge. I have bought 2 sets of seat covers for the dining room chairs. I have had them out away to ensure the cats don't damage them. The covers will be here next week sometime. May I ask that you focus on cleaning up after yourself and the boys after putting in the donga and all the other works and changing the air cons downstairs. I have cleaned up after you guys downstairs many times downstairs, putting your rubbish, beer bottles and empty cigarette packets in the bin and moving all the drill bits and grinder and sharp leftover tin and your seats. I cleaned up after you again today. Leaving all that shit lying around is dangerous and someone could get hurt. There is a young child living here now, so you really need to be careful what you leave laying around. It also looks disgusting. The house is full of dust and dirt from the dirt and concrete that you've dug up and left out the front. Dust is everywhere here. I'm sure next door is copping it as well. I will be cleaning my room curtains and louvres as well and I'll buy new curtain clips as well. The existing ones are old and dirty and bent. That's all I have to say. Please respect my privacy and show some respect. I live here. This is my home as well, and I treat it like is my own.`,
 );
@@ -545,8 +570,8 @@ export function campaignSpeechScript(): string {
   return [...CAMPAIGN_SPEECH, CAMPAIGN_PUSH_SPEECH].join("\n\n");
 }
 
-/** Speech blocks — blank line between texts. One text may be many sentences.
- * The Jummie letter may arrive with inner paragraph breaks — glue it back. */
+/** Speech blocks — blank line between texts. Length only. Glue a long
+ * paste back together if it arrived with inner paragraph breaks. */
 export function parseCampaignLines(raw: string): string[] {
   const strip = (s: string) => s.replace(/^\s*\d+[.)]\s*/, "").trim();
   const bits = raw
@@ -558,29 +583,31 @@ export function parseCampaignLines(raw: string): string[] {
 
 function coalescePushSpeech(bits: string[]): string[] {
   if (bits.some(isPushSpeech)) return bits;
-  const start = bits.findIndex(
-    (s) => /hi jummie/i.test(s) || /^howdy\b/i.test(s),
-  );
-  if (start < 0) return bits;
-  for (let end = bits.length; end > start; end--) {
-    const joined = bits.slice(start, end).join(" ");
-    if (isPushSpeech(joined)) {
-      return [...bits.slice(0, start), oneLine(joined), ...bits.slice(end)];
+  let best: { start: number; end: number; len: number } | null = null;
+  for (let start = 0; start < bits.length; start++) {
+    const parts: string[] = [];
+    for (let end = start + 1; end <= bits.length; end++) {
+      parts.push(bits[end - 1]!);
+      const joined = parts.join(" ");
+      if (isPushSpeech(joined) && (!best || joined.length > best.len)) {
+        best = { start, end, len: joined.length };
+      }
     }
   }
-  return bits;
+  if (!best) return bits;
+  const joined = bits.slice(best.start, best.end).join(" ");
+  return [...bits.slice(0, best.start), oneLine(joined), ...bits.slice(best.end)];
 }
 
 export function isPushSpeech(text: string): boolean {
-  const t = oneLine(text);
-  return t.length >= 1500 && /hi jummie/i.test(t);
+  return oneLine(text).length >= 1500;
 }
 
 export function peelPushSpeech(speech: string[]): { pool: string[]; push: string } {
   const mapped = speech.map(oneLine).filter(Boolean);
-  const push = mapped.find(isPushSpeech) || "";
-  const pool = mapped.filter((s) => !isPushSpeech(s));
-  return { pool, push };
+  const push = mapped.reduce((best, s) => (s.length > best.length ? s : best), "");
+  if (!isPushSpeech(push)) return { pool: mapped, push: "" };
+  return { pool: mapped.filter((s) => s !== push), push };
 }
 
 /** Short half and long half of the corpus, by character length. */
@@ -601,7 +628,7 @@ export type CampaignLinePlan = {
 
 /**
  * 40 lines: for each of 20 poses, short then long.
- * MCU + wide longs use the unsplit Jummie letter when it is in the paste.
+ * MCU + wide longs use the longest paste when it is long enough to push.
  */
 export function pairSpeechToPlacements(speech: string[]): CampaignLinePlan {
   const peeled = peelPushSpeech(speech);
@@ -626,7 +653,7 @@ export function pairSpeechToPlacements(speech: string[]): CampaignLinePlan {
   return { lines, bands };
 }
 
-/** Any number of speeches. Empty uses the baked Jo corpus. Always 40 clip lines. */
+/** Any number of speeches. Empty uses the baked length pool. Always 40 clip lines. */
 export function expandCampaignLines(raw: string | string[]): {
   lines: string[];
   bands: CampaignTestBand[];
