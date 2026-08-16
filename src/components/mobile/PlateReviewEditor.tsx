@@ -12,17 +12,10 @@ import {
 import { platePositionAssistHint } from "@/lib/mobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
+import { leftoverHydrateBeat, plateLineBeats, voiceFileBelongsToSpeaker } from "@/lib/mobilePlateLines";
 
 /** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
 const PLATE_TILE_PX = 96;
-
-function leftoverHydrateBeat(shotId: string, beatId: string): boolean {
-  if (!shotId || !beatId) return false;
-  if (beatId === `${shotId}_hold`) return true;
-  return new RegExp(
-    `^${shotId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}_a\\d+$`,
-  ).test(beatId);
-}
 
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
   const file =
@@ -732,6 +725,7 @@ export function PlateReviewEditor({
           styleId={job.styleId}
           folderName={job.folderName}
           jobId={job.id}
+          jobSpeakers={job.speakers}
           shot={displayShot(openShotId)}
           loading={!story && !loadError}
           error={loadError}
@@ -1255,6 +1249,7 @@ function ShotLineEditor({
   styleId,
   folderName,
   jobId,
+  jobSpeakers,
   shot,
   loading,
   error,
@@ -1266,6 +1261,7 @@ function ShotLineEditor({
   styleId: string;
   folderName: string;
   jobId: string;
+  jobSpeakers: string[];
   shot: CrashStoryShot | null;
   loading: boolean;
   error: string;
@@ -1295,7 +1291,14 @@ function ShotLineEditor({
   }
   if (!shot) return null;
 
-  const speakingBeats = shot.beats.filter((b) => b.speaker.trim());
+  const speakingBeats = plateLineBeats({
+    shotId: shot.id,
+    title: shot.title,
+    staging: shot.staging,
+    summary: shot.summary,
+    jobSpeakers,
+    beats: shot.beats,
+  });
 
   return (
     <div style={{ ...mobileCard, padding: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -1340,11 +1343,38 @@ function BeatLineEditor({
   onSaved: (text: string, voiceFile: string) => void;
 }) {
   const [text, setText] = useState(beat.text);
-  const [voiceFile, setVoiceFile] = useState(beat.voiceFile || "");
+  const [voiceFile, setVoiceFile] = useState(
+    voiceFileBelongsToSpeaker(beat.voiceFile, beat.speaker) ? beat.voiceFile || "" : "",
+  );
+  const [voiceName, setVoiceName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
   const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
+  const playable = Boolean(voiceFile && voiceFileBelongsToSpeaker(voiceFile, beat.speaker));
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      fetch(`/api/crash/mobile/voices?jobId=${encodeURIComponent(jobId)}&speaker=${encodeURIComponent(beat.speaker)}`).then(
+        (r) => r.json(),
+      ),
+      fetch(`/api/crash/mobile/voice-library?styleId=${encodeURIComponent(styleId)}`).then((r) => r.json()),
+    ])
+      .then(([status, lib]) => {
+        if (cancelled) return;
+        const voiceId = (status.voices?.[0]?.voiceId || "").trim();
+        const list = (lib.voices || []) as { voiceId: string; name: string }[];
+        const hit = list.find((v) => v.voiceId === voiceId);
+        if (hit?.name) setVoiceName(hit.name);
+      })
+      .catch(() => {
+        /* line still edits — name is a hint */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, styleId, beat.speaker]);
 
   async function save() {
     setSaving(true);
@@ -1371,8 +1401,11 @@ function BeatLineEditor({
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <div style={{ fontSize: "12px", color: "var(--acid)", fontWeight: 700, flex: "0 0 auto" }}>
           {beat.speaker}
+          {voiceName ? (
+            <span style={{ color: "var(--chrome-dim)", fontWeight: 500 }}> · {voiceName}</span>
+          ) : null}
         </div>
-        {voiceFile ? (
+        {playable ? (
           <MobileAudioPlayer
             src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(
               folderName,
