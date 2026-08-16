@@ -9,7 +9,7 @@ import {
   mobileCard,
   mobileCardSelected,
 } from "@/components/mobile/MobileUi";
-import { SwipeCarousel } from "@/components/mobile/SwipeCarousel";
+import { SingleCandidateCard } from "@/components/mobile/SingleCandidateCard";
 import { StoryFeed } from "@/components/mobile/StoryFeed";
 import { PlateReviewEditor } from "@/components/mobile/PlateReviewEditor";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
@@ -167,6 +167,30 @@ export default function MobileHomePage() {
         setJob(updated);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Generation failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [job],
+  );
+
+  // Adds a speaker/scene the screenplay never named — "his friend is a
+  // grunge bottle of olive oil" — with no dialogue attached yet. It just
+  // joins the roster/world and picks a face like anything else; giving it a
+  // line is a later, separate decision.
+  const addRosterItem = useCallback(
+    async (kind: "cast" | "location", name: string) => {
+      if (!job) return;
+      setBusy(true);
+      setError("");
+      try {
+        const { job: updated } = await postJson<{ job: MobileGenJob }>(
+          "/api/crash/mobile/candidates",
+          { jobId: job.id, kind, action: "add", name },
+        );
+        setJob(updated);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't add that");
       } finally {
         setBusy(false);
       }
@@ -369,7 +393,7 @@ export default function MobileHomePage() {
         <CastLocationStep
           key="cast"
           title="Pick your cast"
-          subtitle="Swipe to see faces, tap to pick one. Type to steer a fresh batch."
+          subtitle="One face at a time — dud it and try again, or pick it."
           items={job.speakers}
           candidatesOf={(name) => job.castCandidates[name] || []}
           imageSrc={(name, c) =>
@@ -377,6 +401,9 @@ export default function MobileHomePage() {
           }
           onGenerate={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApprove={(name, candidateId) => approveCandidate("cast", name, candidateId)}
+          onAddNew={(name) => addRosterItem("cast", name)}
+          addLabel="Add another character"
+          addPlaceholder="e.g. his friend, a grunge bottle of olive oil"
           busy={busy}
           error={error}
           promptPlaceholder="e.g. more like a grumpy dad"
@@ -388,13 +415,16 @@ export default function MobileHomePage() {
         <CastLocationStep
           key="location"
           title="Pick your locations"
-          subtitle='Prompt anything — try "Mars" — then swipe and pick.'
+          subtitle='One place at a time — try "Mars", dud it or pick it.'
           items={job.scenes.map((s) => s.id)}
           labelOf={(id) => job.scenes.find((s) => s.id === id)?.placeName || id}
           candidatesOf={(id) => job.locationCandidates[id] || []}
           imageSrc={(_id, c) => `/api/crash/gen/file?name=${encodeURIComponent(c.fileName)}`}
           onGenerate={(id, customPrompt) => genCandidates("location", id, customPrompt)}
           onApprove={(id, candidateId) => approveCandidate("location", id, candidateId)}
+          onAddNew={(name) => addRosterItem("location", name)}
+          addLabel="Add another location"
+          addPlaceholder="e.g. the cowboy set, a sinking ship"
           busy={busy}
           error={error}
           promptPlaceholder="e.g. Mars, a dive bar, outer space"
@@ -635,6 +665,9 @@ function CastLocationStep({
   imageSrc,
   onGenerate,
   onApprove,
+  onAddNew,
+  addLabel,
+  addPlaceholder,
   busy,
   error,
   promptPlaceholder,
@@ -648,6 +681,10 @@ function CastLocationStep({
   imageSrc: (id: string, c: { id: string; fileName: string; approved: boolean }) => string;
   onGenerate: (id: string, customPrompt?: string) => void;
   onApprove: (id: string, candidateId: string) => void;
+  /** Adds a speaker/scene the screenplay never named — no dialogue yet, just a face/place. */
+  onAddNew: (name: string) => void;
+  addLabel: string;
+  addPlaceholder: string;
   busy: boolean;
   error: string;
   promptPlaceholder: string;
@@ -662,8 +699,18 @@ function CastLocationStep({
   });
   const [customPrompt, setCustomPrompt] = useState("");
   const requested = useRef<Record<string, boolean>>({});
+  const prevItemCount = useRef(items.length);
   const current = items[cursor];
   const candidates = current ? candidatesOf(current) : [];
+
+  // "+ Add another" grows items — jump straight to the new one instead of
+  // leaving the cursor on whatever was open before, which is now stale.
+  useEffect(() => {
+    if (items.length > prevItemCount.current) {
+      setCursor(items.length - 1);
+    }
+    prevItemCount.current = items.length;
+  }, [items.length]);
 
   // Approving advances the cursor while the approve POST is still in flight,
   // so this fires for the next item with busy already true. Watching busy as
@@ -742,18 +789,21 @@ function CastLocationStep({
         );
       })()}
 
+      <AddAnotherRow label={addLabel} placeholder={addPlaceholder} busy={busy} onAdd={onAddNew} />
+
       <div style={{ color: "var(--acid)", fontWeight: 700, marginBottom: "8px" }}>
         {labelOf ? labelOf(current) : current}
       </div>
       {candidates.length ? (
-        <SwipeCarousel
-          candidates={candidates}
+        <SingleCandidateCard
+          candidate={candidates[0]!}
           imageSrc={(c) => imageSrc(current, c)}
           busy={busy}
           onApprove={(c) => {
             onApprove(current, c.id);
             if (cursor < items.length - 1) setCursor((n) => n + 1);
           }}
+          onReroll={() => onGenerate(current, customPrompt || undefined)}
         />
       ) : !busy && error ? (
         // Idle, asked for, nothing to show. Previously this rendered a spinner
@@ -816,6 +866,83 @@ function CastLocationStep({
       </div>
       ) : null}
     </ActiveStepPanel>
+  );
+}
+
+function AddAnotherRow({
+  label,
+  placeholder,
+  busy,
+  onAdd,
+}: {
+  label: string;
+  placeholder: string;
+  busy: boolean;
+  onAdd: (name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        style={{
+          display: "block",
+          width: "100%",
+          textAlign: "left",
+          padding: "8px 2px",
+          marginBottom: "10px",
+          background: "none",
+          border: "none",
+          color: "var(--chrome-dim)",
+          fontSize: "13px",
+        }}
+      >
+        + {label}
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          flex: 1,
+          padding: "10px",
+          borderRadius: "8px",
+          border: "1px solid var(--line)",
+          background: "var(--panel-2)",
+          color: "var(--chrome)",
+          fontSize: "13px",
+        }}
+      />
+      <button
+        type="button"
+        disabled={busy || !name.trim()}
+        onClick={() => {
+          onAdd(name.trim());
+          setName("");
+          setOpen(false);
+        }}
+        style={{
+          padding: "10px 14px",
+          borderRadius: "8px",
+          border: "none",
+          background: "var(--acid)",
+          color: "var(--void)",
+          fontSize: "13px",
+          fontWeight: 600,
+        }}
+      >
+        Add
+      </button>
+    </div>
   );
 }
 
