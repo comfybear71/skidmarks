@@ -52,7 +52,7 @@ export async function GET(req: Request) {
         })
       : null);
   if (!filePath) {
-    const byName = await cloudBlobRedirect("plates", fileName);
+    const byName = await cloudBlobRedirect("plates", fileName, req);
     if (byName) return byName;
     const shelf = await cloudShowAssetRedirect(styleId, "cast", fileName);
     if (shelf) return shelf;

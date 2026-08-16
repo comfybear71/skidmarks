@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 /** GET ?name=ltx_….mp4 — serve a pulled LTX render from data/crash/ltx/ */
 export async function GET(req: Request) {
   const name = new URL(req.url).searchParams.get("name") || "";
-  const cloud = await cloudBlobRedirect("mp4", name);
+  const cloud = await cloudBlobRedirect("mp4", name, req);
   if (cloud) return cloud;
   const abs = ltxFilePath(name);
   if (!abs) {

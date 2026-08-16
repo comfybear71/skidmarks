@@ -99,7 +99,7 @@ export async function GET(req: Request) {
     (voiceFile && isSafeMediaName(voiceFile) && voiceFile) ||
     (isSafeMediaName(`${beatId}.mp3`) ? `${beatId}.mp3` : "");
   if (cloudName) {
-    const cloud = await cloudBlobRedirect("audio", cloudName);
+    const cloud = await cloudBlobRedirect("audio", cloudName, req);
     if (cloud) return cloud;
   }
 

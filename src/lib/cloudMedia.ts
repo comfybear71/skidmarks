@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { useCloudStore } from "./cloudEnv";
 import { findNeonFile, getLatestOpenedEpisode } from "./neonStore";
 import { blobContentType, getBlobPayload, type BlobFileKind } from "./blobStore";
+import { serveMediaBuffer } from "./serveMediaFile";
 
 /** Basename only — allow apostrophes/spaces that disk packs actually use. */
 export function isSafeMediaName(name: string): boolean {
@@ -13,13 +14,16 @@ export function isSafeMediaName(name: string): boolean {
 }
 
 /**
- * On Vercel, stream the file from Blob through this origin.
+ * On Vercel, serve Blob bytes through this origin with Range (206).
+ * iPhone Safari will not play <video>/<audio> from a 200 stream with no
+ * Accept-Ranges — same bug disk routes already fixed in serveMediaFile.
  * Do not redirect the browser at a private Blob URL (and never put the token in HTML).
  * Local returns null so the route can read disk.
  */
 export async function cloudBlobRedirect(
   kind: BlobFileKind,
   filename: string,
+  req?: Request,
 ): Promise<NextResponse | null> {
   if (!useCloudStore()) return null;
   if (!isSafeMediaName(filename)) return null;
@@ -35,11 +39,13 @@ export async function cloudBlobRedirect(
   if (!row?.blob_url && !row?.blob_pathname) return null;
   const payload = await getBlobPayload(row.blob_url || row.blob_pathname);
   if (!payload) return null;
-  return new NextResponse(payload.stream, {
-    headers: {
-      "Content-Type":
-        payload.contentType || blobContentType(kind, filename),
-      "Cache-Control": "private, max-age=120",
-    },
-  });
+  const contentType =
+    payload.contentType || blobContentType(kind, filename);
+  const buf = Buffer.from(await new Response(payload.stream).arrayBuffer());
+  return serveMediaBuffer(
+    req ?? new Request("http://localhost"),
+    buf,
+    contentType,
+    { "Cache-Control": "private, max-age=120" },
+  );
 }
