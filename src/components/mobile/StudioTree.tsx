@@ -574,76 +574,81 @@ function CandidatePicker({
         </div>
       ) : null}
       {takes.length || error ? (
-        <div style={{ display: "flex", gap: "8px", marginTop: "10px", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                color: "var(--chrome-dim)",
-                fontSize: "10px",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                marginBottom: "4px",
-              }}
-            >
-              {promptLabel}
-            </div>
-          <input
+        <div style={{ marginTop: "10px" }}>
+          <div
+            style={{
+              color: "var(--chrome-dim)",
+              fontSize: "10px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              marginBottom: "4px",
+            }}
+          >
+            {promptLabel}
+          </div>
+          <textarea
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
             placeholder={promptPlaceholder}
+            rows={2}
             style={{
               width: "100%",
+              minWidth: 0,
               padding: "10px",
               borderRadius: "8px",
               border: "1px solid var(--line)",
               background: "var(--panel-2)",
               color: "var(--chrome)",
               fontSize: "13px",
+              fontFamily: "inherit",
+              resize: "vertical",
             }}
           />
+          <div style={{ display: "flex", gap: "8px", marginTop: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <MobileAiButton
+              onClick={() => void promptAssist.runAssist()}
+              busy={promptAssist.aiBusy}
+            />
+            <button
+              type="button"
+              disabled={busy || !canUndo}
+              onClick={() => {
+                if (focusIndex <= 0) return;
+                const prev = takes[focusIndex - 1]!;
+                setFocusId(prev.id);
+                setCustomPrompt(prev.prompt || "");
+              }}
+              style={{
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1px solid var(--line)",
+                background: "transparent",
+                color: canUndo && !busy ? "var(--chrome)" : "var(--chrome-dim)",
+                fontSize: "13px",
+              }}
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setFocusId(null);
+                onGenerate(customPrompt || undefined);
+              }}
+              style={{
+                padding: "10px 14px",
+                borderRadius: "8px",
+                border: "1px solid var(--line)",
+                background: "transparent",
+                color: "var(--chrome)",
+                fontSize: "13px",
+              }}
+            >
+              More
+            </button>
+            {extra ? <div style={{ flex: 1, minWidth: "140px" }}>{extra}</div> : null}
           </div>
-          <MobileAiButton
-            onClick={() => void promptAssist.runAssist()}
-            busy={promptAssist.aiBusy}
-          />
-          <button
-            type="button"
-            disabled={busy || !canUndo}
-            onClick={() => {
-              if (focusIndex <= 0) return;
-              const prev = takes[focusIndex - 1]!;
-              setFocusId(prev.id);
-              setCustomPrompt(prev.prompt || "");
-            }}
-            style={{
-              padding: "10px 12px",
-              borderRadius: "8px",
-              border: "1px solid var(--line)",
-              background: "transparent",
-              color: canUndo && !busy ? "var(--chrome)" : "var(--chrome-dim)",
-              fontSize: "13px",
-            }}
-          >
-            Undo
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setFocusId(null);
-              onGenerate(customPrompt || undefined);
-            }}
-            style={{
-              padding: "10px 14px",
-              borderRadius: "8px",
-              border: "1px solid var(--line)",
-              background: "transparent",
-              color: "var(--chrome)",
-              fontSize: "13px",
-            }}
-          >
-            More
-          </button>
         </div>
       ) : null}
       {hideUpload ? null : (
@@ -681,7 +686,6 @@ function CandidatePicker({
           {promptAssist.aiError}
         </div>
       ) : null}
-      {extra ? <div style={{ marginTop: "10px" }}>{extra}</div> : null}
     </div>
   );
 }

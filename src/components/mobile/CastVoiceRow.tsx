@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { MobileAudioPlayer, MobilePrimaryButton } from "./MobileUi";
+import { useEffect, useRef, useState } from "react";
+import { MobilePrimaryButton } from "./MobileUi";
 
 /**
- * Voice lives with the face — one card per character, not a second list to
- * keep in sync. Status loads read-only (local manifest, no ElevenLabs call);
- * "Hear" is the only button that reaches the network.
+ * Voice lives with the face — one compact row, not a whole second card.
+ * Status loads read-only (local manifest, no ElevenLabs call); "Hear" is
+ * the only button that reaches the network, and it plays inline from the
+ * response bytes (no separate /api/crash/voice/file round trip — that
+ * route reads local disk only and a second Vercel invocation may not have
+ * the file the first one just wrote).
  */
 export function CastVoiceRow({ jobId, name }: { jobId: string; name: string }) {
   const [cast, setCast] = useState<boolean | null>(null);
   const [description, setDescription] = useState("");
-  const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sample, setSample] = useState("");
-  const [sampleError, setSampleError] = useState("");
+  const [playing, setPlaying] = useState(false);
+  const [error, setError] = useState("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,11 +30,11 @@ export function CastVoiceRow({ jobId, name }: { jobId: string; name: string }) {
           setCast(row.cast);
           setDescription(row.voiceDescription);
         } else {
-          setLoadError(data.error || "Couldn't load voice status");
+          setError(data.error || "Couldn't load voice status");
         }
       })
       .catch(() => {
-        if (!cancelled) setLoadError("Couldn't load voice status");
+        if (!cancelled) setError("Couldn't load voice status");
       });
     return () => {
       cancelled = true;
@@ -40,7 +43,7 @@ export function CastVoiceRow({ jobId, name }: { jobId: string; name: string }) {
 
   async function hear() {
     setBusy(true);
-    setSampleError("");
+    setError("");
     try {
       const res = await fetch("/api/crash/mobile/voice-sample", {
         method: "POST",
@@ -49,49 +52,58 @@ export function CastVoiceRow({ jobId, name }: { jobId: string; name: string }) {
       });
       const data = (await res.json()) as {
         error?: string;
-        styleId?: string;
-        castKey?: string;
-        attemptId?: string;
+        audioBase64?: string;
         voiceDescription?: string;
       };
-      if (!res.ok || !data.styleId || !data.castKey || !data.attemptId) {
-        throw new Error(data.error || "Couldn't get a sample");
-      }
-      setSample(
-        `/api/crash/voice/file?styleId=${encodeURIComponent(data.styleId)}` +
-          `&castKey=${encodeURIComponent(data.castKey)}&attemptId=${encodeURIComponent(data.attemptId)}`,
-      );
+      if (!res.ok || !data.audioBase64) throw new Error(data.error || "Couldn't get a sample");
       setCast(true);
       if (data.voiceDescription) setDescription(data.voiceDescription);
+      const audio = audioRef.current || new Audio();
+      audioRef.current = audio;
+      audio.onplay = () => setPlaying(true);
+      audio.onpause = () => setPlaying(false);
+      audio.onended = () => setPlaying(false);
+      audio.src = `data:audio/mpeg;base64,${data.audioBase64}`;
+      await audio.play().catch(() => {});
     } catch (e) {
-      setSampleError(e instanceof Error ? e.message : "Couldn't get a sample");
+      setError(e instanceof Error ? e.message : "Couldn't get a sample");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <div
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+      <span
+        style={{
+          color: "var(--chrome-dim)",
+          fontSize: "10px",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          flex: "0 0 auto",
+        }}
+      >
+        Voice
+      </span>
+      <MobilePrimaryButton size="chip" disabled={busy || cast === null} onClick={() => void hear()}>
+        {busy ? "…" : playing ? "Playing…" : cast ? "▶ Hear" : "Cast + hear"}
+      </MobilePrimaryButton>
+      {error ? (
+        <span style={{ fontSize: "11px", color: "var(--magenta-hot)" }}>{error}</span>
+      ) : description ? (
+        <span
           style={{
+            fontSize: "11px",
             color: "var(--chrome-dim)",
-            fontSize: "10px",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            flex: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            maxWidth: "220px",
           }}
         >
-          Voice{cast === false ? " — not cast yet" : ""}
-        </div>
-        <MobilePrimaryButton size="chip" disabled={busy || cast === null} onClick={() => void hear()}>
-          {busy ? "…" : cast ? "▶ Hear" : "Cast + hear"}
-        </MobilePrimaryButton>
-      </div>
-      {description ? <div style={{ fontSize: "11px", color: "var(--chrome-dim)" }}>{description}</div> : null}
-      {sample ? <MobileAudioPlayer src={sample} /> : null}
-      {sampleError ? <div style={{ fontSize: "11px", color: "var(--magenta-hot)" }}>{sampleError}</div> : null}
-      {loadError ? <div style={{ fontSize: "11px", color: "var(--magenta-hot)" }}>{loadError}</div> : null}
+          {description}
+        </span>
+      ) : null}
     </div>
   );
 }
