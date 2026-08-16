@@ -550,6 +550,9 @@ export const CAMPAIGN_SPEECH: string[] = [
   oneLine(
     "Hey Laddiwan. Would you please put your dog out the back. I'm having a lay down and he's barking. It's also very dangerous tying him up out the front. He could easily get run over. Thank you.",
   ),
+  oneLine(
+    "Hey Bub. Kimmy Pastrikos is looking for a place to rent for him and his 2 girls. Have you rented out Mads old donga yet?",
+  ),
 ];
 
 if (CAMPAIGN_SPEECH.length < 26) {
