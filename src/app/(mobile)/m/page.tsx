@@ -353,7 +353,7 @@ export default function MobileHomePage() {
   const vibeAssist = useMobileAssist("vibe", styleId, () => prompt, setPrompt);
 
   return (
-    <main style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
+    <main style={{ minHeight: "100dvh" }}>
       {error ? (
         <div style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}

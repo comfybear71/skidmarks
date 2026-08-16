@@ -471,7 +471,16 @@ function CandidatePicker({
         </MobilePrimaryButton>
       )}
       {candidates.length > 1 ? (
-        <div style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "10px 2px 2px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            overflowX: "auto",
+            padding: "10px 2px 2px",
+            touchAction: "pan-x pan-y",
+            overscrollBehaviorX: "contain",
+          }}
+        >
           {candidates.map((c, i) => (
             <ThumbTile
               key={c.id}
@@ -651,7 +660,7 @@ export function StudioTree({
   const vibeRealism = job.styleRealism ?? vibePreset.defaultRealism;
 
   return (
-    <div style={{ padding: "12px 16px 28px", overflowY: "auto", flex: 1, minHeight: 0 }}>
+    <div style={{ padding: "12px 16px 48px" }}>
       <TreeBranch label="Vibe">
         <div style={{ ...mobileCard, padding: "12px 14px" }}>
           <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--chrome)" }}>{job.prompt}</div>
@@ -662,7 +671,16 @@ export function StudioTree({
       </TreeBranch>
 
       <TreeBranch label="Cast">
-        <div style={{ display: "flex", gap: "10px", overflowX: "auto", padding: "2px 2px 6px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            overflowX: "auto",
+            padding: "2px 2px 6px",
+            touchAction: "pan-x pan-y",
+            overscrollBehaviorX: "contain",
+          }}
+        >
           <PlusTile
             label="Add a character"
             onClick={() => {
@@ -771,7 +789,16 @@ export function StudioTree({
       </TreeBranch>
 
       <TreeBranch label="Locations">
-        <div style={{ display: "flex", gap: "10px", overflowX: "auto", padding: "2px 2px 6px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            overflowX: "auto",
+            padding: "2px 2px 6px",
+            touchAction: "pan-x pan-y",
+            overscrollBehaviorX: "contain",
+          }}
+        >
           <PlusTile
             label="Add a location"
             onClick={() => {
