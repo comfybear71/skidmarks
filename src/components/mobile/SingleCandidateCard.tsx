@@ -15,12 +15,14 @@ export function SingleCandidateCard({
   busy,
   onApprove,
   onReroll,
+  onRemove,
 }: {
   candidate: MobileImageCandidate;
   imageSrc: (c: MobileImageCandidate) => string;
   busy?: boolean;
   onApprove: (c: MobileImageCandidate) => void;
   onReroll: () => void;
+  onRemove?: () => void;
 }) {
   const [zoomed, setZoomed] = useState(false);
 
@@ -41,8 +43,41 @@ export function SingleCandidateCard({
           src={imageSrc(candidate)}
           alt="Candidate"
           draggable={false}
-          style={{ width: "100%", height: "100%", objectFit: "cover", userSelect: "none" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            objectPosition: "center",
+            userSelect: "none",
+          }}
         />
+        {onRemove ? (
+          <button
+            type="button"
+            disabled={busy}
+            aria-label="Remove this still"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            style={{
+              position: "absolute",
+              top: "10px",
+              left: "10px",
+              width: "32px",
+              height: "32px",
+              borderRadius: "999px",
+              border: "none",
+              background: "rgba(0,0,0,0.7)",
+              color: "var(--chrome)",
+              fontSize: "20px",
+              lineHeight: 1,
+              cursor: busy ? "default" : "pointer",
+            }}
+          >
+            ×
+          </button>
+        ) : null}
         <span
           style={{
             position: "absolute",

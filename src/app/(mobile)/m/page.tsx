@@ -369,6 +369,26 @@ export default function MobileHomePage() {
     }
   }, [job]);
 
+  const removeCandidate = useCallback(
+    async (kind: "cast" | "location", target: string, candidateId: string) => {
+      if (!job) return;
+      setBusy(true);
+      setError("");
+      try {
+        const { job: updated } = await postJson<{ job: MobileGenJob }>(
+          "/api/crash/mobile/candidates",
+          { jobId: job.id, kind, target, action: "remove", candidateId },
+        );
+        setJob(updated);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't remove that still");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [job],
+  );
+
   const vibeAssist = useMobileAssist("vibe", styleId, () => prompt, setPrompt);
 
   return (
@@ -505,6 +525,8 @@ export default function MobileHomePage() {
           onApproveLocation={(id, candidateId) => approveCandidate("location", id, candidateId)}
           onAddLocation={(name) => addRosterItem("location", name)}
           onUploadLocation={(id, file) => uploadCandidate("location", id, file)}
+          onRemoveCast={(name, candidateId) => void removeCandidate("cast", name, candidateId)}
+          onRemoveLocation={(id, candidateId) => void removeCandidate("location", id, candidateId)}
           onDropScript={(script) => void runScreenplay(job.id, script)}
           onGenerateVideo={() => void approveReview()}
           onRetryError={() => void retryFromError(job.id)}

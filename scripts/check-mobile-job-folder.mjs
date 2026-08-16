@@ -7,6 +7,9 @@ import {
   approvedCandidateFileName,
   directorNote,
   keepCandidateTakes,
+  dropCandidateTake,
+  faceCandidateTakes,
+  isCharacterPlateFileName,
   latestCandidate,
   phaseAfterScreenplay,
   canLockEpisode,
@@ -103,6 +106,24 @@ assert.equal(kept.length, 2);
 assert.equal(kept[0].prompt, "grumpy dad Jo");
 assert.equal(latestCandidate(kept).fileName, "jo_2.png");
 assert.equal(keepCandidateTakes(kept, [raccoon]).length, 2);
+assert.deepEqual(
+  dropCandidateTake(kept, raccoon.id).map((c) => c.id),
+  [first.id],
+);
+assert.deepEqual(dropCandidateTake(kept, "missing").map((c) => c.id), [first.id, raccoon.id]);
+assert.deepEqual(dropCandidateTake(undefined, "x"), []);
+assert.equal(isCharacterPlateFileName("plate_baby.jpg"), true);
+assert.equal(isCharacterPlateFileName("plate_crazy_jo.png"), true);
+assert.equal(isCharacterPlateFileName("face_tomato.png"), false);
+assert.equal(isCharacterPlateFileName("cplate_20260808000108230_nu2.png"), false);
+assert.equal(
+  faceCandidateTakes([
+    { id: "1", fileName: "face_jo.png" },
+    { id: "2", fileName: "plate_jo.png" },
+    { id: "3", fileName: "jo_more.jpg" },
+  ]).map((c) => c.id).join(","),
+  "1,3",
+);
 assert.equal(
   directorNote("more like a grumpy dad", "weathered scowling Jo"),
   "weathered scowling Jo. more like a grumpy dad",
