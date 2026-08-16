@@ -523,6 +523,9 @@ export const CAMPAIGN_SPEECH: string[] = [
   oneLine(
     "I moved back home to get away from these people. They're Junkies Stuie. They've been sleeping off their high for the last few hours and now they're up to get into in again. If you're happy with people like that renting, give them a room in your place.",
   ),
+  oneLine(
+    "Her and her Junkie boyfriend can get their own place.FFS, WTF is wrong with you guys. I don't need this shit Stuie.",
+  ),
 ];
 
 if (CAMPAIGN_SPEECH.length < 26) {
