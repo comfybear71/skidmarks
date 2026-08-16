@@ -10,6 +10,7 @@ import {
 } from "@/components/mobile/MobileUi";
 import { StudioTree } from "@/components/mobile/StudioTree";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
+import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -244,15 +245,16 @@ export default function MobileHomePage() {
 
       {!job ? (
         <ActiveStepPanel title="What's the vibe?" subtitle="You direct. We hold the cast, the places, and the plates.">
-          <MobileTextInput value={prompt} onChange={setPrompt} placeholder="A crew lands on Mars and immediately regrets it..." multiline />
+          <MobileTextInput value={prompt} onChange={setPrompt} placeholder="A crew lands on Mars and immediately regrets it..." multiline rows={3} />
 
+          {/* Named show = naming this episode's look. Slider = something else. */}
           <div
             style={{
               color: "var(--chrome-dim)",
               fontSize: "11px",
               letterSpacing: "0.06em",
               textTransform: "uppercase",
-              margin: "16px 0 8px",
+              margin: "14px 0 8px",
             }}
           >
             Look
@@ -260,8 +262,8 @@ export default function MobileHomePage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "8px",
+              gridTemplateColumns: "1fr 1fr 1fr",
+              gap: "6px",
             }}
           >
             {SHOW_STYLE_PRESETS.map((p) => (
@@ -274,18 +276,48 @@ export default function MobileHomePage() {
                 }}
                 style={{
                   ...(p.id === styleId ? mobileCardSelected : mobileCard),
-                  textAlign: "left",
-                  padding: "10px 12px",
+                  textAlign: "center",
+                  padding: "8px 6px",
                   color: "var(--chrome)",
+                  fontWeight: 700,
+                  fontSize: "12px",
+                  lineHeight: 1.2,
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: "13px" }}>{p.label}</div>
-                <div style={{ color: "var(--chrome-dim)", fontSize: "11px", marginTop: "2px" }}>{p.tagline}</div>
+                {p.label}
               </button>
             ))}
           </div>
 
-          <div style={{ marginTop: "16px" }}>
+          <div style={{ marginTop: "14px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: "11px",
+                color: "var(--chrome-dim)",
+                marginBottom: "4px",
+              }}
+            >
+              <span>Cartoon</span>
+              <span style={{ color: "var(--acid)", fontWeight: 700 }}>
+                {styleRealism} · {styleRealismLabel(styleRealism)}
+              </span>
+              <span>Photoreal</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={styleRealism}
+              onChange={(e) => setStyleRealism(Number(e.target.value))}
+              aria-label="Cartoon to photoreal"
+              style={{ width: "100%", accentColor: "var(--acid)" }}
+            />
+          </div>
+
+          <div style={{ marginTop: "14px" }}>
             <MobilePrimaryButton disabled={!prompt.trim() || busy} onClick={() => void startRun()}>
               {busy ? "Starting…" : "Start directing"}
             </MobilePrimaryButton>
