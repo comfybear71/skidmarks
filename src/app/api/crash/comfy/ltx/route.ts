@@ -25,8 +25,12 @@ import { CRASH_DIR } from "@/lib/paths";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { sortableId } from "@/lib/types";
-import { useCloudStore } from "@/lib/cloudEnv";
-import { cloudLtxResultsForStyle } from "@/lib/cloudPack";
+// Aliased: a plain env check, not a React hook — the `use` prefix
+// otherwise trips rules-of-hooks at every call site in this route.
+import { useCloudStore as cloudStoreEnabled } from "@/lib/cloudEnv";
+import { cloudActivePack, cloudLtxResultsForStyle } from "@/lib/cloudPack";
+import { readActivePack } from "@/lib/crashActivePack";
+import { resolveMobileMedia } from "@/lib/mobileMediaStore";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -54,7 +58,7 @@ export async function GET(req: Request) {
     url.searchParams.get("styleId") || "sunny_banks",
   ) || "sunny_banks") as ShowStyleId;
   const folderName = url.searchParams.get("folderName")?.trim() || "";
-  if (useCloudStore()) {
+  if (cloudStoreEnabled()) {
     const results = await cloudLtxResultsForStyle(
       styleId,
       folderName || undefined,
@@ -191,7 +195,28 @@ export async function POST(req: Request) {
     );
   }
 
-  const platePath = path.join(CRASH_DIR, "gen", plateFile);
+  // Plain "gen" scratch dir only, no pack-folder or cloud fallback — a plate
+  // belonging to a mobile-created episode lives in Blob/Neon, and on Vercel
+  // each invocation gets fresh /tmp, so a different instance opening that
+  // episode here had no way to find it. The mobilePlates.ts fix (#39) was
+  // scoped to the mobile pipeline's own automated plate step; this is
+  // desktop's separate Send path, which never got the same fallback.
+  let platePath = path.join(CRASH_DIR, "gen", plateFile);
+  if (!fs.existsSync(platePath)) {
+    const pack = cloudStoreEnabled()
+      ? await cloudActivePack(styleId)
+      : readActivePack();
+    const cloudPath =
+      pack?.folderName &&
+      (await resolveMobileMedia({
+        styleId,
+        folderName: pack.folderName,
+        kind: "plates",
+        fileName: plateFile,
+        destPath: platePath,
+      }));
+    if (cloudPath) platePath = cloudPath;
+  }
   if (!fs.existsSync(platePath)) {
     return NextResponse.json(
       { error: `Plate not on disk: ${plateFile}` },

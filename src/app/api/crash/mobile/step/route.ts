@@ -8,9 +8,9 @@ import { uploadMobileMedia, resolveMobileMedia } from "@/lib/mobileMediaStore";
 import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
 import { resolveBeatAudioPath } from "@/lib/crashStorySpeak";
 import { storyDialogueDir } from "@/lib/crashStoryLocations";
+import { writeSilentMp3 } from "@/lib/silentAudio";
 import { runLtxSmoke } from "@/lib/ltxSmoke";
-import { resolveComfyUrl } from "@/lib/comfyClient";
-import { listRunpodPods, probeComfyUrl, resumeRunpodPod } from "@/lib/runpod";
+import { resolveComfyUrl, probeComfyUrl } from "@/lib/comfyClient";
 import { stitchClips, mobileFinalVideoPath } from "@/lib/mobileStitch";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
 import { CRASH_DIR } from "@/lib/paths";
@@ -26,22 +26,21 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 async function ensureComfyReady(): Promise<string> {
+  // runLtxSmoke checks preferComfyCloudLtx() first and, when true, goes
+  // straight to Comfy Cloud — the comfyUrl this returns is discarded either
+  // way, so resolving one is only needed when the cloud path isn't what's
+  // about to run. RunPod auto-discovery (list pods, resume, guess a port)
+  // was the testing-phase fallback here and is gone; a self-hosted Comfy is
+  // reached by setting COMFY_URL directly.
+  const { preferComfyCloudLtx } = await import("@/lib/ltxCloudIa2v");
+  if (preferComfyCloudLtx()) return "";
+
   const resolved = await resolveComfyUrl();
   if (resolved.ok) {
     const status = await probeComfyUrl(resolved.url);
     if (status === "up") return resolved.url;
   }
-  const pods = await listRunpodPods();
-  if (pods.ok && pods.pods.length) {
-    const pod = pods.pods[0]!;
-    if (!/RUNNING/i.test(pod.desiredStatus)) {
-      await resumeRunpodPod(pod.id, pod.gpuCount);
-      throw new Error("Comfy pod is starting — try again in a minute or two");
-    }
-    if (pod.comfyUrl) return pod.comfyUrl;
-    throw new Error("Pod is running but Comfy port 3000 isn't mapped yet — try again shortly");
-  }
-  throw new Error("No Comfy pod available — start one, or set COMFY_URL");
+  throw new Error("No Comfy Cloud key and no reachable COMFY_URL — set one to animate");
 }
 
 function allCastApproved(job: MobileGenJob): boolean {
@@ -71,6 +70,18 @@ export async function POST(req: Request) {
 
     let job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+    // "error" is terminal and outside autoPhases, so nothing ever polled it
+    // again — a clip attached from the error screen (clip/upload/route.ts)
+    // updated the clip but had no way to make the run continue. If any clip
+    // now has a file, there's something to stitch; send it back to animate
+    // to pick up whatever is still pending, or straight to stitch if none
+    // is. Otherwise leave the job in error — nothing actually changed.
+    if (job.phase === "error" && job.clips.some((c) => c.clipStatus === "done")) {
+      const nextPhase = job.clips.some((c) => c.clipStatus === "pending") ? "animate" : "stitch";
+      job = (await patchMobileGenJob(jobId, { phase: nextPhase, error: "" }))!;
+      return NextResponse.json({ ok: true, job, advanced: true });
+    }
 
     if (job.phase === "cast_images") {
       if (allCastApproved(job)) {
@@ -167,15 +178,29 @@ export async function POST(req: Request) {
       const voiceRun = await generateEpisodeVoices(job.styleId, job.folderName);
       const voicedStory = await readMobileStory(job.styleId, job.folderName);
 
+      // A dialogue-less scene (scriptToStory.ts's "hold" beat) has no line
+      // for ElevenLabs to synthesize, but the animate phase still needs an
+      // mp3 to feed Cloud IA2V's LoadAudio node — a few seconds of silence
+      // does the job, same file location a real line would land in.
+      for (const scene of voicedStory.scenes) {
+        for (const shot of scene.shots) {
+          for (const beat of shot.beats) {
+            if (beat.text.trim() || !beat.voiceFile?.trim()) continue;
+            writeSilentMp3(path.join(storyDialogueDir(job.styleId), beat.voiceFile), 3);
+          }
+        }
+      }
+
       // Every mp4 is built from its beat's mp3, so a voices phase that made
       // no audio guarantees the animate phase fails on every clip with
       // "Cloud IA2V needs the beat mp3". Its per-line failures and the
       // ElevenLabs quota flag were both discarded here, and the run advanced
-      // as if it had worked.
+      // as if it had worked. Counts real dialogue only — a fully silent
+      // episode's hold beats shouldn't mask every line actually failing.
       const voicedBeats = voicedStory.scenes
         .flatMap((sc) => sc.shots.flatMap((sh) => sh.beats))
-        .filter((b) => b.voiceFile?.trim()).length;
-      if (!voicedBeats) {
+        .filter((b) => b.text.trim() && b.voiceFile?.trim()).length;
+      if (!voicedBeats && voicedStory.scenes.some((sc) => sc.shots.some((sh) => sh.beats.some((b) => b.text.trim())))) {
         const why =
           (voiceRun.quotaExceeded ? "ElevenLabs quota exceeded. " : "") +
           (voiceRun.lines.find((l) => !l.ok)?.detail ||

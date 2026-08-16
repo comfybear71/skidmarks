@@ -1536,7 +1536,12 @@ export function AnimateTimeline({
                   : undefined;
                 const locked = Boolean(slot?.approvedAttemptId);
                 const audioSrc = beat.voiceFile
-                  ? `/api/crash/story/speak?styleId=${encodeURIComponent(styleId)}&beatId=${encodeURIComponent(beat.id)}&t=${encodeURIComponent(beat.voiceFile)}`
+                  // The GET handler in story/speak/route.ts only reads "f" or
+                  // "voiceFile" — "t" was silently ignored, so this always fell
+                  // back to guessing the filename was "<beatId>.mp3", which
+                  // fails for anything not using that exact convention. Every
+                  // other caller of this route already uses "f".
+                  ? `/api/crash/story/speak?styleId=${encodeURIComponent(styleId)}&beatId=${encodeURIComponent(beat.id)}&f=${encodeURIComponent(beat.voiceFile)}`
                   : null;
                 const isSel = beat.id === selectedBeatId;
                 const mp3Busy = mp3BusyId === beat.id;

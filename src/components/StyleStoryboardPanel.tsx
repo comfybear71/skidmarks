@@ -45,7 +45,9 @@ type BoardPanel = {
 
 function beatAudioSrc(styleId: ShowStyleId, beat: CrashStoryBeat): string | null {
   if (!beat.voiceFile) return null;
-  return `/api/crash/story/speak?styleId=${encodeURIComponent(styleId)}&beatId=${encodeURIComponent(beat.id)}&t=${encodeURIComponent(beat.voiceFile)}`;
+  // The GET handler only reads "f"/"voiceFile" — "t" was silently ignored,
+  // so playback always fell back to guessing "<beatId>.mp3".
+  return `/api/crash/story/speak?styleId=${encodeURIComponent(styleId)}&beatId=${encodeURIComponent(beat.id)}&f=${encodeURIComponent(beat.voiceFile)}`;
 }
 
 function sfxAudioSrc(

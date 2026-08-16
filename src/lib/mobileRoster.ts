@@ -2,10 +2,9 @@ import { createCharacter, listCharacters } from "./characters";
 import type { ScriptCharacterData } from "./types";
 
 /**
- * Auto-create Character rows for a parsed screenplay's cast — on desktop
- * this is a manual "Save Roster" button click (CrashCharacterRosterCard.tsx);
- * the mobile pipeline has no such click, so it runs the same create call
- * itself right after script parsing, before image gen needs the records.
+ * Auto-create Character rows for a parsed screenplay's cast. The mobile
+ * pipeline has no manual "Save Roster" click, so it runs the same create
+ * call itself right after script parsing, before image gen needs the records.
  */
 export function createCharactersFromScriptRoster(
   characters: ScriptCharacterData[],

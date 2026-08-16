@@ -48,12 +48,23 @@ function sceneToStoryScene(scene: ScriptSceneData, styleId: ShowStyleId): CrashS
     new Set(scene.dialogueLines.map((d) => titleCaseName(d.character))),
   );
 
-  const beats: CrashStoryBeat[] = scene.dialogueLines.map((d) => ({
-    id: newId("beat"),
-    speaker: titleCaseName(d.character),
-    text: d.line,
-    voiceFile: "",
-  }));
+  // A scene with no dialogue (an establishing shot, a sight gag) still needs
+  // one beat — the animate phase builds clips per beat, so a shot with none
+  // got zero seconds of screen time and silently vanished from the final
+  // cut. This "hold" beat has no speaker/text; its mp3 is a short silence
+  // materialized in the voices phase (see writeSilentMp3), which the LTX
+  // pipeline already knows how to turn into a held-pose clip.
+  const beats: CrashStoryBeat[] = scene.dialogueLines.length
+    ? scene.dialogueLines.map((d) => ({
+        id: newId("beat"),
+        speaker: titleCaseName(d.character),
+        text: d.line,
+        voiceFile: "",
+      }))
+    : (() => {
+        const id = newId("beat");
+        return [{ id, speaker: "", text: "", voiceFile: `${id}.mp3` }];
+      })();
 
   const shot: CrashStoryShot = {
     id: newId("shot"),

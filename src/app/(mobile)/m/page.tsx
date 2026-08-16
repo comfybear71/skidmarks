@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActiveStepPanel,
   CompletedStepRow,
@@ -56,10 +56,19 @@ export default function MobileHomePage() {
     pollRef.current = null;
   }, []);
 
-  const refreshJob = useCallback(async (jobId: string) => {
-    const res = await fetch(`/api/crash/mobile/job/${jobId}`);
-    const data = await res.json();
-    if (res.ok && data.job) setJob(data.job as MobileGenJob);
+  // "Check again" on the error screen used to just re-fetch the same stuck
+  // job — a GET can't move a terminal "error" phase anywhere. This POSTs to
+  // /step, which now knows how to resume once a clip has been attached
+  // manually; the auto-poll effect below picks up from there since it
+  // restarts whenever job.phase changes.
+  const retryFromError = useCallback(async (jobId: string) => {
+    setError("");
+    try {
+      const data = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/step", { jobId });
+      setJob(data.job);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Retry failed");
+    }
   }, []);
 
   // Drive the automatic phases (plates/voices/animate/stitch) by polling
@@ -388,6 +397,7 @@ export default function MobileHomePage() {
           busy={busy}
           error={error}
           promptPlaceholder="e.g. Mars, a dive bar, outer space"
+          topExtra={<PickedSoFar job={job} characterIds={characterIds} categories={["cast"]} />}
         />
       )}
 
@@ -429,7 +439,7 @@ export default function MobileHomePage() {
               : "Stitching it all together…"
           }
         >
-          <StoryFeed job={job} />
+          <StoryFeed job={job} onClipUploaded={setJob} />
           <BusySpinner />
         </ActiveStepPanel>
       )}
@@ -461,8 +471,8 @@ export default function MobileHomePage() {
               {reason}
             </div>
           ))}
-          <StoryFeed job={job} />
-          <MobilePrimaryButton onClick={() => void refreshJob(job.id)}>Check again</MobilePrimaryButton>
+          <StoryFeed job={job} onClipUploaded={setJob} />
+          <MobilePrimaryButton onClick={() => void retryFromError(job.id)}>Check again</MobilePrimaryButton>
         </ActiveStepPanel>
       )}
     </main>
@@ -487,14 +497,50 @@ function BusySpinner() {
   );
 }
 
+/** Half-size, left-aligned, with a single animated status word next to it —
+ * the centered full-screen spinner on the swipe picker read as a dead end
+ * rather than "generating", and sat where the eye expects the next card. */
+function InlineBusy({ label }: { label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "24px 0" }}>
+      <div
+        style={{
+          width: "20px",
+          height: "20px",
+          flex: "0 0 auto",
+          borderRadius: "999px",
+          border: "2px solid var(--line)",
+          borderTopColor: "var(--acid)",
+          animation: "spin 900ms linear infinite",
+        }}
+      />
+      <span
+        style={{
+          fontSize: "13px",
+          color: "var(--chrome-dim)",
+          animation: "pulseLabel 1400ms ease-in-out infinite",
+        }}
+      >
+        {label}
+      </span>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulseLabel { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+      `}</style>
+    </div>
+  );
+}
+
 /** Cast and locations already chosen, kept on screen through the long
  * unattended phases so the run still shows what it is building. */
 function PickedSoFar({
   job,
   characterIds,
+  categories = ["cast", "locations"],
 }: {
   job: MobileGenJob;
   characterIds: Record<string, string>;
+  categories?: ("cast" | "locations")[];
 }) {
   const cast = job.speakers
     .map((name) => ({
@@ -572,8 +618,8 @@ function PickedSoFar({
 
   return (
     <div style={{ marginBottom: "16px" }}>
-      {section("Cast", cast)}
-      {section("Locations", places)}
+      {categories.includes("cast") ? section("Cast", cast) : null}
+      {categories.includes("locations") ? section("Locations", places) : null}
     </div>
   );
 }
@@ -590,6 +636,7 @@ function CastLocationStep({
   busy,
   error,
   promptPlaceholder,
+  topExtra,
 }: {
   title: string;
   subtitle: string;
@@ -602,6 +649,8 @@ function CastLocationStep({
   busy: boolean;
   error: string;
   promptPlaceholder: string;
+  /** Picks from an earlier step (e.g. cast) kept visible above this step's own picks. */
+  topExtra?: ReactNode;
 }) {
   // Start on the first thing still needing a pick. Reused cast arrives already
   // approved, and opening on an item that is done makes you tap past it.
@@ -632,6 +681,7 @@ function CastLocationStep({
 
   return (
     <ActiveStepPanel title={title} subtitle={`${subtitle} (${cursor + 1}/${items.length})`}>
+      {topExtra}
       {/* Everything picked so far, so the cast/locations you have built stay
           visible instead of disappearing the moment the cursor moves on. */}
       {(() => {
@@ -720,8 +770,14 @@ function CastLocationStep({
           </MobilePrimaryButton>
         </div>
       ) : (
-        <BusySpinner />
+        <InlineBusy label="Generating" />
       )}
+      {/* Nothing exists yet to steer on the first load of a batch, so the
+          tweak row is just clutter until there is something on screen —
+          shown once candidates (or a failure) actually land. It stays after
+          that: it's the one control that lets a batch be re-rolled toward a
+          specific look. */}
+      {candidates.length || (!busy && error) ? (
       <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
         <input
           value={customPrompt}
@@ -756,6 +812,7 @@ function CastLocationStep({
           More
         </button>
       </div>
+      ) : null}
     </ActiveStepPanel>
   );
 }

@@ -29,7 +29,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: isLive ? "Skidmarks Studio · Vercel" : "Skidmarks Studio · localhost",
     description: isLive
       ? "Crash Lab — cast, story, plates, LTX. Live on Vercel."
-      : "Crash Lab — cast, story, plates, LTX. Local PC + RunPod.",
+      : "Crash Lab — cast, story, plates, LTX. Local PC + Comfy Cloud.",
   };
 }
 

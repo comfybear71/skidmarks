@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { HfStatus } from "@/components/HfStatus";
-import { RunpodStatus } from "@/components/RunpodStatus";
 
 /**
  * Site nav — inline row on desktop only. Hidden entirely below md: these
- * links (Crash Lab / Home / HF / POD status) aren't needed on a phone and
- * previously lived behind a hamburger that just ate header space for
- * little benefit.
+ * links aren't needed on a phone and previously lived behind a hamburger
+ * that just ate header space for little benefit.
+ *
+ * HF and RunPod status pills lived here — both were testing-phase
+ * integrations superseded by Comfy Cloud and removed outright, not just
+ * hidden.
  */
 export function SiteNav() {
   return (
@@ -25,8 +26,6 @@ export function SiteNav() {
       >
         Home
       </Link>
-      <HfStatus />
-      <RunpodStatus />
     </nav>
   );
 }

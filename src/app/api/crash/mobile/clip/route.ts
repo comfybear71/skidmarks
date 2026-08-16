@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { resolveMobileMedia } from "@/lib/mobileMediaStore";
 import { isSafeMediaName } from "@/lib/cloudMedia";
 import { CRASH_DIR } from "@/lib/paths";
+import { serveMediaFile } from "@/lib/serveMediaFile";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
 export const runtime = "nodejs";
@@ -38,10 +39,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return new NextResponse(new Uint8Array(fs.readFileSync(filePath)), {
-    headers: {
-      "Content-Type": "video/mp4",
-      "Cache-Control": "private, max-age=120",
-    },
+  return serveMediaFile(req, filePath, "video/mp4", {
+    "Cache-Control": "private, max-age=120",
   });
 }

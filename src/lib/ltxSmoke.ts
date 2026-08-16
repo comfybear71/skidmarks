@@ -19,21 +19,12 @@ import {
   type UiWorkflow,
 } from "./comfyWorkflowApi";
 import { comfyLtxPreflight } from "./ltxPreflight";
-import { CRASH_DIR, MOVIES_ROOT } from "./paths";
+import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { activePackDir } from "./crashActivePack";
+import { loadWorkflowTemplate } from "./workflowTemplates";
 
-const HOTFIX_CANDIDATES = [
-  path.join(MOVIES_ROOT, "workflow", "LTX_Director_2_Workflow_Hotfix.json"),
-  path.join(
-    process.env.USERPROFILE || "",
-    "Desktop",
-    "LTX_Director_2_Workflow_Hotfix.json",
-  ),
-  // Both paths above only exist on the PC. A copy committed to the repo is
-  // the only one a deploy can carry.
-  path.join(process.cwd(), "workflow", "LTX_Director_2_Workflow_Hotfix.json"),
-];
+const HOTFIX_FILE = "LTX_Director_2_Workflow_Hotfix.json";
 
 const UPLOAD_SUB = "studio_ltx";
 const FPS = 24;
@@ -106,14 +97,12 @@ export type LtxSmokeResult = {
 };
 
 function loadHotfixUi(): UiWorkflow {
-  for (const p of HOTFIX_CANDIDATES) {
-    if (p && fs.existsSync(p)) {
-      return JSON.parse(fs.readFileSync(p, "utf8")) as UiWorkflow;
-    }
-  }
-  throw new Error(
-    "Hotfix JSON not found. Expected MY MOVIES\\workflow\\LTX_Director_2_Workflow_Hotfix.json",
-  );
+  return loadWorkflowTemplate<UiWorkflow>({
+    fileName: HOTFIX_FILE,
+    extraCandidates: [
+      path.join(process.env.USERPROFILE || "", "Desktop", HOTFIX_FILE),
+    ],
+  });
 }
 
 function segId(prefix: string): string {

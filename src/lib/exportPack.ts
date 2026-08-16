@@ -59,7 +59,7 @@ function sceneMarkdown(episode: Episode, scene: Scene): string {
     "| Setting | Value |",
     "|---------|-------|",
     "| Size | 768×512 default |",
-    "| POD | localhost planner export — queue on RunPod Comfy |",
+    "| Backend | localhost planner export — queue on Comfy Cloud |",
     "",
     "---",
     "",

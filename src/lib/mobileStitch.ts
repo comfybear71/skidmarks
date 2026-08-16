@@ -27,7 +27,7 @@ function ffmpegCandidates(): string[] {
 }
 
 /** Chosen binary, or null with the list of what was tried. */
-function resolveFfmpeg(): { bin: string | null; tried: string[] } {
+export function resolveFfmpeg(): { bin: string | null; tried: string[] } {
   const tried: string[] = [];
   for (const candidate of ffmpegCandidates()) {
     const exists = fs.existsSync(candidate);

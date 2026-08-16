@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { morphRunDir } from "@/lib/morph";
+import { serveMediaFile } from "@/lib/serveMediaFile";
 
 export const runtime = "nodejs";
 
@@ -17,12 +18,9 @@ export async function GET(req: Request) {
   if (!fs.existsSync(file)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const buf = fs.readFileSync(file);
-  return new NextResponse(buf, {
-    headers: {
-      "Content-Type": name.endsWith(".mp4") ? "video/mp4" : "application/octet-stream",
-      "Content-Disposition": `inline; filename="${name}"`,
-      "Cache-Control": "no-store",
-    },
+  const type = name.endsWith(".mp4") ? "video/mp4" : "application/octet-stream";
+  return serveMediaFile(req, file, type, {
+    "Content-Disposition": `inline; filename="${name}"`,
+    "Cache-Control": "no-store",
   });
 }
