@@ -6,6 +6,7 @@ import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { openCrashLabEpisode } from "@/lib/crashLabEpisodes";
 import { writeMobileStory } from "@/lib/mobileStoryStore";
 import { findReusableCastCards } from "@/lib/mobileCastReuse";
+import { listCharacters } from "@/lib/characters";
 import {
   patchMobileGenJob,
   readMobileGenJob,
@@ -19,10 +20,12 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 /**
- * POST { jobId } — the screenplay phase: prompt -> script text -> imported
- * pack -> auto roster -> job.shots/scenes/speakers populated. One bounded
- * call (chunked internally for long targets by generateScreenplayText),
- * advances the job to "cast_images" on success.
+ * POST { jobId } — the screenplay phase: cast + locations were already
+ * built freeform (cast_build/location_build), faces already approved, so
+ * this writes a script constrained to exactly that cast and those places
+ * rather than inventing its own — then reconciles the parsed scenes/roster
+ * back onto the pre-built ones (matched by name) so the approved picks
+ * carry straight through instead of asking for them a second time.
  */
 export async function POST(req: Request) {
   try {
@@ -39,15 +42,33 @@ export async function POST(req: Request) {
 
     const job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-    if (job.phase !== "screenplay") {
+    if (job.phase !== "location_build") {
       return NextResponse.json({ ok: true, job }); // already past this phase — idempotent
     }
+    if (!job.speakers.length) {
+      return NextResponse.json({ error: "Add at least one character first" }, { status: 400 });
+    }
+    if (!job.scenes.length) {
+      return NextResponse.json({ error: "Add at least one location first" }, { status: 400 });
+    }
+
+    const byLowerName = new Map(listCharacters().map((c) => [c.name.trim().toLowerCase(), c]));
+    const cast = job.speakers.map((name) => {
+      const character = byLowerName.get(name.trim().toLowerCase());
+      const appearance = character
+        ? [character.lookNote, character.pastNote].filter(Boolean).join(". ").trim()
+        : "";
+      return { name, appearance: appearance || name };
+    });
+    const locations = job.scenes.map((s) => s.placeName);
 
     const shotCount = Math.max(1, Math.round(job.targetDurationSec / job.secondsPerShot));
     const screenplay = await generateScreenplayText({
       prompt: job.prompt,
       styleId: job.styleId,
       shotCount,
+      cast,
+      locations,
     });
 
     // The pack folder is derived from the episode title, and on Vercel the
@@ -68,7 +89,22 @@ export async function POST(req: Request) {
     createCharactersFromScriptRoster(screenplay.parsedCharacters);
 
     const opened = openCrashLabEpisode({ folderName, styleId: job.styleId });
-    const story = opened.story;
+
+    // scriptToStory.ts always mints a fresh scene id — reuse location_build's
+    // id (and its already-approved worldThumbKey) for any scene whose place
+    // name matches one already built, so the approved picture carries
+    // straight through instead of asking for it a second time.
+    const preBuiltByPlace = new Map(
+      job.scenes.map((s) => [s.placeName.trim().toLowerCase(), s]),
+    );
+    const story = {
+      ...opened.story,
+      scenes: opened.story.scenes.map((sc) => {
+        const match = preBuiltByPlace.get(sc.placeName.trim().toLowerCase());
+        if (!match) return sc;
+        return { ...sc, id: match.id, worldThumbKey: match.worldThumbKey || sc.worldThumbKey };
+      }),
+    };
 
     // The imported pack only exists on this instance's disk. Every later phase
     // reads the story back through readMobileStory, which falls back to the
@@ -76,11 +112,20 @@ export async function POST(req: Request) {
     // plates found no scenes at all and failed every shot.
     await writeMobileStory(story, folderName);
 
-    const scenes: MobileSceneRef[] = story.scenes.map((sc) => ({
-      id: sc.id,
-      placeName: sc.placeName,
-      worldThumbKey: sc.worldThumbKey,
-    }));
+    // A pre-built location the screenplay never actually used (Grok drops
+    // one, or the user built more than the script needed) still cost a
+    // generation and an approval — keep it rather than silently losing it.
+    const usedSceneIds = new Set(story.scenes.map((sc) => sc.id));
+    const leftoverScenes = job.scenes.filter((s) => !usedSceneIds.has(s.id));
+
+    const scenes: MobileSceneRef[] = [
+      ...story.scenes.map((sc) => ({
+        id: sc.id,
+        placeName: sc.placeName,
+        worldThumbKey: sc.worldThumbKey,
+      })),
+      ...leftoverScenes,
+    ];
     const shots: MobileShotUnit[] = story.scenes.flatMap((sc) =>
       sc.shots.map((sh) => ({
         shotId: sh.id,
@@ -110,7 +155,16 @@ export async function POST(req: Request) {
     const beatSpeakers = story.scenes.flatMap((sc) =>
       sc.shots.flatMap((sh) => sh.beats.map((b) => b.speaker.trim())),
     );
+    // job.speakers goes in first and wins the casing fight — the forced
+    // CHARACTERS: block above is in the ALL CAPS the parser requires to
+    // recognize a block boundary at all ("TOMATO", not "Tomato"), which
+    // would otherwise come back out of parsedCharacters as a name that no
+    // longer matches job.castCandidates' key and looks unapproved again.
     const byLower = new Map<string, string>();
+    for (const raw of job.speakers) {
+      const key = raw.trim().toLowerCase();
+      if (key) byLower.set(key, raw.trim());
+    }
     for (const raw of [
       ...screenplay.parsedCharacters.map((c) => c.name.trim()),
       ...beatSpeakers,
@@ -121,13 +175,18 @@ export async function POST(req: Request) {
     }
     const speakers = [...byLower.values()];
 
-    // A series keeps the same faces every episode, so any speaker who already
-    // has a locked card for this show starts pre-picked instead of costing
-    // four fresh generations and drifting away from how they looked last time.
-    // Shown as a normal pick rather than skipped, so a wrong name match is
-    // visible and can be overridden.
-    const reusable = await findReusableCastCards(job.styleId, speakers);
-    const castCandidates: MobileGenJob["castCandidates"] = {};
+    // Anyone already in job.castCandidates picked their own face in
+    // cast_build — that pick wins outright. A series keeps the same faces
+    // every episode too, so any OTHER speaker (one the screenplay added on
+    // its own despite the constraint) who already has a locked card for
+    // this show starts pre-picked instead of costing four fresh
+    // generations. Shown as a normal pick rather than skipped, so a wrong
+    // name match is visible and can be overridden.
+    const newSpeakers = speakers.filter((s) => !job.castCandidates[s]?.some((c) => c.approved));
+    const reusable = newSpeakers.length
+      ? await findReusableCastCards(job.styleId, newSpeakers)
+      : {};
+    const castCandidates: MobileGenJob["castCandidates"] = { ...job.castCandidates };
     for (const [speaker, card] of Object.entries(reusable)) {
       castCandidates[speaker] = [
         { id: card.fileName, fileName: card.fileName, approved: true },
@@ -138,6 +197,7 @@ export async function POST(req: Request) {
       folderName,
       phase: "cast_images",
       castCandidates,
+      locationCandidates: job.locationCandidates,
       scenes,
       shots,
       clips,

@@ -120,6 +120,38 @@ async function castEpisodeVoices(
   return { results, quotaExceeded };
 }
 
+/**
+ * Reuse-then-design for exactly one speaker, on demand — the mobile review
+ * step's "Save & hear it" runs before the bulk cast pass ever does now
+ * (voice is a deliberate step after plates, not automatic), so the first
+ * save for anyone new has no slot yet. Same priority castEpisodeVoices'
+ * loop uses, just for one name instead of the whole roster.
+ */
+export async function ensureSpeakerVoiceCast(
+  styleId: ShowStyleId,
+  speaker: string,
+): Promise<boolean> {
+  if (findCrashVoiceByName(styleId, speaker)?.approvedVoiceId?.trim()) return true;
+  if (await assignReusedVoice(styleId, speaker).catch(() => false)) return true;
+  if (readVoiceQuota().remaining <= 0) return false;
+  try {
+    const character = listCharacters().find(
+      (c) => c.name.trim().toLowerCase() === speaker.trim().toLowerCase(),
+    );
+    await ensureVoiceReadyWithDescription(styleId, speaker, () =>
+      suggestVoiceDescription({
+        name: speaker,
+        pastNote: character?.pastNote,
+        tormentScratch: character?.tormentScratch,
+        lookNote: character?.lookNote,
+      }),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function generateEpisodeLines(
   styleId: ShowStyleId,
   story: CrashStoryDoc,

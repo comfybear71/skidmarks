@@ -20,11 +20,20 @@ import type { ScriptCharacterData } from "./types";
  * disk otherwise, matching every other dual-mode store in this codebase.
  */
 export type MobileGenPhase =
-  | "screenplay"
+  // Cast/locations are built freeform, before there's any script at all —
+  // "+" adds a name+face, one at a time, reroll if it's a dud. Once
+  // location_build finishes, a script gets written constrained to exactly
+  // this cast and these places, rather than inventing its own and picking
+  // faces for whatever it happened to write — that call lands the job
+  // straight on "cast_images" (skipped in practice: the cast/locations it
+  // reused are already approved). Plates build automatically; voice is a
+  // deliberate step after that ("review"), not automatic — whatever's left
+  // untouched there gets voiced with the AI-drafted line as-is on Generate.
+  | "cast_build"
+  | "location_build"
   | "cast_images"
   | "location_images"
   | "plates"
-  | "voices"
   | "review"
   | "animate"
   | "stitch"
@@ -128,7 +137,7 @@ export async function createMobileGenJob(opts: {
     targetDurationSec: opts.targetDurationSec,
     secondsPerShot: opts.secondsPerShot,
     styleRealism: opts.styleRealism,
-    phase: "screenplay",
+    phase: "cast_build",
     speakers: [],
     roster: [],
     scenes: [],
