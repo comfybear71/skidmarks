@@ -4,7 +4,7 @@ import {
   normalizePlaceKey,
   parseMobilePaste,
   storyHasSpokenLine,
-} from "../src/lib/mobilePasteScript.ts";
+} from "../src/lib/mobilePasteParse.ts";
 import { clampLtxDurationSec, LTX_MAX_DURATION_SEC } from "../src/lib/ltxDuration.ts";
 import { isAssistKind } from "../src/lib/mobileAssist.ts";
 

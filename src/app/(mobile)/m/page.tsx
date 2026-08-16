@@ -14,14 +14,20 @@ import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import { MOBILE_LAST_JOB_KEY, readResumedJobId } from "@/lib/mobileJobResume";
+import { studioFetchError } from "@/lib/studioFetchError";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new Error(studioFetchError(e, "Request failed"));
+  }
+  const data = await res.json().catch(() => ({})) as { error?: string };
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data as T;
 }

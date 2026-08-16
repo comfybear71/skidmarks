@@ -8,7 +8,7 @@ import {
   ShimmerText,
   mobileCard,
 } from "./MobileUi";
-import { episodeTemplateFromJob } from "@/lib/mobilePasteScript";
+import { episodeTemplateFromJob } from "@/lib/mobilePasteParse";
 import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
