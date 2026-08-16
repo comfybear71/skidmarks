@@ -10,7 +10,7 @@ import { createCharacter, listCharacters } from "@/lib/characters";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { jobHasEpisodePack, mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
-import { keepCandidateTakes, latestCandidate } from "@/lib/mobileJobReady";
+import { dropCandidateTake, keepCandidateTakes, latestCandidate } from "@/lib/mobileJobReady";
 import { newId } from "@/lib/types";
 
 // One new still per tap — but the earlier takes stay on the job so More
@@ -24,7 +24,7 @@ type Body = {
   jobId?: string;
   kind?: "cast" | "location";
   target?: string; // speaker name (cast) or scene id (location)
-  action?: "generate" | "approve" | "add";
+  action?: "generate" | "approve" | "add" | "remove";
   customPrompt?: string;
   candidateId?: string;
   /** action "add" only — new speaker name, or new place name. */
@@ -109,6 +109,18 @@ export async function POST(req: Request) {
     }
 
     if (kind === "cast") {
+      if (action === "remove") {
+        const candidateId = (body.candidateId || "").trim();
+        if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
+        const updated = await patchMobileGenJob(jobId, {
+          castCandidates: {
+            ...job.castCandidates,
+            [target]: dropCandidateTake(job.castCandidates[target], candidateId),
+          },
+        });
+        return NextResponse.json({ ok: true, job: updated });
+      }
+
       let character = listCharacters().find(
         (c) => c.name.trim().toLowerCase() === target.toLowerCase(),
       );
@@ -169,6 +181,18 @@ export async function POST(req: Request) {
     }
 
     // kind === "location"
+    if (action === "remove") {
+      const candidateId = (body.candidateId || "").trim();
+      if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
+      const updated = await patchMobileGenJob(jobId, {
+        locationCandidates: {
+          ...job.locationCandidates,
+          [target]: dropCandidateTake(job.locationCandidates[target], candidateId),
+        },
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
     const scene = job.scenes.find((s) => s.id === target);
     if (!scene) return NextResponse.json({ error: `No scene ${target}` }, { status: 404 });
 

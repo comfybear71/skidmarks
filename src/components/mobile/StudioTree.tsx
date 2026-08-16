@@ -18,6 +18,7 @@ import {
   allLocationsApproved,
   canLockEpisode,
   candidateLookPrompt,
+  faceCandidateTakes,
   latestCandidate,
   preferredCandidate,
 } from "@/lib/mobileJobReady";
@@ -87,92 +88,134 @@ function ThumbTile({
   label,
   picked,
   onClick,
+  onRemove,
+  underImage,
 }: {
   src: string;
   label: string;
   picked?: boolean;
   onClick?: () => void;
+  onRemove?: () => void;
+  underImage?: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       style={{
         flex: "0 0 auto",
         width: "72px",
-        padding: 0,
-        border: "none",
-        background: "none",
-        color: "var(--chrome)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         gap: "4px",
+        position: "relative",
       }}
     >
-      <span style={{ position: "relative", width: "72px", height: "72px" }}>
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt=""
-            style={{
-              width: "72px",
-              height: "72px",
-              objectFit: "cover",
-              borderRadius: "10px",
-              display: "block",
-              border: picked ? "2px solid var(--acid)" : "2px solid transparent",
-            }}
-          />
-        ) : (
-          <span
-            style={{
-              width: "72px",
-              height: "72px",
-              borderRadius: "10px",
-              display: "block",
-              background: "var(--panel-2)",
-              border: "2px solid var(--line)",
-            }}
-          />
-        )}
-        {picked ? (
-          <span
-            style={{
-              position: "absolute",
-              top: "2px",
-              right: "2px",
-              background: "var(--acid)",
-              color: "var(--void)",
-              borderRadius: "999px",
-              width: "16px",
-              height: "16px",
-              fontSize: "10px",
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            ✓
-          </span>
-        ) : null}
-      </span>
-      <span
+      <button
+        type="button"
+        onClick={onClick}
         style={{
-          fontSize: "11px",
-          color: "var(--chrome-dim)",
-          width: "100%",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          textAlign: "center",
+          width: "72px",
+          padding: 0,
+          border: "none",
+          background: "none",
+          color: "var(--chrome)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "4px",
         }}
       >
-        {label}
-      </span>
-    </button>
+        <span style={{ position: "relative", width: "72px", height: "72px" }}>
+          {src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={src}
+              alt=""
+              style={{
+                width: "72px",
+                height: "72px",
+                objectFit: "cover",
+                borderRadius: "10px",
+                display: "block",
+                border: picked ? "2px solid var(--acid)" : "2px solid transparent",
+              }}
+            />
+          ) : (
+            <span
+              style={{
+                width: "72px",
+                height: "72px",
+                borderRadius: "10px",
+                display: "block",
+                background: "var(--panel-2)",
+                border: "2px solid var(--line)",
+              }}
+            />
+          )}
+          {picked ? (
+            <span
+              style={{
+                position: "absolute",
+                top: "2px",
+                right: "2px",
+                background: "var(--acid)",
+                color: "var(--void)",
+                borderRadius: "999px",
+                width: "16px",
+                height: "16px",
+                fontSize: "10px",
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              ✓
+            </span>
+          ) : null}
+        </span>
+        {underImage}
+        <span
+          style={{
+            fontSize: "11px",
+            color: "var(--chrome-dim)",
+            width: "100%",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            textAlign: "center",
+          }}
+        >
+          {label}
+        </span>
+      </button>
+      {onRemove ? (
+        <button
+          type="button"
+          aria-label={`Remove ${label}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          style={{
+            position: "absolute",
+            top: "-4px",
+            left: "-4px",
+            width: "20px",
+            height: "20px",
+            borderRadius: "999px",
+            border: "none",
+            background: "rgba(0,0,0,0.78)",
+            color: "var(--chrome)",
+            fontSize: "14px",
+            lineHeight: 1,
+            zIndex: 1,
+          }}
+        >
+          ×
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -376,6 +419,7 @@ function CandidatePicker({
   onGenerate,
   onApprove,
   onUpload,
+  onRemove,
 }: {
   styleId: string;
   label: string;
@@ -388,13 +432,14 @@ function CandidatePicker({
   onGenerate: (customPrompt?: string) => void;
   onApprove: (candidateId: string) => void;
   onUpload: (file: File) => void;
+  onRemove?: (candidateId: string) => void;
 }) {
-  const seed = preferredCandidate(candidates);
+  const takes = faceCandidateTakes(candidates);
+  const seed = preferredCandidate(takes);
   const [customPrompt, setCustomPrompt] = useState(seed?.prompt || "");
   const [focusId, setFocusId] = useState<string | null>(seed?.id || null);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const prevLen = useRef(candidates.length);
   const promptAssist = useMobileAssist(
     "image_prompt",
     styleId,
@@ -404,30 +449,20 @@ function CandidatePicker({
   );
   const asked = useRef(false);
   useEffect(() => {
-    if (asked.current || busy || candidates.length) return;
+    if (asked.current || busy || takes.length) return;
     asked.current = true;
     onGenerate();
-  }, [busy, candidates.length, onGenerate]);
+  }, [busy, takes.length, onGenerate]);
 
-  useEffect(() => {
-    if (candidates.length > prevLen.current) {
-      const last = latestCandidate(candidates);
-      if (last) {
-        setFocusId(last.id);
-        if (last.prompt) setCustomPrompt(last.prompt);
-      }
-    }
-    prevLen.current = candidates.length;
-  }, [candidates]);
-
-  const newest = latestCandidate(candidates);
+  const newest = latestCandidate(takes);
   const focused =
-    candidates.find((c) => c.id === focusId) || newest || null;
-  const focusIndex = focused ? candidates.findIndex((c) => c.id === focused.id) : -1;
+    takes.find((c) => c.id === focusId) || newest || null;
+  const focusIndex = focused ? takes.findIndex((c) => c.id === focused.id) : -1;
   const canUndo = focusIndex > 0;
 
   const takeFile = (file: File | undefined) => {
     if (!file || !file.type.startsWith("image/")) return;
+    setFocusId(null);
     onUpload(file);
   };
 
@@ -459,7 +494,11 @@ function CandidatePicker({
           imageSrc={imageSrc}
           busy={busy}
           onApprove={(c) => onApprove(c.id)}
-          onReroll={() => onGenerate(customPrompt || undefined)}
+          onReroll={() => {
+            setFocusId(null);
+            onGenerate(customPrompt || undefined);
+          }}
+          onRemove={onRemove ? () => onRemove(focused.id) : undefined}
         />
       ) : busy || !error ? (
         <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "16px 0" }}>
@@ -475,18 +514,18 @@ function CandidatePicker({
           Try again
         </MobilePrimaryButton>
       )}
-      {candidates.length > 1 ? (
+      {takes.length ? (
         <div
           style={{
             display: "flex",
             gap: "8px",
             overflowX: "auto",
-            padding: "10px 2px 2px",
+            padding: "12px 8px 2px",
             touchAction: "pan-x pan-y",
             overscrollBehaviorX: "contain",
           }}
         >
-          {candidates.map((c, i) => (
+          {takes.map((c, i) => (
             <ThumbTile
               key={c.id}
               src={imageSrc(c)}
@@ -496,11 +535,12 @@ function CandidatePicker({
                 setFocusId(c.id);
                 setCustomPrompt(c.prompt || "");
               }}
+              onRemove={onRemove && !busy ? () => onRemove(c.id) : undefined}
             />
           ))}
         </div>
       ) : null}
-      {candidates.length || error ? (
+      {takes.length || error ? (
         <div style={{ display: "flex", gap: "8px", marginTop: "10px", alignItems: "center" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
@@ -538,7 +578,7 @@ function CandidatePicker({
             disabled={busy || !canUndo}
             onClick={() => {
               if (focusIndex <= 0) return;
-              const prev = candidates[focusIndex - 1]!;
+              const prev = takes[focusIndex - 1]!;
               setFocusId(prev.id);
               setCustomPrompt(prev.prompt || "");
             }}
@@ -557,6 +597,7 @@ function CandidatePicker({
             type="button"
             disabled={busy}
             onClick={() => {
+              setFocusId(null);
               onGenerate(customPrompt || undefined);
             }}
             style={{
@@ -628,6 +669,8 @@ export function StudioTree({
   onApproveLocation,
   onAddLocation,
   onUploadLocation,
+  onRemoveCast,
+  onRemoveLocation,
   onDropScript,
   onGenerateVideo,
   onRetryError,
@@ -647,6 +690,8 @@ export function StudioTree({
   onApproveLocation: (sceneId: string, candidateId: string) => void;
   onAddLocation: (name: string) => void;
   onUploadLocation: (sceneId: string, file: File) => void;
+  onRemoveCast: (name: string, candidateId: string) => void;
+  onRemoveLocation: (sceneId: string, candidateId: string) => void;
   onDropScript: (script: string) => void;
   onGenerateVideo: () => void;
   onRetryError: () => void;
@@ -736,19 +781,45 @@ export function StudioTree({
             }}
           />
           {job.speakers.map((name) => {
-            const chosen = (job.castCandidates[name] || []).find((c) => c.approved);
-            const pending = latestCandidate(job.castCandidates[name]);
+            const takes = faceCandidateTakes(job.castCandidates[name]);
+            const chosen = takes.find((c) => c.approved);
+            const pending = latestCandidate(takes);
             const src = chosen
               ? castFaceUrl(job, name, chosen.fileName, characterIds)
               : pending
                 ? castFaceUrl(job, name, pending.fileName, characterIds)
                 : "";
+            const plate = job.characterPlates?.[name];
+            const plateUnder =
+              plate?.status === "pending" ? (
+                <div style={{ color: "var(--chrome-dim)", fontSize: "10px", lineHeight: 1.2 }}>
+                  <ShimmerText>Plate</ShimmerText>
+                </div>
+              ) : plate?.status === "error" ? (
+                <div style={{ color: "var(--magenta-hot)", fontSize: "10px" }}>!</div>
+              ) : plate?.fileName ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={characterPlateFileUrl(job.styleId, plate.fileName)}
+                  alt=""
+                  style={{
+                    width: "72px",
+                    height: "32px",
+                    objectFit: "contain",
+                    display: "block",
+                    borderRadius: "6px",
+                    background: "var(--panel-2)",
+                    border: "1px solid var(--line)",
+                  }}
+                />
+              ) : null;
             return (
               <ThumbTile
                 key={name}
                 src={src}
                 label={name}
                 picked={Boolean(chosen)}
+                underImage={plateUnder}
                 onClick={() => {
                   setAdding(null);
                   setOpenCast(name);
@@ -792,48 +863,9 @@ export function StudioTree({
               })();
             }}
             onUpload={(file) => onUploadCast(castFocus, file)}
+            onRemove={(id) => onRemoveCast(castFocus, id)}
           />
         ) : null}
-        {job.speakers.map((name) => {
-          const row = job.characterPlates?.[name];
-          if (!row) return null;
-          return (
-            <div key={`plate-${name}`} style={{ marginTop: "12px" }}>
-              <div
-                style={{
-                  color: "var(--chrome-dim)",
-                  fontSize: "11px",
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  marginBottom: "6px",
-                }}
-              >
-                Character plate · {name}
-              </div>
-              {row?.status === "pending" ? (
-                <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "8px 0" }}>
-                  <ShimmerText>Locking {name} for the series</ShimmerText>
-                </div>
-              ) : row?.status === "error" ? (
-                <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>
-                  {row.error || "Couldn't make the character plate"}
-                </div>
-              ) : row?.fileName ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={characterPlateFileUrl(job.styleId, row.fileName)}
-                  alt={`${name} character plate`}
-                  style={{
-                    width: "100%",
-                    borderRadius: "10px",
-                    display: "block",
-                    border: "1px solid var(--line)",
-                  }}
-                />
-              ) : null}
-            </div>
-          );
-        })}
       </TreeBranch>
 
       <TreeBranch label="Locations">
@@ -902,6 +934,7 @@ export function StudioTree({
               setOpenPlace(null);
             }}
             onUpload={(file) => onUploadLocation(placeFocus, file)}
+            onRemove={(id) => onRemoveLocation(placeFocus, id)}
           />
         ) : null}
       </TreeBranch>

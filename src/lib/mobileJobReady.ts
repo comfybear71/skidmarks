@@ -80,6 +80,18 @@ export function phaseAfterScreenplay(
   return "plates";
 }
 
+/** Series turnaround sheets (`plate_baby.jpg`) — not a face/place take. */
+export function isCharacterPlateFileName(fileName: string | undefined): boolean {
+  return /^plate_[a-z0-9_]+\.(png|jpe?g|webp)$/i.test((fileName || "").trim());
+}
+
+/** Face/place stills only. Character plates live under the cast thumb. */
+export function faceCandidateTakes<T extends { fileName?: string }>(
+  list: T[] | undefined,
+): T[] {
+  return (list || []).filter((c) => !isCharacterPlateFileName(c.fileName));
+}
+
 /** More / Not this one used to replace the list, which threw away the
  * take you wanted. Keep every still; newest is last. Never delete. */
 export function keepCandidateTakes<T extends { id: string; fileName: string }>(
@@ -95,6 +107,17 @@ export function keepCandidateTakes<T extends { id: string; fileName: string }>(
     out.push(c);
   }
   return out;
+}
+
+/** Drop one take from the strip. Does not delete the file — More still
+ * appends; this is an explicit tap on ×. */
+export function dropCandidateTake<T extends { id: string }>(
+  existing: T[] | undefined,
+  candidateId: string,
+): T[] {
+  const id = (candidateId || "").trim();
+  if (!id) return existing ? [...existing] : [];
+  return (existing || []).filter((c) => c.id !== id);
 }
 
 export function latestCandidate<T>(list: T[] | undefined): T | undefined {
