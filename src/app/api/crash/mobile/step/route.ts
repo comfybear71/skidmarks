@@ -168,8 +168,6 @@ export async function POST(req: Request) {
             speaker: w.speaker,
             text: w.line,
           });
-          voicedStory = result.story;
-          await writeMobileStory(voicedStory, job.folderName);
           const localPath = await resolveMobileBeatAudio({
             styleId: job.styleId,
             folderName: job.folderName,
@@ -177,13 +175,30 @@ export async function POST(req: Request) {
             voiceFile: result.voiceFile,
           });
           if (localPath) {
-            await uploadMobileMedia({
-              styleId: job.styleId,
-              folderName: job.folderName,
-              kind: "audio",
-              localPath,
-            });
+            // Animate runs on a later, separate invocation and trusts the
+            // story's voiceFile alone — if this upload silently failed, the
+            // story below would still point Generate at an mp3 that exists
+            // nowhere it can reach. Retry once for a blip, then leave the
+            // OLD (still-resolvable) story/voiceFile in place and record a
+            // real failure instead of a phantom queueable beat.
+            try {
+              await uploadMobileMedia({
+                styleId: job.styleId,
+                folderName: job.folderName,
+                kind: "audio",
+                localPath,
+              });
+            } catch {
+              await uploadMobileMedia({
+                styleId: job.styleId,
+                folderName: job.folderName,
+                kind: "audio",
+                localPath,
+              });
+            }
           }
+          voicedStory = result.story;
+          await writeMobileStory(voicedStory, job.folderName);
           voiceRun.lines.push({ ok: true });
         } catch (e) {
           const detail = e instanceof Error ? e.message : String(e);
