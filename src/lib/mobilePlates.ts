@@ -81,38 +81,20 @@ function uniqueShotSpeakers(shot: CrashStoryShot): string[] {
   ];
 }
 
-/**
- * AI-composite a shot's cast onto its scene's location — the automated
- * mobile pipeline uses plateCastIntoGen (plateCast.ts), the same AI
- * compositor the desktop "gen-plate" route's Path A uses, NOT the manual
- * drag/scale Compositor panel built for desktop review workflows.
- */
-export async function compositeShotPlate(
+export type PlateJobRef = Pick<
+  MobileGenJob,
+  "id" | "folderName" | "castCandidates" | "locationCandidates"
+>;
+
+/** Location still for a shot — local gallery, show shelf, then this job's pick. */
+export async function resolvePlateBackground(
   styleId: ShowStyleId,
-  scene: CrashStoryScene,
-  shot: CrashStoryShot,
-  opts: {
-    /** Cast who never speak anywhere in the story. Shots are keyed off
-     * dialogue beats, so without this a silent character — the monkey in
-     * "a monkey holding hands with Elon Musk" — gets a cast card approved
-     * and then never appears in a single plate. */
-    silentCast?: string[];
-    /** The job's slider. Plates used to fall back to the style preset, so
-     * dragging to photoreal changed the cast and location but not the plate
-     * they were composited into. */
-    styleRealism?: number;
-    /** First-job faces/places live under the job id in Blob, not on the
-     * show shelf. Approve writes local galleries that vanish on the next
-     * Vercel invoke — without this, compositing only sees an empty /tmp. */
-    job?: Pick<
-      MobileGenJob,
-      "id" | "folderName" | "castCandidates" | "locationCandidates"
-    >;
-  } = {},
+  scene: Pick<CrashStoryScene, "id" | "title" | "placeName" | "worldThumbKey">,
+  job?: PlateJobRef,
 ): Promise<string> {
-  const folders = opts.job ? mobileCandidateFolders(opts.job) : [];
-  const locationFile = opts.job
-    ? approvedCandidateFileName(opts.job.locationCandidates, scene.id)
+  const folders = job ? mobileCandidateFolders(job) : [];
+  const locationFile = job
+    ? approvedCandidateFileName(job.locationCandidates, scene.id)
     : null;
 
   // Local galleries are written by the request that approved the pick, and on
@@ -137,6 +119,62 @@ export async function compositeShotPlate(
       `Location image for "${scene.placeName}"${locationFile ? ` (${locationFile})` : ""} not found on disk, the show's world shelf, or this job's approved still`,
     );
   }
+  return bgPath;
+}
+
+/** One face for a speaker — local gallery, job pick, then show shelf. */
+export async function resolvePlateCastPath(
+  styleId: ShowStyleId,
+  name: string,
+  job?: PlateJobRef,
+): Promise<string | null> {
+  const folders = job ? mobileCandidateFolders(job) : [];
+  const manifest = readStyleCardManifest(styleId);
+  const key = resolveCastKeyByName(manifest, name);
+  const localPath = key ? resolveStyleCardThumbPath(styleId, key) : null;
+  const jobFile = job ? approvedCandidateFileName(job.castCandidates, name) : null;
+  const jobPath =
+    localPath || !jobFile
+      ? null
+      : await cacheJobPlateFile({ styleId, folders, fileName: jobFile });
+  const shelfByFile =
+    localPath || jobPath || !jobFile
+      ? null
+      : await cacheShelfAsset(styleId, "cast", jobFile);
+  const cloudPath =
+    localPath || jobPath || shelfByFile
+      ? null
+      : await cacheShelfCastByName(styleId, name);
+  return localPath || jobPath || shelfByFile || cloudPath;
+}
+
+/**
+ * AI-composite a shot's cast onto its scene's location — the automated
+ * mobile pipeline uses plateCastIntoGen (plateCast.ts), the same AI
+ * compositor the desktop "gen-plate" route's Path A uses, NOT the manual
+ * drag/scale Compositor panel built for desktop review workflows.
+ */
+export async function compositeShotPlate(
+  styleId: ShowStyleId,
+  scene: CrashStoryScene,
+  shot: CrashStoryShot,
+  opts: {
+    /** Cast who never speak anywhere in the story. Shots are keyed off
+     * dialogue beats, so without this a silent character — the monkey in
+     * "a monkey holding hands with Elon Musk" — gets a cast card approved
+     * and then never appears in a single plate. */
+    silentCast?: string[];
+    /** The job's slider. Plates used to fall back to the style preset, so
+     * dragging to photoreal changed the cast and location but not the plate
+     * they were composited into. */
+    styleRealism?: number;
+    /** First-job faces/places live under the job id in Blob, not on the
+     * show shelf. Approve writes local galleries that vanish on the next
+     * Vercel invoke — without this, compositing only sees an empty /tmp. */
+    job?: PlateJobRef;
+  } = {},
+): Promise<string> {
+  const bgPath = await resolvePlateBackground(styleId, scene, opts.job);
 
   const silent = (opts.silentCast || []).map((n) => n.trim()).filter(Boolean);
   const speakers = [...new Set([...uniqueShotSpeakers(shot), ...silent])];
@@ -156,31 +194,9 @@ export async function compositeShotPlate(
     const castFiles: { buf: Buffer; ext: string }[] = [];
     const castNames: string[] = [];
     for (const name of batch) {
-      const key = resolveCastKeyByName(manifest, name);
-      const localPath = key ? resolveStyleCardThumbPath(styleId, key) : null;
-      // Same story as the background: the card was approved on another
-      // invocation. Show shelf by name is series reuse; this job's approved
-      // candidate is the first-run file (uploaded under the job id).
-      const jobFile = opts.job
-        ? approvedCandidateFileName(opts.job.castCandidates, name)
-        : null;
-      const jobPath =
-        localPath || !jobFile
-          ? null
-          : await cacheJobPlateFile({ styleId, folders, fileName: jobFile });
-      // Reusable series cards store the shelf filename on the job, not a
-      // job-id Blob object — try that name on the cast shelf before a
-      // fuzzy name match.
-      const shelfByFile =
-        localPath || jobPath || !jobFile
-          ? null
-          : await cacheShelfAsset(styleId, "cast", jobFile);
-      const cloudPath =
-        localPath || jobPath || shelfByFile
-          ? null
-          : await cacheShelfCastByName(styleId, name);
-      const p = localPath || jobPath || shelfByFile || cloudPath;
+      const p = await resolvePlateCastPath(styleId, name, opts.job);
       if (!p) continue;
+      const key = resolveCastKeyByName(manifest, name);
       castNames.push((key && manifest[key]?.name) || name);
       castFiles.push({ buf: fs.readFileSync(p), ext: path.extname(p).toLowerCase() || ".png" });
     }
