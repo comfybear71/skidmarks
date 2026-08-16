@@ -162,7 +162,11 @@ export async function POST(req: Request) {
       next,
       beatId,
     );
-    const patched = await patchMobileGenJob(jobId, { clips, error: "" });
+    const patched = await patchMobileGenJob(jobId, {
+      clips,
+      error: "",
+      ...(job.phase === "error" || job.phase === "animate" ? { phase: "review" as const } : {}),
+    });
     try {
       const localPath = await resolveMobileBeatAudio({
         styleId: job.styleId,
