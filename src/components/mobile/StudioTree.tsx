@@ -11,6 +11,8 @@ import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
 import { allCastApproved, allLocationsApproved } from "@/lib/mobileJobReady";
+import { getShowStylePreset } from "@/lib/showStylePresets";
+import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
 
 function castFaceUrl(
@@ -324,8 +326,8 @@ function CandidatePicker({
 }
 
 /**
- * One scrolling desk: Cast, then Locations, then Plates. Nothing in the
- * tree is replaced when you move on — scroll back up to add another.
+ * Vibe Director desk — one scrolling tree. You set the vibe, then direct
+ * cast, places, and plates. Nothing is replaced when you move on.
  */
 export function StudioTree({
   job,
@@ -382,9 +384,20 @@ export function StudioTree({
     (job.phase === "cast_build" || job.phase === "location_build");
 
   const plated = job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__");
+  const vibePreset = getShowStylePreset(job.styleId);
+  const vibeRealism = job.styleRealism ?? vibePreset.defaultRealism;
 
   return (
     <div style={{ padding: "12px 16px 28px", overflowY: "auto", flex: 1, minHeight: 0 }}>
+      <TreeBranch label="Vibe">
+        <div style={{ ...mobileCard, padding: "12px 14px" }}>
+          <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--chrome)" }}>{job.prompt}</div>
+          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
+            {vibePreset.label} · {vibeRealism} · {styleRealismLabel(vibeRealism)}
+          </div>
+        </div>
+      </TreeBranch>
+
       <TreeBranch label="Cast">
         <div style={{ display: "flex", gap: "10px", overflowX: "auto", padding: "2px 2px 6px" }}>
           <PlusTile

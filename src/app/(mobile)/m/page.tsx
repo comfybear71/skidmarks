@@ -261,15 +261,10 @@ export default function MobileHomePage() {
   return (
     <main style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
       {/* Completed-step trail */}
-      {job || localStep !== "prompt" ? (
+      {!job && localStep !== "prompt" ? (
         <CompletedTrail
           prompt={prompt || undefined}
-          style={job || localStep === "duration" ? preset.label : undefined}
-          duration={
-            job
-              ? `~${Math.round(targetDurationSec / 60) || targetDurationSec / 60} min · ~${shotEstimate} clips`
-              : undefined
-          }
+          style={localStep === "duration" ? preset.label : undefined}
         />
       ) : null}
 
@@ -281,7 +276,7 @@ export default function MobileHomePage() {
 
       {/* Step 1: Prompt */}
       {!job && localStep === "prompt" && (
-        <ActiveStepPanel title="What's the idea?" subtitle="A scene, a script, or just a word — Mars, a bad first date, whatever.">
+        <ActiveStepPanel title="What's the vibe?" subtitle="You direct. We hold the cast, the places, and the plates.">
           <MobileTextInput value={prompt} onChange={setPrompt} placeholder="A crew lands on Mars and immediately regrets it..." multiline />
           <div style={{ marginTop: "16px" }}>
             <MobilePrimaryButton disabled={!prompt.trim()} onClick={() => setLocalStep("style")}>
@@ -387,7 +382,7 @@ export default function MobileHomePage() {
           </div>
           <div style={{ marginTop: "16px" }}>
             <MobilePrimaryButton disabled={busy} onClick={() => void startRun()}>
-              {busy ? "Starting…" : "Open studio"}
+              {busy ? "Starting…" : "Start directing"}
             </MobilePrimaryButton>
           </div>
         </ActiveStepPanel>

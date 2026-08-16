@@ -7,9 +7,9 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Skidmarks — Auto Studio",
-    short_name: "Skidmarks",
-    description: "Prompt in, finished animated scene out — fully automated.",
+    name: "Skidmarks — Vibe Director",
+    short_name: "Vibe Director",
+    description: "Vibe direct a film. Cast, places, and plates stay on the tree.",
     start_url: "/m",
     scope: "/m",
     display: "standalone",

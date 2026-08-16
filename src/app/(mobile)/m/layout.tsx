@@ -31,8 +31,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Skidmarks — Auto Studio",
-  description: "Prompt in, finished animated scene out — fully automated.",
+  title: "Skidmarks — Vibe Director",
+  description: "Vibe direct a film. Cast, places, and plates stay on the tree.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     title: "Skidmarks",
