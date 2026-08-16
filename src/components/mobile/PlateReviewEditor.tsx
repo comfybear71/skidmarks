@@ -1371,7 +1371,11 @@ function ShotLineEditor({
         onPicked={(plateFile, staging) => onPlateRebuilt(plateFile, staging, shot.summary)}
       />
       {clips
-        .filter((c) => c.shotId === shot.id && Boolean(c.clipFile))
+        .filter((c) => {
+          if (!c.clipFile) return false;
+          if (c.shotId === shot.id) return true;
+          return shot.beats.some((b) => b.id === c.beatId);
+        })
         .map((clip) => (
           <div key={`${clip.beatId}:${clip.clipFile}`}>
             <div
