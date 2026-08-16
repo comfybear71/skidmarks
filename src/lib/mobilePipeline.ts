@@ -1,6 +1,6 @@
 /**
  * Mobile Auto Studio still stops before concatenating clips into a movie.
- * Plates, lines, and prompts first. Flip this when stitch is ready.
+ * Generate video / LTX still runs. Flip this when stitch is ready.
  */
 export const MOBILE_STITCH_MOVIES = false;
 

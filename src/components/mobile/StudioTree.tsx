@@ -1110,7 +1110,7 @@ export function StudioTree({
           />
         ) : null}
 
-        {platesOpen && job.phase === "review" && MOBILE_STITCH_MOVIES ? (
+        {platesOpen && job.phase === "review" ? (
           <div style={{ marginTop: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: plated.length ? "10px" : 0 }}>
               {plated.length}/{job.shots.length} plated · {job.clips.length} lines
@@ -1121,22 +1121,23 @@ export function StudioTree({
               </MobilePrimaryButton>
             ) : null}
           </div>
-        ) : platesOpen && job.phase === "review" ? (
-          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "12px" }}>
-            {plated.length}/{job.shots.length} plated · {job.clips.length} lines
-          </div>
         ) : null}
 
-        {platesOpen && MOBILE_STITCH_MOVIES && (job.phase === "animate" || job.phase === "stitch") && (
+        {platesOpen && job.phase === "animate" ? (
           <div style={{ padding: "8px 0" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>
-              {job.phase === "animate"
-                ? `Animating… ${job.clips.filter((c) => c.clipStatus !== "pending").length}/${job.clips.length}`
-                : "Stitching…"}
+              {`Animating… ${job.clips.filter((c) => c.clipStatus !== "pending").length}/${job.clips.length}`}
             </ShimmerText>
             <StoryFeed job={job} onClipUploaded={onJobChange} />
           </div>
-        )}
+        ) : null}
+
+        {platesOpen && MOBILE_STITCH_MOVIES && job.phase === "stitch" ? (
+          <div style={{ padding: "8px 0" }}>
+            <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Stitching…</ShimmerText>
+            <StoryFeed job={job} onClipUploaded={onJobChange} />
+          </div>
+        ) : null}
 
         {platesOpen && job.phase === "done" && job.finalVideoFile ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "8px" }}>
