@@ -972,7 +972,7 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {job.shots.length && (job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error") ? (
+        {job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error" ? (
           <PlateReviewEditor job={job} onJobChange={onJobChange} />
         ) : null}
 
