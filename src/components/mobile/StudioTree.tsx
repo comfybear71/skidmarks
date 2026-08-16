@@ -606,8 +606,8 @@ export function StudioTree({
   error: string;
   writingScript: boolean;
   onGenerateCast: (name: string, customPrompt?: string) => void;
-  onApproveCast: (name: string, candidateId: string) => void;
-  onMakeCharacterPlate: (name: string) => void;
+  onApproveCast: (name: string, candidateId: string) => void | Promise<boolean | void>;
+  onMakeCharacterPlate: (name: string) => void | Promise<void>;
   onAddCast: (name: string, description?: string, file?: File) => void;
   onUploadCast: (name: string, file: File) => void;
   onGenerateLocation: (sceneId: string, customPrompt?: string) => void;
@@ -713,9 +713,11 @@ export function StudioTree({
             promptPlaceholder="e.g. more like a grumpy dad"
             onGenerate={(p) => onGenerateCast(castFocus, p)}
             onApprove={(id) => {
-              onApproveCast(castFocus, id);
-              onMakeCharacterPlate(castFocus);
-              setOpenCast(null);
+              void (async () => {
+                const ok = await onApproveCast(castFocus, id);
+                if (ok !== false) await onMakeCharacterPlate(castFocus);
+                setOpenCast(null);
+              })();
             }}
             onUpload={(file) => onUploadCast(castFocus, file)}
           />

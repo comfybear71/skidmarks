@@ -13,6 +13,7 @@ import { useMobileAssist } from "@/components/mobile/useMobileAssist";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
+import { MOBILE_LAST_JOB_KEY, readResumedJobId } from "@/lib/mobileJobResume";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -37,6 +38,7 @@ export default function MobileHomePage() {
   const [writingScript, setWritingScript] = useState(false);
   const [error, setError] = useState("");
   const [characterIds, setCharacterIds] = useState<Record<string, string>>({});
+  const [resuming, setResuming] = useState(true);
   const pollRef = useRef<number | null>(null);
 
   const stopPoll = useCallback(() => {
@@ -92,6 +94,42 @@ export default function MobileHomePage() {
     return stopPoll;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.phase, job?.id]);
+
+  useEffect(() => {
+    const id = readResumedJobId(window.location.search, window.localStorage);
+    if (!id) {
+      setResuming(false);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/crash/mobile/job/${encodeURIComponent(id)}`)
+      .then((r) => r.json())
+      .then((d: { job?: MobileGenJob }) => {
+        if (cancelled || !d.job) return;
+        setJob(d.job);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setResuming(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!job?.id) return;
+    try {
+      window.localStorage.setItem(MOBILE_LAST_JOB_KEY, job.id);
+    } catch {
+      /* private mode */
+    }
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("job") !== job.id) {
+      url.searchParams.set("job", job.id);
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    }
+  }, [job?.id]);
 
   useEffect(() => {
     if (job) {
@@ -256,8 +294,9 @@ export default function MobileHomePage() {
           { jobId: job.id, name },
         );
         setJob(updated);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't make the character plate");
+      } catch {
+        // Plate row on the tree holds the why. A page banner here made
+        // it look like the episode died — the cast is still on the job.
       }
     },
     [job],
@@ -265,7 +304,7 @@ export default function MobileHomePage() {
 
   const approveCandidate = useCallback(
     async (kind: "cast" | "location", target: string, candidateId: string) => {
-      if (!job) return;
+      if (!job) return false;
       setBusy(true);
       setError("");
       try {
@@ -283,8 +322,10 @@ export default function MobileHomePage() {
           });
           setJob(res.job);
         }
+        return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : "Approve failed");
+        return false;
       } finally {
         setBusy(false);
       }
@@ -319,7 +360,11 @@ export default function MobileHomePage() {
         </div>
       ) : null}
 
-      {!job ? (
+      {resuming ? (
+        <div style={{ padding: "24px 16px", color: "var(--chrome-dim)", fontSize: "14px" }}>
+          Opening the episode…
+        </div>
+      ) : !job ? (
         <ActiveStepPanel title="What's the vibe?" subtitle="You direct. We hold the cast, the places, and the plates.">
           <MobileTextInput
             value={prompt}
