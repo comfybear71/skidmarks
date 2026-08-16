@@ -556,6 +556,9 @@ export const CAMPAIGN_SPEECH: string[] = [
   oneLine(
     "Hey Bub. Starlink package arrived today. I've let Jummie know. IDK anything about Starlink and not sure when you're back from Bali? I thought Josh and Jason could be of help. I'm happy to help if they aren't free. Xo",
   ),
+  oneLine(
+    "I'll wait for you to put it back on. When you leave for a few hours, would you please remember to turn the water back on. People are living here hun. Thanks.",
+  ),
 ];
 
 if (CAMPAIGN_SPEECH.length < 26) {
