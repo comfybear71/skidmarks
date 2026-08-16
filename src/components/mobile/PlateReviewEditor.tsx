@@ -782,7 +782,8 @@ export function PlateReviewEditor({
               };
             });
           }}
-          onBeatSaved={(beatId, text, voiceFile, imageMotion) => {
+          onBeatSaved={(beatId, text, voiceFile, imageMotion, nextJob) => {
+            if (nextJob) onJobChange?.(nextJob);
             setStory((cur) => {
               if (!cur) return cur;
               return {
@@ -1310,7 +1311,7 @@ function ShotLineEditor({
   error: string;
   placeSrc?: string;
   jobPlated?: boolean;
-  onBeatSaved: (beatId: string, text: string, voiceFile: string, imageMotion?: string) => void;
+  onBeatSaved: (beatId: string, text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
   onPlateRebuilt: (
     plateFile: string | undefined,
     staging: string,
@@ -1363,8 +1364,8 @@ function ShotLineEditor({
             lookLock={lookForSpeaker(beat.speaker)}
             shotSpeakers={[...new Set(shot.beats.map((b) => b.speaker.trim()).filter(Boolean))]}
             beat={beat}
-            onSaved={(text, voiceFile, imageMotion) =>
-              onBeatSaved(beat.id, text, voiceFile, imageMotion)
+            onSaved={(text, voiceFile, imageMotion, nextJob) =>
+              onBeatSaved(beat.id, text, voiceFile, imageMotion, nextJob)
             }
           />
         ))
@@ -1394,7 +1395,7 @@ function BeatLineEditor({
   lookLock: string;
   shotSpeakers: string[];
   beat: CrashStoryBeat;
-  onSaved: (text: string, voiceFile: string, imageMotion?: string) => void;
+  onSaved: (text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
 }) {
   const [text, setText] = useState(beat.text);
   const [voiceFile, setVoiceFile] = useState(
@@ -1525,7 +1526,7 @@ function BeatLineEditor({
         imageMotion = await persistMotion(motionBody);
         setMotionDraft(null);
       }
-      onSaved(text, data.voiceFile, imageMotion);
+      onSaved(text, data.voiceFile, imageMotion, data.job);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {

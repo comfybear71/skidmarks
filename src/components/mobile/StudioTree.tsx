@@ -1118,9 +1118,26 @@ export function StudioTree({
 
         {platesOpen && job.phase === "review" ? (
           <div style={{ marginTop: "12px" }}>
-            <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: plated.length ? "10px" : 0 }}>
-              {plated.length}/{job.shots.length} plated · {job.clips.length} lines
+            <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "10px" }}>
+              {plated.length}/{job.shots.length} plated · {job.clips.length}{" "}
+              {job.clips.length === 1 ? "line queued" : "lines queued"}
+              {job.clips.length === 0 && plated.length
+                ? " — Save the spoken line (Play appears) before Generate video"
+                : ""}
             </div>
+            {job.error ? (
+              <div style={{ color: "var(--magenta-hot)", fontSize: "13px", marginBottom: "10px" }}>
+                {job.error}
+              </div>
+            ) : null}
+            {job.clips.some((c) => c.clipStatus === "error" && c.error) ? (
+              <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginBottom: "10px" }}>
+                {job.clips
+                  .filter((c) => c.clipStatus === "error" && c.error)
+                  .map((c) => c.error)
+                  .join(" · ")}
+              </div>
+            ) : null}
             {plated.length || busy ? (
               <MobilePrimaryButton disabled={busy || !plated.length} onClick={onGenerateVideo}>
                 {busy ? "Casting voices…" : "Generate video"}
@@ -1132,8 +1149,15 @@ export function StudioTree({
         {platesOpen && job.phase === "animate" ? (
           <div style={{ padding: "8px 0" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>
-              {`Animating… ${job.clips.filter((c) => c.clipStatus !== "pending").length}/${job.clips.length}`}
+              {job.clips.length
+                ? `Animating… ${job.clips.filter((c) => c.clipStatus !== "pending").length}/${job.clips.length}`
+                : "Animating… no lines queued"}
             </ShimmerText>
+            {job.error ? (
+              <div style={{ color: "var(--magenta-hot)", fontSize: "13px", margin: "8px 0" }}>
+                {job.error}
+              </div>
+            ) : null}
             <StoryFeed job={job} onClipUploaded={onJobChange} />
           </div>
         ) : null}

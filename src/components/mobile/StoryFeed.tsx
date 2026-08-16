@@ -79,7 +79,7 @@ export function StoryFeed({
     });
   }
 
-  const clipsStarted = job.clips.filter((c) => c.imageMotion);
+  const clipsStarted = job.clips;
   for (const clip of clipsStarted) {
     rows.push({
       key: `clip-${clip.beatId}`,

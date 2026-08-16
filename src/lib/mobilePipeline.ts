@@ -10,12 +10,6 @@ export function bounceStuckStitch(opts: {
 }): "review" | null {
   if (MOBILE_STITCH_MOVIES) return null;
   if (opts.phase === "stitch") return "review";
-  if (
-    opts.phase === "error" &&
-    /stitch|No clips generated/i.test(opts.error || "")
-  ) {
-    return "review";
-  }
   return null;
 }
 

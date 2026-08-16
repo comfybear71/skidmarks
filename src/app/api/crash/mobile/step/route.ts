@@ -18,6 +18,7 @@ import {
   phaseAfterErrorResume,
 } from "@/lib/mobilePipeline";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
+import { mergeClipsFromStory, clipQueueError } from "@/lib/mobileClipQueue";
 import { allCastApproved, allLocationsApproved, candidateLookPrompt } from "@/lib/mobileJobReady";
 import { CRASH_DIR } from "@/lib/paths";
 import {
@@ -87,7 +88,7 @@ export async function POST(req: Request) {
 
     const unstick = bounceStuckStitch({ phase: job.phase, error: job.error });
     if (unstick) {
-      job = (await patchMobileGenJob(jobId, { phase: unstick, error: "" }))!;
+      job = (await patchMobileGenJob(jobId, { phase: unstick }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
@@ -182,13 +183,43 @@ export async function POST(req: Request) {
         }
       }
 
-      job = (await patchMobileGenJob(jobId, { phase: "animate" }))!;
+      job = (await patchMobileGenJob(jobId, {
+        clips: mergeClipsFromStory(job, voicedStory).map((c) =>
+          c.clipStatus === "error" ? { ...c, clipStatus: "pending" as const, error: "" } : c,
+        ),
+      }))!;
+      const pending = job.clips.filter((c) => c.clipStatus === "pending");
+      if (!pending.length) {
+        const saved = mergeClipsFromStory(job, voicedStory).length;
+        job = (await patchMobileGenJob(jobId, {
+          phase: "review",
+          error: saved
+            ? "Those lines already have clips — nothing new to send. Save the line again to re-queue, or open LTX Image motion and Keep it first."
+            : "No lines to send to LTX. Save the spoken line on the plate first — Play appears next to the name when the mp3 is ready.",
+        }))!;
+        return NextResponse.json({ ok: true, job, advanced: false });
+      }
+
+      job = (await patchMobileGenJob(jobId, { phase: "animate", error: "" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
     if (job.phase === "animate") {
       const next = job.clips.find((c) => c.clipStatus === "pending");
       if (!next) {
+        const failed = clipQueueError(job.clips);
+        if (failed) {
+          job = (await patchMobileGenJob(jobId, { phase: "error", error: failed }))!;
+          return NextResponse.json({ ok: true, job, advanced: true });
+        }
+        if (!job.clips.length) {
+          job = (await patchMobileGenJob(jobId, {
+            phase: "error",
+            error:
+              "Animating with 0 lines — the saved mp3 never got queued. Save the line on the plate, then Generate video again.",
+          }))!;
+          return NextResponse.json({ ok: true, job, advanced: true });
+        }
         job = (await patchMobileGenJob(jobId, {
           phase: phaseAfterAnimateQueue(false),
         }))!;
