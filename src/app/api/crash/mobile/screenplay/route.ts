@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { textKeyPresent } from "@/lib/textGen";
-import { generateScreenplayText } from "@/lib/mobileScreenplay";
+import { generateScreenplayText, screenplaySceneCount } from "@/lib/mobileScreenplay";
 import { importScriptEpisodes } from "@/lib/scriptImport";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { openCrashLabEpisode } from "@/lib/crashLabEpisodes";
@@ -62,11 +62,10 @@ export async function POST(req: Request) {
     });
     const locations = job.scenes.map((s) => s.placeName);
 
-    const shotCount = Math.max(1, Math.round(job.targetDurationSec / job.secondsPerShot));
     const screenplay = await generateScreenplayText({
       prompt: job.prompt,
       styleId: job.styleId,
-      shotCount,
+      sceneCount: screenplaySceneCount(locations.length),
       cast,
       locations,
     });
