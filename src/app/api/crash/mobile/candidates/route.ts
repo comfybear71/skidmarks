@@ -10,8 +10,12 @@ import { createCharacter, listCharacters } from "@/lib/characters";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { newId } from "@/lib/types";
 
-const CANDIDATES_PER_BATCH = 4;
+// One candidate at a time, not a batch to swipe through — a dud gets
+// replaced outright by the next generate call, not compared against three
+// others that are probably just as wrong.
+const CANDIDATES_PER_BATCH = 1;
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -20,9 +24,11 @@ type Body = {
   jobId?: string;
   kind?: "cast" | "location";
   target?: string; // speaker name (cast) or scene id (location)
-  action?: "generate" | "approve";
+  action?: "generate" | "approve" | "add";
   customPrompt?: string;
   candidateId?: string;
+  /** action "add" only — new speaker name, or new place name. */
+  name?: string;
 };
 
 /**
@@ -45,12 +51,52 @@ export async function POST(req: Request) {
     const kind = body.kind;
     const target = (body.target || "").trim();
     const action = body.action;
-    if (!jobId || !kind || !target || !action) {
-      return NextResponse.json({ error: "Need jobId, kind, target, action" }, { status: 400 });
+    if (!jobId || !kind || !action) {
+      return NextResponse.json({ error: "Need jobId, kind, action" }, { status: 400 });
+    }
+    if (action !== "add" && !target) {
+      return NextResponse.json({ error: "Need target" }, { status: 400 });
     }
 
     const job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+    if (action === "add") {
+      const name = (body.name || "").trim();
+      if (!name) return NextResponse.json({ error: "Need a name" }, { status: 400 });
+
+      if (kind === "cast") {
+        if (job.speakers.some((s) => s.toLowerCase() === name.toLowerCase())) {
+          return NextResponse.json({ error: `${name} is already in the cast` }, { status: 400 });
+        }
+        if (!listCharacters().some((c) => c.name.trim().toLowerCase() === name.toLowerCase())) {
+          createCharacter({ name });
+        }
+        const updated = await patchMobileGenJob(jobId, { speakers: [...job.speakers, name] });
+        return NextResponse.json({ ok: true, job: updated });
+      }
+
+      // kind === "location"
+      if (job.scenes.some((s) => s.placeName.toLowerCase() === name.toLowerCase())) {
+        return NextResponse.json({ error: `${name} is already in the locations` }, { status: 400 });
+      }
+      const sceneId = newId("scene");
+      const story = await readMobileStory(job.styleId, job.folderName);
+      await writeMobileStory(
+        {
+          ...story,
+          scenes: [
+            ...story.scenes,
+            { id: sceneId, title: name, placeName: name, worldThumbKey: "", shots: [] },
+          ],
+        },
+        job.folderName,
+      );
+      const updated = await patchMobileGenJob(jobId, {
+        scenes: [...job.scenes, { id: sceneId, placeName: name, worldThumbKey: "" }],
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
 
     if (kind === "cast") {
       let character = listCharacters().find(
