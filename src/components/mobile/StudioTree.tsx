@@ -12,7 +12,12 @@ import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
-import { allCastApproved, allLocationsApproved, latestCandidate } from "@/lib/mobileJobReady";
+import {
+  allCastApproved,
+  allLocationsApproved,
+  latestCandidate,
+  preferredCandidate,
+} from "@/lib/mobileJobReady";
 import { characterPlateFileUrl } from "@/lib/characterPlatePrompt";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
@@ -379,8 +384,9 @@ function CandidatePicker({
   onApprove: (candidateId: string) => void;
   onUpload: (file: File) => void;
 }) {
-  const [customPrompt, setCustomPrompt] = useState("");
-  const [focusId, setFocusId] = useState<string | null>(null);
+  const seed = preferredCandidate(candidates);
+  const [customPrompt, setCustomPrompt] = useState(seed?.prompt || "");
+  const [focusId, setFocusId] = useState<string | null>(seed?.id || null);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const prevLen = useRef(candidates.length);

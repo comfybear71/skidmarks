@@ -9,6 +9,7 @@ import {
   keepCandidateTakes,
   latestCandidate,
   phaseAfterScreenplay,
+  preferredCandidate,
 } from "../src/lib/mobileJobReady.ts";
 import { screenplaySceneCount } from "../src/lib/mobileScreenplaySize.ts";
 import { MOBILE_LAST_JOB_KEY, readResumedJobId } from "../src/lib/mobileJobResume.ts";
@@ -106,6 +107,14 @@ assert.equal(
 );
 assert.equal(directorNote("weathered scowling Jo. more like a grumpy dad", "weathered scowling Jo"), "weathered scowling Jo. more like a grumpy dad");
 assert.equal(directorNote("", "weathered scowling Jo"), "weathered scowling Jo");
+
+const teeTakes = [
+  { id: "a", approved: false, prompt: "first tee" },
+  { id: "b", approved: true, prompt: "A lovely overweight but bubbly middle aged woman" },
+];
+assert.equal(preferredCandidate(teeTakes)?.id, "b");
+assert.equal(preferredCandidate(teeTakes)?.prompt, "A lovely overweight but bubbly middle aged woman");
+assert.equal(preferredCandidate([{ id: "only", approved: false, prompt: "last" }])?.prompt, "last");
 
 assert.equal(MOBILE_LAST_JOB_KEY, "skidmarks.mobile.lastJobId");
 assert.equal(

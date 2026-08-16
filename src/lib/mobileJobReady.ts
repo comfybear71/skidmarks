@@ -75,6 +75,13 @@ export function latestCandidate<T>(list: T[] | undefined): T | undefined {
   return list[list.length - 1];
 }
 
+/** The still on screen when you open someone: the pick, else the last take. */
+export function preferredCandidate<T extends { approved?: boolean }>(
+  list: T[] | undefined,
+): T | undefined {
+  return list?.find((c) => c.approved) || latestCandidate(list);
+}
+
 /** Tweak adds to the look. It must not replace it — a few extra words
  * used to become the whole description, which is how Jo turned into a raccoon. */
 export function directorNote(tweak: string | undefined, look: string | undefined): string {
