@@ -56,3 +56,16 @@ export function latestCandidate<T>(list: T[] | undefined): T | undefined {
   if (!list?.length) return undefined;
   return list[list.length - 1];
 }
+
+/** Tweak adds to the look. It must not replace it — a few extra words
+ * used to become the whole description, which is how Jo turned into a raccoon. */
+export function directorNote(tweak: string | undefined, look: string | undefined): string {
+  const a = (tweak || "").trim();
+  const b = (look || "").trim();
+  if (a && b) {
+    if (a.toLowerCase().includes(b.toLowerCase())) return a;
+    if (b.toLowerCase().includes(a.toLowerCase())) return b;
+    return `${b}. ${a}`;
+  }
+  return a || b;
+}

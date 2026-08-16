@@ -4,6 +4,7 @@ import { mobileLocationStillUrl, mobileMediaFolderName } from "../src/lib/mobile
 import {
   allCastApproved,
   allLocationsApproved,
+  directorNote,
   keepCandidateTakes,
   latestCandidate,
   phaseAfterScreenplay,
@@ -66,8 +67,14 @@ const first = { id: "1", fileName: "jo_1.png", approved: false, prompt: "grumpy 
 const raccoon = { id: "2", fileName: "jo_2.png", approved: false, prompt: "more feral" };
 const kept = keepCandidateTakes([first], [raccoon]);
 assert.equal(kept.length, 2);
-assert.equal(kept[0]!.prompt, "grumpy dad Jo");
-assert.equal(latestCandidate(kept)?.fileName, "jo_2.png");
+assert.equal(kept[0].prompt, "grumpy dad Jo");
+assert.equal(latestCandidate(kept).fileName, "jo_2.png");
 assert.equal(keepCandidateTakes(kept, [raccoon]).length, 2);
+assert.equal(
+  directorNote("more like a grumpy dad", "weathered scowling Jo"),
+  "weathered scowling Jo. more like a grumpy dad",
+);
+assert.equal(directorNote("weathered scowling Jo. more like a grumpy dad", "weathered scowling Jo"), "weathered scowling Jo. more like a grumpy dad");
+assert.equal(directorNote("", "weathered scowling Jo"), "weathered scowling Jo");
 
 console.log("check-mobile-job-folder: ok");

@@ -10,7 +10,7 @@ import { createCharacter, listCharacters } from "@/lib/characters";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { jobHasEpisodePack, mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
-import { keepCandidateTakes } from "@/lib/mobileJobReady";
+import { keepCandidateTakes, latestCandidate } from "@/lib/mobileJobReady";
 import { newId } from "@/lib/types";
 
 // One new still per tap — but the earlier takes stay on the job so More
@@ -132,6 +132,7 @@ export async function POST(req: Request) {
       }
 
       if (action === "generate") {
+        const prior = latestCandidate(job.castCandidates[target]);
         const candidates = await generateCastCandidates(
           job.styleId,
           mobileMediaFolder(job),
@@ -140,6 +141,8 @@ export async function POST(req: Request) {
           job.prompt,
           body.customPrompt,
           job.styleRealism,
+          prior?.fileName,
+          prior?.prompt,
         );
         const updated = await patchMobileGenJob(jobId, {
           castCandidates: {
@@ -170,6 +173,7 @@ export async function POST(req: Request) {
     if (!scene) return NextResponse.json({ error: `No scene ${target}` }, { status: 404 });
 
     if (action === "generate") {
+      const prior = latestCandidate(job.locationCandidates[target]);
       const candidates = await generateLocationCandidates(
         job.styleId,
         mobileMediaFolder(job),
@@ -177,6 +181,8 @@ export async function POST(req: Request) {
         body.customPrompt,
         CANDIDATES_PER_BATCH,
         job.styleRealism,
+        prior?.fileName,
+        prior?.prompt,
       );
       const updated = await patchMobileGenJob(jobId, {
         locationCandidates: {
