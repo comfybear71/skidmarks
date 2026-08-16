@@ -68,7 +68,7 @@ function buildPlatePrompt(opts: {
             "Image 2 is the person — same face identity, hair, age and body from image 2. Do not turn them into a different person.",
             "Place that same person from image 2 into image 1.",
             "Keep the EXACT body pose from image 2 unless the tweak asks otherwise.",
-            "One person only. Empty of extra people and animals.",
+            "One person only. Only that person in frame, no one else appears. Empty of extra people and animals.",
           ]
       : chainPass
         ? [
