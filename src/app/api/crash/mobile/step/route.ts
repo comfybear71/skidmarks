@@ -308,11 +308,19 @@ export async function POST(req: Request) {
             destPath: path.join(CRASH_DIR, "gen", shot.plateFile),
           }));
         if (!platePath) throw new Error("Plate file missing on disk");
+        // /crash Send uses the beat you picked (plate + that mp3 + Image
+        // motion). The queued clip is that pick. Hydrate can blank
+        // story.voiceFile on a read (leftover strip / older snapshot) while
+        // the clip still holds the Save take — looking up beat.voiceFile
+        // then asked Blob for beat_<id>.mp3 and died unreachable.
+        const voiceFile = (next.voiceFile || beat.voiceFile || "").trim();
+        const speaker = (next.speaker || beat.speaker || "").trim();
+        const line = (next.line || beat.text || "").trim();
         const audioPath = await resolveMobileBeatAudio({
           styleId: job.styleId,
           folderName: job.folderName,
           beatId: beat.id,
-          voiceFile: beat.voiceFile,
+          voiceFile,
         });
         if (!audioPath) {
           // The generic "GEN MP3 first" from runLtxCloudIa2v gives no way to
@@ -331,11 +339,11 @@ export async function POST(req: Request) {
         // shape docs/SUNNY_BANKS_IMAGE_MOTION_STANDARD.md logged as working
         // 100%: first-frame lock, look lock, "nothing new enters frame",
         // "same person and objects as the start image".
-        const speaking = beat.text.trim().length > 0;
+        const speaking = line.length > 0;
         const lookLock =
-          candidateLookPrompt(job.castCandidates, beat.speaker) ||
+          candidateLookPrompt(job.castCandidates, speaker) ||
           job.roster.find(
-            (c) => c.name.trim().toLowerCase() === beat.speaker.trim().toLowerCase(),
+            (c) => c.name.trim().toLowerCase() === speaker.toLowerCase(),
           )?.appearance;
         const leftovers = leftoverHydrateSpeakers(storyShot.id, storyShot.beats);
         const shotCast = shotSpeakersOnCard({
@@ -352,8 +360,8 @@ export async function POST(req: Request) {
           (stored && !imageMotionNamesLeftovers(stored, leftovers) ? stored : "") ||
           buildDefaultBeatMotion({
             styleId: job.styleId,
-            speaker: beat.speaker,
-            line: beat.text,
+            speaker,
+            line,
             lookLock,
             shotSpeakers: shotCast,
           });
@@ -365,7 +373,7 @@ export async function POST(req: Request) {
         job = (await patchMobileGenJob(jobId, {
           clips: job.clips.map((c) =>
             c.beatId === next.beatId
-              ? { ...c, speaker: beat.speaker, line: beat.text, imageMotion }
+              ? { ...c, speaker, line, voiceFile, imageMotion }
               : c,
           ),
         }))!;
@@ -375,7 +383,7 @@ export async function POST(req: Request) {
           platePath,
           audioPath,
           imageMotion,
-          segmentText: buildSegmentText(beat.speaker, speaking),
+          segmentText: buildSegmentText(speaker, speaking),
           globalPrompt: buildGlobalPrompt(job.styleId),
           comfyUrl,
           styleId: job.styleId,
