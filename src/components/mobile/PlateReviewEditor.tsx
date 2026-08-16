@@ -17,7 +17,6 @@ import {
   plateLineBeats,
   speakersAlreadyInPlate,
   castPopupFaceGrey,
-  voiceFileBelongsToSpeaker,
 } from "@/lib/mobilePlateLines";
 import { lineVoiceLabel, type JobSpeakerVoice } from "@/lib/mobileJobVoices";
 import { shownVoiceId } from "@/lib/mobileVoicePick";
@@ -1397,9 +1396,7 @@ function BeatLineEditor({
   onSaved: (text: string, voiceFile: string, imageMotion?: string) => void;
 }) {
   const [text, setText] = useState(beat.text);
-  const [voiceFile, setVoiceFile] = useState(
-    voiceFileBelongsToSpeaker(beat.voiceFile, beat.speaker) ? beat.voiceFile || "" : "",
-  );
+  const [voiceFile, setVoiceFile] = useState(beat.voiceFile || "");
   const [voiceName, setVoiceName] = useState(
     lineVoiceLabel({ speaker: beat.speaker, jobVoices, library: [] }),
   );
@@ -1408,8 +1405,9 @@ function BeatLineEditor({
   const [ltxOpen, setLtxOpen] = useState(false);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
-  const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
-  const playable = Boolean(voiceFile && voiceFileBelongsToSpeaker(voiceFile, beat.speaker));
+  const audioFile = (voiceFile || beat.voiceFile || "").trim();
+  const dirty = text.trim() !== beat.text.trim();
+  const playable = Boolean(audioFile);
 
   const defaultMotionBody = useMemo(
     () =>
@@ -1543,7 +1541,7 @@ function BeatLineEditor({
           <MobileAudioPlayer
             src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(
               folderName,
-            )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(voiceFile)}`}
+            )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(audioFile)}`}
           />
         ) : (
           <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>No line yet</div>
@@ -1564,10 +1562,10 @@ function BeatLineEditor({
       <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
         <MobilePrimaryButton
           size="chip"
-          disabled={saving || (!dirty && Boolean(voiceFile))}
+          disabled={saving || (!dirty && Boolean(audioFile))}
           onClick={() => void save()}
         >
-          {saving ? "…" : voiceFile && !dirty ? "Saved" : "Save"}
+          {saving ? "…" : audioFile && !dirty ? "Saved" : "Save"}
         </MobilePrimaryButton>
         <span
           style={{
