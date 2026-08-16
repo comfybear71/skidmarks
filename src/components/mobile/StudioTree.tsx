@@ -22,7 +22,6 @@ import {
   latestCandidate,
   preferredCandidate,
 } from "@/lib/mobileJobReady";
-import { characterPlateFileUrl } from "@/lib/characterPlatePrompt";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
@@ -89,14 +88,12 @@ function ThumbTile({
   picked,
   onClick,
   onRemove,
-  underImage,
 }: {
   src: string;
   label: string;
   picked?: boolean;
   onClick?: () => void;
   onRemove?: () => void;
-  underImage?: ReactNode;
 }) {
   return (
     <div
@@ -174,7 +171,6 @@ function ThumbTile({
             </span>
           ) : null}
         </span>
-        {underImage}
         <span
           style={{
             fontSize: "11px",
@@ -789,37 +785,12 @@ export function StudioTree({
               : pending
                 ? castFaceUrl(job, name, pending.fileName, characterIds)
                 : "";
-            const plate = job.characterPlates?.[name];
-            const plateUnder =
-              plate?.status === "pending" ? (
-                <div style={{ color: "var(--chrome-dim)", fontSize: "10px", lineHeight: 1.2 }}>
-                  <ShimmerText>Plate</ShimmerText>
-                </div>
-              ) : plate?.status === "error" ? (
-                <div style={{ color: "var(--magenta-hot)", fontSize: "10px" }}>!</div>
-              ) : plate?.fileName ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={characterPlateFileUrl(job.styleId, plate.fileName)}
-                  alt=""
-                  style={{
-                    width: "72px",
-                    height: "32px",
-                    objectFit: "contain",
-                    display: "block",
-                    borderRadius: "6px",
-                    background: "var(--panel-2)",
-                    border: "1px solid var(--line)",
-                  }}
-                />
-              ) : null;
             return (
               <ThumbTile
                 key={name}
                 src={src}
                 label={name}
                 picked={Boolean(chosen)}
-                underImage={plateUnder}
                 onClick={() => {
                   setAdding(null);
                   setOpenCast(name);
