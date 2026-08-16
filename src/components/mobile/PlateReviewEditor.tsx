@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MobileTextInput, mobileCard } from "./MobileUi";
+import { MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
 import { useMobileAssist } from "./useMobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "@/lib/crashStoryTypes";
@@ -21,7 +21,13 @@ async function fetchStory(styleId: string, folderName: string): Promise<CrashSto
  * "review", before Animate ever queues a clip against a line nobody has
  * actually checked.
  */
-export function PlateReviewEditor({ job }: { job: MobileGenJob }) {
+export function PlateReviewEditor({
+  job,
+  onJobChange,
+}: {
+  job: MobileGenJob;
+  onJobChange?: (job: MobileGenJob) => void;
+}) {
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
   const [openShotId, setOpenShotId] = useState<string | null>(null);
@@ -65,7 +71,7 @@ export function PlateReviewEditor({ job }: { job: MobileGenJob }) {
           margin: "0 2px 8px",
         }}
       >
-        Shots — tap one to check the line
+        Shots — tap one to stage the plate and check the line
       </div>
       <div style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "2px 2px 10px" }}>
         {platedShots.map((s) => (
@@ -102,6 +108,21 @@ export function PlateReviewEditor({ job }: { job: MobileGenJob }) {
           shot={shotById(openShotId)}
           loading={!story && !loadError}
           error={loadError}
+          onPlateRebuilt={(plateFile, staging) => {
+            setStory((cur) => {
+              if (!cur || !openShotId) return cur;
+              return {
+                ...cur,
+                scenes: cur.scenes.map((sc) => ({
+                  ...sc,
+                  shots: sc.shots.map((sh) =>
+                    sh.id === openShotId ? { ...sh, plateFile, staging } : sh,
+                  ),
+                })),
+              };
+            });
+          }}
+          onJobChange={onJobChange}
           onBeatSaved={(beatId, text, voiceFile) => {
             setStory((cur) => {
               if (!cur) return cur;
@@ -133,6 +154,8 @@ function ShotLineEditor({
   loading,
   error,
   onBeatSaved,
+  onPlateRebuilt,
+  onJobChange,
 }: {
   styleId: string;
   folderName: string;
@@ -141,6 +164,8 @@ function ShotLineEditor({
   loading: boolean;
   error: string;
   onBeatSaved: (beatId: string, text: string, voiceFile: string) => void;
+  onPlateRebuilt: (plateFile: string, staging: string) => void;
+  onJobChange?: (job: MobileGenJob) => void;
 }) {
   if (loading) {
     return (
@@ -165,6 +190,13 @@ function ShotLineEditor({
       {shot.summary ? (
         <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>{shot.summary}</div>
       ) : null}
+      <PlateStagingEditor
+        styleId={styleId}
+        jobId={jobId}
+        shot={shot}
+        onRebuilt={onPlateRebuilt}
+        onJobChange={onJobChange}
+      />
       {speakingBeats.length ? (
         speakingBeats.map((beat) => (
           <BeatLineEditor
@@ -181,6 +213,90 @@ function ShotLineEditor({
           No dialogue in this shot — plays as a held shot.
         </div>
       )}
+    </div>
+  );
+}
+
+function PlateStagingEditor({
+  styleId,
+  jobId,
+  shot,
+  onRebuilt,
+  onJobChange,
+}: {
+  styleId: string;
+  jobId: string;
+  shot: CrashStoryShot;
+  onRebuilt: (plateFile: string, staging: string) => void;
+  onJobChange?: (job: MobileGenJob) => void;
+}) {
+  const [staging, setStaging] = useState(
+    shot.staging?.trim() ||
+      shot.summary?.trim() ||
+      "People inhabit the place — sitting, leaning, walking, using the furniture.",
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const plateAssist = useMobileAssist(
+    "plate",
+    styleId,
+    () => staging,
+    setStaging,
+    `${shot.title}. ${shot.summary || ""}`,
+  );
+
+  async function rebuild() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, shotId: shot.id, staging }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        plateFile?: string;
+        job?: MobileGenJob;
+      };
+      if (!res.ok) throw new Error(data.error || "Couldn't rebuild the plate");
+      if (data.plateFile) onRebuilt(data.plateFile, staging);
+      if (data.job) onJobChange?.(data.job);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't rebuild the plate");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div
+        style={{
+          color: "var(--chrome-dim)",
+          fontSize: "10px",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+      >
+        Plate — who sits where
+      </div>
+      <MobileTextInput
+        value={staging}
+        onChange={setStaging}
+        multiline
+        rows={3}
+        placeholder="Jo on the stool. Matty behind the fridge. Not both standing in the front."
+        onAi={() => void plateAssist.runAssist()}
+        aiBusy={plateAssist.aiBusy}
+      />
+      {plateAssist.aiError ? (
+        <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{plateAssist.aiError}</div>
+      ) : null}
+      <MobilePrimaryButton disabled={busy || plateAssist.aiBusy || !staging.trim()} onClick={() => void rebuild()}>
+        {busy ? "Rebuilding…" : "Rebuild this plate"}
+      </MobilePrimaryButton>
+      {error ? <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</div> : null}
     </div>
   );
 }

@@ -9,8 +9,12 @@ import {
   keepCandidateTakes,
   latestCandidate,
   phaseAfterScreenplay,
+  canLockEpisode,
+  preferredCandidate,
+  candidateLookPrompt,
 } from "../src/lib/mobileJobReady.ts";
 import { screenplaySceneCount } from "../src/lib/mobileScreenplaySize.ts";
+import { MOBILE_LAST_JOB_KEY, readResumedJobId } from "../src/lib/mobileJobResume.ts";
 
 const firstJob = { id: "mgen_20260816020100_abc", folderName: "" };
 assert.equal(mobileMediaFolder(firstJob), firstJob.id);
@@ -105,5 +109,34 @@ assert.equal(
 );
 assert.equal(directorNote("weathered scowling Jo. more like a grumpy dad", "weathered scowling Jo"), "weathered scowling Jo. more like a grumpy dad");
 assert.equal(directorNote("", "weathered scowling Jo"), "weathered scowling Jo");
+
+const teeTakes = [
+  { id: "a", approved: false, prompt: "first tee" },
+  { id: "b", approved: true, prompt: "A lovely overweight but bubbly middle aged woman" },
+];
+assert.equal(preferredCandidate(teeTakes)?.id, "b");
+assert.equal(preferredCandidate(teeTakes)?.prompt, "A lovely overweight but bubbly middle aged woman");
+assert.equal(preferredCandidate([{ id: "only", approved: false, prompt: "last" }])?.prompt, "last");
+
+assert.equal(MOBILE_LAST_JOB_KEY, "skidmarks.mobile.lastJobId");
+assert.equal(
+  readResumedJobId("?job=mgen_20260816055919862_906", { getItem: () => "other" }),
+  "mgen_20260816055919862_906",
+);
+assert.equal(
+  readResumedJobId("", { getItem: (k) => (k === MOBILE_LAST_JOB_KEY ? "mgen_from_store" : null) }),
+  "mgen_from_store",
+);
+assert.equal(readResumedJobId("", { getItem: () => null }), "");
+assert.equal(canLockEpisode("plates"), true);
+assert.equal(canLockEpisode("review"), true);
+assert.equal(canLockEpisode("animate"), false);
+assert.equal(
+  candidateLookPrompt(
+    { MATTY: [{ approved: true, prompt: "beard, anchor tattoo" }] },
+    "matty",
+  ),
+  "beard, anchor tattoo",
+);
 
 console.log("check-mobile-job-folder: ok");

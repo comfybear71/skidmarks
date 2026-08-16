@@ -6,6 +6,8 @@ export const ASSIST_KINDS = [
   "location",
   "image_prompt",
   "line",
+  "episode",
+  "plate",
 ] as const;
 
 export type AssistKind = (typeof ASSIST_KINDS)[number];
@@ -51,6 +53,32 @@ const FIELD: Record<AssistKind, string> = {
   line: `WRITE: the spoken line only.
 - Words the voice engine will read. ElevenLabs tags in square brackets are allowed: [grunts] [smugly] [laughs].
 - Stay in character. No stage directions, no character name prefix.`,
+
+  episode: `WRITE: the whole episode document — story, shots, and beats.
+- Output ONLY the episode in this exact layout. No markdown. No commentary.
+- First lines: EPISODE: title  then  GAG: one sentence
+- Then one or more blocks:
+--- SHOT 1 ---
+Place: (must match a locked place, spelled exactly)
+Title: (shot title)
+Action: (what we see)
+NAME
+Spoken line.
+NAME
+Spoken line.
+- Use a blank line before each --- SHOT ---.
+- Character cues are ALL CAPS on their own line, then the spoken line.
+- You may add more shots at the same Place. This is a full episode, not a 4-shot gag.
+- Use ONLY the locked cast names. Do not invent people.
+- Every Place: must be one of the locked places, spelled exactly.
+- Include a Plate: line on every shot — who sits, leans, walks, uses the furniture. Never a lineup of people standing in the foreground.
+- If the box already has a draft, refine it — keep what works, fix what is weak. Do not throw the whole thing away unless it is an empty template.
+- ElevenLabs tags in square brackets are allowed on lines: [grunts] [smugly].`,
+
+  plate: `WRITE: how people sit in this still — one or two sentences for the plate compositor.
+- Who is where. Sitting, leaning, walking through, using the bar or furniture.
+- Name the locked people and the place. Matching light.
+- Never a lineup of faces standing in the foreground like cutouts.`,
 };
 
 export function assistSystem(styleId: ShowStyleId, kind: AssistKind): string {

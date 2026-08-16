@@ -13,14 +13,21 @@ import { useMobileAssist } from "@/components/mobile/useMobileAssist";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
+import { MOBILE_LAST_JOB_KEY, readResumedJobId } from "@/lib/mobileJobResume";
+import { studioFetchError } from "@/lib/studioFetchError";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new Error(studioFetchError(e, "Request failed"));
+  }
+  const data = await res.json().catch(() => ({})) as { error?: string };
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data as T;
 }
@@ -34,9 +41,11 @@ export default function MobileHomePage() {
 
   const [job, setJob] = useState<MobileGenJob | null>(null);
   const [busy, setBusy] = useState(false);
-  const [writingScript, setWritingScript] = useState(false);
+  const [lockingScript, setLockingScript] = useState(false);
   const [error, setError] = useState("");
   const [characterIds, setCharacterIds] = useState<Record<string, string>>({});
+  const [resuming, setResuming] = useState(true);
+  const [resumeError, setResumeError] = useState("");
   const pollRef = useRef<number | null>(null);
 
   const stopPoll = useCallback(() => {
@@ -94,6 +103,53 @@ export default function MobileHomePage() {
   }, [job?.phase, job?.id]);
 
   useEffect(() => {
+    const id = readResumedJobId(window.location.search, window.localStorage);
+    if (!id) {
+      setResuming(false);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/crash/mobile/job/${encodeURIComponent(id)}`)
+      .then(async (r) => {
+        const d = (await r.json().catch(() => ({}))) as {
+          job?: MobileGenJob;
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!d.job) {
+          setResumeError(d.error || `Couldn't open ${id}. The episode is still there — don't tap Start directing.`);
+          return;
+        }
+        setJob(d.job);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResumeError(`Couldn't open ${id}. The episode is still there — don't tap Start directing.`);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setResuming(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!job?.id) return;
+    try {
+      window.localStorage.setItem(MOBILE_LAST_JOB_KEY, job.id);
+    } catch {
+      /* private mode */
+    }
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("job") !== job.id) {
+      url.searchParams.set("job", job.id);
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    }
+  }, [job?.id]);
+
+  useEffect(() => {
     if (job) {
       fetch("/api/characters")
         .then((r) => r.json())
@@ -108,27 +164,28 @@ export default function MobileHomePage() {
     // refetch so the new one's face-generation calls get a real characterId.
   }, [job?.phase, job?.speakers.length]);
 
-  const runScreenplay = useCallback(async (jobId: string) => {
+  const runScreenplay = useCallback(async (jobId: string, script: string) => {
     setBusy(true);
-    setWritingScript(true);
+    setLockingScript(true);
     setError("");
     try {
       const { job: withScreenplay } = await postJson<{ job: MobileGenJob }>(
         "/api/crash/mobile/screenplay",
-        { jobId },
+        { jobId, script },
       );
       setJob(withScreenplay);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't write the screenplay");
+      setError(e instanceof Error ? e.message : "Couldn't lock the script");
     } finally {
-      setWritingScript(false);
+      setLockingScript(false);
       setBusy(false);
     }
   }, []);
 
   // Job creation used to fall straight into writing the screenplay; cast and
   // locations are built freeform first now, so this just creates the job —
-  // it lands on "cast_build" and the script gets written once that's done.
+  // it lands on "cast_build". The episode is a template + AI draft + refine,
+  // then Lock — Grok does not write-and-lock in one tap.
   const startRun = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -256,8 +313,9 @@ export default function MobileHomePage() {
           { jobId: job.id, name },
         );
         setJob(updated);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't make the character plate");
+      } catch {
+        // Plate row on the tree holds the why. A page banner here made
+        // it look like the episode died — the cast is still on the job.
       }
     },
     [job],
@@ -265,7 +323,7 @@ export default function MobileHomePage() {
 
   const approveCandidate = useCallback(
     async (kind: "cast" | "location", target: string, candidateId: string) => {
-      if (!job) return;
+      if (!job) return false;
       setBusy(true);
       setError("");
       try {
@@ -283,8 +341,10 @@ export default function MobileHomePage() {
           });
           setJob(res.job);
         }
+        return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : "Approve failed");
+        return false;
       } finally {
         setBusy(false);
       }
@@ -312,14 +372,27 @@ export default function MobileHomePage() {
   const vibeAssist = useMobileAssist("vibe", styleId, () => prompt, setPrompt);
 
   return (
-    <main style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
+    <main className="mobile-shell" style={{ minHeight: "100dvh" }}>
       {error ? (
         <div style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}
         </div>
       ) : null}
 
-      {!job ? (
+      {resuming ? (
+        <div style={{ padding: "24px 16px", color: "var(--chrome-dim)", fontSize: "14px" }}>
+          Opening the episode…
+        </div>
+      ) : !job && resumeError ? (
+        <div style={{ padding: "24px 16px" }}>
+          <div style={{ color: "var(--magenta-hot)", fontSize: "15px", fontWeight: 600 }}>
+            {resumeError}
+          </div>
+          <div style={{ color: "var(--chrome-dim)", fontSize: "13px", marginTop: "8px" }}>
+            Do not tap Start directing. That mints a new empty job. This one is still in the cloud.
+          </div>
+        </div>
+      ) : !job ? (
         <ActiveStepPanel title="What's the vibe?" subtitle="You direct. We hold the cast, the places, and the plates.">
           <MobileTextInput
             value={prompt}
@@ -420,7 +493,7 @@ export default function MobileHomePage() {
           characterIds={characterIds}
           busy={busy}
           error={error}
-          writingScript={writingScript}
+          lockingScript={lockingScript}
           onGenerateCast={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApproveCast={(name, candidateId) => approveCandidate("cast", name, candidateId)}
           onMakeCharacterPlate={(name) => void makeCharacterPlate(name)}
@@ -432,7 +505,7 @@ export default function MobileHomePage() {
           onApproveLocation={(id, candidateId) => approveCandidate("location", id, candidateId)}
           onAddLocation={(name) => addRosterItem("location", name)}
           onUploadLocation={(id, file) => uploadCandidate("location", id, file)}
-          onWriteScript={() => void runScreenplay(job.id)}
+          onDropScript={(script) => void runScreenplay(job.id, script)}
           onGenerateVideo={() => void approveReview()}
           onRetryError={() => void retryFromError(job.id)}
           onJobChange={setJob}

@@ -31,6 +31,21 @@ export function approvedCandidateFileName(
   return null;
 }
 
+export function candidateLookPrompt(
+  candidates: Record<string, { approved?: boolean; prompt?: string }[] | undefined>,
+  key: string,
+): string {
+  const exact = candidates[key];
+  if (exact?.length) return preferredCandidate(exact)?.prompt?.trim() || "";
+  const want = key.trim().toLowerCase();
+  if (!want) return "";
+  for (const [name, list] of Object.entries(candidates)) {
+    if (name.trim().toLowerCase() !== want) continue;
+    return preferredCandidate(list)?.prompt?.trim() || "";
+  }
+  return "";
+}
+
 export function allCastApproved(job: Pick<MobileGenJob, "speakers" | "castCandidates">): boolean {
   return job.speakers.length > 0 && job.speakers.every((s) => approvedUnder(job.castCandidates, s));
 }
@@ -41,6 +56,18 @@ export function allLocationsApproved(
   return (
     job.scenes.length > 0 &&
     job.scenes.every((s) => approvedUnder(job.locationCandidates, s.id))
+  );
+}
+
+/** Lock / replace the episode — not once Comfy is running or the cut is done. */
+export function canLockEpisode(phase: MobileGenPhase): boolean {
+  return (
+    phase === "cast_build" ||
+    phase === "location_build" ||
+    phase === "cast_images" ||
+    phase === "location_images" ||
+    phase === "plates" ||
+    phase === "review"
   );
 }
 
@@ -73,6 +100,13 @@ export function keepCandidateTakes<T extends { id: string; fileName: string }>(
 export function latestCandidate<T>(list: T[] | undefined): T | undefined {
   if (!list?.length) return undefined;
   return list[list.length - 1];
+}
+
+/** The still on screen when you open someone: the pick, else the last take. */
+export function preferredCandidate<T extends { approved?: boolean }>(
+  list: T[] | undefined,
+): T | undefined {
+  return list?.find((c) => c.approved) || latestCandidate(list);
 }
 
 /** Tweak adds to the look. It must not replace it — a few extra words

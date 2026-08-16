@@ -153,7 +153,11 @@ export function MobilePrimaryButton({
         fontWeight: 600,
         border: accent ? "none" : "1px solid var(--line)",
         // Flat acid. A lime-to-black linear gradient turned the bottom
-        // third of Add / Start directing into mud.
+        // third of Add / Start directing into mud. appearance:none so
+        // the browser cannot paint its own button wash on top.
+        appearance: "none",
+        WebkitAppearance: "none",
+        backgroundImage: "none",
         background: disabled
           ? "var(--panel-2)"
           : accent

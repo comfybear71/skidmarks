@@ -8,11 +8,19 @@ import {
   ShimmerText,
   mobileCard,
 } from "./MobileUi";
+import { episodeTemplateFromJob } from "@/lib/mobilePasteParse";
 import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
-import { allCastApproved, allLocationsApproved, latestCandidate } from "@/lib/mobileJobReady";
+import {
+  allCastApproved,
+  allLocationsApproved,
+  canLockEpisode,
+  candidateLookPrompt,
+  latestCandidate,
+  preferredCandidate,
+} from "@/lib/mobileJobReady";
 import { characterPlateFileUrl } from "@/lib/characterPlatePrompt";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
@@ -364,6 +372,7 @@ function CandidatePicker({
   busy,
   error,
   promptPlaceholder,
+  promptLabel = "Look",
   onGenerate,
   onApprove,
   onUpload,
@@ -375,12 +384,14 @@ function CandidatePicker({
   busy: boolean;
   error: string;
   promptPlaceholder: string;
+  promptLabel?: string;
   onGenerate: (customPrompt?: string) => void;
   onApprove: (candidateId: string) => void;
   onUpload: (file: File) => void;
 }) {
-  const [customPrompt, setCustomPrompt] = useState("");
-  const [focusId, setFocusId] = useState<string | null>(null);
+  const seed = preferredCandidate(candidates);
+  const [customPrompt, setCustomPrompt] = useState(seed?.prompt || "");
+  const [focusId, setFocusId] = useState<string | null>(seed?.id || null);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const prevLen = useRef(candidates.length);
@@ -465,7 +476,16 @@ function CandidatePicker({
         </MobilePrimaryButton>
       )}
       {candidates.length > 1 ? (
-        <div style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "10px 2px 2px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            overflowX: "auto",
+            padding: "10px 2px 2px",
+            touchAction: "pan-x pan-y",
+            overscrollBehaviorX: "contain",
+          }}
+        >
           {candidates.map((c, i) => (
             <ThumbTile
               key={c.id}
@@ -482,12 +502,24 @@ function CandidatePicker({
       ) : null}
       {candidates.length || error ? (
         <div style={{ display: "flex", gap: "8px", marginTop: "10px", alignItems: "center" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                color: "var(--chrome-dim)",
+                fontSize: "10px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                marginBottom: "4px",
+              }}
+            >
+              {promptLabel}
+            </div>
           <input
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
             placeholder={promptPlaceholder}
             style={{
-              flex: 1,
+              width: "100%",
               padding: "10px",
               borderRadius: "8px",
               border: "1px solid var(--line)",
@@ -496,6 +528,7 @@ function CandidatePicker({
               fontSize: "13px",
             }}
           />
+          </div>
           <MobileAiButton
             onClick={() => void promptAssist.runAssist()}
             busy={promptAssist.aiBusy}
@@ -585,7 +618,7 @@ export function StudioTree({
   characterIds,
   busy,
   error,
-  writingScript,
+  lockingScript,
   onGenerateCast,
   onApproveCast,
   onMakeCharacterPlate,
@@ -595,7 +628,7 @@ export function StudioTree({
   onApproveLocation,
   onAddLocation,
   onUploadLocation,
-  onWriteScript,
+  onDropScript,
   onGenerateVideo,
   onRetryError,
   onJobChange,
@@ -604,17 +637,17 @@ export function StudioTree({
   characterIds: Record<string, string>;
   busy: boolean;
   error: string;
-  writingScript: boolean;
+  lockingScript: boolean;
   onGenerateCast: (name: string, customPrompt?: string) => void;
-  onApproveCast: (name: string, candidateId: string) => void;
-  onMakeCharacterPlate: (name: string) => void;
+  onApproveCast: (name: string, candidateId: string) => void | Promise<boolean | void>;
+  onMakeCharacterPlate: (name: string) => void | Promise<void>;
   onAddCast: (name: string, description?: string, file?: File) => void;
   onUploadCast: (name: string, file: File) => void;
   onGenerateLocation: (sceneId: string, customPrompt?: string) => void;
   onApproveLocation: (sceneId: string, candidateId: string) => void;
   onAddLocation: (name: string) => void;
   onUploadLocation: (sceneId: string, file: File) => void;
-  onWriteScript: () => void;
+  onDropScript: (script: string) => void;
   onGenerateVideo: () => void;
   onRetryError: () => void;
   onJobChange: (job: MobileGenJob) => void;
@@ -622,6 +655,30 @@ export function StudioTree({
   const [adding, setAdding] = useState<"cast" | "location" | null>(null);
   const [openCast, setOpenCast] = useState<string | null>(null);
   const [openPlace, setOpenPlace] = useState<string | null>(null);
+  const [scriptDraft, setScriptDraft] = useState("");
+  const episodeHint = [
+    `Vibe: ${job.prompt}`,
+    `Cast (spell these names exactly, nobody else): ${job.speakers.join(", ")}`,
+    ...job.speakers.map((name) => {
+      const look = candidateLookPrompt(job.castCandidates, name);
+      return look ? `Look · ${name}: ${look}` : `Look · ${name}: (picked, no words saved)`;
+    }),
+    `Places (every Place: line must be one of these, spelled exactly): ${job.scenes.map((s) => s.placeName).join(" | ")}`,
+    ...job.scenes.map((scene) => {
+      const look = candidateLookPrompt(job.locationCandidates, scene.id);
+      return look
+        ? `Place · ${scene.placeName}: ${look}`
+        : `Place · ${scene.placeName}: (picked, no words saved)`;
+    }),
+    "Every shot needs a Plate: line — who sits, leans, walks. Not a lineup in the foreground.",
+  ].join("\n");
+  const episodeAssist = useMobileAssist(
+    "episode",
+    job.styleId,
+    () => scriptDraft,
+    setScriptDraft,
+    episodeHint,
+  );
 
   const firstOpenCast = job.speakers.find((n) => !job.castCandidates[n]?.some((c) => c.approved));
   const firstOpenPlace = job.scenes.find((s) => !job.locationCandidates[s.id]?.some((c) => c.approved));
@@ -634,18 +691,23 @@ export function StudioTree({
   useEffect(() => {
     if (job.scenes.length && !openPlace && firstOpenPlace) setOpenPlace(firstOpenPlace.id);
   }, [job.scenes.length, firstOpenPlace, openPlace]);
+  useEffect(() => {
+    if (!scriptDraft.trim() && job.scenes.length) {
+      setScriptDraft(episodeTemplateFromJob(job));
+    }
+  }, [job.id, job.scenes.length, job.speakers.length, job.prompt, scriptDraft]);
 
   const canWrite =
     allCastApproved(job) &&
     allLocationsApproved(job) &&
-    (job.phase === "cast_build" || job.phase === "location_build");
+    canLockEpisode(job.phase);
 
   const plated = job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__");
   const vibePreset = getShowStylePreset(job.styleId);
   const vibeRealism = job.styleRealism ?? vibePreset.defaultRealism;
 
   return (
-    <div style={{ padding: "12px 16px 28px", overflowY: "auto", flex: 1, minHeight: 0 }}>
+    <div style={{ padding: "12px 16px 48px" }}>
       <TreeBranch label="Vibe">
         <div style={{ ...mobileCard, padding: "12px 14px" }}>
           <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--chrome)" }}>{job.prompt}</div>
@@ -656,7 +718,16 @@ export function StudioTree({
       </TreeBranch>
 
       <TreeBranch label="Cast">
-        <div style={{ display: "flex", gap: "10px", overflowX: "auto", padding: "2px 2px 6px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            overflowX: "auto",
+            padding: "2px 2px 6px",
+            touchAction: "pan-x pan-y",
+            overscrollBehaviorX: "contain",
+          }}
+        >
           <PlusTile
             label="Add a character"
             onClick={() => {
@@ -711,11 +782,14 @@ export function StudioTree({
             busy={busy}
             error={error}
             promptPlaceholder="e.g. more like a grumpy dad"
+            promptLabel="Look"
             onGenerate={(p) => onGenerateCast(castFocus, p)}
             onApprove={(id) => {
-              onApproveCast(castFocus, id);
-              onMakeCharacterPlate(castFocus);
-              setOpenCast(null);
+              void (async () => {
+                const ok = await onApproveCast(castFocus, id);
+                if (ok !== false) await onMakeCharacterPlate(castFocus);
+                setOpenCast(null);
+              })();
             }}
             onUpload={(file) => onUploadCast(castFocus, file)}
           />
@@ -763,7 +837,16 @@ export function StudioTree({
       </TreeBranch>
 
       <TreeBranch label="Locations">
-        <div style={{ display: "flex", gap: "10px", overflowX: "auto", padding: "2px 2px 6px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            overflowX: "auto",
+            padding: "2px 2px 6px",
+            touchAction: "pan-x pan-y",
+            overscrollBehaviorX: "contain",
+          }}
+        >
           <PlusTile
             label="Add a location"
             onClick={() => {
@@ -812,6 +895,7 @@ export function StudioTree({
             busy={busy}
             error={error}
             promptPlaceholder="e.g. Mars, a dive bar, outer space"
+            promptLabel="Place"
             onGenerate={(p) => onGenerateLocation(placeFocus, p)}
             onApprove={(id) => {
               onApproveLocation(placeFocus, id);
@@ -823,20 +907,57 @@ export function StudioTree({
       </TreeBranch>
 
       <TreeBranch label="Plates">
-        {writingScript ? (
+        {lockingScript ? (
           <div style={{ padding: "8px 0 16px" }}>
-            <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Writing the script…</ShimmerText>
+            <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Locking the episode…</ShimmerText>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
-              Lines land on the plates once they are built.
+              Plates and audio come from what you pasted.
             </div>
           </div>
         ) : null}
 
-        {canWrite && !writingScript ? (
+        {canWrite && !lockingScript ? (
           <div style={{ marginBottom: "12px" }}>
-            <MobilePrimaryButton disabled={busy} onClick={onWriteScript}>
-              {busy ? "Writing…" : "Write the script"}
-            </MobilePrimaryButton>
+            <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
+              {job.folderName
+                ? "A short draft already landed. Paste yours and lock to replace it — faces and places stay."
+                : "Template is your places. AI drafts the story and beats from this cast. Tweak it until it is right. Lock it — plates, audio, then Comfy. Same pack opens in Crash Lab."}
+            </div>
+            <MobileTextInput
+              value={scriptDraft}
+              onChange={setScriptDraft}
+              placeholder="EPISODE: …"
+              multiline
+              rows={14}
+              onAi={() => void episodeAssist.runAssist()}
+              aiBusy={episodeAssist.aiBusy}
+            />
+            {episodeAssist.aiError ? (
+              <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
+                {episodeAssist.aiError}
+              </div>
+            ) : null}
+            <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              <MobilePrimaryButton
+                tone="ghost"
+                disabled={busy || episodeAssist.aiBusy}
+                onClick={() => void episodeAssist.runAssist()}
+              >
+                {episodeAssist.aiBusy ? "Drafting…" : "AI the story"}
+              </MobilePrimaryButton>
+              <MobilePrimaryButton
+                disabled={busy || episodeAssist.aiBusy || !scriptDraft.trim()}
+                onClick={() => onDropScript(scriptDraft)}
+              >
+                {busy ? "Locking…" : "Lock the episode"}
+              </MobilePrimaryButton>
+            </div>
+          </div>
+        ) : null}
+
+        {job.folderName ? (
+          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "0 0 10px" }}>
+            Crash Lab: Open <span style={{ color: "var(--acid)" }}>{job.folderName}</span>
           </div>
         ) : null}
 
@@ -848,7 +969,7 @@ export function StudioTree({
         ) : null}
 
         {plated.length && (job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error") ? (
-          <PlateReviewEditor job={job} />
+          <PlateReviewEditor job={job} onJobChange={onJobChange} />
         ) : null}
 
         {job.phase === "review" ? (
@@ -895,12 +1016,12 @@ export function StudioTree({
         ) : null}
 
         {!canWrite &&
-        !writingScript &&
+        !lockingScript &&
         !plated.length &&
         job.phase !== "plates" &&
         job.phase !== "error" ? (
           <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "4px 0 8px" }}>
-            Add a character and a place above. The plates hang here after the script.
+            Add a character and a place above. Paste the episode here when the row is picked.
           </div>
         ) : null}
       </TreeBranch>

@@ -4,6 +4,19 @@ Logged **2026-08-06** after cafe plating worked 100% better with stylised locati
 
 ---
 
+## 0a. Vibe Director — remove a cast/place, tap thumb → character plate
+
+**Logged 2026-08-16** on CRAZY BIG HOLE JO (`mgen_20260816055919862_906`). Stuie asked while the tree was already picked — **do not build this mid-episode. Write the script first.**
+
+| Need | Why |
+|------|-----|
+| **Remove** a character or location from the CAST / LOCATIONS row | + only adds. A wrong name or a leftover has no way off the tree. Must not delete the still — park it. Must not wipe the job. |
+| **Tap a picked cast thumb → series character plate** (the 4-view sheet), not a bigger profile pic | Profile is the pick still. The plate is the series lock (front / 3/4 / profile / back). If no plate exists yet, show the pick still and say the sheet is not made. |
+
+**No code until Stuie says go after this episode's script.** Script path is now: template → AI draft on the locked cast/places → refine → lock (Crash Lab pack). Do not build remove-cast mid-episode.
+
+---
+
 ## 0. Mobile / PWA — separate automated app, not a shrunk desktop
 
 **Logged 2026-08-14.** Full brief in [`MOBILE_PWA_VISION.md`](./MOBILE_PWA_VISION.md) — a fully-automated, carousel-driven mobile/PWA experience (prompt → cast → location → plate → script → voice → Comfy animate → export), completely separate from the `/crash` desktop workbench, which stays as-is. **No code yet — plan + build only when Stuie says go.**

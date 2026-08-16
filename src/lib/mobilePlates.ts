@@ -18,6 +18,7 @@ import {
   cacheJobPlateFile,
   mobileCandidateFolders,
 } from "./mobilePlateMedia";
+import { candidateLookPrompt } from "./mobileJobReady";
 import type { CrashStoryScene, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileGenJob } from "./mobileGenJob";
 
@@ -182,7 +183,20 @@ export async function compositeShotPlate(
 
   const manifest = readStyleCardManifest(styleId);
   const preset = getShowStylePreset(styleId);
-  const staging = shot.staging || shot.summary || shot.title;
+  const looks = speakers
+    .map((name) => {
+      const look = opts.job ? candidateLookPrompt(opts.job.castCandidates, name) : "";
+      return look ? `${name} looks like: ${look}` : "";
+    })
+    .filter(Boolean)
+    .join(". ");
+  const placeLook = opts.job
+    ? candidateLookPrompt(opts.job.locationCandidates, scene.id)
+    : "";
+  const staging =
+    shot.staging?.trim() ||
+    shot.summary?.trim() ||
+    "People inhabit the place — sitting, leaning, walking, using the furniture.";
 
   let currentBg = bgPath;
   let chainPass = false;
@@ -210,8 +224,10 @@ export async function compositeShotPlate(
       placeName: scene.placeName,
       note: [
         staging,
+        looks,
+        placeLook ? `This place: ${placeLook}` : "",
         castNames[0] ? `${castNames[0]} is prominent if this is their line.` : "",
-        "Characters physically in the place — contact with furniture/ground, matching light.",
+        "Bodies in the room — sitting, leaning, mid-stride, using the bar or furniture. Matching light. Not a lineup of people standing in the foreground like cutouts.",
       ]
         .filter(Boolean)
         .join(". "),

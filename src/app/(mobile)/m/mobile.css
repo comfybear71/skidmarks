@@ -1,3 +1,21 @@
+/* The tree is taller than the phone. An inner overflow:auto pane ate
+ * the swipe and the window did not move. Document scroll is the pane.
+ * Do not set overflow-y:auto on both html and body — iOS then locks
+ * both and nothing moves. height:auto so neither box is viewport-capped. */
+html,
+body {
+  overflow-x: hidden;
+  height: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Phone column on a PC — full-bleed cards on a 1920 screen looked broken. */
+.mobile-shell {
+  width: 100%;
+  max-width: 42rem;
+  margin: 0 auto;
+}
+
 @keyframes mobileStepIn {
   from {
     opacity: 0;
