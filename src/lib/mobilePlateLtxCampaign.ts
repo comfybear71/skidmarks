@@ -527,6 +527,7 @@ export const CAMPAIGN_SPEECH: string[] = [
     "Her and her Junkie boyfriend can get their own place.FFS, WTF is wrong with you guys. I don't need this shit Stuie.",
   ),
   oneLine("An acknowledgment and some respect and understanding would be nice."),
+  oneLine("I just had it out with her in the kitchen. She needs to go."),
 ];
 
 if (CAMPAIGN_SPEECH.length < 26) {
