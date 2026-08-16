@@ -225,8 +225,9 @@ export function PlateLtxCampaignCard({
             Plate + LTX placements
           </div>
           <div style={{ fontSize: "11px", color: "var(--chrome-dim)", marginTop: "2px" }}>
-            Score plating, distance, extras, artifacts. Short + long on every pose. MCU and
-            wide longs are the unsplit Jummie letter.
+            Score plating, distance, extras, artifacts. Words are a length
+            pool — not whose line. Short + long on every pose. The longest
+            paste is the duration push on MCU and wide.
           </div>
         </div>
         <MobilePrimaryButton
@@ -306,7 +307,7 @@ export function PlateLtxCampaignCard({
           <MobileTextInput
             value={rawLines}
             onChange={setRawLines}
-            placeholder="Jo texts, blank line between each. Keep the Jummie letter as one block."
+            placeholder="Speeches, blank line between each. Length is the test, not who said it. Keep the longest block as one."
             multiline
             rows={8}
           />
