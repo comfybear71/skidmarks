@@ -21,7 +21,7 @@ import {
   putBlobFile,
   type BlobFileKind,
 } from "./blobStore";
-import { episodeRowId, upsertNeonFile } from "./neonStore";
+import { episodeRowId, findNeonFile, upsertNeonFile } from "./neonStore";
 import type { ShowStyleId } from "./showStylePresets";
 
 export async function uploadMobileMedia(opts: {
@@ -65,6 +65,30 @@ export async function resolveMobileMedia(opts: {
   const payload = await getBlobPayload(
     blobPathname(opts.styleId, opts.folderName, opts.kind, opts.fileName),
   );
+  if (!payload) return null;
+  const buf = Buffer.from(await new Response(payload.stream).arrayBuffer());
+  fs.mkdirSync(path.dirname(opts.destPath), { recursive: true });
+  fs.writeFileSync(opts.destPath, buf);
+  return opts.destPath;
+}
+
+/**
+ * Same as resolveMobileMedia, but looks the file up by filename in Neon
+ * instead of a known episode folder. Cast/location candidates are uploaded
+ * under the job id before a pack exists; plates run after folderName is
+ * the pack, so the pathname guess is often wrong. Location-still already
+ * uses this by-filename fallback to show the pick on the phone.
+ */
+export async function resolveMobileMediaByFilename(opts: {
+  kind: BlobFileKind;
+  fileName: string;
+  destPath: string;
+}): Promise<string | null> {
+  if (fs.existsSync(opts.destPath)) return opts.destPath;
+  if (!useCloudStore()) return null;
+  const row = await findNeonFile({ kind: opts.kind, filename: opts.fileName });
+  if (!row?.blob_url && !row?.blob_pathname) return null;
+  const payload = await getBlobPayload(row.blob_url || row.blob_pathname);
   if (!payload) return null;
   const buf = Buffer.from(await new Response(payload.stream).arrayBuffer());
   fs.mkdirSync(path.dirname(opts.destPath), { recursive: true });

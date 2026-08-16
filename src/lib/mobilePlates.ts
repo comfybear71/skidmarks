@@ -13,7 +13,13 @@ import { resolveWorldCardThumbPath } from "./worldCardThumbs";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import { CRASH_DIR } from "./paths";
 import { cloudListShowFiles, readShowAssetBytes } from "./cloudShelf";
+import {
+  approvedCandidateFileName,
+  cacheJobPlateFile,
+  mobileCandidateFolders,
+} from "./mobilePlateMedia";
 import type { CrashStoryScene, CrashStoryShot } from "./crashStoryTypes";
+import type { MobileGenJob } from "./mobileGenJob";
 
 /** Pull a show-shelf asset down to a temp file so code that needs a path works
  * the same whether the bytes came from disk or Blob. Keys arrive as "g:name". */
@@ -75,6 +81,73 @@ function uniqueShotSpeakers(shot: CrashStoryShot): string[] {
   ];
 }
 
+export type PlateJobRef = Pick<
+  MobileGenJob,
+  "id" | "folderName" | "castCandidates" | "locationCandidates"
+>;
+
+/** Location still for a shot — local gallery, show shelf, then this job's pick. */
+export async function resolvePlateBackground(
+  styleId: ShowStyleId,
+  scene: Pick<CrashStoryScene, "id" | "title" | "placeName" | "worldThumbKey">,
+  job?: PlateJobRef,
+): Promise<string> {
+  const folders = job ? mobileCandidateFolders(job) : [];
+  const locationFile = job
+    ? approvedCandidateFileName(job.locationCandidates, scene.id)
+    : null;
+
+  // Local galleries are written by the request that approved the pick, and on
+  // Vercel this phase runs on a different invocation with empty /tmp. The
+  // show shelf is only populated for series reuse — a first job's still is
+  // the approved candidate under the job id (same file the phone already
+  // shows). worldThumbKey (g:place_…) is a local-gallery copy that does
+  // not exist in Blob.
+  const bgPath =
+    (scene.worldThumbKey.trim()
+      ? resolveWorldCardThumbPath(styleId, scene.worldThumbKey)
+      : null) ||
+    (scene.worldThumbKey.trim()
+      ? await cacheShelfAsset(styleId, "world", scene.worldThumbKey)
+      : null) ||
+    (locationFile ? await cacheJobPlateFile({ styleId, folders, fileName: locationFile }) : null);
+  if (!bgPath) {
+    if (!scene.worldThumbKey.trim() && !locationFile) {
+      throw new Error(`Scene "${scene.title}" has no approved location yet`);
+    }
+    throw new Error(
+      `Location image for "${scene.placeName}"${locationFile ? ` (${locationFile})` : ""} not found on disk, the show's world shelf, or this job's approved still`,
+    );
+  }
+  return bgPath;
+}
+
+/** One face for a speaker — local gallery, job pick, then show shelf. */
+export async function resolvePlateCastPath(
+  styleId: ShowStyleId,
+  name: string,
+  job?: PlateJobRef,
+): Promise<string | null> {
+  const folders = job ? mobileCandidateFolders(job) : [];
+  const manifest = readStyleCardManifest(styleId);
+  const key = resolveCastKeyByName(manifest, name);
+  const localPath = key ? resolveStyleCardThumbPath(styleId, key) : null;
+  const jobFile = job ? approvedCandidateFileName(job.castCandidates, name) : null;
+  const jobPath =
+    localPath || !jobFile
+      ? null
+      : await cacheJobPlateFile({ styleId, folders, fileName: jobFile });
+  const shelfByFile =
+    localPath || jobPath || !jobFile
+      ? null
+      : await cacheShelfAsset(styleId, "cast", jobFile);
+  const cloudPath =
+    localPath || jobPath || shelfByFile
+      ? null
+      : await cacheShelfCastByName(styleId, name);
+  return localPath || jobPath || shelfByFile || cloudPath;
+}
+
 /**
  * AI-composite a shot's cast onto its scene's location — the automated
  * mobile pipeline uses plateCastIntoGen (plateCast.ts), the same AI
@@ -95,22 +168,13 @@ export async function compositeShotPlate(
      * dragging to photoreal changed the cast and location but not the plate
      * they were composited into. */
     styleRealism?: number;
+    /** First-job faces/places live under the job id in Blob, not on the
+     * show shelf. Approve writes local galleries that vanish on the next
+     * Vercel invoke — without this, compositing only sees an empty /tmp. */
+    job?: PlateJobRef;
   } = {},
 ): Promise<string> {
-  if (!scene.worldThumbKey.trim()) {
-    throw new Error(`Scene "${scene.title}" has no approved location yet`);
-  }
-  // Local galleries are written by the request that approved the pick, and on
-  // Vercel this phase runs on a different invocation with empty /tmp — so the
-  // approved location and cast are only reachable from the cloud shelves.
-  const bgPath =
-    resolveWorldCardThumbPath(styleId, scene.worldThumbKey) ||
-    (await cacheShelfAsset(styleId, "world", scene.worldThumbKey));
-  if (!bgPath) {
-    throw new Error(
-      `Location image for "${scene.placeName}" not found on disk or in the show's world shelf`,
-    );
-  }
+  const bgPath = await resolvePlateBackground(styleId, scene, opts.job);
 
   const silent = (opts.silentCast || []).map((n) => n.trim()).filter(Boolean);
   const speakers = [...new Set([...uniqueShotSpeakers(shot), ...silent])];
@@ -130,13 +194,9 @@ export async function compositeShotPlate(
     const castFiles: { buf: Buffer; ext: string }[] = [];
     const castNames: string[] = [];
     for (const name of batch) {
-      const key = resolveCastKeyByName(manifest, name);
-      const localPath = key ? resolveStyleCardThumbPath(styleId, key) : null;
-      // Same story as the background: the card was approved on another
-      // invocation, so fall back to the show's cast shelf by character name.
-      const cloudPath = localPath ? null : await cacheShelfCastByName(styleId, name);
-      const p = localPath || cloudPath;
+      const p = await resolvePlateCastPath(styleId, name, opts.job);
       if (!p) continue;
+      const key = resolveCastKeyByName(manifest, name);
       castNames.push((key && manifest[key]?.name) || name);
       castFiles.push({ buf: fs.readFileSync(p), ext: path.extname(p).toLowerCase() || ".png" });
     }
@@ -166,6 +226,10 @@ export async function compositeShotPlate(
     chainPass = true;
   }
 
-  if (!fileName) throw new Error("No matching cast faces found for this shot");
+  if (!fileName) {
+    throw new Error(
+      "No matching cast faces found for this shot — not on disk, the show's cast shelf, or this job's approved picks",
+    );
+  }
   return fileName;
 }

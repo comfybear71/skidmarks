@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { jobHasEpisodePack, mobileMediaFolder } from "../src/lib/mobileJobFolder.ts";
+import { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "../src/lib/mobileJobFolder.ts";
 import { mobileLocationStillUrl, mobileMediaFolderName } from "../src/lib/mobileCandidateUrls.ts";
 import {
   allCastApproved,
   allLocationsApproved,
+  approvedCandidateFileName,
   directorNote,
   keepCandidateTakes,
   latestCandidate,
@@ -61,6 +62,34 @@ assert.equal(
     scenes: [{ id: "scene_1" }, { id: "scene_2" }],
   }),
   "location_images",
+);
+
+assert.deepEqual(mobileCandidateFolders(firstJob), [firstJob.id]);
+assert.deepEqual(mobileCandidateFolders(jobIdAsFolder), [firstJob.id]);
+assert.deepEqual(mobileCandidateFolders(packed), [firstJob.id, "CURSOR_THE_PROJECT_PITCH"]);
+
+const tomatoFace = "face_tomato.png";
+const holeStill = "mloc_hole.png";
+assert.equal(
+  approvedCandidateFileName(
+    { Tomato: [{ id: "1", fileName: tomatoFace, approved: true }] },
+    "TOMATO",
+  ),
+  tomatoFace,
+);
+assert.equal(
+  approvedCandidateFileName(
+    { scene_1: [{ id: holeStill, fileName: holeStill, approved: true }] },
+    "scene_1",
+  ),
+  holeStill,
+);
+assert.equal(
+  approvedCandidateFileName(
+    { Tomato: [{ id: "1", fileName: tomatoFace, approved: false }] },
+    "Tomato",
+  ),
+  null,
 );
 
 const first = { id: "1", fileName: "jo_1.png", approved: false, prompt: "grumpy dad Jo" };

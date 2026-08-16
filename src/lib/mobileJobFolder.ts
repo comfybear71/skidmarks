@@ -12,3 +12,18 @@ export function jobHasEpisodePack(job: { id: string; folderName: string }): bool
   const folder = job.folderName.trim();
   return Boolean(folder) && folder !== job.id;
 }
+
+/**
+ * Folders an approved still might live under. Generate/approve run while
+ * folderName is empty, so the bytes go under the job id. After screenplay
+ * folderName is the pack — a later reroll lands there instead. Try both.
+ * Never treat the job id as a pack (do not set folderName = job.id).
+ */
+export function mobileCandidateFolders(job: { id: string; folderName: string }): string[] {
+  const out: string[] = [];
+  const id = job.id.trim();
+  const pack = job.folderName.trim();
+  if (id) out.push(id);
+  if (pack && pack !== id) out.push(pack);
+  return out;
+}

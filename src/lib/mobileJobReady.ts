@@ -13,6 +13,24 @@ function approvedUnder(
   );
 }
 
+/** Approved candidate fileName for a speaker or scene id — same
+ * case-insensitive match allCastApproved uses, so TOMATO still finds Tomato. */
+export function approvedCandidateFileName(
+  candidates: Record<string, { approved: boolean; fileName: string }[] | undefined>,
+  key: string,
+): string | null {
+  const exact = candidates[key]?.find((c) => c.approved)?.fileName?.trim();
+  if (exact) return exact;
+  const want = key.trim().toLowerCase();
+  if (!want) return null;
+  for (const [name, list] of Object.entries(candidates)) {
+    if (name.trim().toLowerCase() !== want) continue;
+    const hit = list?.find((c) => c.approved)?.fileName?.trim();
+    if (hit) return hit;
+  }
+  return null;
+}
+
 export function allCastApproved(job: Pick<MobileGenJob, "speakers" | "castCandidates">): boolean {
   return job.speakers.length > 0 && job.speakers.every((s) => approvedUnder(job.castCandidates, s));
 }
