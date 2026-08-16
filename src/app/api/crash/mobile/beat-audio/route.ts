@@ -1,13 +1,16 @@
-import fs from "fs";
 import { NextResponse } from "next/server";
-import { resolveBeatAudioPath } from "@/lib/crashStorySpeak";
-import { resolveMobileMedia } from "@/lib/mobileMediaStore";
+import { resolveBeatAudioPath, synthesizeStoryBeat } from "@/lib/crashStorySpeak";
+import { resolveMobileMedia, uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { isSafeMediaName } from "@/lib/cloudMedia";
 import { storyDialogueDir } from "@/lib/crashStoryLocations";
+import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
+import { readMobileGenJob } from "@/lib/mobileGenJob";
+import { serveMediaFile } from "@/lib/serveMediaFile";
 import path from "path";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /**
  * GET — stream one beat's synthesized line, so the "building the story" feed
@@ -33,14 +36,75 @@ export async function GET(req: Request) {
       fileName,
       destPath: path.join(storyDialogueDir(styleId), fileName),
     }));
-  if (!filePath || !fs.existsSync(filePath)) {
+  if (!filePath) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return new NextResponse(new Uint8Array(fs.readFileSync(filePath)), {
-    headers: {
-      "Content-Type": "audio/mpeg",
-      "Cache-Control": "private, max-age=300",
-    },
-  });
+  return serveMediaFile(req, filePath, "audio/mpeg", { "Cache-Control": "private, max-age=300" });
+}
+
+/**
+ * POST { jobId, beatId, text } — edit a line and re-voice it. Lets the "tap a
+ * plate, check the line, hear it" review step fix a bad line before Animate
+ * ever queues a clip against it, rather than only after a wasted render.
+ */
+export async function POST(req: Request) {
+  try {
+    const body = (await req.json().catch(() => ({}))) as {
+      jobId?: string;
+      beatId?: string;
+      text?: string;
+    };
+    const jobId = (body.jobId || "").trim();
+    const beatId = (body.beatId || "").trim();
+    const text = (body.text || "").trim();
+    if (!jobId || !beatId || !text) {
+      return NextResponse.json({ error: "Need jobId, beatId and text" }, { status: 400 });
+    }
+
+    const job = await readMobileGenJob(jobId);
+    if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+    // readMobileStory's cloud branch mirrors onto the local desk story, which
+    // synthesizeStoryBeat reads/writes directly — without this, a request
+    // landing on a fresh Vercel instance edits whatever pack that instance's
+    // scratch disk last happened to hold, not this job's.
+    const story = await readMobileStory(job.styleId, job.folderName);
+    let speaker = "";
+    for (const scene of story.scenes) {
+      for (const shot of scene.shots) {
+        const beat = shot.beats.find((b) => b.id === beatId);
+        if (beat) speaker = beat.speaker;
+      }
+    }
+    if (!speaker) {
+      return NextResponse.json(
+        { error: "This line has no speaker to voice — it plays as a held shot instead" },
+        { status: 400 },
+      );
+    }
+
+    const result = await synthesizeStoryBeat({ styleId: job.styleId, beatId, speaker, text });
+    await writeMobileStory(result.story, job.folderName);
+    try {
+      const localPath = resolveBeatAudioPath(job.styleId, beatId, result.voiceFile);
+      if (localPath) {
+        await uploadMobileMedia({
+          styleId: job.styleId,
+          folderName: job.folderName,
+          kind: "audio",
+          localPath,
+        });
+      }
+    } catch {
+      /* best effort — clip generation still resolves the file locally on this instance */
+    }
+
+    return NextResponse.json({ ok: true, voiceFile: result.voiceFile });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 502 },
+    );
+  }
 }
