@@ -11,6 +11,7 @@ import {
 } from "@/components/mobile/MobileUi";
 import { SwipeCarousel } from "@/components/mobile/SwipeCarousel";
 import { StoryFeed } from "@/components/mobile/StoryFeed";
+import { PlateReviewEditor } from "@/components/mobile/PlateReviewEditor";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
@@ -418,7 +419,8 @@ export default function MobileHomePage() {
 
       {/* Step 8: Review & approve */}
       {job && job.phase === "review" && (
-        <ActiveStepPanel title="Ready to animate" subtitle="Everything's built. This next part costs GPU time.">
+        <ActiveStepPanel title="Ready to animate" subtitle="Check the lines, then go — this next part costs GPU time.">
+          <PlateReviewEditor job={job} />
           <div style={{ color: "var(--chrome-dim)", fontSize: "13px", marginBottom: "16px" }}>
             {job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__").length}/{job.shots.length} shots plated ·{" "}
             {job.clips.length} lines to animate
