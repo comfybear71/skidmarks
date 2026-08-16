@@ -48,28 +48,62 @@ function locationStillUrl(job: MobileGenJob, fileName: string): string {
 
 function TreeBranch({
   label,
+  open = true,
+  onToggle,
+  thumbs,
   children,
 }: {
   label: string;
-  children: ReactNode;
+  /** When set with onToggle, the header folds the detail. Thumbs stay. */
+  open?: boolean;
+  onToggle?: () => void;
+  thumbs?: ReactNode;
+  children?: ReactNode;
 }) {
+  const collapsible = Boolean(onToggle);
   return (
     <section style={{ marginBottom: "22px" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          margin: "0 0 10px",
-          color: "var(--chrome-dim)",
-          fontSize: "11px",
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-        }}
-      >
-        <span style={{ color: "var(--acid)", fontSize: "12px" }}>▸</span>
-        {label}
-      </div>
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            margin: "0 0 10px",
+            padding: 0,
+            border: "none",
+            background: "none",
+            color: "var(--chrome-dim)",
+            fontSize: "11px",
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          <span style={{ color: "var(--acid)", fontSize: "12px" }}>{open ? "▾" : "▸"}</span>
+          {label}
+        </button>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            margin: "0 0 10px",
+            color: "var(--chrome-dim)",
+            fontSize: "11px",
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          <span style={{ color: "var(--acid)", fontSize: "12px" }}>▸</span>
+          {label}
+        </div>
+      )}
       <div
         style={{
           marginLeft: "8px",
@@ -77,11 +111,21 @@ function TreeBranch({
           borderLeft: "1px solid var(--line)",
         }}
       >
-        {children}
+        {thumbs}
+        {(!collapsible || open) && children ? children : null}
       </div>
     </section>
   );
 }
+
+const thumbStripStyle = {
+  display: "flex",
+  gap: "10px",
+  overflowX: "auto",
+  padding: "2px 2px 6px",
+  touchAction: "pan-x pan-y",
+  overscrollBehaviorX: "contain",
+} as const;
 
 function ThumbTile({
   src,
@@ -697,6 +741,9 @@ export function StudioTree({
   const [adding, setAdding] = useState<"cast" | "location" | null>(null);
   const [openCast, setOpenCast] = useState<string | null>(null);
   const [openPlace, setOpenPlace] = useState<string | null>(null);
+  const [castOpen, setCastOpen] = useState(false);
+  const [placesOpen, setPlacesOpen] = useState(false);
+  const [platesOpen, setPlatesOpen] = useState(false);
   const [scriptDraft, setScriptDraft] = useState("");
   const episodeHint = [
     `Vibe: ${job.prompt}`,
@@ -759,22 +806,18 @@ export function StudioTree({
         </div>
       </TreeBranch>
 
-      <TreeBranch label="Cast">
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            overflowX: "auto",
-            padding: "2px 2px 6px",
-            touchAction: "pan-x pan-y",
-            overscrollBehaviorX: "contain",
-          }}
-        >
+      <TreeBranch
+        label="Cast"
+        open={castOpen}
+        onToggle={() => setCastOpen((v) => !v)}
+        thumbs={
+        <div style={thumbStripStyle}>
           <PlusTile
             label="Add a character"
             onClick={() => {
               setAdding("cast");
               setOpenCast(null);
+              setCastOpen(true);
             }}
           />
           {job.speakers.map((name) => {
@@ -795,11 +838,14 @@ export function StudioTree({
                 onClick={() => {
                   setAdding(null);
                   setOpenCast(name);
+                  setCastOpen(true);
                 }}
               />
             );
           })}
         </div>
+        }
+      >
         {adding === "cast" ? (
           <AddForm
             styleId={job.styleId}
@@ -840,22 +886,18 @@ export function StudioTree({
         ) : null}
       </TreeBranch>
 
-      <TreeBranch label="Locations">
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            overflowX: "auto",
-            padding: "2px 2px 6px",
-            touchAction: "pan-x pan-y",
-            overscrollBehaviorX: "contain",
-          }}
-        >
+      <TreeBranch
+        label="Locations"
+        open={placesOpen}
+        onToggle={() => setPlacesOpen((v) => !v)}
+        thumbs={
+        <div style={thumbStripStyle}>
           <PlusTile
             label="Add a location"
             onClick={() => {
               setAdding("location");
               setOpenPlace(null);
+              setPlacesOpen(true);
             }}
           />
           {job.scenes.map((scene) => {
@@ -871,11 +913,14 @@ export function StudioTree({
                 onClick={() => {
                   setAdding(null);
                   setOpenPlace(scene.id);
+                  setPlacesOpen(true);
                 }}
               />
             );
           })}
         </div>
+        }
+      >
         {adding === "location" ? (
           <AddForm
             styleId={job.styleId}
@@ -911,7 +956,28 @@ export function StudioTree({
         ) : null}
       </TreeBranch>
 
-      <TreeBranch label="Plates">
+      <TreeBranch
+        label="Plates"
+        open={platesOpen}
+        onToggle={() => setPlatesOpen((v) => !v)}
+        thumbs={
+          <>
+            {job.folderName ? (
+              <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "0 0 10px" }}>
+                Crash Lab: Open <span style={{ color: "var(--acid)" }}>{job.folderName}</span>
+              </div>
+            ) : null}
+            {job.shots.length && (job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error") ? (
+              <PlateReviewEditor
+                job={job}
+                onJobChange={onJobChange}
+                showDetail={platesOpen}
+                onRequestExpand={() => setPlatesOpen(true)}
+              />
+            ) : null}
+          </>
+        }
+      >
         {lockingScript ? (
           <div style={{ padding: "8px 0 16px" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Locking the episode…</ShimmerText>
@@ -960,20 +1026,10 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {job.folderName ? (
-          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "0 0 10px" }}>
-            Crash Lab: Open <span style={{ color: "var(--acid)" }}>{job.folderName}</span>
-          </div>
-        ) : null}
-
         {job.phase === "plates" ? (
           <div style={{ padding: "4px 0 12px" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Opening the shot strip…</ShimmerText>
           </div>
-        ) : null}
-
-        {job.shots.length && (job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error") ? (
-          <PlateReviewEditor job={job} onJobChange={onJobChange} />
         ) : null}
 
         {job.phase === "review" ? (

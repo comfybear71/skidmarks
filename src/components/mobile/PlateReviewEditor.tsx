@@ -24,9 +24,14 @@ async function fetchStory(styleId: string, folderName: string): Promise<CrashSto
 export function PlateReviewEditor({
   job,
   onJobChange,
+  showDetail = true,
+  onRequestExpand,
 }: {
   job: MobileGenJob;
   onJobChange?: (job: MobileGenJob) => void;
+  /** False = shot strip only. Action / lines stay in the folded section. */
+  showDetail?: boolean;
+  onRequestExpand?: () => void;
 }) {
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -113,7 +118,10 @@ export function PlateReviewEditor({
             <div key={s.shotId} style={{ position: "relative", flex: "0 0 auto" }}>
               <button
                 type="button"
-                onClick={() => setOpenShotId((cur) => (cur === s.shotId ? null : s.shotId))}
+                onClick={() => {
+                  onRequestExpand?.();
+                  setOpenShotId((cur) => (showDetail && cur === s.shotId ? null : s.shotId));
+                }}
                 style={{
                   padding: "2px",
                   border: s.shotId === openShotId ? "2px solid var(--acid)" : "2px solid var(--line)",
@@ -186,7 +194,7 @@ export function PlateReviewEditor({
         })}
       </div>
 
-      {openShotId ? (
+      {showDetail && openShotId ? (
         <ShotLineEditor
           key={openShotId}
           styleId={job.styleId}
