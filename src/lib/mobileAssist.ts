@@ -9,6 +9,7 @@ export const ASSIST_KINDS = [
   "line",
   "episode",
   "plate",
+  "shot",
 ] as const;
 
 export type AssistKind = (typeof ASSIST_KINDS)[number];
@@ -82,6 +83,11 @@ Spoken line.
 - Name the locked people and the place. Matching light.
 - Everyone is into it. Hands on hips, climbing on, looking back grinning.
 - Never a lineup of faces standing in the foreground like cutouts.
+- Never pinning, holding someone down, or forced sex.`,
+
+  shot: `WRITE: what we see in this shot — the action paragraph a director would type.
+- Bodies, the place, what happens. Not spoken dialogue. Not a camera list.
+- Keep the locked people and the place. Willing energy.
 - Never pinning, holding someone down, or forced sex.`,
 };
 

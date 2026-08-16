@@ -195,7 +195,7 @@ export function PlateReviewEditor({
           shot={shotById(openShotId)}
           loading={!story && !loadError}
           error={loadError}
-          onPlateRebuilt={(plateFile, staging) => {
+          onPlateRebuilt={(plateFile, staging, summary) => {
             setStory((cur) => {
               if (!cur || !openShotId) return cur;
               return {
@@ -203,7 +203,14 @@ export function PlateReviewEditor({
                 scenes: cur.scenes.map((sc) => ({
                   ...sc,
                   shots: sc.shots.map((sh) =>
-                    sh.id === openShotId ? { ...sh, plateFile, staging } : sh,
+                    sh.id === openShotId
+                      ? {
+                          ...sh,
+                          ...(plateFile !== undefined ? { plateFile } : {}),
+                          ...(staging !== undefined ? { staging } : {}),
+                          ...(summary !== undefined ? { summary } : {}),
+                        }
+                      : sh,
                   ),
                 })),
               };
@@ -251,7 +258,7 @@ function ShotLineEditor({
   loading: boolean;
   error: string;
   onBeatSaved: (beatId: string, text: string, voiceFile: string) => void;
-  onPlateRebuilt: (plateFile: string, staging: string) => void;
+  onPlateRebuilt: (plateFile: string | undefined, staging: string, summary: string) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
   if (loading) {
@@ -301,6 +308,35 @@ function ShotLineEditor({
   );
 }
 
+function fieldLabel(text: string) {
+  return (
+    <div
+      style={{
+        color: "var(--chrome-dim)",
+        fontSize: "10px",
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        flex: "0 0 auto",
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
+const shotFieldStyle = {
+  width: "100%",
+  minWidth: 0,
+  padding: "8px",
+  borderRadius: "2px",
+  border: "1px solid var(--line)",
+  background: "var(--panel-2)",
+  color: "var(--chrome)",
+  fontSize: "13px",
+  fontFamily: "inherit",
+  resize: "vertical" as const,
+};
+
 function PlateStagingEditor({
   styleId,
   jobId,
@@ -311,23 +347,52 @@ function PlateStagingEditor({
   styleId: string;
   jobId: string;
   shot: CrashStoryShot;
-  onRebuilt: (plateFile: string, staging: string) => void;
+  onRebuilt: (plateFile: string | undefined, staging: string, summary: string) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
+  const [summary, setSummary] = useState(shot.summary || "");
   const [staging, setStaging] = useState(
     shot.staging?.trim() ||
       "Who sits, leans, presents — Jo on the bar, Matty behind it.",
   );
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const actionAssist = useMobileAssist(
+    "shot",
+    styleId,
+    () => summary,
+    setSummary,
+    shot.title,
+  );
   const plateAssist = useMobileAssist(
     "plate",
     styleId,
     () => staging,
     setStaging,
-    `${shot.title}. ${shot.summary || ""}`,
+    `${shot.title}. ${summary || ""}`,
   );
+
+  async function saveText() {
+    setError("");
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId,
+          shotId: shot.id,
+          action: "save",
+          summary,
+          staging,
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || "Couldn't save");
+      onRebuilt(undefined, staging, summary);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save");
+    }
+  }
 
   async function rebuild() {
     setBusy(true);
@@ -336,7 +401,7 @@ function PlateStagingEditor({
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, shotId: shot.id, staging }),
+        body: JSON.stringify({ jobId, shotId: shot.id, staging, summary }),
       });
       const data = (await res.json()) as {
         error?: string;
@@ -344,7 +409,7 @@ function PlateStagingEditor({
         job?: MobileGenJob;
       };
       if (!res.ok) throw new Error(data.error || "Couldn't rebuild the plate");
-      if (data.plateFile) onRebuilt(data.plateFile, staging);
+      onRebuilt(data.plateFile, staging, summary);
       if (data.job) onJobChange?.(data.job);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't rebuild the plate");
@@ -354,66 +419,46 @@ function PlateStagingEditor({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-label={open ? "Hide plate notes" : "Show plate notes"}
-          style={{
-            flex: "0 0 auto",
-            width: "22px",
-            height: "28px",
-            padding: 0,
-            borderRadius: "2px",
-            border: "1px solid var(--line)",
-            background: "transparent",
-            color: "var(--acid)",
-            fontSize: "12px",
-          }}
-        >
-          {open ? "▾" : "▸"}
-        </button>
-        <div
-          style={{
-            color: "var(--chrome-dim)",
-            fontSize: "10px",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            flex: "0 0 auto",
-          }}
-        >
-          Tweak
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+          {fieldLabel("Action")}
+          <div style={{ flex: 1 }} />
+          <MobileAiButton onClick={() => void actionAssist.runAssist()} busy={actionAssist.aiBusy} />
         </div>
-        <input
+        <textarea
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+          onBlur={() => void saveText()}
+          rows={6}
+          placeholder="What we see — Jo on the bar, Matty behind it, the room going."
+          style={shotFieldStyle}
+        />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+          {fieldLabel("Tweak")}
+          <div style={{ flex: 1 }} />
+          <MobileAiButton onClick={() => void plateAssist.runAssist()} busy={plateAssist.aiBusy} />
+          <MobilePrimaryButton
+            size="chip"
+            disabled={busy || plateAssist.aiBusy || actionAssist.aiBusy || !staging.trim()}
+            onClick={() => void rebuild()}
+          >
+            {busy ? "…" : "Rebuild"}
+          </MobilePrimaryButton>
+        </div>
+        <textarea
           value={staging}
           onChange={(e) => setStaging(e.target.value)}
+          onBlur={() => void saveText()}
+          rows={3}
           placeholder="Who sits, leans, presents — Jo on the bar, Matty behind it"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            padding: "8px",
-            borderRadius: "2px",
-            border: "1px solid var(--line)",
-            background: "var(--panel-2)",
-            color: "var(--chrome)",
-            fontSize: "13px",
-          }}
+          style={shotFieldStyle}
         />
-        <MobileAiButton onClick={() => void plateAssist.runAssist()} busy={plateAssist.aiBusy} />
-        <MobilePrimaryButton
-          size="chip"
-          disabled={busy || plateAssist.aiBusy || !staging.trim()}
-          onClick={() => void rebuild()}
-        >
-          {busy ? "…" : "Rebuild"}
-        </MobilePrimaryButton>
       </div>
-      {open && shot.summary ? (
-        <div style={{ fontSize: "12px", color: "var(--chrome-dim)", paddingLeft: "28px" }}>
-          {shot.summary}
-        </div>
+      {actionAssist.aiError ? (
+        <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{actionAssist.aiError}</div>
       ) : null}
       {plateAssist.aiError ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{plateAssist.aiError}</div>
