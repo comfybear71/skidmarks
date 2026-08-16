@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
+import { ZoomableStill, ZoomOverlay } from "./ZoomableStill";
 import { useMobileAssist } from "./useMobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "@/lib/crashStoryTypes";
@@ -31,6 +32,7 @@ export function PlateReviewEditor({
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
   const [openShotId, setOpenShotId] = useState<string | null>(null);
+  const [zoomSrc, setZoomSrc] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +52,9 @@ export function PlateReviewEditor({
 
   const platedShots = job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__");
   if (!platedShots.length) return null;
+  const plateSrcFor = (fileName: string) =>
+    `/api/crash/gen/file?name=${encodeURIComponent(fileName)}`;
+  const openPlate = platedShots.find((s) => s.shotId === openShotId);
 
   const shotById = (shotId: string): CrashStoryShot | null => {
     if (!story) return null;
@@ -73,31 +78,42 @@ export function PlateReviewEditor({
       >
         Shots — tap one to stage the plate and check the line
       </div>
-      <div style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "2px 2px 10px" }}>
-        {platedShots.map((s) => (
-          <button
-            key={s.shotId}
-            type="button"
-            onClick={() => setOpenShotId((cur) => (cur === s.shotId ? null : s.shotId))}
-            style={{
-              padding: "2px",
-              border: s.shotId === openShotId ? "2px solid var(--acid)" : "2px solid transparent",
-              borderRadius: "12px",
-              flex: "0 0 auto",
-              background: "none",
-              cursor: "pointer",
-              lineHeight: 0,
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`}
-              alt=""
-              style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "9px", display: "block" }}
-            />
-          </button>
-        ))}
+      <div className="mobile-scroll" style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "2px 2px 10px" }}>
+        {platedShots.map((s) => {
+          const src = plateSrcFor(s.plateFile);
+          const selected = s.shotId === openShotId;
+          return (
+            <button
+              key={s.shotId}
+              type="button"
+              onClick={() => {
+                if (selected) {
+                  setZoomSrc(src);
+                  return;
+                }
+                setOpenShotId(s.shotId);
+              }}
+              style={{
+                padding: "2px",
+                border: selected ? "2px solid var(--acid)" : "2px solid transparent",
+                borderRadius: "12px",
+                flex: "0 0 auto",
+                background: "none",
+                cursor: selected ? "zoom-in" : "pointer",
+                lineHeight: 0,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt=""
+                style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "9px", display: "block" }}
+              />
+            </button>
+          );
+        })}
       </div>
+      {zoomSrc ? <ZoomOverlay src={zoomSrc} alt="Shot plate" onClose={() => setZoomSrc(null)} /> : null}
 
       {openShotId ? (
         <ShotLineEditor
@@ -105,6 +121,7 @@ export function PlateReviewEditor({
           styleId={job.styleId}
           folderName={job.folderName}
           jobId={job.id}
+          plateSrc={openPlate ? plateSrcFor(openPlate.plateFile) : ""}
           shot={shotById(openShotId)}
           loading={!story && !loadError}
           error={loadError}
@@ -150,6 +167,7 @@ function ShotLineEditor({
   styleId,
   folderName,
   jobId,
+  plateSrc,
   shot,
   loading,
   error,
@@ -160,6 +178,7 @@ function ShotLineEditor({
   styleId: string;
   folderName: string;
   jobId: string;
+  plateSrc: string;
   shot: CrashStoryShot | null;
   loading: boolean;
   error: string;
@@ -187,6 +206,14 @@ function ShotLineEditor({
 
   return (
     <div style={{ ...mobileCard, padding: "14px", display: "flex", flexDirection: "column", gap: "14px" }}>
+      {plateSrc ? (
+        <ZoomableStill
+          src={plateSrc}
+          alt={shot.title || "Shot plate"}
+          height={220}
+          style={{ borderRadius: "12px" }}
+        />
+      ) : null}
       {shot.summary ? (
         <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>{shot.summary}</div>
       ) : null}

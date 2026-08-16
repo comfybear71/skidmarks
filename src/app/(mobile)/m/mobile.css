@@ -7,6 +7,54 @@ body {
   overflow-x: hidden;
   height: auto;
   -webkit-overflow-scrolling: touch;
+  color-scheme: dark;
+}
+
+/* Windows/Chrome default bars are white. Match the dark acid desk. */
+html,
+body,
+.mobile-scroll,
+textarea {
+  scrollbar-width: thin;
+  scrollbar-color: var(--acid-deep) var(--panel-2);
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.mobile-scroll::-webkit-scrollbar,
+textarea::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
+.mobile-scroll::-webkit-scrollbar-track,
+textarea::-webkit-scrollbar-track {
+  background: var(--panel-2);
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
+.mobile-scroll::-webkit-scrollbar-thumb,
+textarea::-webkit-scrollbar-thumb {
+  background: var(--acid-deep);
+  border-radius: 5px;
+  border: 2px solid var(--panel-2);
+}
+
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
+.mobile-scroll::-webkit-scrollbar-thumb:hover,
+textarea::-webkit-scrollbar-thumb:hover {
+  background: var(--acid);
+}
+
+html::-webkit-scrollbar-corner,
+body::-webkit-scrollbar-corner,
+.mobile-scroll::-webkit-scrollbar-corner,
+textarea::-webkit-scrollbar-corner {
+  background: var(--panel-2);
 }
 
 /* Phone column on a PC — full-bleed cards on a 1920 screen looked broken. */

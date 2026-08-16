@@ -42,7 +42,7 @@ export function StoryFeed({
       key: "plates",
       node: (
         <FeedCard key="plates" title={`Shots plated (${platedShots.length}/${job.shots.length})`}>
-          <div style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "2px" }}>
+          <div className="mobile-scroll" style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "2px" }}>
             {platedShots.map((s) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img

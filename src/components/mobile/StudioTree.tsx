@@ -477,6 +477,7 @@ function CandidatePicker({
       )}
       {candidates.length > 1 ? (
         <div
+          className="mobile-scroll"
           style={{
             display: "flex",
             gap: "8px",
@@ -501,75 +502,76 @@ function CandidatePicker({
         </div>
       ) : null}
       {candidates.length || error ? (
-        <div style={{ display: "flex", gap: "8px", marginTop: "10px", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
+        <div style={{ marginTop: "10px" }}>
+          <div
+            style={{
+              color: "var(--chrome-dim)",
+              fontSize: "10px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              marginBottom: "4px",
+            }}
+          >
+            {promptLabel}
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <input
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              placeholder={promptPlaceholder}
               style={{
-                color: "var(--chrome-dim)",
-                fontSize: "10px",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                marginBottom: "4px",
+                flex: 1,
+                minWidth: 0,
+                padding: "10px",
+                borderRadius: "8px",
+                border: "1px solid var(--line)",
+                background: "var(--panel-2)",
+                color: "var(--chrome)",
+                fontSize: "13px",
+              }}
+            />
+            <MobileAiButton
+              onClick={() => void promptAssist.runAssist()}
+              busy={promptAssist.aiBusy}
+            />
+            <button
+              type="button"
+              disabled={busy || !canUndo}
+              onClick={() => {
+                if (focusIndex <= 0) return;
+                const prev = candidates[focusIndex - 1]!;
+                setFocusId(prev.id);
+                setCustomPrompt(prev.prompt || "");
+              }}
+              style={{
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1px solid var(--line)",
+                background: "transparent",
+                color: canUndo && !busy ? "var(--chrome)" : "var(--chrome-dim)",
+                fontSize: "13px",
               }}
             >
-              {promptLabel}
-            </div>
-          <input
-            value={customPrompt}
-            onChange={(e) => setCustomPrompt(e.target.value)}
-            placeholder={promptPlaceholder}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "8px",
-              border: "1px solid var(--line)",
-              background: "var(--panel-2)",
-              color: "var(--chrome)",
-              fontSize: "13px",
-            }}
-          />
+              Undo
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                onGenerate(customPrompt || undefined);
+              }}
+              style={{
+                padding: "10px 14px",
+                borderRadius: "8px",
+                border: "1px solid var(--line)",
+                background: "transparent",
+                color: "var(--chrome)",
+                fontSize: "13px",
+              }}
+            >
+              More
+            </button>
           </div>
-          <MobileAiButton
-            onClick={() => void promptAssist.runAssist()}
-            busy={promptAssist.aiBusy}
-          />
-          <button
-            type="button"
-            disabled={busy || !canUndo}
-            onClick={() => {
-              if (focusIndex <= 0) return;
-              const prev = candidates[focusIndex - 1]!;
-              setFocusId(prev.id);
-              setCustomPrompt(prev.prompt || "");
-            }}
-            style={{
-              padding: "10px 12px",
-              borderRadius: "8px",
-              border: "1px solid var(--line)",
-              background: "transparent",
-              color: canUndo && !busy ? "var(--chrome)" : "var(--chrome-dim)",
-              fontSize: "13px",
-            }}
-          >
-            Undo
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              onGenerate(customPrompt || undefined);
-            }}
-            style={{
-              padding: "10px 14px",
-              borderRadius: "8px",
-              border: "1px solid var(--line)",
-              background: "transparent",
-              color: "var(--chrome)",
-              fontSize: "13px",
-            }}
-          >
-            More
-          </button>
         </div>
       ) : null}
       <div style={{ marginTop: "8px" }}>
@@ -719,6 +721,7 @@ export function StudioTree({
 
       <TreeBranch label="Cast">
         <div
+          className="mobile-scroll"
           style={{
             display: "flex",
             gap: "10px",
@@ -838,6 +841,7 @@ export function StudioTree({
 
       <TreeBranch label="Locations">
         <div
+          className="mobile-scroll"
           style={{
             display: "flex",
             gap: "10px",

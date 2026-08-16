@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { mobileCard } from "./MobileUi";
+import { ZoomableStill } from "./ZoomableStill";
 import type { MobileImageCandidate } from "@/lib/mobileGenJob";
 
 /**
@@ -22,42 +22,12 @@ export function SingleCandidateCard({
   onApprove: (c: MobileImageCandidate) => void;
   onReroll: () => void;
 }) {
-  const [zoomed, setZoomed] = useState(false);
+  const src = imageSrc(candidate);
 
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
-      <div
-        onClick={() => setZoomed(true)}
-        style={{
-          ...mobileCard,
-          position: "relative",
-          height: "300px",
-          overflow: "hidden",
-          cursor: "zoom-in",
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageSrc(candidate)}
-          alt="Candidate"
-          draggable={false}
-          style={{ width: "100%", height: "100%", objectFit: "cover", userSelect: "none" }}
-        />
-        <span
-          style={{
-            position: "absolute",
-            bottom: "10px",
-            right: "10px",
-            padding: "4px 8px",
-            borderRadius: "999px",
-            background: "rgba(0,0,0,0.55)",
-            color: "var(--chrome)",
-            fontSize: "11px",
-            pointerEvents: "none",
-          }}
-        >
-          Tap to enlarge
-        </span>
+      <div style={{ ...mobileCard, position: "relative", overflow: "hidden" }}>
+        <ZoomableStill src={src} alt="Candidate" height={300} />
         {candidate.approved ? (
           <div
             style={{
@@ -73,6 +43,7 @@ export function SingleCandidateCard({
               alignItems: "center",
               justifyContent: "center",
               fontWeight: 700,
+              pointerEvents: "none",
             }}
           >
             ✓
@@ -116,35 +87,6 @@ export function SingleCandidateCard({
           {candidate.approved ? "Picked ✓" : "Pick this one"}
         </button>
       </div>
-
-      {zoomed ? (
-        <div
-          onClick={() => setZoomed(false)}
-          role="dialog"
-          aria-label="Full screen image"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 60,
-            background: "rgba(0,0,0,0.94)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "12px",
-            cursor: "zoom-out",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageSrc(candidate)}
-            alt="Candidate, full screen"
-            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
-          />
-          <span style={{ position: "absolute", top: "16px", right: "18px", color: "var(--chrome)", fontSize: "24px" }}>
-            ✕
-          </span>
-        </div>
-      ) : null}
     </div>
   );
 }

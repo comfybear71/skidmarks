@@ -192,6 +192,7 @@ export function MobileAiButton({
       title="Draft this box — tap again for a different take"
       style={{
         flex: "0 0 auto",
+        alignSelf: "center",
         padding: "4px 8px",
         borderRadius: "6px",
         border: "1px solid var(--magenta)",
@@ -202,6 +203,9 @@ export function MobileAiButton({
         letterSpacing: "0.08em",
         textTransform: "uppercase",
         opacity: busy ? 0.5 : 1,
+        position: "relative",
+        zIndex: 2,
+        cursor: busy ? "default" : "pointer",
       }}
     >
       {busy ? "…" : "AI"}
@@ -226,6 +230,7 @@ export function MobileTextInput({
   onAi?: () => void;
   aiBusy?: boolean;
 }) {
+  const overlayAi = Boolean(onAi) && !multiline;
   const shared = {
     value,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -234,22 +239,45 @@ export function MobileTextInput({
     style: {
       ...mobileCard,
       width: "100%",
-      padding: onAi ? "14px 52px 14px 14px" : "14px",
+      padding: overlayAi ? "14px 52px 14px 14px" : "14px",
       color: "var(--chrome)",
       fontSize: "15px",
       fontFamily: "inherit",
     } as React.CSSProperties,
   };
   const field = multiline ? (
-    <textarea {...shared} rows={rows} style={{ ...shared.style, resize: "vertical" }} />
+    <textarea
+      {...shared}
+      className="mobile-scroll"
+      rows={rows}
+      style={{ ...shared.style, resize: "vertical" }}
+    />
   ) : (
     <input {...shared} type="text" />
   );
   if (!onAi) return field;
+  // Multiline AI sits above the box so the Windows scrollbar cannot cover
+  // the chip or steal the tap. Single-line keeps the chip inside the field.
+  if (multiline) {
+    return (
+      <div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            marginBottom: "6px",
+          }}
+        >
+          <MobileAiButton onClick={onAi} busy={aiBusy} />
+        </div>
+        {field}
+      </div>
+    );
+  }
   return (
     <div style={{ position: "relative" }}>
       {field}
-      <div style={{ position: "absolute", top: "8px", right: "8px" }}>
+      <div style={{ position: "absolute", top: "50%", right: "8px", transform: "translateY(-50%)" }}>
         <MobileAiButton onClick={onAi} busy={aiBusy} />
       </div>
     </div>
