@@ -144,17 +144,10 @@ export async function openCloudEpisode(opts: {
   };
 }
 
-function platedShotCount(story: unknown): number {
-  if (!story || typeof story !== "object") return 0;
+function storyHasScenes(story: unknown): boolean {
+  if (!story || typeof story !== "object") return false;
   const scenes = (story as CrashStoryDoc).scenes;
-  if (!Array.isArray(scenes)) return 0;
-  let n = 0;
-  for (const sc of scenes) {
-    for (const sh of sc.shots || []) {
-      if (String(sh.plateFile || "").trim()) n += 1;
-    }
-  }
-  return n;
+  return Array.isArray(scenes) && scenes.length > 0;
 }
 
 function kitFillCount(kit: unknown): number {
@@ -179,9 +172,12 @@ export async function saveCloudEpisodeMeta(opts: {
   const preset = getShowStylePreset(opts.styleId);
   await upsertNeonShow(opts.styleId, preset.label);
   const existing = await getNeonEpisode(opts.styleId, opts.folderName);
+  // Keep Neon when the incoming doc is a scene-less GET stub — never when
+  // the caller cleared plates / added unplated test cards. A plated-count
+  // guard here made Clear all a no-op: job.shots emptied, story_json stayed
+  // the old Matty-Bar crowd, and the next add appended onto that corpse.
   const keepStory =
-    platedShotCount(existing?.story_json) > 0 &&
-    platedShotCount(opts.story) === 0
+    storyHasScenes(existing?.story_json) && !storyHasScenes(opts.story)
       ? (existing!.story_json as CrashStoryDoc)
       : opts.story;
   const incomingKit = opts.sceneKit ?? null;

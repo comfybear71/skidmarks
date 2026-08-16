@@ -1,6 +1,7 @@
 import type {
   CrashStoryBeat,
   CrashStoryDoc,
+  CrashStoryScene,
   CrashStoryShot,
 } from "./crashStoryTypes";
 import type { SceneKitDiskDraft } from "./crashSceneKitStore";
@@ -14,10 +15,42 @@ function isLogoName(name: string): boolean {
   return /^(cgen_|.*(?:logo|title|credits))/i.test(name);
 }
 
+function shotLooksUnplated(shot: CrashStoryShot): boolean {
+  if (cleanName(shot.plateFile)) return false;
+  if ((shot.plateTakes || []).some((t) => cleanName(t.fileName))) return false;
+  if (cleanName(shot.summary) || cleanName(shot.staging)) return false;
+  return !(shot.beats || []).some(
+    (b) => cleanName(b.speaker) || cleanName(b.text),
+  );
+}
+
+function sceneLooksLikeEmptyTemplate(scene: CrashStoryScene): boolean {
+  const title = cleanName(scene.title);
+  const place = cleanName(scene.placeName);
+  if (place) return false;
+  if (title && title !== "Scene 1" && title !== "Scene 01") return false;
+  return true;
+}
+
+/**
+ * EP01 / empty desk recipe: Scene 1, no place, at most one empty Shot 1.
+ * A real mobile pack after Clear all still has titled locations — leftover
+ * Blob plates must not be resurrected as shots (or glued onto a new card).
+ */
+export function storyIsEmptyPlateRecipe(story: CrashStoryDoc): boolean {
+  const scenes = story.scenes || [];
+  if (scenes.length > 1) return false;
+  if (scenes.some((s) => !sceneLooksLikeEmptyTemplate(s))) return false;
+  const shots = scenes.flatMap((s) => s.shots || []);
+  if (shots.length > 1) return false;
+  return shots.every(shotLooksUnplated);
+}
+
 /**
  * Disk packs show a thumb when story.plateFile matches a file in plates\.
- * Cloud recipes sometimes have the files in Neon but empty plateFile ("no plate").
- * Keep existing names; fill empty slots from this episode's plate filenames.
+ * Cloud empty-recipe stubs (EP01 / GET without a pack) recover stills from
+ * leftover Blob/kit names. A real story with empty plateFile means unplated
+ * — do not steal an older crowd still onto a new test card.
  */
 export function attachPlateFilenamesToStory(
   story: CrashStoryDoc,
@@ -61,9 +94,7 @@ export function attachPlateFilenamesToStory(
     };
   }
 
-  const existingShots = story.scenes.flatMap((s) => s.shots);
-  const plated = existingShots.filter((s) => cleanName(s.plateFile)).length;
-  const stubStory = existingShots.length <= 1 && plated === 0;
+  const stubStory = storyIsEmptyPlateRecipe(story);
 
   let scenes: CrashStoryDoc["scenes"];
   if (stubStory) {
@@ -84,17 +115,14 @@ export function attachPlateFilenamesToStory(
       ? [{ ...base, shots: source.map((f, i) => shotFromPlate(f, i + 1)) }]
       : story.scenes;
   } else {
-    let shotIndex = 0;
+    // Honor plateFile as written. Empty means this shot has not been drawn
+    // yet — leftover Blob names belong to parked media, not this card.
     scenes = story.scenes.map((scene) => ({
       ...scene,
       shots: scene.shots.map((shot) => {
-        const fromKit = kit[shotIndex];
-        shotIndex += 1;
-        let plateFile = keepOrFill(shot.plateFile, fromKit);
-        if (!plateFile) {
-          plateFile = takeFromPool((n) => !isLogoName(n));
-        }
-        return { ...shot, plateFile };
+        const have = cleanName(shot.plateFile);
+        if (have) taken.add(have);
+        return { ...shot, plateFile: have };
       }),
     }));
   }

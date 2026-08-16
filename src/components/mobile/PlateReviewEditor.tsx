@@ -48,13 +48,19 @@ export function PlateReviewEditor({
   const [undoBusy, setUndoBusy] = useState(false);
   const [actionError, setActionError] = useState("");
 
+  const shots = job.shots;
+  // Add to plate / Clear all keep folderName; refetch so story matches the strip.
+  const shotIdsKey = shots.map((s) => s.shotId).join("\0");
+
   useEffect(() => {
     let cancelled = false;
     fetchStory(job.styleId, job.folderName)
       .then((s) => {
         if (cancelled) return;
-        if (s) setStory(s);
-        else setLoadError("Couldn't load the lines for this episode");
+        if (s) {
+          setStory(s);
+          setLoadError("");
+        } else setLoadError("Couldn't load the lines for this episode");
       })
       .catch(() => {
         if (!cancelled) setLoadError("Couldn't load the lines for this episode");
@@ -62,9 +68,8 @@ export function PlateReviewEditor({
     return () => {
       cancelled = true;
     };
-  }, [job.styleId, job.folderName]);
+  }, [job.styleId, job.folderName, shotIdsKey]);
 
-  const shots = job.shots;
   if (!shots.length && !story) return null;
 
   const shotById = (shotId: string): CrashStoryShot | null => {
@@ -76,17 +81,40 @@ export function PlateReviewEditor({
     return null;
   };
 
+  /** Job strip is the plated/unplated source of truth. Hydrate used to glue
+   * leftover Blob stills onto an empty plateFile — don't show that picture. */
+  const displayShot = (shotId: string): CrashStoryShot | null => {
+    const fromStory = shotById(shotId);
+    if (!fromStory) return null;
+    const fromJob = shots.find((s) => s.shotId === shotId);
+    if (!fromJob) return fromStory;
+    const jobPlated = Boolean(fromJob.plateFile && fromJob.plateFile !== "__error__");
+    if (jobPlated) return fromStory;
+    if (!fromStory.plateFile && !(fromStory.plateTakes && fromStory.plateTakes.length)) {
+      return fromStory;
+    }
+    return { ...fromStory, plateFile: "", plateTakes: [] };
+  };
+
   function defaultSceneId(): string | null {
-    if (!story) return null;
+    const inJob = (id: string | undefined): string | null => {
+      if (!id) return null;
+      if (job.scenes.some((s) => s.id === id)) return id;
+      if (story?.scenes.some((s) => s.id === id)) return id;
+      return null;
+    };
     if (openShotId) {
-      const sc = story.scenes.find((s) => s.shots.some((sh) => sh.id === openShotId));
+      const sc = story?.scenes.find((s) => s.shots.some((sh) => sh.id === openShotId));
       if (sc) return sc.id;
+      const fromOpen = inJob(shots.find((s) => s.shotId === openShotId)?.sceneId);
+      if (fromOpen) return fromOpen;
     }
     if (shots.length) {
-      const lastSceneId = shots[shots.length - 1].sceneId;
-      if (story.scenes.some((s) => s.id === lastSceneId)) return lastSceneId;
+      const last = inJob(shots[shots.length - 1].sceneId);
+      if (last) return last;
     }
-    return story.scenes[0]?.id || null;
+    if (job.scenes[0]?.id) return job.scenes[0].id;
+    return story?.scenes[0]?.id || null;
   }
 
   const usedShotSpeakers = new Set(
@@ -551,7 +579,7 @@ export function PlateReviewEditor({
           styleId={job.styleId}
           folderName={job.folderName}
           jobId={job.id}
-          shot={shotById(openShotId)}
+          shot={displayShot(openShotId)}
           speakers={job.speakers}
           loading={!story && !loadError}
           error={loadError}
