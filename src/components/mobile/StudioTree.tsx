@@ -28,6 +28,7 @@ import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import { MOBILE_STITCH_MOVIES } from "@/lib/mobilePipeline";
+import { queuedSavedClips } from "@/lib/mobileClipQueue";
 import { isJoKeyboardWarrior } from "@/lib/mobileImageMotion";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
 
@@ -848,6 +849,7 @@ export function StudioTree({
     canLockEpisode(job.phase);
 
   const plated = job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__");
+  const queued = queuedSavedClips(job.clips);
   const vibePreset = getShowStylePreset(job.styleId);
   const vibeRealism = job.styleRealism ?? vibePreset.defaultRealism;
 
@@ -1119,9 +1121,9 @@ export function StudioTree({
         {platesOpen && job.phase === "review" ? (
           <div style={{ marginTop: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "10px" }}>
-              {plated.length}/{job.shots.length} plated · {job.clips.length}{" "}
-              {job.clips.length === 1 ? "line queued" : "lines queued"}
-              {job.clips.length === 0 && plated.length
+              {plated.length}/{job.shots.length} plated · {queued.length}{" "}
+              {queued.length === 1 ? "line queued" : "lines queued"}
+              {queued.length === 0 && plated.length
                 ? " — Save the spoken line (Play appears) before Generate video"
                 : ""}
             </div>
@@ -1149,8 +1151,8 @@ export function StudioTree({
         {platesOpen && job.phase === "animate" ? (
           <div style={{ padding: "8px 0" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>
-              {job.clips.length
-                ? `Animating… ${job.clips.filter((c) => c.clipStatus !== "pending").length}/${job.clips.length}`
+              {queued.length
+                ? `Animating… ${queued.filter((c) => c.clipStatus !== "pending").length}/${queued.length}`
                 : "Animating… no lines queued"}
             </ShimmerText>
             {job.error ? (

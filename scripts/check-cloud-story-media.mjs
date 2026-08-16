@@ -130,6 +130,73 @@ assert.equal(
   "Comfy's leftover clip must not play as Jo's voice",
 );
 
+const leftoverJoMp3 = "01_05_CRAZY_BIG_HOLE_JO_Not-that.mp3";
+const joLeftoverLine = story([
+  {
+    id: "scene_jo",
+    title: "Jo's bedroom (the cell)",
+    placeName: "Jo's bedroom (the cell)",
+    worldThumbKey: "",
+    shots: [
+      {
+        id: "shot_jo_new",
+        title: "CRAZY BIG HOLE JO",
+        summary: "",
+        plateFile: "",
+        beats: [
+          {
+            id: "beat_jo",
+            speaker: "CRAZY BIG HOLE JO",
+            text: "Not that you care but boyfriend sleeping over",
+            voiceFile: leftoverJoMp3,
+          },
+        ],
+        sfx: [],
+      },
+    ],
+  },
+]);
+const parkedJo = attachAudioFilenamesToStory(joLeftoverLine, [
+  leftoverJoMp3,
+  leftoverAudio[0],
+]);
+assert.equal(parkedJo.scenes[0].shots[0].beats[0].voiceFile || "", "");
+assert.equal(parkedJo.scenes[0].shots[0].beats[0].text, "");
+
+const savedTake = "01_01_CRAZY_BIG_HOLE_JO_sitting-texting_mjx8k2.mp3";
+const joSaved = story([
+  {
+    id: "scene_jo",
+    title: "Jo's bedroom (the cell)",
+    placeName: "Jo's bedroom (the cell)",
+    worldThumbKey: "",
+    shots: [
+      {
+        id: "shot_jo_new",
+        title: "CRAZY BIG HOLE JO",
+        summary: "",
+        plateFile: "",
+        beats: [
+          {
+            id: "beat_jo",
+            speaker: "CRAZY BIG HOLE JO",
+            text: "sitting on the bed texting",
+            voiceFile: savedTake,
+          },
+        ],
+        sfx: [],
+      },
+    ],
+  },
+]);
+const keptSaved = attachAudioFilenamesToStory(joSaved, [leftoverJoMp3, leftoverAudio[0]]);
+assert.equal(
+  keptSaved.scenes[0].shots[0].beats[0].voiceFile,
+  savedTake,
+  "hydrate must not steal leftover Jo pack mp3 onto a Saved take",
+);
+assert.equal(keptSaved.scenes[0].shots[0].beats[0].text, "sitting on the bed texting");
+
 const invented = story([
   {
     id: "scene_jo",

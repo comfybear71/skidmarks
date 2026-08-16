@@ -3,13 +3,14 @@ import {
   clearAllStoryShots,
   mergeClipsFromStory,
   queueableStoryBeats,
+  queuedSavedClips,
   upsertPendingClip,
 } from "../src/lib/mobileClipQueue.ts";
 import { leftoverHydrateBeat } from "../src/lib/mobilePlateLines.ts";
 
 assert.equal(leftoverHydrateBeat("shot_jo", "shot_jo_a1"), true);
 
-const story = {
+const leftoverJoStory = {
   styleId: "skidmarks",
   title: "Jo",
   logline: "",
@@ -35,8 +36,31 @@ const story = {
             {
               id: "beat_jo",
               speaker: "CRAZY BIG HOLE JO",
-              text: "Not that you care",
+              text: "Not that you care but boyfriend sleeping over",
               voiceFile: "01_01_CRAZY_BIG_HOLE_JO_Not-that.mp3",
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const savedStory = {
+  ...leftoverJoStory,
+  scenes: [
+    {
+      ...leftoverJoStory.scenes[0],
+      shots: [
+        {
+          ...leftoverJoStory.scenes[0].shots[0],
+          beats: [
+            leftoverJoStory.scenes[0].shots[0].beats[0],
+            {
+              id: "beat_jo",
+              speaker: "CRAZY BIG HOLE JO",
+              text: "sitting on the bed texting",
+              voiceFile: "01_01_CRAZY_BIG_HOLE_JO_sitting-texting_mjx8k2.mp3",
             },
           ],
         },
@@ -66,17 +90,24 @@ const job = {
   updatedAt: "",
 };
 
-const queued = queueableStoryBeats(story, job);
+assert.equal(
+  queueableStoryBeats(leftoverJoStory, job).length,
+  0,
+  "leftover compiled Jo mp3 must not count as 1 audio queued",
+);
+
+const queued = queueableStoryBeats(savedStory, job);
 assert.equal(queued.length, 1);
 assert.equal(queued[0].beatId, "beat_jo");
+assert.match(queued[0].voiceFile, /_mjx8k2\.mp3$/);
 
 const leftoverStory = {
-  ...story,
+  ...savedStory,
   scenes: [
     {
-      ...story.scenes[0],
+      ...savedStory.scenes[0],
       shots: [
-        story.scenes[0].shots[0],
+        savedStory.scenes[0].shots[0],
         {
           id: "shot_2qnv2g8",
           title: "MATTY",
@@ -141,12 +172,19 @@ const wiped = clearAllStoryShots(leftoverStory);
 assert.equal(wiped.removed.length, 3);
 assert.equal(wiped.story.scenes[0].shots.length, 0);
 
-const emptyQueue = mergeClipsFromStory(job, story);
-assert.equal(emptyQueue.length, 1, "saved Jo line must queue even if job.clips was empty");
-assert.equal(emptyQueue[0].clipStatus, "pending");
-assert.match(emptyQueue[0].line, /Not that you care/);
+assert.equal(
+  mergeClipsFromStory(job, leftoverJoStory).length,
+  0,
+  "leftover Jo pack audio must not queue",
+);
 
-const afterSave = upsertPendingClip({ ...job, clips: [] }, story, "beat_jo");
+const emptyQueue = mergeClipsFromStory(job, savedStory);
+assert.equal(emptyQueue.length, 1, "Saved Jo line must queue even if job.clips was empty");
+assert.equal(emptyQueue[0].clipStatus, "pending");
+assert.match(emptyQueue[0].line, /sitting on the bed texting/);
+assert.equal(queuedSavedClips(emptyQueue).length, 1);
+
+const afterSave = upsertPendingClip({ ...job, clips: [] }, savedStory, "beat_jo");
 assert.equal(afterSave.length, 1);
 assert.equal(afterSave[0].clipStatus, "pending");
 
@@ -155,7 +193,7 @@ const alreadyDone = mergeClipsFromStory(
     ...job,
     clips: [{ ...emptyQueue[0], clipStatus: "done", clipFile: "out.mp4" }],
   },
-  story,
+  savedStory,
 );
 assert.equal(alreadyDone[0].clipStatus, "done");
 

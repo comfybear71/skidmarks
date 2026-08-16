@@ -6,6 +6,7 @@ import type {
 } from "./crashStoryTypes";
 import type { SceneKitDiskDraft } from "./crashSceneKitStore";
 import { humanMediaLabel, inferWorldKeysFromPlates, pickBestMediaMatch } from "./mediaMatch";
+import { isLeftoverPackVoiceFile } from "./mobileSavedVoice";
 
 function cleanName(name: string | undefined): string {
   return String(name || "").trim();
@@ -425,6 +426,11 @@ export function attachAudioFilenamesToStory(
       }
 
       const beats = beatsIn.map((beat, beatIndex) => {
+        if (!recoverLeftover && isLeftoverPackVoiceFile(beat.voiceFile)) {
+          // Compiled-episode leftover (including leftover Jo) stays parked
+          // off this card. Burn happens when Generate video completes.
+          return { ...beat, voiceFile: undefined, text: "" };
+        }
         const existing = keep(beat.voiceFile);
         if (existing) {
           const parsedExisting = parseDialogueAudioName(existing);
@@ -438,13 +444,23 @@ export function attachAudioFilenamesToStory(
             // voices her line with her library voice, not his leftover clip.
             return { ...beat, voiceFile: undefined };
           }
+          if (!recoverLeftover && isLeftoverPackVoiceFile(existing)) {
+            return { ...beat, voiceFile: undefined, text: "" };
+          }
           return { ...beat, voiceFile: existing };
+        }
+        if (cleanName(beat.voiceFile)) {
+          // Saved take is not in the leftover Blob pool — do not steal
+          // an older Jo pack mp3 onto this beat. That made Play work
+          // (client still has the Save name) while LTX looked up the
+          // leftover filename and died GEN MP3.
+          return beat;
         }
         const byId = takeNamed(`${beat.id}.mp3`);
         if (byId) return { ...beat, voiceFile: byId };
+        if (!recoverLeftover) return beat;
         const speakerHit = takeMatchingSpeaker(beat.speaker);
         if (speakerHit) return { ...beat, voiceFile: speakerHit };
-        if (!recoverLeftover) return beat;
         const parsedHit = dialogue.find((fn) => {
           if (taken.has(fn)) return false;
           const p = parseDialogueAudioName(fn);

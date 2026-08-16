@@ -72,6 +72,7 @@ export type MobileClipUnit = {
   error: string;
   speaker?: string;
   line?: string;
+  voiceFile?: string;
   /** The exact IMAGE MOTION text sent to LTX for this clip — kept so the
    * build can be watched as it happens instead of reconstructed after the
    * fact from route code. Testing wants this visible, not just correct. */

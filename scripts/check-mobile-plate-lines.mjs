@@ -14,6 +14,21 @@ import {
   castPopupFaceGrey,
   voiceFileBelongsToSpeaker,
 } from "../src/lib/mobilePlateLines.ts";
+import {
+  isLeftoverPackVoiceFile,
+  isMobileSavedVoiceFile,
+} from "../src/lib/mobileSavedVoice.ts";
+
+assert.equal(isLeftoverPackVoiceFile("01_05_CRAZY_BIG_HOLE_JO_Not-that.mp3"), true);
+assert.equal(isMobileSavedVoiceFile("01_05_CRAZY_BIG_HOLE_JO_Not-that.mp3"), false);
+assert.equal(
+  isMobileSavedVoiceFile("01_01_CRAZY_BIG_HOLE_JO_her-line_mjx8k2.mp3"),
+  true,
+);
+assert.equal(
+  isLeftoverPackVoiceFile("01_01_CRAZY_BIG_HOLE_JO_her-line_mjx8k2.mp3"),
+  false,
+);
 
 assert.equal(leftoverHydrateBeat("shot_jo", "shot_jo_a1"), true);
 assert.equal(leftoverHydrateBeat("shot_jo", "beat_jo"), false);
@@ -52,6 +67,24 @@ const leftover = plateLineBeats({
 assert.equal(leftover.length, 1);
 assert.equal(leftover[0].speaker, "CRAZY BIG HOLE JO");
 assert.equal(leftover[0].voiceFile || "", "");
+
+const leftoverJoLine = plateLineBeats({
+  shotId: "shot_jo",
+  title: "CRAZY BIG HOLE JO",
+  staging: "CRAZY BIG HOLE JO, sitting on her bed",
+  jobSpeakers: ["CRAZY BIG HOLE JO"],
+  beats: [
+    {
+      id: "beat_jo",
+      speaker: "CRAZY BIG HOLE JO",
+      text: "Not that you care but boyfriend sleeping over",
+      voiceFile: "01_05_CRAZY_BIG_HOLE_JO_Not-that.mp3",
+    },
+  ],
+});
+assert.equal(leftoverJoLine.length, 1);
+assert.equal(leftoverJoLine[0].voiceFile || "", "");
+assert.equal(leftoverJoLine[0].text || "", "");
 
 const emptyCard = plateLineBeats({
   shotId: "shot_jo",

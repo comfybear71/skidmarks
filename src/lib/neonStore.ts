@@ -325,6 +325,16 @@ export async function listNeonFiles(opts: {
   }, []);
 }
 
+export async function deleteNeonFiles(ids: string[]): Promise<void> {
+  const sql = getSql();
+  if (!sql) return;
+  for (const id of ids) {
+    const key = String(id || "").trim();
+    if (!key) continue;
+    await sql`DELETE FROM files WHERE id = ${key}`;
+  }
+}
+
 export async function upsertNeonShowFile(row: {
   showId: ShowStyleId;
   kind: BlobFileKind;

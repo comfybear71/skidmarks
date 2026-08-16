@@ -1,6 +1,7 @@
 import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import type { MobileClipUnit, MobileGenJob } from "./mobileGenJob";
+import { isMobileSavedVoiceFile, isLeftoverPackVoiceFile } from "./mobileSavedVoice";
 import { voiceNamesMatch } from "./voiceNameMatch";
 
 export function findBeatHome(story: CrashStoryDoc, beatId: string): {
@@ -62,14 +63,16 @@ export function queueableStoryBeats(
         if (!b.speaker.trim()) continue;
         if (leftoverHydrateBeat(sh.id, b.id)) continue;
         if (!speakerOnJob(job.speakers, b.speaker)) continue;
-        if (!b.text.trim() && !(b.voiceFile || "").trim()) continue;
+        const voiceFile = b.voiceFile || "";
+        if (isLeftoverPackVoiceFile(voiceFile)) continue;
+        if (!isMobileSavedVoiceFile(voiceFile)) continue;
         out.push({
           beatId: b.id,
           shotId: sh.id,
           sceneId: sc.id,
           speaker: b.speaker,
           line: b.text,
-          voiceFile: b.voiceFile || "",
+          voiceFile,
         });
       }
     }
@@ -122,6 +125,7 @@ export function mergeClipsFromStory(
         error: "",
         speaker: row.speaker,
         line: row.line,
+        voiceFile: row.voiceFile,
       });
       continue;
     }
@@ -132,6 +136,7 @@ export function mergeClipsFromStory(
       sceneId: row.sceneId,
       speaker: row.speaker,
       line: row.line,
+      voiceFile: row.voiceFile,
       ...(requeue && prev.clipStatus !== "pending"
         ? { clipStatus: "pending" as const, error: "" }
         : {}),
@@ -157,9 +162,14 @@ export function upsertPendingClip(
           error: "",
           speaker: home.speaker,
           line: home.text,
+          voiceFile: home.voiceFile,
         }
       : c,
   );
+}
+
+export function queuedSavedClips(clips: MobileClipUnit[]): MobileClipUnit[] {
+  return clips.filter((c) => isMobileSavedVoiceFile(c.voiceFile));
 }
 
 export function clipQueueError(clips: MobileClipUnit[]): string {
