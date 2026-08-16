@@ -515,6 +515,10 @@ export const CAMPAIGN_SPEECH: string[] = [
   oneLine(
     "I've told T to move out Stuie. I've let Jummie know. Boyfriend here again in the room sleeping over. They're needle users and I know that sounds hypocritical because of my past, but I've left that behind and I don't need that in my face everyday and be surrounded by those people. You REALLy need to be careful who you put in your house. I have to live with this shit and it's not fair Stuie. She's on antipsychotic meds, banging up crack and she's on the dole/disability. Not acceptable.",
   ),
+  oneLine("Actually Jason just left for work. I hope he got some sleep beforehand."),
+  oneLine(
+    "I'm afraid to leave my room. These guys are meth heads and I've already been intimidated. I need to go to the toilet, shower and get my dinner ready. The boyfriend is a crack head and staying another night I guess. Night 3. He can pay my rent from now on.",
+  ),
 ];
 
 if (CAMPAIGN_SPEECH.length < 26) {
