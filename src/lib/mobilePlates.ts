@@ -19,6 +19,7 @@ import {
   mobileCandidateFolders,
 } from "./mobilePlateMedia";
 import { candidateLookPrompt } from "./mobileJobReady";
+import { plateCastStagingNote, shotSpeakersOnCard } from "./mobilePlateLines";
 import type { CrashStoryScene, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileGenJob } from "./mobileGenJob";
 
@@ -76,15 +77,24 @@ function resolveCastKeyByName(
   return null;
 }
 
-function uniqueShotSpeakers(shot: CrashStoryShot): string[] {
-  return [
-    ...new Set(shot.beats.map((b) => b.speaker.trim()).filter(Boolean)),
-  ];
+function uniqueShotSpeakers(
+  shot: CrashStoryShot,
+  jobSpeakers: string[] = [],
+): string[] {
+  return shotSpeakersOnCard({
+    shotId: shot.id,
+    title: shot.title,
+    staging: shot.staging,
+    summary: shot.summary,
+    plateFile: shot.plateFile,
+    jobSpeakers,
+    beats: shot.beats,
+  });
 }
 
 export type PlateJobRef = Pick<
   MobileGenJob,
-  "id" | "folderName" | "castCandidates" | "locationCandidates"
+  "id" | "folderName" | "castCandidates" | "locationCandidates" | "speakers"
 >;
 
 /** Location still for a shot — local gallery, show shelf, then this job's pick. */
@@ -178,7 +188,9 @@ export async function compositeShotPlate(
   const bgPath = await resolvePlateBackground(styleId, scene, opts.job);
 
   const silent = (opts.silentCast || []).map((n) => n.trim()).filter(Boolean);
-  const speakers = [...new Set([...uniqueShotSpeakers(shot), ...silent])];
+  const speakers = [
+    ...new Set([...uniqueShotSpeakers(shot, opts.job?.speakers || []), ...silent]),
+  ];
   if (!speakers.length) throw new Error("Shot has no cast to composite");
 
   const manifest = readStyleCardManifest(styleId);
@@ -193,9 +205,12 @@ export async function compositeShotPlate(
   const placeLook = opts.job
     ? candidateLookPrompt(opts.job.locationCandidates, scene.id)
     : "";
-  const staging =
-    shot.staging?.trim() ||
-    "People inhabit the place — sitting, leaning, presenting, using the furniture.";
+  const staging = plateCastStagingNote({
+    speakers,
+    staging: shot.staging,
+    looks,
+    placeLook,
+  });
 
   let currentBg = bgPath;
   let chainPass = false;
@@ -221,16 +236,7 @@ export async function compositeShotPlate(
       castFiles,
       castNames,
       placeName: scene.placeName,
-      note: [
-        staging,
-        looks,
-        placeLook ? `This place: ${placeLook}` : "",
-        castNames[0] ? `${castNames[0]} is prominent if this is their line.` : "",
-        "Identity from each single face card — one person per reference. Never a turnaround sheet with several copies of the same character.",
-        "Bodies in the room — sitting, leaning, mid-stride, using the bar or furniture. Matching light. Not a lineup of people standing in the foreground like cutouts.",
-      ]
-        .filter(Boolean)
-        .join(". "),
+      note: staging,
       styleRealism: Number.isFinite(opts.styleRealism)
         ? Math.max(0, Math.min(100, Math.round(opts.styleRealism as number)))
         : preset.defaultRealism,

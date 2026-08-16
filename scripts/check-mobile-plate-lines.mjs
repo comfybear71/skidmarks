@@ -3,8 +3,14 @@ import {
   leftoverHydrateBeat,
   packDialogueSpeaker,
   plateLineBeats,
+  plateCastStagingNote,
   speakerMentionedOnPlate,
   speakersAlreadyInPlate,
+  shotSpeakersOnCard,
+  leftoverHydrateSpeakers,
+  dropLeftoverHydrateBeats,
+  imageMotionNamesLeftovers,
+  keepStoredImageMotion,
   castPopupFaceGrey,
   voiceFileBelongsToSpeaker,
 } from "../src/lib/mobilePlateLines.ts";
@@ -84,5 +90,65 @@ const already = speakersAlreadyInPlate({
   ],
 });
 assert.equal(already.length, 0, "leftover Comfy is not already in the plate");
+
+const joBeats = [
+  {
+    id: "shot_jo_a1",
+    speaker: "Comfy",
+    voiceFile: "01_01_Comfy_Keep-the-rhythm.mp3",
+  },
+  {
+    id: "shot_jo_a2",
+    speaker: "Land",
+    voiceFile: "01_02_Land_Tip-jar.mp3",
+  },
+  { id: "beat_jo", speaker: "CRAZY BIG HOLE JO", voiceFile: "" },
+];
+const joCard = {
+  shotId: "shot_jo",
+  title: "CRAZY BIG HOLE JO",
+  staging: "CRAZY BIG HOLE JO, sitting on her bed",
+  summary: "",
+  plateFile: "cplate_jo.png",
+  jobSpeakers: ["CRAZY BIG HOLE JO", "Comfy", "Land"],
+  beats: joBeats,
+};
+assert.deepEqual(shotSpeakersOnCard(joCard), ["CRAZY BIG HOLE JO"]);
+assert.deepEqual(leftoverHydrateSpeakers("shot_jo", joCard.beats), ["Comfy", "Land"]);
+assert.deepEqual(
+  dropLeftoverHydrateBeats("shot_jo", joCard.beats).map((b) => b.speaker),
+  ["CRAZY BIG HOLE JO"],
+);
+
+const crowdMotion =
+  'Use the provided start image as the first frame. Only Comfy, Land and CRAZY BIG HOLE JO in frame, no one else appears.';
+assert.equal(imageMotionNamesLeftovers(crowdMotion, ["Comfy", "Land"]), true);
+assert.equal(keepStoredImageMotion(crowdMotion, ["Comfy", "Land"]), false);
+assert.equal(
+  keepStoredImageMotion(
+    'Use the provided start image as the first frame. CRAZY BIG HOLE JO is prominent, tennis racket in hand.',
+    ["Comfy", "Land"],
+  ),
+  true,
+);
+
+const joStill = plateCastStagingNote({
+  speakers: ["CRAZY BIG HOLE JO"],
+  staging: "CRAZY BIG HOLE JO alone, standing centre-frame, facing camera, mid body.",
+});
+assert.match(joStill, /mobile phone/i);
+assert.match(joStill, /texting/i);
+assert.match(joStill, /crazed maniac/i);
+assert.match(joStill, /only person/i);
+assert.doesNotMatch(joStill, /\bComfy\b/);
+assert.doesNotMatch(joStill, /People inhabit the place/);
+assert.doesNotMatch(joStill, /Bodies in the room/);
+
+const racketStill = plateCastStagingNote({
+  speakers: ["CRAZY BIG HOLE JO"],
+  staging: "CRAZY BIG HOLE JO, tennis racket in hand, walking around the room.",
+});
+assert.match(racketStill, /tennis racket/);
+assert.doesNotMatch(racketStill, /mobile phone/);
 
 console.log("check-mobile-plate-lines: ok");

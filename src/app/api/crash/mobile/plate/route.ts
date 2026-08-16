@@ -6,6 +6,8 @@ import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
+import { dropLeftoverHydrateBeats } from "@/lib/mobilePlateLines";
+import { defaultSoloStaging } from "@/lib/mobileImageMotion";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { newId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
@@ -136,7 +138,7 @@ export async function POST(req: Request) {
         summary: solo
           ? `${speakerIn}, solo — position, voice, and lip sync only. No one else in frame.`
           : "",
-        staging: solo ? `${speakerIn} alone, standing centre-frame, facing camera, mid body.` : "",
+        staging: solo ? defaultSoloStaging(speakerIn) : "",
         plateFile: "",
         beats: solo ? [{ id: newId("beat"), speaker: speakerIn, text: "" }] : [],
         sfx: [],
@@ -244,7 +246,7 @@ export async function POST(req: Request) {
                         ...sh,
                         beats,
                         title: cast.join(", ") || sh.title,
-                        staging: sh.staging?.trim() || "",
+                        staging: sh.staging?.trim() || (cast.length === 1 ? defaultSoloStaging(speakerIn) : ""),
                       }
                     : sh,
                 ),
@@ -320,11 +322,24 @@ export async function POST(req: Request) {
     }
 
     const staging = (stagingIn || "").trim();
-    const nextStory = patchShotFields(story, shotId, {
-      staging,
-      ...(summaryIn !== undefined ? { summary: summaryIn } : {}),
-      plateFile: "",
-    });
+    const cleanedBeats = dropLeftoverHydrateBeats(shot.id, shot.beats);
+    const nextStory: CrashStoryDoc = {
+      ...story,
+      scenes: story.scenes.map((sc) => ({
+        ...sc,
+        shots: sc.shots.map((sh) =>
+          sh.id === shotId
+            ? {
+                ...sh,
+                staging,
+                ...(summaryIn !== undefined ? { summary: summaryIn } : {}),
+                plateFile: "",
+                beats: cleanedBeats,
+              }
+            : sh,
+        ),
+      })),
+    };
     await writeMobileStory(nextStory, job.folderName);
     scene = nextStory.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId))!;
     shot = scene.shots.find((sh) => sh.id === shotId)!;
