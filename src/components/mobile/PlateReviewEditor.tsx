@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { BeatAudioMini } from "@/components/BeatAudioMini";
 import { MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
 import { ThumbTile } from "./ThumbTile";
 import { ZoomableStill, ZoomOverlay } from "./ZoomableStill";
@@ -227,16 +228,18 @@ function ShotLineEditor({
         onJobChange={onJobChange}
       />
       {speakingBeats.length ? (
-        speakingBeats.map((beat) => (
-          <BeatLineEditor
-            key={beat.id}
-            styleId={styleId}
-            folderName={folderName}
-            jobId={jobId}
-            beat={beat}
-            onSaved={(text, voiceFile) => onBeatSaved(beat.id, text, voiceFile)}
-          />
-        ))
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {speakingBeats.map((beat) => (
+            <BeatLineEditor
+              key={beat.id}
+              styleId={styleId}
+              folderName={folderName}
+              jobId={jobId}
+              beat={beat}
+              onSaved={(text, voiceFile) => onBeatSaved(beat.id, text, voiceFile)}
+            />
+          ))}
+        </div>
       ) : (
         <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
           No dialogue in this shot — plays as a held shot.
@@ -347,8 +350,14 @@ function BeatLineEditor({
   const [voiceFile, setVoiceFile] = useState(beat.voiceFile || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [open, setOpen] = useState(false);
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
   const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
+  const audioSrc = voiceFile
+    ? `/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(
+        folderName,
+      )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(voiceFile)}`
+    : "";
 
   async function save() {
     setSaving(true);
@@ -370,50 +379,123 @@ function BeatLineEditor({
     }
   }
 
+  const squareBtn: CSSProperties = {
+    flex: "0 0 auto",
+    padding: "4px 8px",
+    borderRadius: "2px",
+    border: "1px solid var(--line)",
+    fontSize: "11px",
+    fontWeight: 600,
+    lineHeight: 1.2,
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <div style={{ fontSize: "12px", color: "var(--acid)", fontWeight: 700 }}>{beat.speaker}</div>
-      <MobileTextInput
-        value={text}
-        onChange={setText}
-        multiline
-        rows={2}
-        onAi={() => void lineAssist.runAssist()}
-        aiBusy={lineAssist.aiBusy}
-      />
-      {lineAssist.aiError ? (
-        <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{lineAssist.aiError}</div>
-      ) : null}
-      {voiceFile ? (
-        <audio
-          controls
-          style={{ width: "100%", height: "32px" }}
-          src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(
-            folderName,
-          )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(voiceFile)}`}
-        />
-      ) : (
-        <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>No line generated yet.</div>
-      )}
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+    <div
+      style={{
+        border: "1px solid var(--line)",
+        borderRadius: "2px",
+        background: "var(--panel-2)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "5px 6px",
+          minHeight: "32px",
+        }}
+      >
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={open ? `Hide ${beat.speaker}` : `Edit ${beat.speaker}`}
+          onClick={() => setOpen((v) => !v)}
+          style={{
+            ...squareBtn,
+            width: "22px",
+            padding: 0,
+            background: "transparent",
+            color: "var(--acid)",
+          }}
+        >
+          {open ? "▾" : "▸"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            alignItems: "baseline",
+            gap: "8px",
+            padding: 0,
+            border: "none",
+            background: "none",
+            textAlign: "left",
+            cursor: "pointer",
+          }}
+        >
+          <span
+            style={{
+              flex: "0 0 auto",
+              fontSize: "12px",
+              color: "var(--acid)",
+              fontWeight: 700,
+            }}
+          >
+            {beat.speaker}
+          </span>
+          {!open ? (
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontSize: "12px",
+                color: "var(--chrome-dim)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {text.trim() || "—"}
+            </span>
+          ) : null}
+        </button>
+        {audioSrc ? <BeatAudioMini src={audioSrc} compact /> : null}
         <button
           type="button"
           disabled={saving || (!dirty && Boolean(voiceFile))}
           onClick={() => void save()}
           style={{
-            padding: "8px 14px",
-            borderRadius: "8px",
-            border: "1px solid var(--line)",
+            ...squareBtn,
             background: dirty || !voiceFile ? "var(--acid)" : "transparent",
             color: dirty || !voiceFile ? "var(--void)" : "var(--chrome-dim)",
-            fontSize: "12px",
-            fontWeight: 600,
           }}
         >
-          {saving ? "Generating…" : voiceFile && !dirty ? "Saved" : "Save & hear it"}
+          {saving ? "…" : voiceFile && !dirty ? "Ok" : "Hear"}
         </button>
-        {error ? <span style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</span> : null}
       </div>
+      {open ? (
+        <div style={{ padding: "0 6px 6px", display: "flex", flexDirection: "column", gap: "6px" }}>
+          <MobileTextInput
+            value={text}
+            onChange={setText}
+            multiline
+            rows={2}
+            sharp
+            onAi={() => void lineAssist.runAssist()}
+            aiBusy={lineAssist.aiBusy}
+          />
+          {lineAssist.aiError ? (
+            <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{lineAssist.aiError}</div>
+          ) : null}
+          {error ? <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</div> : null}
+        </div>
+      ) : error ? (
+        <div style={{ padding: "0 6px 6px", fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</div>
+      ) : null}
     </div>
   );
 }

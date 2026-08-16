@@ -221,6 +221,7 @@ export function MobileTextInput({
   rows = 3,
   onAi,
   aiBusy,
+  sharp,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -229,6 +230,8 @@ export function MobileTextInput({
   rows?: number;
   onAi?: () => void;
   aiBusy?: boolean;
+  /** Square corners + tighter pad — line review, not the big episode box. */
+  sharp?: boolean;
 }) {
   const overlayAi = Boolean(onAi) && !multiline;
   const shared = {
@@ -239,9 +242,11 @@ export function MobileTextInput({
     style: {
       ...mobileCard,
       width: "100%",
-      padding: overlayAi ? "14px 52px 14px 14px" : "14px",
+      padding: sharp ? (overlayAi ? "8px 44px 8px 8px" : "8px") : overlayAi ? "14px 52px 14px 14px" : "14px",
+      borderRadius: sharp ? "2px" : mobileCard.borderRadius,
+      boxShadow: sharp ? "none" : mobileCard.boxShadow,
+      fontSize: sharp ? "13px" : "15px",
       color: "var(--chrome)",
-      fontSize: "15px",
       fontFamily: "inherit",
     } as React.CSSProperties,
   };
