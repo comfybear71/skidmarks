@@ -9,7 +9,7 @@ import {
 import { createCharacter, listCharacters } from "@/lib/characters";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
-import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { newId } from "@/lib/types";
 
 // One candidate at a time, not a batch to swipe through — a dud gets
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
       if (action === "generate") {
         const candidates = await generateCastCandidates(
           job.styleId,
-          job.folderName,
+          mobileMediaFolder(job),
           character.id,
           CANDIDATES_PER_BATCH,
           job.prompt,
@@ -151,7 +151,7 @@ export async function POST(req: Request) {
       if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
       const candidate = (job.castCandidates[target] || []).find((c) => c.id === candidateId);
       if (!candidate) return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
-      await approveCastCandidate(job.styleId, job.folderName, character.id, candidateId, candidate.fileName);
+      await approveCastCandidate(job.styleId, mobileMediaFolder(job), character.id, candidateId, candidate.fileName);
       const nextCandidates = (job.castCandidates[target] || []).map((c) => ({
         ...c,
         approved: c.id === candidateId,
@@ -169,7 +169,7 @@ export async function POST(req: Request) {
     if (action === "generate") {
       const candidates = await generateLocationCandidates(
         job.styleId,
-        job.folderName,
+        mobileMediaFolder(job),
         scene.placeName,
         body.customPrompt,
         CANDIDATES_PER_BATCH,
@@ -183,7 +183,7 @@ export async function POST(req: Request) {
 
     const candidateId = (body.candidateId || "").trim();
     if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
-    const thumbKey = await approveLocationCandidate(job.styleId, job.folderName, scene.placeName, candidateId);
+    const thumbKey = await approveLocationCandidate(job.styleId, mobileMediaFolder(job), scene.placeName, candidateId);
 
     // Patch the real story doc so the plates phase can find it — not just the
     // job doc. Nothing to patch yet during location_build (no pack, no

@@ -415,7 +415,7 @@ export default function MobileHomePage() {
           items={job.speakers}
           candidatesOf={(name) => job.castCandidates[name] || []}
           imageSrc={(name, c) =>
-            `/api/crash/mobile/cast-face?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&characterId=${encodeURIComponent(characterIds[name] || "")}&fileName=${encodeURIComponent(c.fileName)}`
+            `/api/crash/mobile/cast-face?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName || job.id)}&characterId=${encodeURIComponent(characterIds[name] || "")}&fileName=${encodeURIComponent(c.fileName)}`
           }
           onGenerate={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApprove={(name, candidateId) => approveCandidate("cast", name, candidateId)}
@@ -471,7 +471,7 @@ export default function MobileHomePage() {
           items={job.speakers}
           candidatesOf={(name) => job.castCandidates[name] || []}
           imageSrc={(name, c) =>
-            `/api/crash/mobile/cast-face?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&characterId=${encodeURIComponent(characterIds[name] || "")}&fileName=${encodeURIComponent(c.fileName)}`
+            `/api/crash/mobile/cast-face?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName || job.id)}&characterId=${encodeURIComponent(characterIds[name] || "")}&fileName=${encodeURIComponent(c.fileName)}`
           }
           onGenerate={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApprove={(name, candidateId) => approveCandidate("cast", name, candidateId)}
@@ -712,7 +712,7 @@ function PickedSoFar({
       src: (() => {
         const chosen = (job.castCandidates[name] || []).find((c) => c.approved);
         return chosen
-          ? `/api/crash/mobile/cast-face?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&characterId=${encodeURIComponent(characterIds[name] || "")}&fileName=${encodeURIComponent(chosen.fileName)}`
+          ? `/api/crash/mobile/cast-face?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName || job.id)}&characterId=${encodeURIComponent(characterIds[name] || "")}&fileName=${encodeURIComponent(chosen.fileName)}`
           : "";
       })(),
     }))

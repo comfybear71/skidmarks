@@ -77,6 +77,12 @@ export type MobileSceneRef = {
   worldThumbKey: string;
 };
 
+/** Blob folder for a run. Empty until the screenplay creates a pack —
+ *  use the job id so cast/location candidates still have a place to live. */
+export function mobileMediaFolder(job: { id: string; folderName: string }): string {
+  return job.folderName.trim() || job.id;
+}
+
 export type MobileGenJob = {
   id: string;
   styleId: ShowStyleId;
