@@ -31,6 +31,8 @@ import {
   buildGlobalPrompt,
   ltxSendPrompt,
   stripLtxLipSyncLead,
+  imageMotionUsableForLine,
+  looksLikePlatePositionPrompt,
 } from "@/lib/mobileImageMotion";
 
 export const runtime = "nodejs";
@@ -356,8 +358,17 @@ export async function POST(req: Request) {
           beats: storyShot.beats,
         });
         const stored = stripLtxLipSyncLead(beat.imageMotion || "");
+        if (looksLikePlatePositionPrompt(line)) {
+          throw new Error(
+            "The queued line is the still position, not speech. Wipe the line box, type what she says, Save, then Generate video.",
+          );
+        }
         const body =
-          (stored && !imageMotionNamesLeftovers(stored, leftovers) ? stored : "") ||
+          (stored &&
+          !imageMotionNamesLeftovers(stored, leftovers) &&
+          imageMotionUsableForLine(stored, line)
+            ? stored
+            : "") ||
           buildDefaultBeatMotion({
             styleId: job.styleId,
             speaker,
