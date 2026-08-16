@@ -17,14 +17,16 @@ import { getEnv } from "./env";
 import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { loadWorkflowTemplate } from "./workflowTemplates";
-import { clampLtxDurationSec } from "./ltxDuration";
+import { clampLtxDurationSec, LTX_MAX_DURATION_SEC } from "./ltxDuration";
 import { ltxSendPrompt } from "./mobileImageMotion";
 
 function estimateMp3DurationSec(filePath: string): number {
   try {
     const st = fs.statSync(filePath);
     const sec = (st.size * 8) / 128_000;
-    if (Number.isFinite(sec) && sec > 0.4 && sec < 120) return sec;
+    if (Number.isFinite(sec) && sec >= 0.4) {
+      return Math.min(sec, LTX_MAX_DURATION_SEC);
+    }
   } catch {
     /* ignore */
   }
@@ -240,7 +242,7 @@ export async function runLtxCloudIa2v(
 
   const outputs = await cloudWaitJob({
     promptId,
-    timeoutMs: 600_000,
+    timeoutMs: 1_200_000,
     pollMs: 2500,
     onPoll: ({ status, elapsedMs }) => {
       progress({

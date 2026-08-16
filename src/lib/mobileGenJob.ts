@@ -130,7 +130,7 @@ export type MobileGenJob = {
   clips: MobileClipUnit[];
   /**
    * 20 plate+LTX position tests — one locked character, one locked place.
-   * Older jobs omit this.
+   * Numbered T01–T40 with optional 1–5 scores. Older jobs omit this.
    */
   plateLtxCampaign?: PlateLtxCampaign;
   finalVideoFile: string;

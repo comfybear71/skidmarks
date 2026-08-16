@@ -36,7 +36,7 @@ import {
 } from "@/lib/mobileImageMotion";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 900;
 
 async function ensureComfyReady(): Promise<string> {
   // runLtxSmoke checks preferComfyCloudLtx() first and, when true, goes

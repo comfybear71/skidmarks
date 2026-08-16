@@ -15,8 +15,11 @@ import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import {
   CAMPAIGN_CLIP_COUNT,
   PLACEMENT_COUNT,
+  buildCampaignTests,
   campaignBeatTitle,
   campaignImageMotion,
+  campaignShotIdForBeat,
+  campaignShotIndexForBeat,
   campaignShotTitle,
   campaignStaging,
   expandCampaignLines,
@@ -25,15 +28,17 @@ import {
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
 
 export const runtime = "nodejs";
-export const maxDuration = 180;
+export const maxDuration = 300;
 
 /**
  * POST { action: "start", jobId, speaker, sceneId, lines }
  *   — mint 20 solo plates (one character, one place). Each plate gets a
- *     SHORT beat and a LONG beat. Does not wipe existing plates.
+ *     SHORT beat and a LONG beat. MCU + wide longs are the duration PUSH.
+ *     Does not wipe existing plates. Numbered tests T01–T40.
  * POST { action: "step", jobId }
- *   — one plate draw or one voice. Then queues 40 clips (20 poses × 2
- *     lengths) and sets phase animate.
+ *   — one plate draw or one voice. Then queues 40 clips and sets phase animate.
+ * POST { action: "score", jobId, testId, score, comment }
+ *   — save 1–5 + note on that numbered test (plating, distance, artifacts).
  */
 export async function POST(req: Request) {
   try {
@@ -43,6 +48,9 @@ export async function POST(req: Request) {
       speaker?: string;
       sceneId?: string;
       lines?: string | string[];
+      testId?: string;
+      score?: number;
+      comment?: string;
     };
     const jobId = (body.jobId || "").trim();
     const action = (body.action || "step").trim().toLowerCase();
@@ -50,6 +58,37 @@ export async function POST(req: Request) {
 
     const job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+    if (action === "score") {
+      const campaign = job.plateLtxCampaign;
+      if (!campaign) {
+        return NextResponse.json({ error: "No placement campaign on this job" }, { status: 400 });
+      }
+      const testId = (body.testId || "").trim().toUpperCase();
+      const test = (campaign.tests || []).find((t) => t.id === testId);
+      if (!test) {
+        return NextResponse.json({ error: "Unknown test id" }, { status: 400 });
+      }
+      const score = Number(body.score);
+      if (!Number.isFinite(score) || score < 1 || score > 5) {
+        return NextResponse.json({ error: "Score 1–5" }, { status: 400 });
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        plateLtxCampaign: {
+          ...campaign,
+          scores: {
+            ...(campaign.scores || {}),
+            [testId]: {
+              score: Math.round(score),
+              comment: String(body.comment || "").trim(),
+              at: new Date().toISOString(),
+            },
+          },
+        },
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
     if (!job.folderName) {
       return NextResponse.json({ error: "Lock the episode first" }, { status: 400 });
     }
@@ -86,6 +125,7 @@ export async function POST(req: Request) {
         );
       }
       const rawLines = expanded.lines;
+      const bands = expanded.bands;
 
       await hydrateMobilePackOnDisk(job.styleId, job.folderName);
       const story = await readMobileStory(job.styleId, job.folderName);
@@ -141,6 +181,12 @@ export async function POST(req: Request) {
         ),
       };
       await writeMobileStory(nextStory, job.folderName);
+      const tests = buildCampaignTests({
+        shotIds,
+        beatIds,
+        lines: rawLines,
+        bands,
+      });
       const campaign: PlateLtxCampaign = {
         speaker,
         sceneId,
@@ -148,6 +194,8 @@ export async function POST(req: Request) {
         shotIds,
         beatIds,
         lines: rawLines,
+        tests,
+        scores: {},
         phase: "plating",
       };
       const updated = await patchMobileGenJob(jobId, {
@@ -261,7 +309,7 @@ export async function POST(req: Request) {
     const failed = new Set(campaign.voicedFailed || []);
     const nextVoice = campaign.beatIds.findIndex((beatId, i) => {
       if (failed.has(beatId)) return false;
-      const shotId = campaign.shotIds[i]!;
+      const shotId = campaignShotIdForBeat(campaign, i);
       const shot = job.shots.find((s) => s.shotId === shotId);
       if (!shot?.plateFile || shot.plateFile === "__error__") return false;
       for (const sc of story.scenes) {
@@ -276,7 +324,7 @@ export async function POST(req: Request) {
       const pending: MobileClipUnit[] = [];
       for (let i = 0; i < campaign.beatIds.length; i++) {
         const beatId = campaign.beatIds[i]!;
-        const shotId = campaign.shotIds[i]!;
+        const shotId = campaignShotIdForBeat(campaign, i);
         const shot = job.shots.find((s) => s.shotId === shotId);
         if (!shot?.plateFile || shot.plateFile === "__error__") continue;
         let voiceFile = "";
@@ -355,7 +403,7 @@ export async function POST(req: Request) {
                 ? {
                     ...b,
                     imageMotion: campaignImageMotion({
-                      index: Math.floor(nextVoice / 2),
+                      index: campaignShotIndexForBeat(nextVoice),
                       styleId: job.styleId,
                       speaker,
                       line,
@@ -394,7 +442,10 @@ export async function POST(req: Request) {
         ok: true,
         job,
         advanced: true,
-        voiced: campaignBeatTitle(nextVoice),
+        voiced: campaignBeatTitle(
+          nextVoice,
+          campaign.tests?.[nextVoice]?.band,
+        ),
       });
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
@@ -402,7 +453,7 @@ export async function POST(req: Request) {
         plateLtxCampaign: {
           ...campaign,
           voicedFailed: [...(campaign.voicedFailed || []), beatId],
-          error: `${campaignBeatTitle(nextVoice)} voice failed — ${detail}`,
+          error: `${campaignBeatTitle(nextVoice, campaign.tests?.[nextVoice]?.band)} voice failed — ${detail}`,
         },
       });
       return NextResponse.json({ ok: true, job: updated, advanced: true });
