@@ -544,6 +544,12 @@ export const CAMPAIGN_SPEECH: string[] = [
     "I've got heaps of knives and forks and cooking utensils, so no need to buy more there. IDK about the micro and air fryer. You'll have to ask Jason how he feels about everyone using those.",
   ),
   oneLine("Thank you Both so much. Xoxoxoxozo"),
+  oneLine(
+    "Hey hun. Would you mind pls passing this message onto Laddiwan for me. She's blocked my number. It's very dangerous tying her dog up out the front. I almost ran him over myself one day. She had him tied up to the treadmill, but right where I park my car. Thanks you.",
+  ),
+  oneLine(
+    "Hey Laddiwan. Would you please put your dog out the back. I'm having a lay down and he's barking. It's also very dangerous tying him up out the front. He could easily get run over. Thank you.",
+  ),
 ];
 
 if (CAMPAIGN_SPEECH.length < 26) {
