@@ -228,7 +228,7 @@ export async function POST(req: Request) {
                         ...sh,
                         beats,
                         title: cast.join(", ") || sh.title,
-                        staging: sh.staging?.trim() || `${cast.join(", ")} · ${scene!.placeName}`,
+                        staging: sh.staging?.trim() || "",
                       }
                     : sh,
                 ),
