@@ -528,6 +528,13 @@ export const CAMPAIGN_SPEECH: string[] = [
   ),
   oneLine("An acknowledgment and some respect and understanding would be nice."),
   oneLine("I just had it out with her in the kitchen. She needs to go."),
+  oneLine("I've sent this to Jummie."),
+  oneLine(
+    "Stuie, she's ok to chat to, but she's not a good fit for here. I've been there Bub and I can tell you know, she's where I was a few years back. It's sad. I hope she finds somewhere that fits, but it isn't here.",
+  ),
+  oneLine(
+    "Hi Jummie. Very disappointed with your new tenant. She has her boyfriend here again today. He stayed last night and he's back again today. This woman is nice to chat to, but she's a drug user and so is her boyfriend. She has had mental illness issues and she doesn't work and she's up all night walking around and making noise and making food at 1 am in the morning. This is unacceptable Jummie. We don't want people like that here. It's just like Chris. I don't want drug addicts in the house. She's got her boyfriend here again today and looks like he is staying the night again. This is totally unacceptable. There are way too many people in this house already. We are good, quiet and drug free people and these people are not good people. Most people work here and are asleep early and don't have boyfriends here. This is not the type of person we need in the house. It is unfair to us existing, long term good tenants. I wish you would please wait until the get the right person to rent that room out. It is very stressful for me and I don't feel safe having people like that around me. I She has to go Jummie. Her boyfriend is not happy where he is living and she wants him to stay here. It's totally unacceptable. We have a child downstairs and it's totally unacceptable to have people like that around a child. They've taken over the back veranda. Smoking and taking out there all night above Laddiwan. No privacy for her and the noise will eventually and lack of privacy will get to her.",
+  ),
 ];
 
 if (CAMPAIGN_SPEECH.length < 26) {
