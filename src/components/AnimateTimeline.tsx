@@ -1534,7 +1534,9 @@ export function AnimateTimeline({
                 const slot = beat.speaker.trim()
                   ? findVoiceSlot(beat.speaker, voiceSlots)
                   : undefined;
-                const locked = Boolean(slot?.approvedAttemptId);
+                const locked = Boolean(
+                  slot?.approvedVoiceId?.trim() || slot?.approvedAttemptId,
+                );
                 const audioSrc = beat.voiceFile
                   // The GET handler in story/speak/route.ts only reads "f" or
                   // "voiceFile" — "t" was silently ignored, so this always fell
@@ -1582,19 +1584,20 @@ export function AnimateTimeline({
                             </option>
                           ))}
                         </select>
-                        {locked ? (
+                        {beat.speaker ? (
                           <button
                             type="button"
                             disabled={!beat.text.trim() || Boolean(mp3BusyId)}
                             onClick={() => void genMp3(beat)}
+                            title={
+                              locked
+                                ? "Generate mp3 for this line"
+                                : "No local lock — reuses an ElevenLabs library voice"
+                            }
                             className="w-full rounded-sm border border-[var(--magenta-hot)] px-1 py-1 text-[11px] uppercase text-[var(--magenta-hot)] disabled:opacity-40"
                           >
                             {mp3Busy ? "Gen…" : "Gen mp3"}
                           </button>
-                        ) : beat.speaker ? (
-                          <span className="text-[11px] text-[var(--mute)]">
-                            no voice lock
-                          </span>
                         ) : null}
                         {audioSrc ? (
                           <audio

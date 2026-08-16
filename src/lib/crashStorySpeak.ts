@@ -14,6 +14,7 @@ import { CRASH_DIR } from "./paths";
 import { elevenKeyPresent, synthesizeSpeech } from "./elevenLabs";
 import { sanitizeDialogueForSpeech } from "./sanitizeDialogue";
 import type { ShowStyleId } from "./showStylePresets";
+import { assignReusedVoice } from "./mobileVoiceReuse";
 
 /** ElevenLabs stock Adam — one-shot unblock only. Never write onto cast. */
 const STOCK_FALLBACK_VOICE_ID = "pNInz6obpgDQGcFmaJgB";
@@ -162,7 +163,13 @@ export async function synthesizeStoryBeat(opts: {
   const text = sanitizeDialogueForSpeech(opts.text.trim());
   if (!text) throw new Error("Write a line first");
 
-  const slot = findCrashVoiceByName(opts.styleId, opts.speaker);
+  let slot = findCrashVoiceByName(opts.styleId, opts.speaker);
+  if (!slot?.approvedVoiceId?.trim()) {
+    // Vercel /tmp has no voice manifest. Reuse an ElevenLabs library voice
+    // already on the account — do not design a new one, do not lock Adam.
+    await assignReusedVoice(opts.styleId, opts.speaker);
+    slot = findCrashVoiceByName(opts.styleId, opts.speaker);
+  }
   if (!slot) {
     throw new Error(
       `No voice for ${opts.speaker} — add them in Characters for this show`,

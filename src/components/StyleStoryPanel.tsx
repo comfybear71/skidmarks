@@ -519,7 +519,9 @@ function BeatRow({
     ? findVoiceSlotForSpeaker(beat.speaker, voiceSlots)
     : undefined;
   const isNuggets = beat.speaker.toLowerCase().includes("nugget");
-  const locked = Boolean(voiceSlot?.approvedAttemptId);
+  const locked = Boolean(
+    voiceSlot?.approvedVoiceId?.trim() || voiceSlot?.approvedAttemptId,
+  );
   // The GET handler only reads "f"/"voiceFile" — "t" was silently ignored,
   // so playback always fell back to guessing "<beatId>.mp3".
   const audioSrc = beat.voiceFile
@@ -572,23 +574,20 @@ function BeatRow({
               </option>
             ))}
           </select>
-          {locked ? (
+          {beat.speaker ? (
             <button
               type="button"
               disabled={busy || !beat.text.trim()}
-              title="Generate mp3 for this line"
+              title={
+                locked
+                  ? "Generate mp3 for this line"
+                  : "No local lock — reuses an ElevenLabs library voice"
+              }
               className="w-full rounded-sm border border-[var(--magenta-hot)] bg-[var(--magenta)]/15 px-1 py-0.5 text-[10px] uppercase tracking-wide text-[var(--magenta-hot)] disabled:opacity-40"
               onClick={() => void genMp3()}
             >
               {busy ? "…" : "Gen mp3"}
             </button>
-          ) : beat.speaker ? (
-            <span
-              className="text-[9px] text-[var(--chrome-dim)]"
-              title="Lock voice in Voice panel"
-            >
-              no voice
-            </span>
           ) : null}
           {audioSrc ? <BeatAudioMini src={audioSrc} /> : null}
         </div>

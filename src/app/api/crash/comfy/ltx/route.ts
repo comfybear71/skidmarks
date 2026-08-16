@@ -250,11 +250,25 @@ export async function POST(req: Request) {
     );
   }
 
-  const audioPath = resolveBeatAudioPath(
+  let audioPath = resolveBeatAudioPath(
     styleId,
     row.beatId,
     row.voiceFile,
   );
+  if (!audioPath && row.voiceFile) {
+    const pack = cloudStoreEnabled()
+      ? await cloudActivePack(styleId)
+      : readActivePack();
+    if (pack?.folderName) {
+      audioPath = await resolveMobileMedia({
+        styleId,
+        folderName: pack.folderName,
+        kind: "audio",
+        fileName: row.voiceFile,
+        destPath: path.join(CRASH_DIR, "story", styleId, "dialogue", row.voiceFile),
+      });
+    }
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
