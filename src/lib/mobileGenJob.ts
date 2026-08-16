@@ -84,6 +84,8 @@ export type MobileGenJob = {
   styleId: ShowStyleId;
   folderName: string;
   prompt: string;
+  /** Leftover from the old "How long?" step. Not a planning input —
+   * runtime comes from voiced lines + plates. Kept so older jobs still parse. */
   targetDurationSec: number;
   secondsPerShot: number;
   /** Cartoon 0 <-> photo 100, same scale as the desktop Image gen slider.

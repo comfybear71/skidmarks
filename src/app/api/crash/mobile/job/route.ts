@@ -6,7 +6,9 @@ export const runtime = "nodejs";
 
 const DEFAULT_SECONDS_PER_SHOT = 5;
 
-/** POST { prompt, styleId, targetDurationSec, secondsPerShot? } — create a new mobile run. */
+/** POST { prompt, styleId, styleRealism? } — create a new mobile run.
+ * Runtime is not chosen here. Clip length comes from the voiced lines
+ * and plates once those exist; the script is sized from the locations. */
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
@@ -24,10 +26,9 @@ export async function POST(req: Request) {
     if (!styleId) {
       return NextResponse.json({ error: "Need a valid styleId" }, { status: 400 });
     }
-    const targetDurationSec = Number(body.targetDurationSec);
-    if (!Number.isFinite(targetDurationSec) || targetDurationSec <= 0) {
-      return NextResponse.json({ error: "Need targetDurationSec" }, { status: 400 });
-    }
+    // Kept on the job doc so older runs still parse. No longer a planning input.
+    const targetDurationSec =
+      Number(body.targetDurationSec) > 0 ? Number(body.targetDurationSec) : 0;
     const secondsPerShot =
       Number(body.secondsPerShot) > 0 ? Number(body.secondsPerShot) : DEFAULT_SECONDS_PER_SHOT;
 

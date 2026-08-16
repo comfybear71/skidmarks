@@ -11,6 +11,7 @@ import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
 import { allCastApproved, allLocationsApproved } from "@/lib/mobileJobReady";
+import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
@@ -30,7 +31,7 @@ function castFaceUrl(
 }
 
 function locationStillUrl(job: MobileGenJob, fileName: string): string {
-  return `/api/crash/gen/file?name=${encodeURIComponent(fileName)}`;
+  return mobileLocationStillUrl(job, fileName);
 }
 
 function TreeBranch({

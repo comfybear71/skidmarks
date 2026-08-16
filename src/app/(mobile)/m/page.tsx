@@ -14,15 +14,7 @@ import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 
-type LocalStep = "prompt" | "style" | "duration";
-
-const DURATION_PRESETS = [
-  { label: "Quick", seconds: 60 },
-  { label: "Short", seconds: 5 * 60 },
-  { label: "Standard", seconds: 10 * 60 },
-  { label: "Long", seconds: 20 * 60 },
-];
-const SECONDS_PER_SHOT = 5; // matches Stuie's real 2-7s Comfy clips
+type LocalStep = "prompt" | "style";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -47,7 +39,6 @@ export default function MobileHomePage() {
   // drag away. Once the slider's been touched by hand it stays put; only an
   // untouched slider still takes a preset's default.
   const [realismTouched, setRealismTouched] = useState(false);
-  const [targetDurationSec, setTargetDurationSec] = useState(60);
 
   const [job, setJob] = useState<MobileGenJob | null>(null);
   const [busy, setBusy] = useState(false);
@@ -154,8 +145,6 @@ export default function MobileHomePage() {
         prompt,
         styleId,
         styleRealism,
-        targetDurationSec,
-        secondsPerShot: SECONDS_PER_SHOT,
       });
       setJob(created);
     } catch (e) {
@@ -163,7 +152,7 @@ export default function MobileHomePage() {
     } finally {
       setBusy(false);
     }
-  }, [prompt, styleId, styleRealism, targetDurationSec]);
+  }, [prompt, styleId, styleRealism]);
 
   const genCandidates = useCallback(
     async (kind: "cast" | "location", target: string, customPrompt?: string) => {
@@ -256,7 +245,6 @@ export default function MobileHomePage() {
   }, [job]);
 
   const preset = SHOW_STYLE_PRESETS.find((p) => p.id === styleId) || SHOW_STYLE_PRESETS[0]!;
-  const shotEstimate = Math.max(1, Math.round(targetDurationSec / SECONDS_PER_SHOT));
 
   return (
     <main style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
@@ -264,7 +252,7 @@ export default function MobileHomePage() {
       {!job && localStep !== "prompt" ? (
         <CompletedTrail
           prompt={prompt || undefined}
-          style={localStep === "duration" ? preset.label : undefined}
+          style={preset.label}
         />
       ) : null}
 
@@ -350,37 +338,6 @@ export default function MobileHomePage() {
           </div>
 
           <div style={{ marginTop: "16px" }}>
-            <MobilePrimaryButton onClick={() => setLocalStep("duration")}>Next</MobilePrimaryButton>
-          </div>
-        </ActiveStepPanel>
-      )}
-
-      {/* Step 3: Duration */}
-      {!job && localStep === "duration" && (
-        <ActiveStepPanel title="How long?" subtitle={`~${shotEstimate} short clips stitched together, ~${SECONDS_PER_SHOT}s each.`}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {DURATION_PRESETS.map((d) => (
-              <button
-                key={d.label}
-                type="button"
-                onClick={() => setTargetDurationSec(d.seconds)}
-                style={{
-                  ...(d.seconds === targetDurationSec ? mobileCardSelected : mobileCard),
-                  textAlign: "left",
-                  padding: "14px",
-                  color: "var(--chrome)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span style={{ fontWeight: 700 }}>{d.label}</span>
-                <span style={{ color: "var(--chrome-dim)" }}>
-                  {d.seconds < 60 ? `${d.seconds}s` : `${d.seconds / 60} min`}
-                </span>
-              </button>
-            ))}
-          </div>
-          <div style={{ marginTop: "16px" }}>
             <MobilePrimaryButton disabled={busy} onClick={() => void startRun()}>
               {busy ? "Starting…" : "Start directing"}
             </MobilePrimaryButton>
@@ -411,19 +368,18 @@ export default function MobileHomePage() {
   );
 }
 
-/** Prompt/Style/Duration used to be three full-width rows eating the top of
- * the screen before anything else could show — one line, tap to expand. */
+/** Prompt/Style used to be full-width rows eating the top of the screen
+ * before anything else could show — one line, tap to expand. Runtime is
+ * not a planning step; it comes from the voiced lines and plates. */
 function CompletedTrail({
   prompt,
   style,
-  duration,
 }: {
   prompt?: string;
   style?: string;
-  duration?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const parts = [prompt, style, duration].filter(Boolean) as string[];
+  const parts = [prompt, style].filter(Boolean) as string[];
   if (!parts.length) return null;
 
   return (
@@ -472,7 +428,6 @@ function CompletedTrail({
         <div style={{ paddingBottom: "4px" }}>
           {prompt ? <CompletedStepRow title="Prompt" summary={prompt} /> : null}
           {style ? <CompletedStepRow title="Style" summary={style} /> : null}
-          {duration ? <CompletedStepRow title="Duration" summary={duration} /> : null}
         </div>
       ) : null}
     </div>
