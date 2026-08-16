@@ -71,7 +71,7 @@ export function ActiveStepPanel({
   subtitle,
   children,
 }: {
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   children: ReactNode;
 }) {
@@ -99,6 +99,34 @@ export function ActiveStepPanel({
         {children}
       </div>
     </div>
+  );
+}
+
+/** A gradient sweep through the text instead of a flat color or opacity
+ * pulse — used on in-progress status labels ("Generating…", "Casting
+ * voices…") so a long unattended phase still reads as alive, not stalled. */
+export function ShimmerText({
+  children,
+  style,
+}: {
+  children: ReactNode;
+  style?: CSSProperties;
+}) {
+  return (
+    <span
+      style={{
+        backgroundImage:
+          "linear-gradient(90deg, var(--chrome-dim) 0%, var(--acid) 50%, var(--chrome-dim) 100%)",
+        backgroundSize: "200% auto",
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        color: "transparent",
+        animation: "mobileShimmerText 2200ms linear infinite",
+        ...style,
+      }}
+    >
+      {children}
+    </span>
   );
 }
 

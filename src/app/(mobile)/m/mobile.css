@@ -8,3 +8,9 @@
     transform: translateY(0);
   }
 }
+
+@keyframes mobileShimmerText {
+  to {
+    background-position: -200% 0;
+  }
+}
