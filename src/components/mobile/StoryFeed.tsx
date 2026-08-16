@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { mobileCard } from "./MobileUi";
+import { mobileCard, mobileMediaFrame } from "./MobileUi";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 
 /**
@@ -180,7 +180,7 @@ function ClipCard({
         <video
           controls
           playsInline
-          style={{ width: "100%", borderRadius: "8px", marginBottom: "8px" }}
+          style={{ ...mobileMediaFrame, marginBottom: "8px" }}
           src={`/api/crash/mobile/clip?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&fileName=${encodeURIComponent(clip.clipFile.split(/[\\/]/).pop() || clip.clipFile)}`}
         />
       ) : null}

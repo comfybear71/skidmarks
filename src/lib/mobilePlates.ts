@@ -195,8 +195,7 @@ export async function compositeShotPlate(
     : "";
   const staging =
     shot.staging?.trim() ||
-    shot.summary?.trim() ||
-    "People inhabit the place — sitting, leaning, walking, using the furniture.";
+    "People inhabit the place — sitting, leaning, presenting, using the furniture.";
 
   let currentBg = bgPath;
   let chainPass = false;

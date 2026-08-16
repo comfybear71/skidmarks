@@ -1,4 +1,5 @@
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
+import { ASSIST_CONSENT_LOCK } from "./mobileAssistConsent";
 
 export const ASSIST_KINDS = [
   "vibe",
@@ -28,7 +29,8 @@ function house(styleId: ShowStyleId): string {
     `You write short production text for "${p.label}".`,
     look,
     "English and Australian comic taste. Never American sitcom warmth.",
-    "Positive phrasing only. Never write no/not — naming a thing puts it in the picture.",
+    "Positive phrasing only in visual boxes. Naming a thing puts it in the picture.",
+    ASSIST_CONSENT_LOCK,
     "Reply with the contents of the one box. No preamble, no headings, no markdown, no quote marks around the whole reply.",
   ].join("\n");
 }
@@ -71,14 +73,16 @@ Spoken line.
 - You may add more shots at the same Place. This is a full episode, not a 4-shot gag.
 - Use ONLY the locked cast names. Do not invent people.
 - Every Place: must be one of the locked places, spelled exactly.
-- Include a Plate: line on every shot — who sits, leans, walks, uses the furniture. Never a lineup of people standing in the foreground.
+- Include a Plate: line on every shot — who sits, leans, walks, presents, uses the furniture. Willing bodies. Never a lineup in the foreground. Never pinning or holding someone down.
 - If the box already has a draft, refine it — keep what works, fix what is weak. Do not throw the whole thing away unless it is an empty template.
 - ElevenLabs tags in square brackets are allowed on lines: [grunts] [smugly].`,
 
   plate: `WRITE: how people sit in this still — one or two sentences for the plate compositor.
-- Who is where. Sitting, leaning, walking through, using the bar or furniture.
+- Who is where. Sitting, leaning, walking through, presenting, using the bar or furniture.
 - Name the locked people and the place. Matching light.
-- Never a lineup of faces standing in the foreground like cutouts.`,
+- Everyone is into it. Hands on hips, climbing on, looking back grinning.
+- Never a lineup of faces standing in the foreground like cutouts.
+- Never pinning, holding someone down, or forced sex.`,
 };
 
 export function assistSystem(styleId: ShowStyleId, kind: AssistKind): string {

@@ -7,6 +7,7 @@ import {
   MobileTextInput,
   ShimmerText,
   mobileCard,
+  mobileMediaFrame,
 } from "./MobileUi";
 import { episodeTemplateFromJob } from "@/lib/mobilePasteParse";
 import { useMobileAssist } from "./useMobileAssist";
@@ -711,7 +712,7 @@ export function StudioTree({
         ? `Place · ${scene.placeName}: ${look}`
         : `Place · ${scene.placeName}: (picked, no words saved)`;
     }),
-    "Every shot needs a Plate: line — who sits, leans, walks. Not a lineup in the foreground.",
+    "Every shot needs a Plate: line — who sits, leans, presents. Willing bodies. Not a lineup. Not pinning anyone down.",
   ].join("\n");
   const episodeAssist = useMobileAssist(
     "episode",
@@ -1004,7 +1005,7 @@ export function StudioTree({
               src={`/api/crash/mobile/final?jobId=${job.id}`}
               controls
               playsInline
-              style={{ width: "100%", borderRadius: "12px", background: "#000" }}
+              style={{ ...mobileMediaFrame }}
             />
           </div>
         ) : null}

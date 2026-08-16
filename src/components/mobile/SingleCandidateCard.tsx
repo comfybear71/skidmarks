@@ -123,12 +123,12 @@ export function SingleCandidateCard({
           style={{
             flex: 1,
             padding: "14px",
-            borderRadius: "10px",
+            borderRadius: "2px",
             border: "1px solid var(--line)",
             background: "transparent",
             color: busy ? "var(--chrome-dim)" : "var(--chrome)",
             fontWeight: 600,
-            fontSize: "14px",
+            fontSize: "13px",
           }}
         >
           {busy ? "Generating…" : "Not this one"}
@@ -140,12 +140,12 @@ export function SingleCandidateCard({
           style={{
             flex: 1,
             padding: "14px",
-            borderRadius: "10px",
+            borderRadius: "2px",
             border: "none",
             background: candidate.approved ? "var(--panel-2)" : "var(--acid)",
             color: candidate.approved ? "var(--chrome-dim)" : "var(--void)",
             fontWeight: 600,
-            fontSize: "14px",
+            fontSize: "13px",
           }}
         >
           {candidate.approved ? "Picked ✓" : "Pick this one"}
