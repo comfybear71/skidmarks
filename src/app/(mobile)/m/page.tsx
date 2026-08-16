@@ -73,8 +73,16 @@ export default function MobileHomePage() {
   // deliberately not here — it waits on Generate video, not a timer.
   // Stitch is parked (MOBILE_STITCH_MOVIES); LTX still runs.
   useEffect(() => {
+    const campaignWork =
+      job?.plateLtxCampaign?.phase === "plating" ||
+      job?.plateLtxCampaign?.phase === "voicing";
     const autoPhases = ["plates", "animate"];
-    if (!job || !autoPhases.includes(job.phase)) {
+    const url = campaignWork
+      ? "/api/crash/mobile/campaign"
+      : job && autoPhases.includes(job.phase)
+        ? "/api/crash/mobile/step"
+        : null;
+    if (!job || !url) {
       stopPoll();
       return;
     }
@@ -84,12 +92,13 @@ export default function MobileHomePage() {
     // copies of the same phase ran at once, which is what tripped ElevenLabs'
     // 5-concurrent-request limit.
     let inFlight = false;
-    pollRef.current = window.setInterval(async () => {
+    const tick = async () => {
       if (inFlight) return;
       inFlight = true;
       try {
-        const data = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/step", {
+        const data = await postJson<{ job: MobileGenJob }>(url, {
           jobId: job.id,
+          ...(url.endsWith("/campaign") ? { action: "step" } : {}),
         });
         setJob(data.job);
         if (data.job.error) setError(data.job.error);
@@ -100,10 +109,14 @@ export default function MobileHomePage() {
       } finally {
         inFlight = false;
       }
+    };
+    void tick();
+    pollRef.current = window.setInterval(() => {
+      void tick();
     }, 1500);
     return stopPoll;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job?.phase, job?.id]);
+  }, [job?.phase, job?.id, job?.plateLtxCampaign?.phase]);
 
   useEffect(() => {
     const id = readResumedJobId(window.location.search, window.localStorage);

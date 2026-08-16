@@ -272,6 +272,15 @@ export async function POST(req: Request) {
         }
         job = (await patchMobileGenJob(jobId, {
           phase: phaseAfterAnimateQueue(false),
+          ...(job.plateLtxCampaign?.phase === "animating"
+            ? {
+                plateLtxCampaign: {
+                  ...job.plateLtxCampaign,
+                  phase: "done" as const,
+                  error: "",
+                },
+              }
+            : {}),
         }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }

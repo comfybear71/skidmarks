@@ -12,6 +12,36 @@ import { sortableId } from "@/lib/types";
 
 export { PLATE_FACES_PER_PASS } from "@/lib/plateConstants";
 
+/** Position box can override the default medium / dead-centre solo crop. */
+export function plateFramingLine(opts: {
+  n: number;
+  chainPass: boolean;
+  tweak: string;
+}): string {
+  const t = opts.tweak.toLowerCase();
+  if (opts.n === 1 && !opts.chainPass) {
+    if (/\b(tight close-up|close-up of the face|face fills)\b/.test(t)) {
+      return "CLOSE-UP framing: face fills the frame, shoulders barely visible, huge and near the camera. Keep the locked place from image 1 as a shallow backdrop. Do not invent a second person.";
+    }
+    if (
+      /\b(medium close-up|\bmcu\b|head and shoulders|fill the frame|closer to the camera|huge and near)\b/.test(
+        t,
+      )
+    ) {
+      return "MEDIUM CLOSE-UP framing: head and shoulders fill the frame, figure huge and near the camera, crop the waist and legs. Keep the locked place from image 1 behind them. Do not pull back to a distant full-body. Do not invent a second person.";
+    }
+    if (
+      /\b(wide full-body|wide shot|head to toe|lots of the place|lots of .{0,40} around)\b/.test(
+        t,
+      )
+    ) {
+      return "WIDE full-body framing: head to toe, plenty of the locked place visible, figure smaller in frame. Keep the locked place from image 1 behind them. Still only one person.";
+    }
+    return "MEDIUM SHOT framing: figure large in frame, dead centre horizontally. Keep the locked place from image 1 behind them. One person only.";
+  }
+  return "Wide enough to show everyone clearly — full figures preferred, same camera as the locked place. Keep the locked place from image 1 behind them.";
+}
+
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
@@ -56,18 +86,21 @@ function buildPlatePrompt(opts: {
     ? "Image 1 is the CURRENT scene — keep EVERY person already in image 1 exactly as they are (same faces, clothes, positions). Do not remove, replace, or reposition anyone already there."
     : "Image 1 is the LOCKED background — keep that exact place, lighting and materials. Do not move the camera. Do not replace the location with a photo street. Remove any people or crowds already in image 1 — empty place only.";
 
+  const poseLine =
+    "Keep the EXACT body pose from image 2 unless the tweak names a pose, crop, clothes, or held prop — then use the tweak. Same face from image 2. Do not invent a second person.";
+
   const peopleLines =
     n === 1
       ? chainPass
         ? [
             "Image 2 is a NEW person — same face identity, hair, age and body from image 2. Do not turn them into a different person.",
             "Add that person into image 1 alongside everyone already there.",
-            "Keep the EXACT body pose from image 2 unless the tweak asks otherwise.",
+            poseLine,
           ]
         : [
             "Image 2 is the person — same face identity, hair, age and body from image 2. Do not turn them into a different person.",
             "Place that same person from image 2 into image 1.",
-            "Keep the EXACT body pose from image 2 unless the tweak asks otherwise.",
+            poseLine,
             "One person only. Only that person in frame, no one else appears. Empty of extra people and animals.",
           ]
       : chainPass
@@ -83,10 +116,7 @@ function buildPlatePrompt(opts: {
             `Exactly ${n} people — no extras.`,
           ];
 
-  const framing =
-    n === 1 && !chainPass
-      ? "MEDIUM SHOT framing: figure large in frame, dead centre horizontally. Keep the locked place from image 1 behind them."
-      : "Wide enough to show everyone clearly — full figures preferred, same camera as the locked place. Keep the locked place from image 1 behind them.";
+  const framing = plateFramingLine({ n, chainPass, tweak });
 
   return [
     look,
