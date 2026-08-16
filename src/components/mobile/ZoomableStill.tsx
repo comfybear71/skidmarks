@@ -13,6 +13,7 @@ function CharacterPlateRibbon({ src, tall }: { src: string; tall?: boolean }) {
         bottom: 0,
         height: tall ? "72px" : "52px",
         background: "rgba(0,0,0,0.72)",
+        borderTop: "1px solid var(--acid)",
         pointerEvents: "none",
       }}
     >
@@ -111,6 +112,7 @@ export function ZoomableStill({
           cursor: "zoom-in",
           background: "var(--void)",
           height: fit === "cover" ? height : "auto",
+          minHeight: referenceSrc ? 160 : undefined,
           ...style,
         }}
       >
