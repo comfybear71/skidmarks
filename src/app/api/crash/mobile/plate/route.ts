@@ -312,14 +312,10 @@ export async function POST(req: Request) {
     scene = nextStory.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId))!;
     shot = scene.shots.find((sh) => sh.id === shotId)!;
 
-    const talking = new Set(
-      nextStory.scenes.flatMap((sc) =>
-        sc.shots.flatMap((sh) => sh.beats.map((b) => b.speaker.trim()).filter(Boolean)),
-      ),
-    );
-    const silentCast = job.speakers.filter((n) => n.trim() && !talking.has(n.trim()));
+    // Only people already on THIS shot. Feeding the rest of the job as
+    // silent extras is how a Jo-solo test kept drawing the old crowd.
     const fileName = await compositeShotPlate(job.styleId, scene, shot, {
-      silentCast,
+      silentCast: [],
       styleRealism: job.styleRealism,
       job,
     });
