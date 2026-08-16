@@ -155,8 +155,12 @@ function imageMotionCitesLine(motion: string, line: string): boolean {
 export function imageMotionUsableForLine(motion: string | undefined, line: string): boolean {
   const existing = stripLtxLipSyncLead(motion || "");
   if (!existing) return false;
-  if (looksLikePlatePositionPrompt(existing)) return false;
   if (looksLikePlatePositionPrompt(line)) return false;
+  // Gold / campaign motion includes "Only NAME in frame" on purpose. That is
+  // not a dumped Position box — dump has no NAME says: "line".
+  if (looksLikePlatePositionPrompt(existing) && !imageMotionCitesLine(existing, line)) {
+    return false;
+  }
   return imageMotionCitesLine(existing, line);
 }
 

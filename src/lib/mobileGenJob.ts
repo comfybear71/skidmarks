@@ -7,6 +7,7 @@ import { readMobileJobRow, saveMobileJobRow } from "./neonStore";
 import type { ShowStyleId } from "./showStylePresets";
 import type { ScriptCharacterData } from "./types";
 import { jobVoiceForSpeaker, withJobSpeakerVoice } from "./mobileJobVoices";
+import type { PlateLtxCampaign } from "./mobilePlateLtxCampaign";
 
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
 
@@ -127,6 +128,11 @@ export type MobileGenJob = {
   >;
   shots: MobileShotUnit[];
   clips: MobileClipUnit[];
+  /**
+   * 20 plate+LTX position tests — one locked character, one locked place.
+   * Numbered T01–T40 with optional 1–5 scores. Older jobs omit this.
+   */
+  plateLtxCampaign?: PlateLtxCampaign;
   finalVideoFile: string;
   error: string;
   createdAt: string;

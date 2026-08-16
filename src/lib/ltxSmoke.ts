@@ -23,7 +23,7 @@ import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { activePackDir } from "./crashActivePack";
 import { loadWorkflowTemplate } from "./workflowTemplates";
-import { LTX_FPS, ltxDurationFrames } from "./ltxDuration";
+import { LTX_FPS, LTX_MAX_DURATION_SEC, ltxDurationFrames } from "./ltxDuration";
 
 const HOTFIX_FILE = "LTX_Director_2_Workflow_Hotfix.json";
 
@@ -116,7 +116,9 @@ export function estimateMp3DurationSec(filePath: string): number {
     const st = fs.statSync(filePath);
     // Assume ~128 kbps if unknown
     const sec = (st.size * 8) / (128_000);
-    if (Number.isFinite(sec) && sec > 0.4 && sec < 120) return sec;
+    if (Number.isFinite(sec) && sec >= 0.4) {
+      return Math.min(sec, LTX_MAX_DURATION_SEC);
+    }
   } catch {
     /* ignore */
   }

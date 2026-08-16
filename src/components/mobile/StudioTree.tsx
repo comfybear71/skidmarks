@@ -14,6 +14,7 @@ import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
+import { PlateLtxCampaignCard } from "./PlateLtxCampaignCard";
 import { StoryFeed } from "./StoryFeed";
 import {
   allCastApproved,
@@ -862,6 +863,9 @@ export function StudioTree({
             {vibePreset.label} · {vibeRealism} · {styleRealismLabel(vibeRealism)}
           </div>
         </div>
+        {job.folderName && job.speakers.length && job.scenes.length ? (
+          <PlateLtxCampaignCard job={job} onJobChange={onJobChange} />
+        ) : null}
       </TreeBranch>
 
       <TreeBranch label="Cast" headerRight={<CollapseToggle open={castOpen} onToggle={() => setCastOpen((v) => !v)} />}>

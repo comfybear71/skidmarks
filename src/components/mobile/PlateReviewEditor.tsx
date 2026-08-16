@@ -37,6 +37,7 @@ import {
   stripLtxLipSyncLead,
 } from "@/lib/mobileImageMotion";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
+import { CampaignTestScoreRow } from "./PlateLtxCampaignCard";
 
 /** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
 const PLATE_TILE_PX = 96;
@@ -764,6 +765,8 @@ export function PlateReviewEditor({
           }
           shot={displayShot(openShotId)}
           clips={job.clips}
+          campaign={job.plateLtxCampaign}
+          onJobChange={onJobChange}
           loading={!story && !loadError}
           error={loadError}
           placeSrc={
@@ -1309,6 +1312,8 @@ function ShotLineEditor({
   lookForSpeaker,
   shot,
   clips,
+  campaign,
+  onJobChange,
   loading,
   error,
   placeSrc,
@@ -1324,6 +1329,8 @@ function ShotLineEditor({
   lookForSpeaker: (name: string) => string;
   shot: CrashStoryShot | null;
   clips: MobileClipUnit[];
+  campaign?: MobileGenJob["plateLtxCampaign"];
+  onJobChange?: (job: MobileGenJob) => void;
   loading: boolean;
   error: string;
   placeSrc?: string;
@@ -1376,7 +1383,9 @@ function ShotLineEditor({
           if (c.shotId === shot.id) return true;
           return shot.beats.some((b) => b.id === c.beatId);
         })
-        .map((clip) => (
+        .map((clip) => {
+          const test = campaign?.tests?.find((t) => t.beatId === clip.beatId);
+          return (
           <div key={`${clip.beatId}:${clip.clipFile}`}>
             <div
               style={{
@@ -1387,7 +1396,11 @@ function ShotLineEditor({
                 marginBottom: "6px",
               }}
             >
-              {clip.clipStatus === "error" ? "Clip failed" : "Clip"}
+              {clip.clipStatus === "error"
+                ? "Clip failed"
+                : test
+                  ? `${test.id} · ${test.band}`
+                  : "Clip"}
             </div>
             {clip.clipStatus === "error" && clip.error ? (
               <div style={{ fontSize: "12px", color: "var(--magenta-hot)", marginBottom: "6px" }}>
@@ -1403,8 +1416,17 @@ function ShotLineEditor({
                 style={{ ...mobileMediaFrame, width: "100%" }}
               />
             ) : null}
+            {test && onJobChange ? (
+              <CampaignTestScoreRow
+                jobId={jobId}
+                test={test}
+                saved={campaign?.scores?.[test.id]}
+                onJobChange={onJobChange}
+              />
+            ) : null}
           </div>
-        ))}
+          );
+        })}
       {speakingBeats.length ? (
         speakingBeats.map((beat) => (
           <BeatLineEditor

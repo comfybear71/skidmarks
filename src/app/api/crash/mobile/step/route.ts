@@ -36,7 +36,7 @@ import {
 } from "@/lib/mobileImageMotion";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 900;
 
 async function ensureComfyReady(): Promise<string> {
   // runLtxSmoke checks preferComfyCloudLtx() first and, when true, goes
@@ -272,6 +272,15 @@ export async function POST(req: Request) {
         }
         job = (await patchMobileGenJob(jobId, {
           phase: phaseAfterAnimateQueue(false),
+          ...(job.plateLtxCampaign?.phase === "animating"
+            ? {
+                plateLtxCampaign: {
+                  ...job.plateLtxCampaign,
+                  phase: "done" as const,
+                  error: "",
+                },
+              }
+            : {}),
         }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
