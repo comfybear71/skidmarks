@@ -5,9 +5,9 @@ import { mobileCard } from "./MobileUi";
 import type { MobileImageCandidate } from "@/lib/mobileGenJob";
 
 /**
- * One candidate at a time, not a batch to compare — dud it and a fresh one
- * replaces it outright. Swiping through four near-identical AI guesses read
- * as a chore; "not this one, try again" is the actual decision being made.
+ * The take on the desk right now. Earlier stills stay on the job — More
+ * does not replace them. Undo / the take strip / a dropped photo bring
+ * a previous one back.
  */
 export function SingleCandidateCard({
   candidate,

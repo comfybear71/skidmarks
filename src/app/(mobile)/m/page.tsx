@@ -190,6 +190,30 @@ export default function MobileHomePage() {
     [job],
   );
 
+  const uploadCandidate = useCallback(
+    async (kind: "cast" | "location", target: string, file: File) => {
+      if (!job) return;
+      setBusy(true);
+      setError("");
+      try {
+        const form = new FormData();
+        form.set("jobId", job.id);
+        form.set("kind", kind);
+        form.set("target", target);
+        form.set("file", file);
+        const res = await fetch("/api/crash/mobile/candidate-upload", { method: "POST", body: form });
+        const data = (await res.json()) as { job?: MobileGenJob; error?: string };
+        if (!res.ok || !data.job) throw new Error(data.error || "Couldn't use that photo");
+        setJob(data.job);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't use that photo");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [job],
+  );
+
   const approveCandidate = useCallback(
     async (kind: "cast" | "location", target: string, candidateId: string) => {
       if (!job) return;
@@ -351,9 +375,11 @@ export default function MobileHomePage() {
           onGenerateCast={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApproveCast={(name, candidateId) => approveCandidate("cast", name, candidateId)}
           onAddCast={(name, description) => addRosterItem("cast", name, description)}
+          onUploadCast={(name, file) => uploadCandidate("cast", name, file)}
           onGenerateLocation={(id, customPrompt) => genCandidates("location", id, customPrompt)}
           onApproveLocation={(id, candidateId) => approveCandidate("location", id, candidateId)}
           onAddLocation={(name) => addRosterItem("location", name)}
+          onUploadLocation={(id, file) => uploadCandidate("location", id, file)}
           onWriteScript={() => void runScreenplay(job.id)}
           onGenerateVideo={() => void approveReview()}
           onRetryError={() => void retryFromError(job.id)}

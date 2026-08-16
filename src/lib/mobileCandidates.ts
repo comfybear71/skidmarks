@@ -8,6 +8,7 @@ import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { uploadMobileMedia, resolveMobileMedia } from "./mobileMediaStore";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
+import { directorNote } from "./mobileJobReady";
 import type { MobileImageCandidate } from "./mobileGenJob";
 
 const CANDIDATES_PER_BATCH = 4;
@@ -40,6 +41,29 @@ async function withImageTimeout<T>(work: Promise<T>, label: string): Promise<T> 
  * checks, so location candidates need no separate lookup path. */
 const CANDIDATE_BLOB_KIND = "plates" as const;
 
+async function resolveCandidateStill(
+  styleId: ShowStyleId,
+  folderName: string,
+  fileName: string,
+  characterId?: string,
+): Promise<string | null> {
+  const name = fileName.trim();
+  if (!name) return null;
+  if (characterId) {
+    const face = faceFilePath(characterId, name);
+    if (face && fs.existsSync(face)) return face;
+  }
+  const dest = path.join(candidateGenDir(), name);
+  if (fs.existsSync(dest)) return dest;
+  return resolveMobileMedia({
+    styleId,
+    folderName,
+    kind: CANDIDATE_BLOB_KIND,
+    fileName: name,
+    destPath: dest,
+  });
+}
+
 /** The job's slider value when it has one, else undefined so the caller can
  * fall back to the style preset's default. */
 function clampRealism(n: number | undefined): number | undefined {
@@ -53,25 +77,24 @@ export async function generateCastCandidates(
   folderName: string,
   characterId: string,
   count = CANDIDATES_PER_BATCH,
-  jobPrompt?: string,
+  _jobPrompt?: string,
   customPrompt?: string,
   jobRealism?: number,
+  referenceFileName?: string,
+  priorPrompt?: string,
 ): Promise<MobileImageCandidate[]> {
   const character = getCharacter(characterId);
   if (!character) throw new Error("Character not found");
 
   const styleRealism = clampRealism(jobRealism) ?? getShowStylePreset(styleId).defaultRealism;
-  // Same order the working desktop path uses: this character's own appearance
-  // description first. The job prompt is only a fallback for when the roster
-  // parse produced nothing — feeding it as the description made every portrait
-  // try to draw the whole scene.
   // lookNote is parsed as the first sentence of pastNote, so joining them blind
-  // prints the appearance twice.
+  // prints the appearance twice. The vibe (job prompt) is a story — using it
+  // as the face made More draw anything. Tweak adds to the look, never replaces.
   const look = (character.lookNote || "").trim();
   const past = (character.pastNote || "").trim();
   const characterNote =
     look && past.includes(look) ? past : [look, past].filter(Boolean).join(". ");
-  const note = customPrompt || characterNote || jobPrompt || "";
+  const note = directorNote(customPrompt, priorPrompt || characterNote);
   const prompt = buildFacePrompt({
     name: character.name,
     pastNote: character.pastNote,
@@ -80,13 +103,16 @@ export async function generateCastCandidates(
     rejectHints: [],
     styleId,
   });
+  const ref = referenceFileName
+    ? await resolveCandidateStill(styleId, folderName, referenceFileName, characterId)
+    : null;
 
   // Whole batch at once — 4 sequential calls could not finish inside the
   // route's budget, which is what the endless spinner actually was.
   const settled = await Promise.allSettled(
     Array.from({ length: count }, () =>
       withImageTimeout(
-        generateFaceImage({ prompt, referencePaths: [] }),
+        generateFaceImage({ prompt, referencePaths: ref ? [ref] : [] }),
         `Face image for ${character.name}`,
       ),
     ),
@@ -115,7 +141,12 @@ export async function generateCastCandidates(
         ),
       );
     }
-    out.push({ id: saved.attempt.id, fileName: saved.attempt.fileName, approved: false });
+    out.push({
+      id: saved.attempt.id,
+      fileName: saved.attempt.fileName,
+      approved: false,
+      prompt: note,
+    });
   }
   await Promise.allSettled(uploads);
 
@@ -178,6 +209,69 @@ function candidateGenDir(): string {
   return dir;
 }
 
+function extFromUpload(fileName: string, mime: string): string {
+  const fromName = path.extname(fileName).toLowerCase();
+  if (fromName === ".jpeg") return ".jpg";
+  if (fromName === ".png" || fromName === ".jpg" || fromName === ".webp") return fromName;
+  if (mime === "image/jpeg") return ".jpg";
+  if (mime === "image/webp") return ".webp";
+  return ".png";
+}
+
+/** Drop / choose a photo as a take — same job list as a generated still.
+ * Does not delete anything. */
+export async function importUploadedCastCandidate(
+  styleId: ShowStyleId,
+  folderName: string,
+  characterId: string,
+  buffer: Buffer,
+  fileName: string,
+  mime: string,
+): Promise<MobileImageCandidate> {
+  const ext = extFromUpload(fileName, mime);
+  const saved = addFaceAttempt(characterId, {
+    note: "Dropped back in",
+    buffer,
+    ext,
+    source: "upload",
+  });
+  if (!saved) throw new Error("Could not keep that photo");
+  const filePath = faceFilePath(characterId, saved.attempt.fileName);
+  if (filePath) {
+    await uploadMobileMedia({
+      styleId,
+      folderName,
+      kind: CANDIDATE_BLOB_KIND,
+      localPath: filePath,
+    }).catch(() => {
+      /* same-instance approve can still read disk */
+    });
+  }
+  return { id: saved.attempt.id, fileName: saved.attempt.fileName, approved: false, prompt: "" };
+}
+
+export async function importUploadedLocationCandidate(
+  styleId: ShowStyleId,
+  folderName: string,
+  buffer: Buffer,
+  fileName: string,
+  mime: string,
+): Promise<MobileImageCandidate> {
+  const ext = extFromUpload(fileName, mime);
+  const savedName = `${sortableId("mloc")}${ext}`;
+  const dest = path.join(candidateGenDir(), savedName);
+  fs.writeFileSync(dest, buffer);
+  await uploadMobileMedia({
+    styleId,
+    folderName,
+    kind: CANDIDATE_BLOB_KIND,
+    localPath: dest,
+  }).catch(() => {
+    /* same-instance approve can still read disk */
+  });
+  return { id: savedName, fileName: savedName, approved: false, prompt: "" };
+}
+
 /** Generate N location-still candidates — plain files, not yet a World card. */
 export async function generateLocationCandidates(
   styleId: ShowStyleId,
@@ -186,8 +280,10 @@ export async function generateLocationCandidates(
   customPrompt?: string,
   count = CANDIDATES_PER_BATCH,
   jobRealism?: number,
+  referenceFileName?: string,
+  priorPrompt?: string,
 ): Promise<MobileImageCandidate[]> {
-  const name = (customPrompt || placeName).trim();
+  const name = directorNote(customPrompt, priorPrompt || placeName);
   const prompt = buildLocationPrompt({
     name,
     notes: "",
@@ -198,11 +294,14 @@ export async function generateLocationCandidates(
     residentNames: [],
     styleId,
   });
+  const ref = referenceFileName
+    ? await resolveCandidateStill(styleId, folderName, referenceFileName)
+    : null;
 
   const settled = await Promise.allSettled(
     Array.from({ length: count }, () =>
       withImageTimeout(
-        generateFaceImage({ prompt, referencePaths: [], aspectRatio: "16:9" }),
+        generateFaceImage({ prompt, referencePaths: ref ? [ref] : [], aspectRatio: "16:9" }),
         `Location image for ${placeName}`,
       ),
     ),
@@ -231,7 +330,7 @@ export async function generateLocationCandidates(
         /* best effort — approve falls back to local disk on the same instance */
       }),
     );
-    out.push({ id: fileName, fileName, approved: false });
+    out.push({ id: fileName, fileName, approved: false, prompt: name });
   }
   await Promise.allSettled(uploads);
 
