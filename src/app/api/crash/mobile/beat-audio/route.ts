@@ -7,6 +7,7 @@ import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { readMobileGenJob } from "@/lib/mobileGenJob";
 import { serveMediaFile } from "@/lib/serveMediaFile";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
+import { voiceNamesMatch } from "@/lib/voiceNameMatch";
 import path from "path";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
@@ -81,6 +82,15 @@ export async function POST(req: Request) {
     if (!speaker) {
       return NextResponse.json(
         { error: "This line has no speaker to voice — it plays as a held shot instead" },
+        { status: 400 },
+      );
+    }
+    if (
+      job.speakers.length &&
+      !job.speakers.some((s) => voiceNamesMatch(s, speaker) || s.trim().toLowerCase() === speaker.trim().toLowerCase())
+    ) {
+      return NextResponse.json(
+        { error: "That line isn't this job's cast — leftover Comfy/Land audio stays parked" },
         { status: 400 },
       );
     }

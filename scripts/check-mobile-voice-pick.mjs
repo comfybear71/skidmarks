@@ -7,6 +7,7 @@ import {
   defaultCrashVoicePrompt,
   speakerVoiceKey,
 } from "../src/lib/crashVoicePrompt.ts";
+import { pickLibraryVoiceId, shownVoiceId } from "../src/lib/mobileVoicePick.ts";
 
 assert.equal(speakerVoiceKey("Crazy Big Hole Jo Too"), "jo");
 assert.equal(speakerVoiceKey("Jo"), "jo");
@@ -41,5 +42,29 @@ assert.equal(pick("Crazy Big Hole Jo Too"), "v-jo");
 assert.equal(pick("Comfy Bear", ["v-jo"]), "v-comfy");
 assert.equal(pick("BC", ["v-jo", "v-comfy"]), "v-bc");
 assert.notEqual(pick("Someone New"), "pNInz6obpgDQGcFmaJgB");
+
+assert.equal(
+  shownVoiceId({
+    assignedId: "v-jo",
+    speaker: "CRAZY BIG HOLE JO",
+    styleId: "skidmarks",
+    library,
+  }),
+  "v-jo",
+  "locked recycled voice must show in the dropdown, not Auto",
+);
+assert.equal(
+  shownVoiceId({
+    assignedId: "",
+    speaker: "CRAZY BIG HOLE JO",
+    styleId: "skidmarks",
+    library,
+  }),
+  "v-jo",
+);
+assert.equal(
+  pickLibraryVoiceId("skidmarks", "CRAZY BIG HOLE JO", library),
+  "v-jo",
+);
 
 console.log("check-mobile-voice-pick: ok");

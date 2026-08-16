@@ -586,29 +586,43 @@ function CandidatePicker({
           >
             {promptLabel}
           </div>
-          <textarea
-            value={customPrompt}
-            onChange={(e) => setCustomPrompt(e.target.value)}
-            placeholder={promptPlaceholder}
-            rows={2}
-            style={{
-              width: "100%",
-              minWidth: 0,
-              padding: "10px",
-              borderRadius: "8px",
-              border: "1px solid var(--line)",
-              background: "var(--panel-2)",
-              color: "var(--chrome)",
-              fontSize: "13px",
-              fontFamily: "inherit",
-              resize: "vertical",
-            }}
-          />
-          <div style={{ display: "flex", gap: "8px", marginTop: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <MobileAiButton
-              onClick={() => void promptAssist.runAssist()}
-              busy={promptAssist.aiBusy}
+          <div style={{ position: "relative" }}>
+            <textarea
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              placeholder={promptPlaceholder}
+              rows={2}
+              style={{
+                width: "100%",
+                minWidth: 0,
+                padding: "10px 10px 36px 10px",
+                borderRadius: "8px",
+                border: "1px solid var(--line)",
+                background: "var(--panel-2)",
+                color: "var(--chrome)",
+                fontSize: "13px",
+                fontFamily: "inherit",
+                resize: "vertical",
+              }}
             />
+            <div style={{ position: "absolute", left: "8px", bottom: "8px" }}>
+              <MobileAiButton
+                onClick={() => void promptAssist.runAssist()}
+                busy={promptAssist.aiBusy}
+              />
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              marginTop: "8px",
+              alignItems: "center",
+              flexWrap: "nowrap",
+              overflowX: "auto",
+              touchAction: "pan-x pan-y",
+            }}
+          >
             <button
               type="button"
               disabled={busy || !canUndo}
@@ -619,12 +633,14 @@ function CandidatePicker({
                 setCustomPrompt(prev.prompt || "");
               }}
               style={{
-                padding: "10px 12px",
+                padding: "8px 10px",
                 borderRadius: "8px",
                 border: "1px solid var(--line)",
                 background: "transparent",
                 color: canUndo && !busy ? "var(--chrome)" : "var(--chrome-dim)",
                 fontSize: "13px",
+                flex: "0 0 auto",
+                whiteSpace: "nowrap",
               }}
             >
               Undo
@@ -637,17 +653,19 @@ function CandidatePicker({
                 onGenerate(customPrompt || undefined);
               }}
               style={{
-                padding: "10px 14px",
+                padding: "8px 10px",
                 borderRadius: "8px",
                 border: "1px solid var(--line)",
                 background: "transparent",
                 color: "var(--chrome)",
                 fontSize: "13px",
+                flex: "0 0 auto",
+                whiteSpace: "nowrap",
               }}
             >
               More
             </button>
-            {extra ? <div style={{ flex: 1, minWidth: "140px" }}>{extra}</div> : null}
+            {extra || null}
           </div>
         </div>
       ) : null}

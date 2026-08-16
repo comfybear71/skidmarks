@@ -38,3 +38,15 @@ export function pickLibraryVoiceId(
     wantedSex: wanted,
   });
 }
+
+/** Dropdown shows the locked recycled voice, not "Auto". */
+export function shownVoiceId(opts: {
+  assignedId?: string;
+  speaker: string;
+  styleId: ShowStyleId;
+  library: PickableVoice[];
+}): string {
+  const assigned = (opts.assignedId || "").trim();
+  if (assigned) return assigned;
+  return pickLibraryVoiceId(opts.styleId, opts.speaker, opts.library);
+}

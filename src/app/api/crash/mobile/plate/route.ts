@@ -5,6 +5,8 @@ import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/li
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
+import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
+import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { newId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
 
@@ -208,13 +210,27 @@ export async function POST(req: Request) {
     if (!scene || !shot) {
       return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
     }
+    const liveShot = shot;
 
     if (addCast) {
-      const already = shot.beats.some((b) => b.speaker.trim().toLowerCase() === speakerIn.toLowerCase());
+      const already = liveShot.beats.some(
+        (b) =>
+          b.speaker.trim().toLowerCase() === speakerIn.toLowerCase() &&
+          !isHydratedLeftoverBeat(liveShot.id, b),
+      );
       if (already) {
         return NextResponse.json({ error: `${speakerIn} is already in this shot` }, { status: 400 });
       }
-      const beats = [...shot.beats, { id: newId("beat"), speaker: speakerIn, text: "" }];
+      // GET hydrate used to invent Comfy/Land beats from parked mp3s. Putting
+      // Jo in must not keep those extras — composite would draw him, and the
+      // line player would play his leftover clip instead of her voice.
+      const kept = liveShot.beats.filter(
+        (b) =>
+          b.speaker.trim() &&
+          !isHydratedLeftoverBeat(liveShot.id, b) &&
+          b.speaker.trim().toLowerCase() !== speakerIn.toLowerCase(),
+      );
+      const beats = [...kept, { id: newId("beat"), speaker: speakerIn, text: "" }];
       const cast = beats.map((b) => b.speaker.trim()).filter(Boolean);
       const withBeat: CrashStoryDoc = {
         ...story,
@@ -237,6 +253,7 @@ export async function POST(req: Request) {
         ),
       };
       await writeMobileStory(withBeat, job.folderName);
+      await ensureSpeakerVoiceCast(job.styleId, speakerIn).catch(() => false);
       return NextResponse.json({ ok: true, job });
     }
 

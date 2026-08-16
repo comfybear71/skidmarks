@@ -84,6 +84,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       audioBase64,
+      voiceId: slot.approvedVoiceId?.trim() || voiceIdIn,
       voiceDescription: ready.voiceDescription,
     });
   } catch (e) {
