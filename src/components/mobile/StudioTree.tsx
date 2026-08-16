@@ -17,6 +17,7 @@ import {
   allCastApproved,
   allLocationsApproved,
   canLockEpisode,
+  candidateLookPrompt,
   latestCandidate,
   preferredCandidate,
 } from "@/lib/mobileJobReady";
@@ -371,6 +372,7 @@ function CandidatePicker({
   busy,
   error,
   promptPlaceholder,
+  promptLabel = "Look",
   onGenerate,
   onApprove,
   onUpload,
@@ -382,6 +384,7 @@ function CandidatePicker({
   busy: boolean;
   error: string;
   promptPlaceholder: string;
+  promptLabel?: string;
   onGenerate: (customPrompt?: string) => void;
   onApprove: (candidateId: string) => void;
   onUpload: (file: File) => void;
@@ -499,12 +502,24 @@ function CandidatePicker({
       ) : null}
       {candidates.length || error ? (
         <div style={{ display: "flex", gap: "8px", marginTop: "10px", alignItems: "center" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                color: "var(--chrome-dim)",
+                fontSize: "10px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                marginBottom: "4px",
+              }}
+            >
+              {promptLabel}
+            </div>
           <input
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
             placeholder={promptPlaceholder}
             style={{
-              flex: 1,
+              width: "100%",
               padding: "10px",
               borderRadius: "8px",
               border: "1px solid var(--line)",
@@ -513,6 +528,7 @@ function CandidatePicker({
               fontSize: "13px",
             }}
           />
+          </div>
           <MobileAiButton
             onClick={() => void promptAssist.runAssist()}
             busy={promptAssist.aiBusy}
@@ -643,7 +659,18 @@ export function StudioTree({
   const episodeHint = [
     `Vibe: ${job.prompt}`,
     `Cast (spell these names exactly, nobody else): ${job.speakers.join(", ")}`,
+    ...job.speakers.map((name) => {
+      const look = candidateLookPrompt(job.castCandidates, name);
+      return look ? `Look · ${name}: ${look}` : `Look · ${name}: (picked, no words saved)`;
+    }),
     `Places (every Place: line must be one of these, spelled exactly): ${job.scenes.map((s) => s.placeName).join(" | ")}`,
+    ...job.scenes.map((scene) => {
+      const look = candidateLookPrompt(job.locationCandidates, scene.id);
+      return look
+        ? `Place · ${scene.placeName}: ${look}`
+        : `Place · ${scene.placeName}: (picked, no words saved)`;
+    }),
+    "Every shot needs a Plate: line — who sits, leans, walks. Not a lineup in the foreground.",
   ].join("\n");
   const episodeAssist = useMobileAssist(
     "episode",
@@ -755,6 +782,7 @@ export function StudioTree({
             busy={busy}
             error={error}
             promptPlaceholder="e.g. more like a grumpy dad"
+            promptLabel="Look"
             onGenerate={(p) => onGenerateCast(castFocus, p)}
             onApprove={(id) => {
               void (async () => {
@@ -867,6 +895,7 @@ export function StudioTree({
             busy={busy}
             error={error}
             promptPlaceholder="e.g. Mars, a dive bar, outer space"
+            promptLabel="Place"
             onGenerate={(p) => onGenerateLocation(placeFocus, p)}
             onApprove={(id) => {
               onApproveLocation(placeFocus, id);
@@ -940,7 +969,7 @@ export function StudioTree({
         ) : null}
 
         {plated.length && (job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error") ? (
-          <PlateReviewEditor job={job} />
+          <PlateReviewEditor job={job} onJobChange={onJobChange} />
         ) : null}
 
         {job.phase === "review" ? (

@@ -28,7 +28,7 @@ export function episodeTemplateFromJob(job: {
   const vibe = job.prompt.trim();
   const title = vibe.split(/\n/)[0]?.slice(0, 80) || "Untitled episode";
   const shots = job.scenes.map((s, i) =>
-    [`--- SHOT ${i + 1} ---`, `Place: ${s.placeName}`, "Title: ", "Action: "].join("\n"),
+    [`--- SHOT ${i + 1} ---`, `Place: ${s.placeName}`, "Title: ", "Action: ", "Plate: "].join("\n"),
   );
   return [`EPISODE: ${title}`, `GAG: ${vibe}`, "", ...shots].join("\n\n");
 }
@@ -319,6 +319,7 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
     let placeName = "";
     let titleLine = `Shot ${i + 1}`;
     let summary = "";
+    let staging = "";
     const spoken: { speaker: string; text: string }[] = [];
     for (let n = 0; n < lines.length; n++) {
       const line = lines[n];
@@ -333,7 +334,12 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
         titleLine = t[1].trim();
         continue;
       }
-      const action = line.match(/^(?:Action|Plate):\s*(.+)$/i);
+      const plate = line.match(/^Plate:\s*(.+)$/i);
+      if (plate) {
+        staging = plate[1].trim();
+        continue;
+      }
+      const action = line.match(/^Action:\s*(.+)$/i);
       if (action) {
         summary = action[1].trim();
         continue;
@@ -358,7 +364,7 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
       placeName,
       title: titleLine,
       summary,
-      staging: "",
+      staging,
       lines: spoken,
     });
   }

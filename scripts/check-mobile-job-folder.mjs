@@ -11,6 +11,7 @@ import {
   phaseAfterScreenplay,
   canLockEpisode,
   preferredCandidate,
+  candidateLookPrompt,
 } from "../src/lib/mobileJobReady.ts";
 import { screenplaySceneCount } from "../src/lib/mobileScreenplaySize.ts";
 import { MOBILE_LAST_JOB_KEY, readResumedJobId } from "../src/lib/mobileJobResume.ts";
@@ -130,5 +131,12 @@ assert.equal(readResumedJobId("", { getItem: () => null }), "");
 assert.equal(canLockEpisode("plates"), true);
 assert.equal(canLockEpisode("review"), true);
 assert.equal(canLockEpisode("animate"), false);
+assert.equal(
+  candidateLookPrompt(
+    { MATTY: [{ approved: true, prompt: "beard, anchor tattoo" }] },
+    "matty",
+  ),
+  "beard, anchor tattoo",
+);
 
 console.log("check-mobile-job-folder: ok");

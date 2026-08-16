@@ -30,6 +30,7 @@ GAG: Jo falls in.
 Place: Matty bar
 Title: Matty waves her in
 Action: Tire tracks on the lawn.
+Plate: Matty leans on the fridge. Jo sits on a stool. Not a lineup.
 MATTY
 You coming in or what?
 JO
@@ -47,6 +48,7 @@ assert.equal(shotDoc.story.scenes.length, 1);
 assert.equal(shotDoc.story.scenes[0].placeName, "Matty bar");
 assert.equal(shotDoc.story.scenes[0].shots.length, 2);
 assert.equal(shotDoc.story.scenes[0].shots[0].beats.length, 2);
+assert.match(shotDoc.story.scenes[0].shots[0].staging || "", /fridge/);
 assert.equal(shotDoc.story.scenes[0].shots[1].beats[0].text, "Sit down before you fall in again.");
 assert.equal(storyHasSpokenLine(shotDoc.story), true);
 

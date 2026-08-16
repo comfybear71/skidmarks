@@ -31,6 +31,21 @@ export function approvedCandidateFileName(
   return null;
 }
 
+export function candidateLookPrompt(
+  candidates: Record<string, { approved?: boolean; prompt?: string }[] | undefined>,
+  key: string,
+): string {
+  const exact = candidates[key];
+  if (exact?.length) return preferredCandidate(exact)?.prompt?.trim() || "";
+  const want = key.trim().toLowerCase();
+  if (!want) return "";
+  for (const [name, list] of Object.entries(candidates)) {
+    if (name.trim().toLowerCase() !== want) continue;
+    return preferredCandidate(list)?.prompt?.trim() || "";
+  }
+  return "";
+}
+
 export function allCastApproved(job: Pick<MobileGenJob, "speakers" | "castCandidates">): boolean {
   return job.speakers.length > 0 && job.speakers.every((s) => approvedUnder(job.castCandidates, s));
 }
