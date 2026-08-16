@@ -22,10 +22,7 @@ import {
   storyIsEmptyPlateRecipe,
 } from "./cloudStoryMedia";
 import { burnLeftoverPackAudio, savedVoiceFilesOnStory } from "./burnLeftoverPackAudio";
-import {
-  isLeftoverPackVoiceFile,
-  storyHasLeftoverPackAudio,
-} from "./mobileSavedVoice";
+import { isLeftoverPackVoiceFile } from "./mobileSavedVoice";
 import { mapPackMp4sToBeats } from "./mediaMatch";
 
 function toListItem(row: NeonEpisodeRow): CrashLabEpisodeListItem {
@@ -94,26 +91,22 @@ async function hydrateEpisodeMedia(row: NeonEpisodeRow): Promise<{
     ...story,
     campaignLabel: story.campaignLabel?.trim() || row.name || story.campaignLabel,
   };
+  // Leftover-shaped voiceFile references are stripped from `labeled` above
+  // on every call already — that in-memory clean copy is what every caller
+  // actually uses. This function is called from plain reads (readMobileStory,
+  // hydrateMobilePackOnDisk — twice per Generate press), so persisting that
+  // cleanup back to Neon here made a "read" able to silently overwrite a
+  // beat's voiceFile with whatever this call's own (possibly a few seconds
+  // stale) snapshot had, if it lost a race with a more recent Save. Burning
+  // the actual leftover Blob audio files is still safe to do eagerly — that
+  // targets specific stale filenames, not a whole-story overwrite.
   if (!storyIsEmptyPlateRecipe(labeled)) {
     const leftoverBlob = audioNames.some((n) => isLeftoverPackVoiceFile(n));
-    const leftoverStory = storyHasLeftoverPackAudio(storyRaw);
     if (leftoverBlob) {
       await burnLeftoverPackAudio({
         styleId: row.show_id as ShowStyleId,
         folderName: row.folder_name,
         keepFiles: savedVoiceFilesOnStory(labeled),
-      });
-    }
-    if (leftoverStory) {
-      await upsertNeonEpisode({
-        showId: row.show_id as ShowStyleId,
-        folderName: row.folder_name,
-        name: row.name,
-        hasStory: true,
-        hasSceneKit: Boolean(row.scene_kit_json),
-        storyJson: labeled,
-        sceneKitJson: row.scene_kit_json,
-        comfyDraftJson: row.comfy_draft_json,
       });
     }
   }
