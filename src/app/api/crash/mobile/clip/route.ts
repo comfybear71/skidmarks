@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { resolveMobileMedia } from "@/lib/mobileMediaStore";
-import { isSafeMediaName } from "@/lib/cloudMedia";
+import { cloudBlobRedirect, isSafeMediaName } from "@/lib/cloudMedia";
 import { CRASH_DIR } from "@/lib/paths";
 import { serveMediaFile } from "@/lib/serveMediaFile";
 import type { ShowStyleId } from "@/lib/showStylePresets";
@@ -35,11 +35,12 @@ export async function GET(req: Request) {
         fileName,
         destPath: localPath,
       });
-  if (!filePath || !fs.existsSync(filePath)) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (filePath && fs.existsSync(filePath)) {
+    return serveMediaFile(req, filePath, "video/mp4", {
+      "Cache-Control": "private, max-age=120",
+    });
   }
-
-  return serveMediaFile(req, filePath, "video/mp4", {
-    "Cache-Control": "private, max-age=120",
-  });
+  const cloud = await cloudBlobRedirect("mp4", fileName, req);
+  if (cloud) return cloud;
+  return NextResponse.json({ error: "Not found" }, { status: 404 });
 }
