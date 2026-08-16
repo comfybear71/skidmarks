@@ -875,7 +875,7 @@ export function StudioTree({
             promptPlaceholder="e.g. more like a grumpy dad"
             promptLabel="Look"
             hideUpload
-            extra={<CastVoiceRow key={castFocus} jobId={job.id} name={castFocus} />}
+            extra={<CastVoiceRow key={castFocus} jobId={job.id} styleId={job.styleId} name={castFocus} />}
             onGenerate={(p) => onGenerateCast(castFocus, p)}
             onApprove={(id) => {
               void (async () => {

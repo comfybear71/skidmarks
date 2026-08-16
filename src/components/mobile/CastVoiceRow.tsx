@@ -3,17 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 import { MobilePrimaryButton } from "./MobileUi";
 
+type LibraryVoice = { voiceId: string; name: string; gender?: string };
+
 /**
  * Voice lives with the face — one compact row, not a whole second card.
- * Status loads read-only (local manifest, no ElevenLabs call); "Hear" is
- * the only button that reaches the network, and it plays inline from the
- * response bytes (no separate /api/crash/voice/file round trip — that
- * route reads local disk only and a second Vercel invocation may not have
- * the file the first one just wrote).
+ * Status loads read-only (local manifest, no ElevenLabs call). The picker
+ * lists the account's real voices so a character isn't stuck with
+ * whatever the auto-pick (name match, then a stable-but-arbitrary
+ * fallback) decided — "Auto" keeps that behaviour, anything else pins
+ * that exact voice. Hear plays inline from the response bytes (no
+ * separate /api/crash/voice/file round trip — that route reads local
+ * disk only and a second Vercel invocation may not have the file the
+ * first one just wrote).
  */
-export function CastVoiceRow({ jobId, name }: { jobId: string; name: string }) {
+export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId: string; name: string }) {
   const [cast, setCast] = useState<boolean | null>(null);
   const [description, setDescription] = useState("");
+  const [library, setLibrary] = useState<LibraryVoice[] | null>(null);
+  const [picked, setPicked] = useState("");
   const [busy, setBusy] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
@@ -36,19 +43,27 @@ export function CastVoiceRow({ jobId, name }: { jobId: string; name: string }) {
       .catch(() => {
         if (!cancelled) setError("Couldn't load voice status");
       });
+    fetch(`/api/crash/mobile/voice-library?styleId=${encodeURIComponent(styleId)}`)
+      .then((r) => r.json())
+      .then((data: { voices?: LibraryVoice[] }) => {
+        if (!cancelled && data.voices) setLibrary(data.voices);
+      })
+      .catch(() => {
+        /* picker just won't show a list — Hear still works */
+      });
     return () => {
       cancelled = true;
     };
-  }, [jobId, name]);
+  }, [jobId, styleId, name]);
 
-  async function hear() {
+  async function hear(voiceId: string) {
     setBusy(true);
     setError("");
     try {
       const res = await fetch("/api/crash/mobile/voice-sample", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, speaker: name }),
+        body: JSON.stringify(voiceId ? { jobId, speaker: name, voiceId } : { jobId, speaker: name }),
       });
       const data = (await res.json()) as {
         error?: string;
@@ -85,7 +100,31 @@ export function CastVoiceRow({ jobId, name }: { jobId: string; name: string }) {
       >
         Voice
       </span>
-      <MobilePrimaryButton size="chip" disabled={busy || cast === null} onClick={() => void hear()}>
+      {library?.length ? (
+        <select
+          value={picked}
+          onChange={(e) => setPicked(e.target.value)}
+          disabled={busy}
+          style={{
+            flex: "0 1 auto",
+            maxWidth: "150px",
+            padding: "6px 8px",
+            borderRadius: "2px",
+            border: "1px solid var(--line)",
+            background: "var(--panel-2)",
+            color: "var(--chrome)",
+            fontSize: "12px",
+          }}
+        >
+          <option value="">Auto</option>
+          {library.map((v) => (
+            <option key={v.voiceId} value={v.voiceId}>
+              {v.name}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      <MobilePrimaryButton size="chip" disabled={busy} onClick={() => void hear(picked)}>
         {busy ? "…" : playing ? "Playing…" : cast ? "▶ Hear" : "Cast + hear"}
       </MobilePrimaryButton>
       {error ? (
@@ -98,7 +137,7 @@ export function CastVoiceRow({ jobId, name }: { jobId: string; name: string }) {
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            maxWidth: "220px",
+            maxWidth: "180px",
           }}
         >
           {description}
