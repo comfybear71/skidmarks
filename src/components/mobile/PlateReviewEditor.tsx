@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MobileAiButton, MobileAudioPlayer, MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
 import { useMobileAssist } from "./useMobileAssist";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
@@ -22,6 +22,12 @@ import {
 import { lineVoiceLabel, type JobSpeakerVoice } from "@/lib/mobileJobVoices";
 import { shownVoiceId } from "@/lib/mobileVoicePick";
 import type { ShowStyleId } from "@/lib/showStylePresets";
+import {
+  LTX_LIP_SYNC_LEAD,
+  buildDefaultBeatMotion,
+  stripLtxLipSyncLead,
+} from "@/lib/mobileImageMotion";
+import { imageMotionAssistHint } from "@/lib/mobileAssist";
 
 /** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
 const PLATE_TILE_PX = 96;
@@ -736,6 +742,12 @@ export function PlateReviewEditor({
           jobId={job.id}
           jobSpeakers={job.speakers}
           jobVoices={job.speakerVoices}
+          lookForSpeaker={(name) =>
+            candidateLookPrompt(job.castCandidates, name) ||
+            job.roster.find((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase())
+              ?.appearance ||
+            ""
+          }
           shot={displayShot(openShotId)}
           loading={!story && !loadError}
           error={loadError}
@@ -770,7 +782,7 @@ export function PlateReviewEditor({
               };
             });
           }}
-          onBeatSaved={(beatId, text, voiceFile) => {
+          onBeatSaved={(beatId, text, voiceFile, imageMotion) => {
             setStory((cur) => {
               if (!cur) return cur;
               return {
@@ -780,7 +792,14 @@ export function PlateReviewEditor({
                   shots: sc.shots.map((sh) => ({
                     ...sh,
                     beats: sh.beats.map((b) =>
-                      b.id === beatId ? { ...b, text, voiceFile } : b,
+                      b.id === beatId
+                        ? {
+                            ...b,
+                            text,
+                            voiceFile,
+                            ...(imageMotion !== undefined ? { imageMotion } : {}),
+                          }
+                        : b,
                     ),
                   })),
                 })),
@@ -1271,6 +1290,7 @@ function ShotLineEditor({
   jobId,
   jobSpeakers,
   jobVoices,
+  lookForSpeaker,
   shot,
   loading,
   error,
@@ -1284,12 +1304,13 @@ function ShotLineEditor({
   jobId: string;
   jobSpeakers: string[];
   jobVoices?: Record<string, JobSpeakerVoice>;
+  lookForSpeaker: (name: string) => string;
   shot: CrashStoryShot | null;
   loading: boolean;
   error: string;
   placeSrc?: string;
   jobPlated?: boolean;
-  onBeatSaved: (beatId: string, text: string, voiceFile: string) => void;
+  onBeatSaved: (beatId: string, text: string, voiceFile: string, imageMotion?: string) => void;
   onPlateRebuilt: (
     plateFile: string | undefined,
     staging: string,
@@ -1339,8 +1360,12 @@ function ShotLineEditor({
             folderName={folderName}
             jobId={jobId}
             jobVoices={jobVoices}
+            lookLock={lookForSpeaker(beat.speaker)}
+            shotSpeakers={[...new Set(shot.beats.map((b) => b.speaker.trim()).filter(Boolean))]}
             beat={beat}
-            onSaved={(text, voiceFile) => onBeatSaved(beat.id, text, voiceFile)}
+            onSaved={(text, voiceFile, imageMotion) =>
+              onBeatSaved(beat.id, text, voiceFile, imageMotion)
+            }
           />
         ))
       ) : (
@@ -1357,6 +1382,8 @@ function BeatLineEditor({
   folderName,
   jobId,
   jobVoices,
+  lookLock,
+  shotSpeakers,
   beat,
   onSaved,
 }: {
@@ -1364,8 +1391,10 @@ function BeatLineEditor({
   folderName: string;
   jobId: string;
   jobVoices?: Record<string, JobSpeakerVoice>;
+  lookLock: string;
+  shotSpeakers: string[];
   beat: CrashStoryBeat;
-  onSaved: (text: string, voiceFile: string) => void;
+  onSaved: (text: string, voiceFile: string, imageMotion?: string) => void;
 }) {
   const [text, setText] = useState(beat.text);
   const [voiceFile, setVoiceFile] = useState(
@@ -1376,9 +1405,67 @@ function BeatLineEditor({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [ltxOpen, setLtxOpen] = useState(false);
+  const [motionDraft, setMotionDraft] = useState<string | null>(null);
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
   const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
   const playable = Boolean(voiceFile && voiceFileBelongsToSpeaker(voiceFile, beat.speaker));
+
+  const defaultMotionBody = useMemo(
+    () =>
+      stripLtxLipSyncLead(
+        buildDefaultBeatMotion({
+          styleId: styleId as ShowStyleId,
+          speaker: beat.speaker,
+          line: text,
+          lookLock,
+          shotSpeakers,
+        }),
+      ),
+    [beat.speaker, lookLock, shotSpeakers, styleId, text],
+  );
+  const motionBody =
+    motionDraft ?? (stripLtxLipSyncLead(beat.imageMotion || "") || defaultMotionBody);
+  const motionDirty = motionDraft !== null;
+  const motionHint = useMemo(
+    () =>
+      imageMotionAssistHint({
+        speaker: beat.speaker,
+        line: text,
+        lookLock,
+        shotSpeakers,
+      }),
+    [beat.speaker, lookLock, shotSpeakers, text],
+  );
+
+  const persistMotion = useCallback(
+    async (body: string): Promise<string> => {
+      const res = await fetch("/api/crash/mobile/beat-motion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, beatId: beat.id, imageMotion: body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't keep Image motion");
+      const saved = stripLtxLipSyncLead((data.imageMotion as string) || body);
+      onSaved(text, voiceFile, saved);
+      return saved;
+    },
+    [beat.id, jobId, onSaved, text, voiceFile],
+  );
+
+  const motionAssist = useMobileAssist(
+    "image_motion",
+    styleId,
+    () => motionBody,
+    (v) => {
+      setMotionDraft(v);
+      void persistMotion(v)
+        .then(() => setMotionDraft(null))
+        .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep Image motion"));
+    },
+    motionHint,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -1433,7 +1520,12 @@ function BeatLineEditor({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't generate voice");
       setVoiceFile(data.voiceFile);
-      onSaved(text, data.voiceFile);
+      let imageMotion = (data.imageMotion as string) || "";
+      if (motionDirty) {
+        imageMotion = await persistMotion(motionBody);
+        setMotionDraft(null);
+      }
+      onSaved(text, data.voiceFile, imageMotion);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -1492,6 +1584,59 @@ function BeatLineEditor({
         </span>
         {error ? <span style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</span> : null}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setLtxOpen((open) => !open)}
+        style={{
+          width: "100%",
+          padding: "8px 0",
+          border: 0,
+          background: "transparent",
+          color: "var(--chrome-dim)",
+          fontSize: "12px",
+          fontWeight: 700,
+          textAlign: "left",
+        }}
+      >
+        {ltxOpen ? "▾ LTX Image motion" : "▸ LTX Image motion"}
+      </button>
+      {ltxOpen ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <p style={{ margin: 0, color: "var(--chrome-dim)", fontSize: "11px", lineHeight: 1.45 }}>
+            {LTX_LIP_SYNC_LEAD}
+          </p>
+          <MobileTextInput
+            value={motionBody}
+            onChange={(v) => setMotionDraft(v)}
+            placeholder="Held prop + action — phone, pie, racket. This is the one LTX prompt."
+            multiline
+            rows={8}
+            onAi={() => void motionAssist.runAssist()}
+            aiBusy={motionAssist.aiBusy}
+          />
+          {motionAssist.aiError ? (
+            <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{motionAssist.aiError}</div>
+          ) : null}
+          <div>
+            <MobilePrimaryButton
+              size="chip"
+              tone="ghost"
+              disabled={saving}
+              onClick={() => {
+                setSaving(true);
+                setError("");
+                void persistMotion(motionBody)
+                  .then(() => setMotionDraft(null))
+                  .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep Image motion"))
+                  .finally(() => setSaving(false));
+              }}
+            >
+              Keep Image motion
+            </MobilePrimaryButton>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

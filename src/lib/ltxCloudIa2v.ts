@@ -18,6 +18,7 @@ import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { loadWorkflowTemplate } from "./workflowTemplates";
 import { clampLtxDurationSec } from "./ltxDuration";
+import { ltxSendPrompt } from "./mobileImageMotion";
 
 function estimateMp3DurationSec(filePath: string): number {
   try {
@@ -96,12 +97,13 @@ export function buildCloudIa2vPrompt(opts: {
   plateFileName?: string;
 }): string {
   const raw = opts.imageMotion.trim();
-  // Already a Cloud paragraph (manual paste) — send as-is
+  // Already a Cloud paragraph (manual paste or mobile recipe) — send as-is
+  // with the locked lip-sync lead on top. Do not rewrite tennis-racket tests.
   if (
-    /^Use the provided start image/i.test(raw) &&
+    (/^perfect lip sync/i.test(raw) || /^Use the provided start image/i.test(raw)) &&
     !/\[VISUAL\]/i.test(raw)
   ) {
-    return raw;
+    return ltxSendPrompt(raw);
   }
 
   const parsed = parseSpeechFromImageMotion(raw);
@@ -117,14 +119,16 @@ export function buildCloudIa2vPrompt(opts: {
     ? visualCore
     : `${speaker} — ${look} — is prominent. Mouth and head move while speaking. Other people mouths closed, mostly still. Props stay put.`;
 
-  return [
-    "Use the provided start image as the first frame.",
-    lead,
-    `Only ${speaker} speaks. Other people keep their mouths closed.`,
-    `Background stays as the start image: ${bg}.`,
-    `${who} says: "${line}"`,
-    STYLE_LOCK,
-  ].join(" ");
+  return ltxSendPrompt(
+    [
+      "Use the provided start image as the first frame.",
+      lead,
+      `Only ${speaker} speaks. Other people keep their mouths closed.`,
+      `Background stays as the start image: ${bg}.`,
+      `${who} says: "${line}"`,
+      STYLE_LOCK,
+    ].join(" "),
+  );
 }
 
 function loadIa2vTemplate(): Record<string, unknown> {
