@@ -6,13 +6,8 @@ import { useMobileAssist } from "./useMobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "@/lib/crashStoryTypes";
 
-/** A shot minted by the "+" solo-card picker: exactly one beat, and its
- * speaker is the shot's whole title. Original script shots never look like
- * this, so it's a safe way to tell "test card" apart without new state. */
-function isSoloTestShot(shot: CrashStoryShot | null | undefined): boolean {
-  if (!shot) return false;
-  return shot.beats.length === 1 && shot.title.trim() === (shot.beats[0]?.speaker || "").trim();
-}
+/** One removed shot, kept around just long enough to put back. */
+type RemovedShot = { sceneId: string; shot: CrashStoryShot };
 
 async function fetchStory(styleId: string, folderName: string): Promise<CrashStoryDoc | null> {
   const res = await fetch(
@@ -32,9 +27,14 @@ async function fetchStory(styleId: string, folderName: string): Promise<CrashSto
 export function PlateReviewEditor({
   job,
   onJobChange,
+  collapsed,
+  onExpand,
 }: {
   job: MobileGenJob;
   onJobChange?: (job: MobileGenJob) => void;
+  /** Strip-only mode — everything below the thumbnails stays hidden. */
+  collapsed?: boolean;
+  onExpand?: () => void;
 }) {
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -42,6 +42,11 @@ export function PlateReviewEditor({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addBusySpeaker, setAddBusySpeaker] = useState<string | null>(null);
   const [addError, setAddError] = useState("");
+  const [removedBuffer, setRemovedBuffer] = useState<RemovedShot[]>([]);
+  const [clearConfirm, setClearConfirm] = useState(false);
+  const [clearBusy, setClearBusy] = useState(false);
+  const [undoBusy, setUndoBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -84,11 +89,10 @@ export function PlateReviewEditor({
     return story.scenes[0]?.id || null;
   }
 
-  const soloShotSpeakers = new Set(
+  const usedShotSpeakers = new Set(
     shots
-      .map((s) => shotById(s.shotId))
-      .filter(isSoloTestShot)
-      .map((sh) => (sh as CrashStoryShot).title.trim()),
+      .map((s) => shotById(s.shotId)?.title.trim())
+      .filter((t): t is string => Boolean(t)),
   );
 
   async function addSoloShot(speaker: string) {
@@ -120,13 +124,19 @@ export function PlateReviewEditor({
   }
 
   async function removeShot(shotId: string) {
+    setActionError("");
     try {
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId: job.id, shotId, action: "remove" }),
       });
-      const data = (await res.json()) as { error?: string; job?: MobileGenJob };
+      const data = (await res.json()) as {
+        error?: string;
+        job?: MobileGenJob;
+        removedShot?: CrashStoryShot;
+        sceneId?: string;
+      };
       if (!res.ok) throw new Error(data.error || "Couldn't remove that card");
       setStory((cur) => {
         if (!cur) return cur;
@@ -137,8 +147,70 @@ export function PlateReviewEditor({
       });
       if (openShotId === shotId) setOpenShotId(null);
       if (data.job) onJobChange?.(data.job);
-    } catch {
-      /* card stays until the next job refresh */
+      if (data.removedShot && data.sceneId) {
+        setRemovedBuffer([{ sceneId: data.sceneId, shot: data.removedShot }]);
+      }
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Couldn't remove that card");
+    }
+  }
+
+  async function clearAllShots() {
+    setActionError("");
+    setClearBusy(true);
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, action: "clear" }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        job?: MobileGenJob;
+        removed?: RemovedShot[];
+      };
+      if (!res.ok) throw new Error(data.error || "Couldn't clear the shots");
+      setOpenShotId(null);
+      setStory((cur) => {
+        if (!cur) return cur;
+        const removedIds = new Set((data.removed || []).map((r) => r.shot.id));
+        return {
+          ...cur,
+          scenes: cur.scenes.map((sc) => ({ ...sc, shots: sc.shots.filter((sh) => !removedIds.has(sh.id)) })),
+        };
+      });
+      if (data.job) onJobChange?.(data.job);
+      if (data.removed?.length) setRemovedBuffer(data.removed);
+      setClearConfirm(false);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Couldn't clear the shots");
+    } finally {
+      setClearBusy(false);
+    }
+  }
+
+  async function undoRemoved() {
+    if (!removedBuffer.length) return;
+    setUndoBusy(true);
+    setActionError("");
+    try {
+      for (const { sceneId, shot } of removedBuffer) {
+        const res = await fetch("/api/crash/mobile/plate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: job.id, action: "restore", sceneId, shot }),
+        });
+        const data = (await res.json()) as { error?: string; job?: MobileGenJob };
+        if (!res.ok) throw new Error(data.error || "Couldn't undo that");
+        if (data.job) onJobChange?.(data.job);
+      }
+      const fresh = await fetchStory(job.styleId, job.folderName);
+      if (fresh) setStory(fresh);
+      setRemovedBuffer([]);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Couldn't undo that");
+    } finally {
+      setUndoBusy(false);
     }
   }
 
@@ -169,17 +241,115 @@ export function PlateReviewEditor({
 
   return (
     <div style={{ marginBottom: "16px" }}>
-      <div
-        style={{
-          color: "var(--chrome-dim)",
-          fontSize: "10px",
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          margin: "0 2px 8px",
-        }}
-      >
-        Shots — tap one, Tweak position, Rebuild. Tap the picture to inspect.
-      </div>
+      {collapsed ? null : (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", margin: "0 2px 8px" }}>
+          <div
+            style={{
+              color: "var(--chrome-dim)",
+              fontSize: "10px",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              flex: 1,
+            }}
+          >
+            Shots — tap one, tweak position, redraw. Tap the picture to inspect.
+          </div>
+          {shots.length ? (
+            <button
+              type="button"
+              onClick={() => setClearConfirm((v) => !v)}
+              style={{
+                flex: "0 0 auto",
+                padding: "4px 8px",
+                borderRadius: "2px",
+                border: "1px solid var(--line)",
+                background: "transparent",
+                color: "var(--chrome-dim)",
+                fontSize: "10px",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                cursor: "pointer",
+              }}
+            >
+              Clear all
+            </button>
+          ) : null}
+        </div>
+      )}
+
+      {!collapsed && clearConfirm ? (
+        <div
+          style={{
+            ...mobileCard,
+            padding: "10px",
+            marginBottom: "10px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+          }}
+        >
+          <div style={{ flex: 1, fontSize: "12px", color: "var(--chrome)" }}>
+            Remove all {shots.length} shot{shots.length === 1 ? "" : "s"}? Plates and audio already made stay on
+            disk — Undo puts the cards straight back.
+          </div>
+          <button
+            type="button"
+            onClick={() => setClearConfirm(false)}
+            style={{
+              padding: "6px 10px",
+              borderRadius: "2px",
+              border: "1px solid var(--line)",
+              background: "transparent",
+              color: "var(--chrome)",
+              fontSize: "12px",
+            }}
+          >
+            Cancel
+          </button>
+          <MobilePrimaryButton size="chip" disabled={clearBusy} onClick={() => void clearAllShots()}>
+            {clearBusy ? "…" : "Clear all"}
+          </MobilePrimaryButton>
+        </div>
+      ) : null}
+
+      {!collapsed && removedBuffer.length ? (
+        <div
+          style={{
+            ...mobileCard,
+            padding: "10px",
+            marginBottom: "10px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+          }}
+        >
+          <div style={{ flex: 1, fontSize: "12px", color: "var(--chrome)" }}>
+            Removed {removedBuffer.length} shot{removedBuffer.length === 1 ? "" : "s"}.
+          </div>
+          <button
+            type="button"
+            onClick={() => setRemovedBuffer([])}
+            style={{
+              padding: "6px 10px",
+              borderRadius: "2px",
+              border: "1px solid var(--line)",
+              background: "transparent",
+              color: "var(--chrome-dim)",
+              fontSize: "12px",
+            }}
+          >
+            Dismiss
+          </button>
+          <MobilePrimaryButton size="chip" disabled={undoBusy} onClick={() => void undoRemoved()}>
+            {undoBusy ? "…" : "Undo"}
+          </MobilePrimaryButton>
+        </div>
+      ) : null}
+
+      {!collapsed && actionError ? (
+        <div style={{ fontSize: "12px", color: "var(--magenta-hot)", marginBottom: "8px" }}>{actionError}</div>
+      ) : null}
+
       <div
         style={{
           display: "flex",
@@ -191,12 +361,18 @@ export function PlateReviewEditor({
       >
         {shots.map((s, i) => {
           const plated = Boolean(s.plateFile && s.plateFile !== "__error__");
-          const solo = isSoloTestShot(shotById(s.shotId));
           return (
             <div key={s.shotId} style={{ position: "relative", flex: "0 0 auto" }}>
               <button
                 type="button"
-                onClick={() => setOpenShotId((cur) => (cur === s.shotId ? null : s.shotId))}
+                onClick={() => {
+                  if (collapsed) {
+                    onExpand?.();
+                    setOpenShotId(s.shotId);
+                    return;
+                  }
+                  setOpenShotId((cur) => (cur === s.shotId ? null : s.shotId));
+                }}
                 style={{
                   padding: "2px",
                   border: s.shotId === openShotId ? "2px solid var(--acid)" : "2px solid var(--line)",
@@ -237,7 +413,7 @@ export function PlateReviewEditor({
                   </div>
                 )}
               </button>
-              {plated ? (
+              {!collapsed && plated ? (
                 <button
                   type="button"
                   aria-label="Park this shot plate"
@@ -264,10 +440,10 @@ export function PlateReviewEditor({
                   ×
                 </button>
               ) : null}
-              {solo ? (
+              {!collapsed ? (
                 <button
                   type="button"
-                  aria-label="Remove this character card"
+                  aria-label="Remove this shot"
                   onClick={(e) => {
                     e.stopPropagation();
                     void removeShot(s.shotId);
@@ -299,7 +475,14 @@ export function PlateReviewEditor({
           <button
             type="button"
             aria-label="Add a character test card"
-            onClick={() => setPickerOpen((v) => !v)}
+            onClick={() => {
+              if (collapsed) {
+                onExpand?.();
+                setPickerOpen(true);
+                return;
+              }
+              setPickerOpen((v) => !v);
+            }}
             style={{
               flex: "0 0 auto",
               width: "76px",
@@ -318,7 +501,7 @@ export function PlateReviewEditor({
         ) : null}
       </div>
 
-      {pickerOpen ? (
+      {!collapsed && pickerOpen ? (
         <div style={{ ...mobileCard, padding: "10px", marginBottom: "10px" }}>
           <div
             style={{
@@ -333,7 +516,7 @@ export function PlateReviewEditor({
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
             {job.speakers.map((name) => {
-              const already = soloShotSpeakers.has(name.trim());
+              const already = usedShotSpeakers.has(name.trim());
               return (
                 <button
                   key={name}
@@ -361,7 +544,7 @@ export function PlateReviewEditor({
         </div>
       ) : null}
 
-      {openShotId ? (
+      {!collapsed && openShotId ? (
         <ShotLineEditor
           key={openShotId}
           styleId={job.styleId}
@@ -684,19 +867,15 @@ function PlateStagingEditor({
           placeholder="What we see — Jo on the bar, Matty behind it, the room going."
           style={shotFieldStyle}
         />
+        <div style={{ fontSize: "11px", color: "var(--chrome-dim)" }}>
+          Story text only — saved, but it doesn&apos;t draw anything. The picture comes from Position tweak below.
+        </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          {fieldLabel("Position tweak")}
+          {fieldLabel("Position tweak — draws the picture")}
           <div style={{ flex: 1 }} />
           <MobileAiButton onClick={() => void plateAssist.runAssist()} busy={plateAssist.aiBusy} />
-          <MobilePrimaryButton
-            size="chip"
-            disabled={busy || plateAssist.aiBusy || actionAssist.aiBusy || !staging.trim()}
-            onClick={() => void rebuild()}
-          >
-            {busy ? "…" : "Rebuild"}
-          </MobilePrimaryButton>
         </div>
         <textarea
           value={staging}
@@ -706,9 +885,12 @@ function PlateStagingEditor({
           placeholder="Who sits, leans, presents — Jo on the bar, Matty behind it"
           style={shotFieldStyle}
         />
-        <div style={{ fontSize: "11px", color: "var(--chrome-dim)" }}>
-          Rebuild redraws this shot&apos;s picture from the position notes above — same faces, same place.
-        </div>
+        <MobilePrimaryButton
+          disabled={busy || plateAssist.aiBusy || actionAssist.aiBusy || !staging.trim()}
+          onClick={() => void rebuild()}
+        >
+          {busy ? "Drawing…" : "Draw this picture"}
+        </MobilePrimaryButton>
       </div>
       {actionAssist.aiError ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{actionAssist.aiError}</div>
