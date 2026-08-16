@@ -1,0 +1,59 @@
+import { NextResponse } from "next/server";
+import { ensureCrashVoiceSample, findCrashVoiceByName } from "@/lib/crashVoice";
+import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
+import { readMobileGenJob } from "@/lib/mobileGenJob";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+/**
+ * POST { jobId, speaker } — cast this speaker's voice if it doesn't have one
+ * yet (reuse first, design only if reuse comes up empty — same priority
+ * beat-audio's save uses), then make sure a sample take exists to play.
+ * Returns what /api/crash/voice/file needs: styleId, castKey, attemptId.
+ */
+export async function POST(req: Request) {
+  try {
+    const body = (await req.json().catch(() => ({}))) as {
+      jobId?: string;
+      speaker?: string;
+    };
+    const jobId = (body.jobId || "").trim();
+    const speaker = (body.speaker || "").trim();
+    if (!jobId || !speaker) {
+      return NextResponse.json({ error: "Need jobId and speaker" }, { status: 400 });
+    }
+
+    const job = await readMobileGenJob(jobId);
+    if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+    const cast = await ensureSpeakerVoiceCast(job.styleId, speaker);
+    if (!cast) {
+      return NextResponse.json(
+        { error: "Couldn't cast a voice for this character — design quota may be used up" },
+        { status: 502 },
+      );
+    }
+
+    const slot = findCrashVoiceByName(job.styleId, speaker);
+    if (!slot) return NextResponse.json({ error: "No voice slot for this character" }, { status: 404 });
+
+    const ready = await ensureCrashVoiceSample({ styleId: job.styleId, castKey: slot.castKey });
+    if (!ready.approvedAttemptId) {
+      return NextResponse.json({ error: "No sample to play yet" }, { status: 502 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      styleId: job.styleId,
+      castKey: slot.castKey,
+      attemptId: ready.approvedAttemptId,
+      voiceDescription: ready.voiceDescription,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 502 },
+    );
+  }
+}

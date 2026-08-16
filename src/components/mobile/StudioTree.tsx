@@ -12,6 +12,7 @@ import {
 import { episodeTemplateFromJob } from "@/lib/mobilePasteParse";
 import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
+import { CastVoiceList } from "./CastVoiceList";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
 import {
@@ -970,6 +971,10 @@ export function StudioTree({
           <div style={{ padding: "4px 0 12px" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Opening the shot strip…</ShimmerText>
           </div>
+        ) : null}
+
+        {job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error" ? (
+          <CastVoiceList job={job} />
         ) : null}
 
         {job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error" ? (
