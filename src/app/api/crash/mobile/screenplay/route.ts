@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readMobileGenJob } from "@/lib/mobileGenJob";
 import { applyImportedStoryToJob } from "@/lib/mobileApplyScreenplay";
 import { importPastedStory, parseMobilePaste } from "@/lib/mobilePasteScript";
+import { canLockEpisode } from "@/lib/mobileJobReady";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -29,8 +30,10 @@ export async function POST(req: Request) {
 
     const job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-    if (job.phase !== "location_build" && job.phase !== "cast_build") {
-      return NextResponse.json({ ok: true, job });
+    if (!canLockEpisode(job.phase)) {
+      return NextResponse.json({
+        error: "This episode is already animating. Open it in Crash Lab — don't start over.",
+      }, { status: 409 });
     }
     if (!job.speakers.length) {
       return NextResponse.json({ error: "Add at least one character first" }, { status: 400 });

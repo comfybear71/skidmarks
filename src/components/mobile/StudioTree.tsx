@@ -16,6 +16,7 @@ import { StoryFeed } from "./StoryFeed";
 import {
   allCastApproved,
   allLocationsApproved,
+  canLockEpisode,
   latestCandidate,
   preferredCandidate,
 } from "@/lib/mobileJobReady";
@@ -672,7 +673,7 @@ export function StudioTree({
   const canWrite =
     allCastApproved(job) &&
     allLocationsApproved(job) &&
-    (job.phase === "cast_build" || job.phase === "location_build");
+    canLockEpisode(job.phase);
 
   const plated = job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__");
   const vibePreset = getShowStylePreset(job.styleId);
@@ -889,9 +890,9 @@ export function StudioTree({
         {canWrite && !lockingScript ? (
           <div style={{ marginBottom: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
-              Template is your places. AI drafts the story and beats from this
-              cast. Tweak it until it is right. Lock it — plates, audio, then
-              Comfy. Same pack opens in Crash Lab.
+              {job.folderName
+                ? "A short draft already landed. Paste yours and lock to replace it — faces and places stay."
+                : "Template is your places. AI drafts the story and beats from this cast. Tweak it until it is right. Lock it — plates, audio, then Comfy. Same pack opens in Crash Lab."}
             </div>
             <MobileTextInput
               value={scriptDraft}

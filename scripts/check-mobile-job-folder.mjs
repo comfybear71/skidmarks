@@ -9,6 +9,7 @@ import {
   keepCandidateTakes,
   latestCandidate,
   phaseAfterScreenplay,
+  canLockEpisode,
   preferredCandidate,
 } from "../src/lib/mobileJobReady.ts";
 import { screenplaySceneCount } from "../src/lib/mobileScreenplaySize.ts";
@@ -126,5 +127,8 @@ assert.equal(
   "mgen_from_store",
 );
 assert.equal(readResumedJobId("", { getItem: () => null }), "");
+assert.equal(canLockEpisode("plates"), true);
+assert.equal(canLockEpisode("review"), true);
+assert.equal(canLockEpisode("animate"), false);
 
 console.log("check-mobile-job-folder: ok");

@@ -44,6 +44,18 @@ export function allLocationsApproved(
   );
 }
 
+/** Lock / replace the episode — not once Comfy is running or the cut is done. */
+export function canLockEpisode(phase: MobileGenPhase): boolean {
+  return (
+    phase === "cast_build" ||
+    phase === "location_build" ||
+    phase === "cast_images" ||
+    phase === "location_images" ||
+    phase === "plates" ||
+    phase === "review"
+  );
+}
+
 /** After the screenplay, skip pick screens whose faces/places are already chosen. */
 export function phaseAfterScreenplay(
   job: Pick<MobileGenJob, "speakers" | "castCandidates" | "scenes" | "locationCandidates">,

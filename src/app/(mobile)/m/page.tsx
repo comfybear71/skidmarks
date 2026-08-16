@@ -39,6 +39,7 @@ export default function MobileHomePage() {
   const [error, setError] = useState("");
   const [characterIds, setCharacterIds] = useState<Record<string, string>>({});
   const [resuming, setResuming] = useState(true);
+  const [resumeError, setResumeError] = useState("");
   const pollRef = useRef<number | null>(null);
 
   const stopPoll = useCallback(() => {
@@ -103,12 +104,23 @@ export default function MobileHomePage() {
     }
     let cancelled = false;
     fetch(`/api/crash/mobile/job/${encodeURIComponent(id)}`)
-      .then((r) => r.json())
-      .then((d: { job?: MobileGenJob }) => {
-        if (cancelled || !d.job) return;
+      .then(async (r) => {
+        const d = (await r.json().catch(() => ({}))) as {
+          job?: MobileGenJob;
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!d.job) {
+          setResumeError(d.error || `Couldn't open ${id}. The episode is still there — don't tap Start directing.`);
+          return;
+        }
         setJob(d.job);
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) {
+          setResumeError(`Couldn't open ${id}. The episode is still there — don't tap Start directing.`);
+        }
+      })
       .finally(() => {
         if (!cancelled) setResuming(false);
       });
@@ -364,6 +376,15 @@ export default function MobileHomePage() {
       {resuming ? (
         <div style={{ padding: "24px 16px", color: "var(--chrome-dim)", fontSize: "14px" }}>
           Opening the episode…
+        </div>
+      ) : !job && resumeError ? (
+        <div style={{ padding: "24px 16px" }}>
+          <div style={{ color: "var(--magenta-hot)", fontSize: "15px", fontWeight: 600 }}>
+            {resumeError}
+          </div>
+          <div style={{ color: "var(--chrome-dim)", fontSize: "13px", marginTop: "8px" }}>
+            Do not tap Start directing. That mints a new empty job. This one is still in the cloud.
+          </div>
         </div>
       ) : !job ? (
         <ActiveStepPanel title="What's the vibe?" subtitle="You direct. We hold the cast, the places, and the plates.">
