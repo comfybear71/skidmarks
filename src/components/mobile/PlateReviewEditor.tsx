@@ -40,7 +40,7 @@ import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSav
 /** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
 const PLATE_TILE_PX = 96;
 
-function mobileClipSrc(job: Pick<MobileGenJob, "styleId" | "folderName">, clipFile: string): string {
+function mobileClipSrc(job: { styleId: string; folderName: string }, clipFile: string): string {
   const fileName = clipFile.split(/[\\/]/).pop() || clipFile;
   return `/api/crash/mobile/clip?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&fileName=${encodeURIComponent(fileName)}`;
 }
