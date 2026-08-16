@@ -1,3 +1,4 @@
+import { speakerVoiceKey } from "./crashVoicePrompt";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 
 /**
@@ -33,6 +34,62 @@ function clean(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Locked lead on every LTX send. Gold spelling. Not a separate prompt —
+ * prepended onto Image motion so Cloud IA2V actually receives it.
+ */
+export const LTX_LIP_SYNC_LEAD =
+  "perfect lip sync, clear lip movement, citing the dialogue clearly, facial expressions and hand gestures are lively, dication is perfect.";
+
+export function withLtxLipSyncLead(prompt: string): string {
+  const body = clean(prompt);
+  if (!body) return LTX_LIP_SYNC_LEAD;
+  if (body.toLowerCase().startsWith("perfect lip sync")) return body;
+  return clean(`${LTX_LIP_SYNC_LEAD} ${body}`);
+}
+
+export function stripLtxLipSyncLead(prompt: string): string {
+  const body = prompt.trim();
+  if (!body) return "";
+  if (body.toLowerCase().startsWith(LTX_LIP_SYNC_LEAD.toLowerCase())) {
+    return clean(body.slice(LTX_LIP_SYNC_LEAD.length).replace(/^[,.\s]+/, ""));
+  }
+  if (/^perfect lip sync/i.test(body)) {
+    return clean(body.replace(/^perfect lip sync[^.]*\.\s*/i, ""));
+  }
+  return clean(body);
+}
+
+/** The one string Cloud LTX gets: lead + Image motion body. */
+export function ltxSendPrompt(imageMotion: string): string {
+  return withLtxLipSyncLead(imageMotion);
+}
+
+/**
+ * CRAZY BIG HOLE JO (and Jo Too) — majority of her clips: phone in her
+ * hands, staring like a maniac, saying the line as she texts. Same held-prop
+ * shape that already works for pies and tennis rackets. Editable in the LTX
+ * box when a shot is the exception.
+ */
+export function isJoKeyboardWarrior(speaker: string): boolean {
+  const n = speaker.trim().toLowerCase().replace(/\s+/g, " ");
+  return n.includes("crazy big hole jo") || speakerVoiceKey(speaker) === "jo";
+}
+
+function speakingAction(speaker: string): string {
+  if (isJoKeyboardWarrior(speaker)) {
+    return "holding her phone, staring at the screen like a crazed maniac, thumbs hammering the keys as she texts, mouth and head move naturally while she speaks the line as she types, keyboard warrior";
+  }
+  return "mouth and head move naturally while speaking, subtle gesture";
+}
+
+function holdAction(speaker: string): string {
+  if (isJoKeyboardWarrior(speaker)) {
+    return "is prominent, holding her phone, staring at the screen like a crazed maniac, thumbs tapping the keys, holds her pose, subtle idle motion, weight shift, breathing, heat haze, flies";
+  }
+  return "holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies";
+}
+
 /** Speaking beat — the mandatory shape from the standard. */
 export function buildSpeakingMotion(opts: {
   styleId: ShowStyleId;
@@ -47,7 +104,7 @@ export function buildSpeakingMotion(opts: {
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} is prominent, mouth and head move naturally while speaking, subtle gesture.`,
+      `${who} is prominent, ${speakingAction(opts.speaker)}.`,
       "Props and background stay exactly as the start image, nothing new enters frame.",
       `${name} says: "${clean(opts.line)}".`,
       "Camera holds. Same person and objects as the start image.",
@@ -69,7 +126,7 @@ export function buildHoldMotion(opts: {
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies.`,
+      `${who} ${holdAction(opts.speaker)}.`,
       "Props and background stay exactly as the start image, nothing new enters frame.",
       "No dialogue. Camera holds, no cuts. Same person and objects as the start image.",
       "No new people enter the frame.",
@@ -115,13 +172,33 @@ export function buildSegmentText(speaker: string, speaking: boolean): string {
     : `${name}, soft idle motion, props locked`;
 }
 
-/** Global applied to every beat — lip sync plus the show's lock. */
+/** Default Image motion body (no lip-sync lead — that is prepended on send). */
+export function buildDefaultBeatMotion(opts: {
+  styleId: ShowStyleId;
+  speaker: string;
+  line: string;
+  lookLock?: string;
+  shotSpeakers?: string[];
+}): string {
+  const line = (opts.line || "").trim();
+  if (line) {
+    return buildSpeakingMotion({
+      styleId: opts.styleId,
+      speaker: opts.speaker,
+      line,
+      lookLock: opts.lookLock,
+    });
+  }
+  const names = (opts.shotSpeakers || []).map(clean).filter(Boolean);
+  if (names.length > 1) return buildGroupHoldMotion({ styleId: opts.styleId, names });
+  return buildHoldMotion({
+    styleId: opts.styleId,
+    speaker: opts.speaker,
+    lookLock: opts.lookLock,
+  });
+}
+
+/** Hotfix GLOBAL socket only. Cloud IA2V uses ltxSendPrompt(imageMotion). */
 export function buildGlobalPrompt(styleId: ShowStyleId): string {
-  return clean(
-    [
-      "perfect lip sync, clear lip movement, citing the dialogue clearly,",
-      "facial expressions and hand gestures are lively.",
-      motionStyleLock(styleId),
-    ].join(" "),
-  );
+  return clean([LTX_LIP_SYNC_LEAD, motionStyleLock(styleId)].join(" "));
 }

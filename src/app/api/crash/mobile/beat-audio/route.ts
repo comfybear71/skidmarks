@@ -8,6 +8,8 @@ import { readMobileGenJob } from "@/lib/mobileGenJob";
 import { serveMediaFile } from "@/lib/serveMediaFile";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { pinSpeakerLibraryVoice } from "@/lib/mobileVoiceReuse";
+import { candidateLookPrompt } from "@/lib/mobileJobReady";
+import { buildDefaultBeatMotion } from "@/lib/mobileImageMotion";
 import { jobVoiceForSpeaker } from "@/lib/mobileJobVoices";
 import { voiceNamesMatch } from "@/lib/voiceNameMatch";
 import path from "path";
@@ -110,7 +112,35 @@ export async function POST(req: Request) {
     }
 
     const result = await synthesizeStoryBeat({ styleId: job.styleId, beatId, speaker, text });
-    await writeMobileStory(result.story, job.folderName);
+    const lookLock =
+      candidateLookPrompt(job.castCandidates, speaker) ||
+      job.roster.find((c) => c.name.trim().toLowerCase() === speaker.trim().toLowerCase())
+        ?.appearance ||
+      "";
+    const next = {
+      ...result.story,
+      scenes: result.story.scenes.map((sc) => ({
+        ...sc,
+        shots: sc.shots.map((sh) => ({
+          ...sh,
+          beats: sh.beats.map((b) => {
+            if (b.id !== beatId) return b;
+            if ((b.imageMotion || "").trim()) return b;
+            return {
+              ...b,
+              imageMotion: buildDefaultBeatMotion({
+                styleId: job.styleId,
+                speaker,
+                line: text,
+                lookLock,
+                shotSpeakers: sh.beats.map((x) => x.speaker),
+              }),
+            };
+          }),
+        })),
+      })),
+    };
+    await writeMobileStory(next, job.folderName);
     try {
       const localPath = resolveBeatAudioPath(job.styleId, beatId, result.voiceFile);
       if (localPath) {
@@ -125,7 +155,14 @@ export async function POST(req: Request) {
       /* best effort — clip generation still resolves the file locally on this instance */
     }
 
-    return NextResponse.json({ ok: true, voiceFile: result.voiceFile });
+    return NextResponse.json({
+      ok: true,
+      voiceFile: result.voiceFile,
+      imageMotion:
+        next.scenes
+          .flatMap((sc) => sc.shots.flatMap((sh) => sh.beats))
+          .find((b) => b.id === beatId)?.imageMotion || "",
+    });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },

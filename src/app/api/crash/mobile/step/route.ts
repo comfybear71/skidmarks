@@ -18,14 +18,14 @@ import {
   phaseAfterErrorResume,
 } from "@/lib/mobilePipeline";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
-import { allCastApproved, allLocationsApproved } from "@/lib/mobileJobReady";
+import { allCastApproved, allLocationsApproved, candidateLookPrompt } from "@/lib/mobileJobReady";
 import { CRASH_DIR } from "@/lib/paths";
 import {
-  buildSpeakingMotion,
-  buildHoldMotion,
-  buildGroupHoldMotion,
+  buildDefaultBeatMotion,
   buildSegmentText,
   buildGlobalPrompt,
+  ltxSendPrompt,
+  stripLtxLipSyncLead,
 } from "@/lib/mobileImageMotion";
 
 export const runtime = "nodejs";
@@ -247,27 +247,24 @@ export async function POST(req: Request) {
         // 100%: first-frame lock, look lock, "nothing new enters frame",
         // "same person and objects as the start image".
         const speaking = beat.text.trim().length > 0;
-        const lookLock = job.roster.find(
-          (c) => c.name.trim().toLowerCase() === beat.speaker.trim().toLowerCase(),
-        )?.appearance;
-        // A hold beat's own speaker is only who is "on" this beat, not who is
-        // in the plate — the plate is shared across the whole shot. Naming
-        // just one person during a hold reads as permission for everyone else
-        // in frame to drift, which is the group-hold shape the standard
-        // documents separately.
+        const lookLock =
+          candidateLookPrompt(job.castCandidates, beat.speaker) ||
+          job.roster.find(
+            (c) => c.name.trim().toLowerCase() === beat.speaker.trim().toLowerCase(),
+          )?.appearance;
         const shotCast = [
           ...new Set((storyShot?.beats || []).map((b) => b.speaker.trim()).filter(Boolean)),
         ];
-        const imageMotion = speaking
-          ? buildSpeakingMotion({
-              styleId: job.styleId,
-              speaker: beat.speaker,
-              line: beat.text,
-              lookLock,
-            })
-          : shotCast.length > 1
-            ? buildGroupHoldMotion({ styleId: job.styleId, names: shotCast })
-            : buildHoldMotion({ styleId: job.styleId, speaker: beat.speaker, lookLock });
+        const body =
+          stripLtxLipSyncLead(beat.imageMotion || "") ||
+          buildDefaultBeatMotion({
+            styleId: job.styleId,
+            speaker: beat.speaker,
+            line: beat.text,
+            lookLock,
+            shotSpeakers: shotCast,
+          });
+        const imageMotion = ltxSendPrompt(body);
 
         // Recorded on the clip before the render even starts, so the prompt is
         // visible on screen the moment the clip is queued — not only once it

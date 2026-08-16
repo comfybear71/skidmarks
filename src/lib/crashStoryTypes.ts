@@ -16,6 +16,11 @@ export type CrashStoryBeat = {
   text: string;
   /** mp3 under data/crash/story/{styleId}/audio/ */
   voiceFile?: string;
+  /**
+   * IMAGE MOTION body for this beat — the one LTX text prompt (lip-sync lead
+   * is prepended on send). Editable on /m for walk / prop experiments.
+   */
+  imageMotion?: string;
 };
 
 /** One drawn still for a shot — a conversation shot can want several, each
