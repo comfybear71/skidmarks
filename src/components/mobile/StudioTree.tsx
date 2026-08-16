@@ -968,12 +968,11 @@ export function StudioTree({
 
         {job.phase === "plates" ? (
           <div style={{ padding: "4px 0 12px" }}>
-            <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Building the shots…</ShimmerText>
-            <StoryFeed job={job} />
+            <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Opening the shot strip…</ShimmerText>
           </div>
         ) : null}
 
-        {plated.length && (job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error") ? (
+        {job.shots.length && (job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error") ? (
           <PlateReviewEditor job={job} onJobChange={onJobChange} />
         ) : null}
 
@@ -982,8 +981,8 @@ export function StudioTree({
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "10px" }}>
               {plated.length}/{job.shots.length} plated · {job.clips.length} lines
             </div>
-            <MobilePrimaryButton disabled={busy} onClick={onGenerateVideo}>
-              {busy ? "Casting voices…" : "Generate video"}
+            <MobilePrimaryButton disabled={busy || !plated.length} onClick={onGenerateVideo}>
+              {busy ? "Casting voices…" : plated.length ? "Generate video" : "Rebuild a plate first"}
             </MobilePrimaryButton>
           </div>
         ) : null}
@@ -1022,7 +1021,7 @@ export function StudioTree({
 
         {!canWrite &&
         !lockingScript &&
-        !plated.length &&
+        !job.shots.length &&
         job.phase !== "plates" &&
         job.phase !== "error" ? (
           <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "4px 0 8px" }}>

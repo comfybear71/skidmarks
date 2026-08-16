@@ -49,6 +49,7 @@ async function castEpisodeVoices(
   );
   const results: ScriptVoiceGenItemResult[] = [];
   let quotaExceeded = false;
+  const takenVoices = new Set<string>();
 
   for (let i = 0; i < speakers.length; i++) {
     const speaker = speakers[i];
@@ -63,6 +64,8 @@ async function castEpisodeVoices(
       findCrashVoiceByName(styleId, speaker)?.approvedVoiceId,
     );
     if (alreadyCast) {
+      const id = findCrashVoiceByName(styleId, speaker)?.approvedVoiceId?.trim();
+      if (id) takenVoices.add(id);
       results.push({ name: speaker, ok: true, detail: "Already cast" });
       continue;
     }
@@ -73,7 +76,7 @@ async function castEpisodeVoices(
     // only thing that still works. Silence is worse than a shared voice.
     if (quotaExceeded || readVoiceQuota().remaining <= 0) {
       quotaExceeded = true;
-      const reused = await assignReusedVoice(styleId, speaker).catch(() => false);
+      const reused = await assignReusedVoice(styleId, speaker, takenVoices).catch(() => false);
       results.push(
         reused
           ? { name: speaker, ok: true, detail: "Reused an existing voice — design quota used up" }
@@ -104,7 +107,7 @@ async function castEpisodeVoices(
       const why = e instanceof Error ? e.message : String(e);
       if (/limit|quota/i.test(why)) {
         quotaExceeded = true;
-        const reused = await assignReusedVoice(styleId, speaker).catch(() => false);
+        const reused = await assignReusedVoice(styleId, speaker, takenVoices).catch(() => false);
         if (reused) {
           results.push({
             name: speaker,
