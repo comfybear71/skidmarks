@@ -78,10 +78,11 @@ export default function MobileHomePage() {
     }
   }, []);
 
-  // Drive the automatic phases (plates/voices/animate/stitch) by polling
-  // /step repeatedly — each call does one bounded unit of work.
+  // Drive the automatic phases (plates/animate/stitch) by polling /step
+  // repeatedly — each call does one bounded unit of work. "review" is
+  // deliberately not here — it waits on Generate video, not a timer.
   useEffect(() => {
-    const autoPhases = ["plates", "voices", "animate", "stitch"];
+    const autoPhases = ["plates", "animate", "stitch"];
     if (!job || !autoPhases.includes(job.phase)) {
       stopPoll();
       return;
@@ -112,7 +113,7 @@ export default function MobileHomePage() {
   }, [job?.phase, job?.id]);
 
   useEffect(() => {
-    if (job?.phase === "cast_images") {
+    if (job?.phase === "cast_build" || job?.phase === "cast_images") {
       fetch("/api/characters")
         .then((r) => r.json())
         .then((d) => {
@@ -122,7 +123,9 @@ export default function MobileHomePage() {
         })
         .catch(() => {});
     }
-  }, [job?.phase]);
+    // "+ Add another character" grows job.speakers without a phase change —
+    // refetch so the new one's face-generation calls get a real characterId.
+  }, [job?.phase, job?.speakers.length]);
 
   const runScreenplay = useCallback(async (jobId: string) => {
     setBusy(true);
@@ -140,6 +143,9 @@ export default function MobileHomePage() {
     }
   }, []);
 
+  // Job creation used to fall straight into writing the screenplay; cast and
+  // locations are built freeform first now, so this just creates the job —
+  // it lands on "cast_build" and the script gets written once that's done.
   const startRun = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -152,13 +158,29 @@ export default function MobileHomePage() {
         secondsPerShot: SECONDS_PER_SHOT,
       });
       setJob(created);
-      setBusy(false);
-      await runScreenplay(created.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't start");
+    } finally {
       setBusy(false);
     }
-  }, [prompt, styleId, styleRealism, targetDurationSec, runScreenplay]);
+  }, [prompt, styleId, styleRealism, targetDurationSec]);
+
+  const finishCastBuild = useCallback(async () => {
+    if (!job) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { job: updated } = await postJson<{ job: MobileGenJob }>(
+        "/api/crash/mobile/cast-build-done",
+        { jobId: job.id },
+      );
+      setJob(updated);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't move on");
+    } finally {
+      setBusy(false);
+    }
+  }, [job]);
 
   const genCandidates = useCallback(
     async (kind: "cast" | "location", target: string, customPrompt?: string) => {
@@ -180,19 +202,19 @@ export default function MobileHomePage() {
     [job],
   );
 
-  // Adds a speaker/scene the screenplay never named — "his friend is a
-  // grunge bottle of olive oil" — with no dialogue attached yet. It just
-  // joins the roster/world and picks a face like anything else; giving it a
-  // line is a later, separate decision.
+  // Adds a speaker/scene not yet on the roster — "his friend is a grunge
+  // bottle of olive oil" — with no dialogue attached yet. It joins the
+  // roster/world and picks a face like anything else; giving it a line is a
+  // later, separate decision.
   const addRosterItem = useCallback(
-    async (kind: "cast" | "location", name: string) => {
+    async (kind: "cast" | "location", name: string, description?: string) => {
       if (!job) return;
       setBusy(true);
       setError("");
       try {
         const { job: updated } = await postJson<{ job: MobileGenJob }>(
           "/api/crash/mobile/candidates",
-          { jobId: job.id, kind, action: "add", name },
+          { jobId: job.id, kind, action: "add", name, description },
         );
         setJob(updated);
       } catch (e) {
@@ -378,25 +400,69 @@ export default function MobileHomePage() {
           </div>
           <div style={{ marginTop: "16px" }}>
             <MobilePrimaryButton disabled={busy} onClick={() => void startRun()}>
-              {busy ? "Writing the screenplay…" : "Generate"}
+              {busy ? "Starting…" : "Next: Build cast"}
             </MobilePrimaryButton>
           </div>
         </ActiveStepPanel>
       )}
 
-      {/* Waiting on screenplay before job.phase exists yet */}
-      {job && job.phase === "screenplay" && !error && (
-        <ActiveStepPanel title="Writing the screenplay…" subtitle="Casting your idea into a script.">
-          <BusySpinner />
-        </ActiveStepPanel>
-      )}
-      {job && job.phase === "screenplay" && error && (
-        <ActiveStepPanel title="Couldn't write the screenplay" subtitle="Fix the issue above, then try again.">
-          <MobilePrimaryButton onClick={() => void runScreenplay(job.id)}>Retry</MobilePrimaryButton>
-        </ActiveStepPanel>
+      {/* Step 4: Build cast — freeform, before any script exists */}
+      {job && job.phase === "cast_build" && (
+        <CastLocationStep
+          key="cast-build"
+          title="Build your cast"
+          subtitle="One at a time — dud it, reroll, or pick it. No script yet."
+          items={job.speakers}
+          candidatesOf={(name) => job.castCandidates[name] || []}
+          imageSrc={(name, c) =>
+            `/api/crash/mobile/cast-face?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&characterId=${encodeURIComponent(characterIds[name] || "")}&fileName=${encodeURIComponent(c.fileName)}`
+          }
+          onGenerate={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
+          onApprove={(name, candidateId) => approveCandidate("cast", name, candidateId)}
+          onAddNew={(name, description) => addRosterItem("cast", name, description)}
+          addLabel="Add a character"
+          addPlaceholder="e.g. Tomato"
+          addDescriptionPlaceholder="What do they look like? e.g. a heavy metal tomato, sunglasses, leather jacket"
+          busy={busy}
+          error={error}
+          promptPlaceholder="e.g. more like a grumpy dad"
+          mode="build"
+          onDoneBuild={() => void finishCastBuild()}
+          doneLabel="Next: Locations"
+          doneBusy={busy}
+        />
       )}
 
-      {/* Step 4: Cast */}
+      {/* Step 5: Build locations — same freeform pattern, still no script */}
+      {job && job.phase === "location_build" && (
+        <CastLocationStep
+          key="location-build"
+          title="Build your locations"
+          subtitle='One at a time — try "Mars", dud it, reroll, or pick it.'
+          items={job.scenes.map((s) => s.id)}
+          labelOf={(id) => job.scenes.find((s) => s.id === id)?.placeName || id}
+          candidatesOf={(id) => job.locationCandidates[id] || []}
+          imageSrc={(_id, c) => `/api/crash/gen/file?name=${encodeURIComponent(c.fileName)}`}
+          onGenerate={(id, customPrompt) => genCandidates("location", id, customPrompt)}
+          onApprove={(id, candidateId) => approveCandidate("location", id, candidateId)}
+          onAddNew={(name) => addRosterItem("location", name)}
+          addLabel="Add a location"
+          addPlaceholder="e.g. the cowboy set, a sinking ship"
+          busy={busy}
+          error={error}
+          promptPlaceholder="e.g. Mars, a dive bar, outer space"
+          topExtra={<PickedSoFar job={job} characterIds={characterIds} categories={["cast"]} />}
+          mode="build"
+          onDoneBuild={() => void runScreenplay(job.id)}
+          doneLabel="Next: Write the script"
+          doneBusy={busy}
+        />
+      )}
+
+      {/* Step 6: Cast picks the screenplay didn't already have approved —
+          normally instant, since cast_build/location_build already picked
+          everyone; only a name the script invented despite the constraint
+          lands here needing a fresh face. */}
       {job && job.phase === "cast_images" && (
         <CastLocationStep
           key="cast"
@@ -409,9 +475,10 @@ export default function MobileHomePage() {
           }
           onGenerate={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApprove={(name, candidateId) => approveCandidate("cast", name, candidateId)}
-          onAddNew={(name) => addRosterItem("cast", name)}
+          onAddNew={(name, description) => addRosterItem("cast", name, description)}
           addLabel="Add another character"
           addPlaceholder="e.g. his friend, a grunge bottle of olive oil"
+          addDescriptionPlaceholder="What do they look like?"
           busy={busy}
           error={error}
           promptPlaceholder="e.g. more like a grumpy dad"
@@ -440,15 +507,10 @@ export default function MobileHomePage() {
         />
       )}
 
-      {/* Steps 6-7: auto-build (plates + voices) */}
-      {job && (job.phase === "plates" || job.phase === "voices") && (
-        <ActiveStepPanel
-          title={
-            <ShimmerText>{job.phase === "plates" ? "Building the shots…" : "Casting voices…"}</ShimmerText>
-          }
-          subtitle="This runs on its own — sit tight."
-        >
-          {/* Everything picked stays on screen while the slow phases run. A
+      {/* Step 6: auto-build plates */}
+      {job && job.phase === "plates" && (
+        <ActiveStepPanel title={<ShimmerText>Building the shots…</ShimmerText>} subtitle="This runs on its own — sit tight.">
+          {/* Everything picked stays on screen while the slow phase runs. A
               bare spinner threw the whole cast and every location away and
               left nothing to look at. */}
           <PickedSoFar job={job} characterIds={characterIds} />
@@ -457,16 +519,18 @@ export default function MobileHomePage() {
         </ActiveStepPanel>
       )}
 
-      {/* Step 8: Review & approve */}
+      {/* Step 7: Review — plates are done; dialogue/voice is a deliberate
+          step from here, not automatic. Whatever's left untouched when
+          Generate is hit gets auto-voiced with the AI-drafted line as-is. */}
       {job && job.phase === "review" && (
-        <ActiveStepPanel title="Ready to animate" subtitle="Check the lines, then go — this next part costs GPU time.">
+        <ActiveStepPanel title="Check the plates" subtitle="Tap one, check or write the line, hear it — then go.">
           <PlateReviewEditor job={job} />
           <div style={{ color: "var(--chrome-dim)", fontSize: "13px", marginBottom: "16px" }}>
             {job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__").length}/{job.shots.length} shots plated ·{" "}
             {job.clips.length} lines to animate
           </div>
           <MobilePrimaryButton disabled={busy} onClick={() => void approveReview()}>
-            {busy ? "Starting…" : "Generate video"}
+            {busy ? "Casting voices…" : "Generate video"}
           </MobilePrimaryButton>
         </ActiveStepPanel>
       )}
@@ -766,10 +830,15 @@ function CastLocationStep({
   onAddNew,
   addLabel,
   addPlaceholder,
+  addDescriptionPlaceholder,
   busy,
   error,
   promptPlaceholder,
   topExtra,
+  mode = "pick",
+  onDoneBuild,
+  doneLabel,
+  doneBusy,
 }: {
   title: string;
   subtitle: string;
@@ -780,14 +849,25 @@ function CastLocationStep({
   onGenerate: (id: string, customPrompt?: string) => void;
   onApprove: (id: string, candidateId: string) => void;
   /** Adds a speaker/scene the screenplay never named — no dialogue yet, just a face/place. */
-  onAddNew: (name: string) => void;
+  onAddNew: (name: string, description?: string) => void;
   addLabel: string;
   addPlaceholder: string;
+  /** Cast only — a name alone ("Tomato") isn't enough to draw a face from;
+   * locations skip this since the place name is usually descriptive enough. */
+  addDescriptionPlaceholder?: string;
   busy: boolean;
   error: string;
   promptPlaceholder: string;
   /** Picks from an earlier step (e.g. cast) kept visible above this step's own picks. */
   topExtra?: ReactNode;
+  /** "build": freeform roster growing from zero via "+", done on request —
+   * no fixed target list to complete. "pick" (default): a fixed list from
+   * the screenplay, one candidate per item, advances on its own once every
+   * item has an approved pick. */
+  mode?: "pick" | "build";
+  onDoneBuild?: () => void;
+  doneLabel?: string;
+  doneBusy?: boolean;
 }) {
   // Start on the first thing still needing a pick. Reused cast arrives already
   // approved, and opening on an item that is done makes you tap past it.
@@ -824,10 +904,13 @@ function CastLocationStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, busy]);
 
-  if (!current) return null;
+  if (!current && mode !== "build") return null;
 
   return (
-    <ActiveStepPanel title={title} subtitle={`${subtitle} (${cursor + 1}/${items.length})`}>
+    <ActiveStepPanel
+      title={title}
+      subtitle={items.length ? `${subtitle} (${cursor + 1}/${items.length})` : subtitle}
+    >
       {topExtra}
       {/* Everything picked so far, so the cast/locations you have built stay
           visible instead of disappearing the moment the cursor moves on. */}
@@ -887,8 +970,20 @@ function CastLocationStep({
         );
       })()}
 
-      <AddAnotherRow label={addLabel} placeholder={addPlaceholder} busy={busy} onAdd={onAddNew} />
+      <AddAnotherRow
+        label={addLabel}
+        placeholder={addPlaceholder}
+        descriptionPlaceholder={addDescriptionPlaceholder}
+        busy={busy}
+        onAdd={onAddNew}
+      />
 
+      {!current ? (
+        <div style={{ textAlign: "center", padding: "24px 0", color: "var(--chrome-dim)", fontSize: "13px" }}>
+          Nothing here yet — {addLabel.replace(/^Add /i, "add ")} above to start.
+        </div>
+      ) : (
+      <>
       <div style={{ color: "var(--acid)", fontWeight: 700, marginBottom: "8px" }}>
         {labelOf ? labelOf(current) : current}
       </div>
@@ -899,7 +994,7 @@ function CastLocationStep({
           busy={busy}
           onApprove={(c) => {
             onApprove(current, c.id);
-            if (cursor < items.length - 1) setCursor((n) => n + 1);
+            if (mode === "pick" && cursor < items.length - 1) setCursor((n) => n + 1);
           }}
           onReroll={() => onGenerate(current, customPrompt || undefined)}
         />
@@ -963,6 +1058,15 @@ function CastLocationStep({
         </button>
       </div>
       ) : null}
+      </>
+      )}
+      {mode === "build" ? (
+        <div style={{ marginTop: "16px" }}>
+          <MobilePrimaryButton disabled={!items.length || doneBusy} onClick={() => onDoneBuild?.()}>
+            {doneBusy ? "Working…" : doneLabel || "Next"}
+          </MobilePrimaryButton>
+        </div>
+      ) : null}
     </ActiveStepPanel>
   );
 }
@@ -970,16 +1074,21 @@ function CastLocationStep({
 function AddAnotherRow({
   label,
   placeholder,
+  descriptionPlaceholder,
   busy,
   onAdd,
 }: {
   label: string;
   placeholder: string;
+  /** Cast only — asks for a short name plus a separate look/description,
+   * since a name alone ("Tomato") gives the face generator nothing to draw. */
+  descriptionPlaceholder?: string;
   busy: boolean;
-  onAdd: (name: string) => void;
+  onAdd: (name: string, description?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
 
   if (!open) {
     return (
@@ -1004,14 +1113,13 @@ function AddAnotherRow({
   }
 
   return (
-    <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
       <input
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder={placeholder}
         style={{
-          flex: 1,
           padding: "10px",
           borderRadius: "8px",
           border: "1px solid var(--line)",
@@ -1020,12 +1128,28 @@ function AddAnotherRow({
           fontSize: "13px",
         }}
       />
+      {descriptionPlaceholder ? (
+        <input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={descriptionPlaceholder}
+          style={{
+            padding: "10px",
+            borderRadius: "8px",
+            border: "1px solid var(--line)",
+            background: "var(--panel-2)",
+            color: "var(--chrome)",
+            fontSize: "13px",
+          }}
+        />
+      ) : null}
       <button
         type="button"
         disabled={busy || !name.trim()}
         onClick={() => {
-          onAdd(name.trim());
+          onAdd(name.trim(), description.trim() || undefined);
           setName("");
+          setDescription("");
           setOpen(false);
         }}
         style={{

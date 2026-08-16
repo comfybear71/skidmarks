@@ -29,6 +29,8 @@ type Body = {
   candidateId?: string;
   /** action "add" only — new speaker name, or new place name. */
   name?: string;
+  /** action "add", kind "cast" only — the character's look/appearance. */
+  description?: string;
 };
 
 /**
@@ -69,8 +71,9 @@ export async function POST(req: Request) {
         if (job.speakers.some((s) => s.toLowerCase() === name.toLowerCase())) {
           return NextResponse.json({ error: `${name} is already in the cast` }, { status: 400 });
         }
+        const description = (body.description || "").trim();
         if (!listCharacters().some((c) => c.name.trim().toLowerCase() === name.toLowerCase())) {
-          createCharacter({ name });
+          createCharacter({ name, lookNote: description, pastNote: description });
         }
         const updated = await patchMobileGenJob(jobId, { speakers: [...job.speakers, name] });
         return NextResponse.json({ ok: true, job: updated });
@@ -81,17 +84,24 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `${name} is already in the locations` }, { status: 400 });
       }
       const sceneId = newId("scene");
-      const story = await readMobileStory(job.styleId, job.folderName);
-      await writeMobileStory(
-        {
-          ...story,
-          scenes: [
-            ...story.scenes,
-            { id: sceneId, title: name, placeName: name, worldThumbKey: "", shots: [] },
-          ],
-        },
-        job.folderName,
-      );
+      // No episode pack exists yet during location_build (job.folderName is
+      // still empty — the screenplay hasn't run) — nothing to sync a story
+      // doc against. job.scenes' own worldThumbKey is the source of truth
+      // until the screenplay reconciliation step carries it into the real
+      // story once a pack exists.
+      if (job.folderName) {
+        const story = await readMobileStory(job.styleId, job.folderName);
+        await writeMobileStory(
+          {
+            ...story,
+            scenes: [
+              ...story.scenes,
+              { id: sceneId, title: name, placeName: name, worldThumbKey: "", shots: [] },
+            ],
+          },
+          job.folderName,
+        );
+      }
       const updated = await patchMobileGenJob(jobId, {
         scenes: [...job.scenes, { id: sceneId, placeName: name, worldThumbKey: "" }],
       });
@@ -175,12 +185,17 @@ export async function POST(req: Request) {
     if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
     const thumbKey = await approveLocationCandidate(job.styleId, job.folderName, scene.placeName, candidateId);
 
-    // Patch the real story doc so the plates phase can find it — not just the job doc.
-    const story = await readMobileStory(job.styleId, job.folderName);
-    const nextScenes = story.scenes.map((sc) =>
-      sc.id === target ? { ...sc, worldThumbKey: thumbKey } : sc,
-    );
-    await writeMobileStory({ ...story, scenes: nextScenes }, job.folderName);
+    // Patch the real story doc so the plates phase can find it — not just the
+    // job doc. Nothing to patch yet during location_build (no pack, no
+    // story); the screenplay reconciliation step carries job.scenes'
+    // worldThumbKey into the real story once one exists.
+    if (job.folderName) {
+      const story = await readMobileStory(job.styleId, job.folderName);
+      const nextScenes = story.scenes.map((sc) =>
+        sc.id === target ? { ...sc, worldThumbKey: thumbKey } : sc,
+      );
+      await writeMobileStory({ ...story, scenes: nextScenes }, job.folderName);
+    }
 
     const nextCandidates = (job.locationCandidates[target] || []).map((c) => ({
       ...c,

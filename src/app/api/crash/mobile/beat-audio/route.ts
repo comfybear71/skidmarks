@@ -6,6 +6,7 @@ import { storyDialogueDir } from "@/lib/crashStoryLocations";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { readMobileGenJob } from "@/lib/mobileGenJob";
 import { serveMediaFile } from "@/lib/serveMediaFile";
+import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import path from "path";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
@@ -83,6 +84,12 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+
+    // Voice is now a deliberate per-line step here, not an automatic pass
+    // that already ran before review — the first save for anyone new has no
+    // cast voice yet. Reuse an existing one if there's one to grab; only
+    // design a fresh one (real ElevenLabs cost) if reuse comes up empty.
+    await ensureSpeakerVoiceCast(job.styleId, speaker);
 
     const result = await synthesizeStoryBeat({ styleId: job.styleId, beatId, speaker, text });
     await writeMobileStory(result.story, job.folderName);

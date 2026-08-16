@@ -102,7 +102,12 @@ export async function POST(req: Request) {
       const story = await readMobileStory(job.styleId, job.folderName);
       const next = job.shots.find((s) => !s.plateFile);
       if (!next) {
-        job = (await patchMobileGenJob(jobId, { phase: "voices" }))!;
+        // Straight to review, not an automatic bulk voice pass — plates need
+        // to actually be right first, and voice/dialogue is a deliberate
+        // step after that (PlateReviewEditor), not something committed to
+        // sight unseen. Whatever's still untouched when Generate is hit gets
+        // auto-voiced then (see the "review" branch below).
+        job = (await patchMobileGenJob(jobId, { phase: "review" }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
       const scene = story.scenes.find((sc) => sc.id === next.sceneId);
@@ -169,7 +174,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
-    if (job.phase === "voices") {
+    if (job.phase === "review") {
+      if (!body.approveReview) {
+        return NextResponse.json({ ok: true, job, advanced: false });
+      }
+
+      // Whatever the reviewer didn't explicitly Save-and-hear still needs
+      // real audio before Animate can queue it — the AI-drafted line as
+      // written, or a few seconds of silence for a beat nobody gave a line
+      // to at all. generateEpisodeLines/castEpisodeVoices skip anything
+      // that already has a voiceFile, so a manually saved line is untouched.
       for (const speaker of job.speakers) {
         await assignReusedVoice(job.styleId, speaker);
       }
@@ -178,10 +192,6 @@ export async function POST(req: Request) {
       const voiceRun = await generateEpisodeVoices(job.styleId, job.folderName);
       const voicedStory = await readMobileStory(job.styleId, job.folderName);
 
-      // A dialogue-less scene (scriptToStory.ts's "hold" beat) has no line
-      // for ElevenLabs to synthesize, but the animate phase still needs an
-      // mp3 to feed Cloud IA2V's LoadAudio node — a few seconds of silence
-      // does the job, same file location a real line would land in.
       for (const scene of voicedStory.scenes) {
         for (const shot of scene.shots) {
           for (const beat of shot.beats) {
@@ -191,12 +201,10 @@ export async function POST(req: Request) {
         }
       }
 
-      // Every mp4 is built from its beat's mp3, so a voices phase that made
-      // no audio guarantees the animate phase fails on every clip with
-      // "Cloud IA2V needs the beat mp3". Its per-line failures and the
-      // ElevenLabs quota flag were both discarded here, and the run advanced
-      // as if it had worked. Counts real dialogue only — a fully silent
-      // episode's hold beats shouldn't mask every line actually failing.
+      // Every mp4 is built from its beat's mp3, so a pass that made no audio
+      // at all guarantees Animate fails on every clip with "Cloud IA2V needs
+      // the beat mp3". Counts real dialogue only — a fully silent episode's
+      // hold beats shouldn't mask every line actually failing.
       const voicedBeats = voicedStory.scenes
         .flatMap((sc) => sc.shots.flatMap((sh) => sh.beats))
         .filter((b) => b.text.trim() && b.voiceFile?.trim()).length;
@@ -231,14 +239,7 @@ export async function POST(req: Request) {
           }
         }
       }
-      job = (await patchMobileGenJob(jobId, { phase: "review" }))!;
-      return NextResponse.json({ ok: true, job, advanced: true });
-    }
 
-    if (job.phase === "review") {
-      if (!body.approveReview) {
-        return NextResponse.json({ ok: true, job, advanced: false });
-      }
       job = (await patchMobileGenJob(jobId, { phase: "animate" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
