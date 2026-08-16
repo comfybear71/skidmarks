@@ -3,6 +3,8 @@ import { parseProductionScript } from "./scriptParser";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import type { ScriptCharacterData, ScriptEpisodeData } from "./types";
 
+export { screenplaySceneCount } from "./mobileScreenplaySize";
+
 const SCRIPT_FORMAT = `Show Name
 Episode 1: "Episode Title"
 
@@ -136,7 +138,10 @@ async function writeWholeScript(opts: {
 export async function generateScreenplayText(opts: {
   prompt: string;
   styleId: ShowStyleId;
-  shotCount: number;
+  /** Preferred: one scene per place already built. */
+  sceneCount?: number;
+  /** Older jobs sized the script from a guessed runtime. Ignored when sceneCount is set. */
+  shotCount?: number;
   /** Cast already built and faces already approved — write around them
    * rather than inventing a roster. The CHARACTERS: block gets forced to
    * this exact list afterward regardless of what the model wrote. */
@@ -150,7 +155,8 @@ export async function generateScreenplayText(opts: {
   parsedEpisodes: ScriptEpisodeData[];
   parsedCharacters: ScriptCharacterData[];
 }> {
-  const sceneCount = sceneCountFor(opts.shotCount);
+  const sceneCount =
+    opts.sceneCount ?? sceneCountFor(Math.max(1, opts.shotCount ?? 3));
   const preset = getShowStylePreset(opts.styleId);
 
   let text: string;
