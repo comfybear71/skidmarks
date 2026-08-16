@@ -179,11 +179,13 @@ export function MobileTextInput({
   onChange,
   placeholder,
   multiline,
+  rows = 3,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   multiline?: boolean;
+  rows?: number;
 }) {
   const shared = {
     value,
@@ -200,7 +202,7 @@ export function MobileTextInput({
     } as React.CSSProperties,
   };
   return multiline ? (
-    <textarea {...shared} rows={4} style={{ ...shared.style, resize: "vertical" }} />
+    <textarea {...shared} rows={rows} style={{ ...shared.style, resize: "vertical" }} />
   ) : (
     <input {...shared} type="text" />
   );

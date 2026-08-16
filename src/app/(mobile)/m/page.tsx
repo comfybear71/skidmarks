@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActiveStepPanel,
-  CompletedStepRow,
   MobilePrimaryButton,
   MobileTextInput,
   mobileCard,
@@ -13,8 +12,6 @@ import { StudioTree } from "@/components/mobile/StudioTree";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
-
-type LocalStep = "prompt" | "style";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -28,17 +25,11 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 export default function MobileHomePage() {
-  const [localStep, setLocalStep] = useState<LocalStep>("prompt");
   const [prompt, setPrompt] = useState("");
   const [styleId, setStyleId] = useState<(typeof SHOW_STYLE_PRESETS)[number]["id"]>("skidmarks");
   const [styleRealism, setStyleRealism] = useState<number>(
     SHOW_STYLE_PRESETS.find((p) => p.id === "skidmarks")?.defaultRealism ?? 60,
   );
-  // A preset tap used to always drag the slider along with it — dragging the
-  // slider yourself, then tapping a different recipe, silently threw the
-  // drag away. Once the slider's been touched by hand it stays put; only an
-  // untouched slider still takes a preset's default.
-  const [realismTouched, setRealismTouched] = useState(false);
 
   const [job, setJob] = useState<MobileGenJob | null>(null);
   const [busy, setBusy] = useState(false);
@@ -244,53 +235,72 @@ export default function MobileHomePage() {
     }
   }, [job]);
 
-  const preset = SHOW_STYLE_PRESETS.find((p) => p.id === styleId) || SHOW_STYLE_PRESETS[0]!;
-
   return (
     <main style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
-      {/* Completed-step trail */}
-      {!job && localStep !== "prompt" ? (
-        <CompletedTrail
-          prompt={prompt || undefined}
-          style={preset.label}
-        />
-      ) : null}
-
       {error ? (
         <div style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}
         </div>
       ) : null}
 
-      {/* Step 1: Prompt */}
-      {!job && localStep === "prompt" && (
+      {!job ? (
         <ActiveStepPanel title="What's the vibe?" subtitle="You direct. We hold the cast, the places, and the plates.">
-          <MobileTextInput value={prompt} onChange={setPrompt} placeholder="A crew lands on Mars and immediately regrets it..." multiline />
-          <div style={{ marginTop: "16px" }}>
-            <MobilePrimaryButton disabled={!prompt.trim()} onClick={() => setLocalStep("style")}>
-              Next
-            </MobilePrimaryButton>
-          </div>
-        </ActiveStepPanel>
-      )}
+          <MobileTextInput value={prompt} onChange={setPrompt} placeholder="A crew lands on Mars and immediately regrets it..." multiline rows={3} />
 
-      {/* Step 2: Style */}
-      {!job && localStep === "style" && (
-        <ActiveStepPanel title="Pick a style" subtitle="Drag the slider. The show recipes below are just starting points.">
-          {/* Slider first — it is the control that actually decides the look.
-              Same cartoon <-> photo scale as the desktop Image gen. */}
-          <div style={{ marginBottom: "22px" }}>
+          {/* Named show = naming this episode's look. Slider = something else. */}
+          <div
+            style={{
+              color: "var(--chrome-dim)",
+              fontSize: "11px",
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              margin: "14px 0 8px",
+            }}
+          >
+            Look
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 1fr",
+              gap: "6px",
+            }}
+          >
+            {SHOW_STYLE_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  setStyleId(p.id);
+                  setStyleRealism(p.defaultRealism);
+                }}
+                style={{
+                  ...(p.id === styleId ? mobileCardSelected : mobileCard),
+                  textAlign: "center",
+                  padding: "8px 4px",
+                  color: "var(--chrome)",
+                  fontWeight: 700,
+                  fontSize: "11px",
+                  lineHeight: 1.2,
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ marginTop: "14px" }}>
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                fontSize: "12px",
+                fontSize: "11px",
                 color: "var(--chrome-dim)",
-                marginBottom: "8px",
+                marginBottom: "4px",
               }}
             >
               <span>Cartoon</span>
-              <span style={{ color: "var(--acid)", fontWeight: 700, fontSize: "15px" }}>
+              <span style={{ color: "var(--acid)", fontWeight: 700 }}>
                 {styleRealism} · {styleRealismLabel(styleRealism)}
               </span>
               <span>Photoreal</span>
@@ -301,49 +311,19 @@ export default function MobileHomePage() {
               max={100}
               step={5}
               value={styleRealism}
-              onChange={(e) => {
-                setRealismTouched(true);
-                setStyleRealism(Number(e.target.value));
-              }}
+              onChange={(e) => setStyleRealism(Number(e.target.value))}
               aria-label="Cartoon to photoreal"
               style={{ width: "100%", accentColor: "var(--acid)" }}
             />
           </div>
 
-          <div style={{ fontSize: "12px", color: "var(--chrome-dim)", marginBottom: "8px" }}>
-            Start from a show recipe
-          </div>
-          <div style={{ display: "flex", gap: "10px", overflowX: "auto", padding: "2px 2px 4px" }}>
-            {SHOW_STYLE_PRESETS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setStyleId(p.id);
-                  if (!realismTouched) setStyleRealism(p.defaultRealism);
-                }}
-                style={{
-                  ...(p.id === styleId ? mobileCardSelected : mobileCard),
-                  textAlign: "left",
-                  padding: "12px",
-                  color: "var(--chrome)",
-                  flex: "0 0 auto",
-                  width: "140px",
-                }}
-              >
-                <div style={{ fontWeight: 700, fontSize: "14px" }}>{p.label}</div>
-                <div style={{ color: "var(--chrome-dim)", fontSize: "11px", marginTop: "2px" }}>{p.tagline}</div>
-              </button>
-            ))}
-          </div>
-
-          <div style={{ marginTop: "16px" }}>
-            <MobilePrimaryButton disabled={busy} onClick={() => void startRun()}>
+          <div style={{ marginTop: "14px" }}>
+            <MobilePrimaryButton disabled={!prompt.trim() || busy} onClick={() => void startRun()}>
               {busy ? "Starting…" : "Start directing"}
             </MobilePrimaryButton>
           </div>
         </ActiveStepPanel>
-      )}
+      ) : null}
 
       {job ? (
         <StudioTree
@@ -365,72 +345,6 @@ export default function MobileHomePage() {
         />
       ) : null}
     </main>
-  );
-}
-
-/** Prompt/Style used to be full-width rows eating the top of the screen
- * before anything else could show — one line, tap to expand. Runtime is
- * not a planning step; it comes from the voiced lines and plates. */
-function CompletedTrail({
-  prompt,
-  style,
-}: {
-  prompt?: string;
-  style?: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const parts = [prompt, style].filter(Boolean) as string[];
-  if (!parts.length) return null;
-
-  return (
-    <div style={{ borderBottom: "1px solid var(--line)" }}>
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "10px 16px",
-          background: "none",
-          border: "none",
-          textAlign: "left",
-          cursor: "pointer",
-        }}
-      >
-        <span
-          style={{
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            fontSize: "12px",
-            color: "var(--chrome-dim)",
-          }}
-        >
-          {parts.join("  ·  ")}
-        </span>
-        <span
-          style={{
-            color: "var(--chrome-dim)",
-            fontSize: "10px",
-            flex: "0 0 auto",
-            transform: expanded ? "rotate(180deg)" : "none",
-            transition: "transform 150ms",
-          }}
-        >
-          ▾
-        </span>
-      </button>
-      {expanded ? (
-        <div style={{ paddingBottom: "4px" }}>
-          {prompt ? <CompletedStepRow title="Prompt" summary={prompt} /> : null}
-          {style ? <CompletedStepRow title="Style" summary={style} /> : null}
-        </div>
-      ) : null}
-    </div>
   );
 }
 
