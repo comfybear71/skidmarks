@@ -1,7 +1,7 @@
 import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import type { MobileClipUnit, MobileGenJob } from "./mobileGenJob";
-import { isMobileSavedVoiceFile, isLeftoverPackVoiceFile } from "./mobileSavedVoice";
+import { isLeftoverPackVoiceFile } from "./mobileSavedVoice";
 import { voiceNamesMatch } from "./voiceNameMatch";
 
 export function findBeatHome(story: CrashStoryDoc, beatId: string): {
@@ -64,8 +64,9 @@ export function queueableStoryBeats(
         if (leftoverHydrateBeat(sh.id, b.id)) continue;
         if (!speakerOnJob(job.speakers, b.speaker)) continue;
         const voiceFile = b.voiceFile || "";
+        if (!voiceFile.trim()) continue;
         if (isLeftoverPackVoiceFile(voiceFile)) continue;
-        if (!isMobileSavedVoiceFile(voiceFile)) continue;
+        if (!b.text.trim()) continue;
         out.push({
           beatId: b.id,
           shotId: sh.id,
@@ -113,7 +114,9 @@ export function mergeClipsFromStory(
   const wanted = queueableStoryBeats(story, job);
   const byId = new Map(job.clips.map((c) => [c.beatId, c]));
   const next: MobileClipUnit[] = [];
+  const seen = new Set<string>();
   for (const row of wanted) {
+    seen.add(row.beatId);
     const prev = byId.get(row.beatId);
     if (!prev) {
       next.push({
@@ -142,6 +145,26 @@ export function mergeClipsFromStory(
         : {}),
     });
   }
+  for (const prev of job.clips) {
+    if (seen.has(prev.beatId)) continue;
+    if (prev.clipStatus !== "pending") continue;
+    if (!(prev.voiceFile || "").trim()) continue;
+    if (isLeftoverPackVoiceFile(prev.voiceFile)) continue;
+    const home = findBeatHome(story, prev.beatId);
+    if (!home) continue;
+    const voiceFile = isLeftoverPackVoiceFile(home.voiceFile)
+      ? prev.voiceFile
+      : home.voiceFile || prev.voiceFile;
+    if (!(voiceFile || "").trim() || isLeftoverPackVoiceFile(voiceFile)) continue;
+    next.push({
+      ...prev,
+      shotId: home.shotId,
+      sceneId: home.sceneId,
+      speaker: home.speaker,
+      line: home.text.trim() || prev.line,
+      voiceFile,
+    });
+  }
   return next;
 }
 
@@ -151,25 +174,33 @@ export function upsertPendingClip(
   story: CrashStoryDoc,
   beatId: string,
 ): MobileClipUnit[] {
-  const clips = mergeClipsFromStory(job, story);
   const home = findBeatHome(story, beatId);
-  if (!home) return clips;
-  return clips.map((c) =>
-    c.beatId === beatId
-      ? {
-          ...c,
-          clipStatus: "pending",
-          error: "",
-          speaker: home.speaker,
-          line: home.text,
-          voiceFile: home.voiceFile,
-        }
-      : c,
-  );
+  if (!home) return mergeClipsFromStory(job, story);
+  const clips = mergeClipsFromStory(job, story);
+  const row: MobileClipUnit = {
+    beatId,
+    shotId: home.shotId,
+    sceneId: home.sceneId,
+    clipFile: "",
+    clipStatus: "pending",
+    error: "",
+    speaker: home.speaker,
+    line: home.text,
+    voiceFile: home.voiceFile,
+  };
+  if (!clips.some((c) => c.beatId === beatId)) {
+    if (!(home.voiceFile || "").trim() || isLeftoverPackVoiceFile(home.voiceFile)) {
+      return clips;
+    }
+    return [...clips, row];
+  }
+  return clips.map((c) => (c.beatId === beatId ? { ...c, ...row } : c));
 }
 
 export function queuedSavedClips(clips: MobileClipUnit[]): MobileClipUnit[] {
-  return clips.filter((c) => isMobileSavedVoiceFile(c.voiceFile));
+  return clips.filter(
+    (c) => Boolean((c.voiceFile || "").trim()) && !isLeftoverPackVoiceFile(c.voiceFile),
+  );
 }
 
 export function clipQueueError(clips: MobileClipUnit[]): string {

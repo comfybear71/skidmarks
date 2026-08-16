@@ -188,6 +188,34 @@ const afterSave = upsertPendingClip({ ...job, clips: [] }, savedStory, "beat_jo"
 assert.equal(afterSave.length, 1);
 assert.equal(afterSave[0].clipStatus, "pending");
 
+assert.equal(
+  upsertPendingClip({ ...job, clips: [] }, leftoverJoStory, "beat_jo").length,
+  0,
+  "Save must not queue leftover compiled Jo mp3",
+);
+
+const keptPending = mergeClipsFromStory(
+  {
+    ...job,
+    clips: [
+      {
+        beatId: "beat_jo",
+        shotId: "shot_jo",
+        sceneId: "sc1",
+        clipFile: "",
+        clipStatus: "pending",
+        error: "",
+        speaker: "CRAZY BIG HOLE JO",
+        line: "sitting on the bed texting",
+        voiceFile: "01_01_CRAZY_BIG_HOLE_JO_sitting-texting_mjx8k2.mp3",
+      },
+    ],
+  },
+  leftoverJoStory,
+);
+assert.equal(keptPending.length, 1, "Generate must not drop a Saved take if hydrate still shows leftover pack");
+assert.equal(keptPending[0].clipStatus, "pending");
+
 const alreadyDone = mergeClipsFromStory(
   {
     ...job,
