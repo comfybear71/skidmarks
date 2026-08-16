@@ -16,6 +16,15 @@ export function characterPlateFilename(name: string, ext: string): string {
   return `plate_${characterPlateSlug(name) || "character"}${dotted}`;
 }
 
+/** Client-safe URL for the tree. Do not import characterPlates.ts from
+ * a client component — that file pulls in fs / imageGen. */
+export function characterPlateFileUrl(styleId: string, filename: string): string {
+  return (
+    `/api/crash/character-plates/file?styleId=${encodeURIComponent(styleId)}` +
+    `&file=${encodeURIComponent(filename)}`
+  );
+}
+
 /** Why a write must stop. Null means go ahead. Isolated so the check
  * script can cover Baby-stays-Baby without touching Blob. */
 export function characterPlateOverwriteError(opts: {

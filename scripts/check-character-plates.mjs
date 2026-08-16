@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  characterPlateFileUrl,
   characterPlateFilename,
   characterPlateLayout,
   characterPlateOverwriteError,
@@ -10,6 +11,10 @@ assert.equal(characterPlateSlug("Ranger Bazza"), "ranger_bazza");
 assert.equal(characterPlateSlug("RANGER BAZZA"), "ranger_bazza");
 assert.notEqual(characterPlateSlug("Jo"), characterPlateSlug("Crazy Jo"));
 assert.equal(characterPlateFilename("Baby", ".jpg"), "plate_baby.jpg");
+assert.equal(
+  characterPlateFileUrl("skidmarks", "plate_baby.jpg"),
+  "/api/crash/character-plates/file?styleId=skidmarks&file=plate_baby.jpg",
+);
 assert.equal(characterPlateFilename("Crazy Jo", ".png"), "plate_crazy_jo.png");
 assert.equal(characterPlateFilename("  CHLOE  ", ".png"), "plate_chloe.png");
 

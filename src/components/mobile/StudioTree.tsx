@@ -13,7 +13,7 @@ import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
 import { allCastApproved, allLocationsApproved, latestCandidate } from "@/lib/mobileJobReady";
-import { characterPlateFileUrl } from "@/lib/characterPlates";
+import { characterPlateFileUrl } from "@/lib/characterPlatePrompt";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";

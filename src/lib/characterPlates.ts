@@ -14,6 +14,7 @@ import { CRASH_DIR } from "./paths";
 import { buildCrashGenLook } from "./imageGen";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import {
+  characterPlateFileUrl,
   characterPlateFilename,
   characterPlateLayout,
   characterPlateOverwriteError,
@@ -21,6 +22,7 @@ import {
 } from "./characterPlatePrompt";
 
 export {
+  characterPlateFileUrl,
   characterPlateFilename,
   characterPlateLayout,
   characterPlateOverwriteError,
@@ -57,13 +59,6 @@ export type CharacterPlateJobRow = {
 
 export function characterPlateDir(styleId: ShowStyleId): string {
   return path.join(CRASH_DIR, "character-plates", styleId);
-}
-
-export function characterPlateFileUrl(styleId: ShowStyleId, filename: string): string {
-  return (
-    `/api/crash/character-plates/file?styleId=${encodeURIComponent(styleId)}` +
-    `&file=${encodeURIComponent(filename)}`
-  );
 }
 
 export function resolveCharacterPlatePath(
