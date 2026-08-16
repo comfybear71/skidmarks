@@ -277,10 +277,10 @@ export default function MobileHomePage() {
                 style={{
                   ...(p.id === styleId ? mobileCardSelected : mobileCard),
                   textAlign: "center",
-                  padding: "8px 6px",
+                  padding: "8px 4px",
                   color: "var(--chrome)",
                   fontWeight: 700,
-                  fontSize: "12px",
+                  fontSize: "11px",
                   lineHeight: 1.2,
                 }}
               >
