@@ -13,6 +13,7 @@ import { runLtxSmoke } from "@/lib/ltxSmoke";
 import { resolveComfyUrl, probeComfyUrl } from "@/lib/comfyClient";
 import { stitchClips, mobileFinalVideoPath } from "@/lib/mobileStitch";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
+import { allCastApproved, allLocationsApproved } from "@/lib/mobileJobReady";
 import { CRASH_DIR } from "@/lib/paths";
 import {
   buildSpeakingMotion,
@@ -41,14 +42,6 @@ async function ensureComfyReady(): Promise<string> {
     if (status === "up") return resolved.url;
   }
   throw new Error("No Comfy Cloud key and no reachable COMFY_URL — set one to animate");
-}
-
-function allCastApproved(job: MobileGenJob): boolean {
-  return job.speakers.every((s) => job.castCandidates[s]?.some((c) => c.approved));
-}
-
-function allLocationsApproved(job: MobileGenJob): boolean {
-  return job.scenes.every((s) => job.locationCandidates[s.id]?.some((c) => c.approved));
 }
 
 /**

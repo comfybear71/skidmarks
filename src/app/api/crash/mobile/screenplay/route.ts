@@ -15,6 +15,7 @@ import {
   type MobileSceneRef,
   type MobileShotUnit,
 } from "@/lib/mobileGenJob";
+import { phaseAfterScreenplay } from "@/lib/mobileJobReady";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -192,9 +193,15 @@ export async function POST(req: Request) {
       ];
     }
 
+    const nextPhase = phaseAfterScreenplay({
+      speakers,
+      castCandidates,
+      scenes,
+      locationCandidates: job.locationCandidates,
+    });
     const updated = await patchMobileGenJob(jobId, {
       folderName,
-      phase: "cast_images",
+      phase: nextPhase,
       castCandidates,
       locationCandidates: job.locationCandidates,
       scenes,

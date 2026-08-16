@@ -17,6 +17,7 @@ import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
+import { allCastApproved, allLocationsApproved } from "@/lib/mobileJobReady";
 
 type LocalStep = "prompt" | "style";
 
@@ -46,6 +47,7 @@ export default function MobileHomePage() {
 
   const [job, setJob] = useState<MobileGenJob | null>(null);
   const [busy, setBusy] = useState(false);
+  const [writingScript, setWritingScript] = useState(false);
   const [error, setError] = useState("");
   const [characterIds, setCharacterIds] = useState<Record<string, string>>({});
   const pollRef = useRef<number | null>(null);
@@ -121,6 +123,7 @@ export default function MobileHomePage() {
 
   const runScreenplay = useCallback(async (jobId: string) => {
     setBusy(true);
+    setWritingScript(true);
     setError("");
     try {
       const { job: withScreenplay } = await postJson<{ job: MobileGenJob }>(
@@ -131,9 +134,37 @@ export default function MobileHomePage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't write the screenplay");
     } finally {
+      setWritingScript(false);
       setBusy(false);
     }
   }, []);
+
+  const advancePicks = useCallback(async () => {
+    if (!job) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { job: updated } = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/step", {
+        jobId: job.id,
+      });
+      setJob(updated);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't move on");
+    } finally {
+      setBusy(false);
+    }
+  }, [job]);
+
+  // Pick-your-cast / pick-your-locations only advance when you tap Pick.
+  // After the script, those faces/places are often already picked — no
+  // Next button, nothing to tap, dead end. Kick /step ourselves.
+  useEffect(() => {
+    if (!job || busy || writingScript) return;
+    const stuckCast = job.phase === "cast_images" && allCastApproved(job);
+    const stuckLoc = job.phase === "location_images" && allLocationsApproved(job);
+    if (!stuckCast && !stuckLoc) return;
+    void advancePicks();
+  }, [job, busy, writingScript, advancePicks]);
 
   // Job creation used to fall straight into writing the screenplay; cast and
   // locations are built freeform first now, so this just creates the job —
@@ -386,8 +417,17 @@ export default function MobileHomePage() {
         />
       )}
 
+      {writingScript && (
+        <ActiveStepPanel
+          title={<ShimmerText>Writing the script…</ShimmerText>}
+          subtitle="Using the cast and places you picked. Lines show up after the plates."
+        >
+          <BusySpinner />
+        </ActiveStepPanel>
+      )}
+
       {/* Step 5: Build locations — same freeform pattern, still no script */}
-      {job && job.phase === "location_build" && (
+      {job && job.phase === "location_build" && !writingScript && (
         <CastLocationStep
           key="location-build"
           title="Build your locations"
@@ -435,6 +475,10 @@ export default function MobileHomePage() {
           busy={busy}
           error={error}
           promptPlaceholder="e.g. more like a grumpy dad"
+          mode={allCastApproved(job) ? "build" : "pick"}
+          onDoneBuild={() => void advancePicks()}
+          doneLabel="Next"
+          doneBusy={busy}
         />
       )}
 
@@ -457,6 +501,10 @@ export default function MobileHomePage() {
           error={error}
           promptPlaceholder="e.g. Mars, a dive bar, outer space"
           topExtra={<PickedSoFar job={job} characterIds={characterIds} categories={["cast"]} />}
+          mode={allLocationsApproved(job) ? "build" : "pick"}
+          onDoneBuild={() => void advancePicks()}
+          doneLabel="Next"
+          doneBusy={busy}
         />
       )}
 

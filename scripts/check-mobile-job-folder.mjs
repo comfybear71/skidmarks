@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { jobHasEpisodePack, mobileMediaFolder } from "../src/lib/mobileJobFolder.ts";
 import { mobileLocationStillUrl, mobileMediaFolderName } from "../src/lib/mobileCandidateUrls.ts";
+import { allCastApproved, allLocationsApproved, phaseAfterScreenplay } from "../src/lib/mobileJobReady.ts";
 import { screenplaySceneCount } from "../src/lib/mobileScreenplaySize.ts";
 
 const firstJob = { id: "mgen_20260816020100_abc", folderName: "" };
@@ -29,5 +30,30 @@ const locUrl = mobileLocationStillUrl(
 assert.ok(locUrl.includes("/api/crash/mobile/location-still"));
 assert.ok(locUrl.includes(encodeURIComponent(firstJob.id)));
 assert.ok(!locUrl.includes("/api/crash/gen/file"));
+
+const picked = {
+  speakers: ["Tomato"],
+  castCandidates: { Tomato: [{ id: "1", approved: true }] },
+  scenes: [{ id: "scene_1" }],
+  locationCandidates: { scene_1: [{ id: "2", approved: true }] },
+};
+assert.equal(allCastApproved(picked), true);
+assert.equal(allLocationsApproved(picked), true);
+assert.equal(phaseAfterScreenplay(picked), "plates");
+assert.equal(
+  allCastApproved({ ...picked, speakers: ["TOMATO"] }),
+  true,
+);
+assert.equal(
+  phaseAfterScreenplay({ ...picked, speakers: ["Tomato", "Kim"] }),
+  "cast_images",
+);
+assert.equal(
+  phaseAfterScreenplay({
+    ...picked,
+    scenes: [{ id: "scene_1" }, { id: "scene_2" }],
+  }),
+  "location_images",
+);
 
 console.log("check-mobile-job-folder: ok");
