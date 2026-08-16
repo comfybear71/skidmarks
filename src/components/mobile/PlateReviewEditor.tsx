@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
+import { MobileAiButton, MobileAudioPlayer, MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
 import { useMobileAssist } from "./useMobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "@/lib/crashStoryTypes";
@@ -82,7 +82,7 @@ export function PlateReviewEditor({
             style={{
               padding: "2px",
               border: s.shotId === openShotId ? "2px solid var(--acid)" : "2px solid transparent",
-              borderRadius: "12px",
+              borderRadius: "2px",
               flex: "0 0 auto",
               background: "none",
               cursor: "pointer",
@@ -93,7 +93,7 @@ export function PlateReviewEditor({
             <img
               src={`/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`}
               alt=""
-              style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "9px", display: "block" }}
+              style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "2px", display: "block" }}
             />
           </button>
         ))}
@@ -186,10 +186,7 @@ function ShotLineEditor({
   const speakingBeats = shot.beats.filter((b) => b.speaker.trim());
 
   return (
-    <div style={{ ...mobileCard, padding: "14px", display: "flex", flexDirection: "column", gap: "14px" }}>
-      {shot.summary ? (
-        <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>{shot.summary}</div>
-      ) : null}
+    <div style={{ ...mobileCard, padding: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <PlateStagingEditor
         styleId={styleId}
         jobId={jobId}
@@ -232,9 +229,9 @@ function PlateStagingEditor({
 }) {
   const [staging, setStaging] = useState(
     shot.staging?.trim() ||
-      shot.summary?.trim() ||
-      "People inhabit the place — sitting, leaning, walking, using the furniture.",
+      "Who sits, leans, presents — Jo on the bar, Matty behind it.",
   );
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const plateAssist = useMobileAssist(
@@ -270,32 +267,70 @@ function PlateStagingEditor({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <div
-        style={{
-          color: "var(--chrome-dim)",
-          fontSize: "10px",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-        }}
-      >
-        Plate — who sits where
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={open ? "Hide plate notes" : "Show plate notes"}
+          style={{
+            flex: "0 0 auto",
+            width: "22px",
+            height: "28px",
+            padding: 0,
+            borderRadius: "2px",
+            border: "1px solid var(--line)",
+            background: "transparent",
+            color: "var(--acid)",
+            fontSize: "12px",
+          }}
+        >
+          {open ? "▾" : "▸"}
+        </button>
+        <div
+          style={{
+            color: "var(--chrome-dim)",
+            fontSize: "10px",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            flex: "0 0 auto",
+          }}
+        >
+          Tweak
+        </div>
+        <input
+          value={staging}
+          onChange={(e) => setStaging(e.target.value)}
+          placeholder="Who sits, leans, presents — Jo on the bar, Matty behind it"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: "8px",
+            borderRadius: "2px",
+            border: "1px solid var(--line)",
+            background: "var(--panel-2)",
+            color: "var(--chrome)",
+            fontSize: "13px",
+          }}
+        />
+        <MobileAiButton onClick={() => void plateAssist.runAssist()} busy={plateAssist.aiBusy} />
+        <MobilePrimaryButton
+          size="chip"
+          disabled={busy || plateAssist.aiBusy || !staging.trim()}
+          onClick={() => void rebuild()}
+        >
+          {busy ? "…" : "Rebuild"}
+        </MobilePrimaryButton>
       </div>
-      <MobileTextInput
-        value={staging}
-        onChange={setStaging}
-        multiline
-        rows={3}
-        placeholder="Jo on the stool. Matty behind the fridge. Not both standing in the front."
-        onAi={() => void plateAssist.runAssist()}
-        aiBusy={plateAssist.aiBusy}
-      />
+      {open && shot.summary ? (
+        <div style={{ fontSize: "12px", color: "var(--chrome-dim)", paddingLeft: "28px" }}>
+          {shot.summary}
+        </div>
+      ) : null}
       {plateAssist.aiError ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{plateAssist.aiError}</div>
       ) : null}
-      <MobilePrimaryButton disabled={busy || plateAssist.aiBusy || !staging.trim()} onClick={() => void rebuild()}>
-        {busy ? "Rebuilding…" : "Rebuild this plate"}
-      </MobilePrimaryButton>
       {error ? <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</div> : null}
     </div>
   );
@@ -343,7 +378,20 @@ function BeatLineEditor({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <div style={{ fontSize: "12px", color: "var(--acid)", fontWeight: 700 }}>{beat.speaker}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ fontSize: "12px", color: "var(--acid)", fontWeight: 700, flex: "0 0 auto" }}>
+          {beat.speaker}
+        </div>
+        {voiceFile ? (
+          <MobileAudioPlayer
+            src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(
+              folderName,
+            )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(voiceFile)}`}
+          />
+        ) : (
+          <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>No line yet</div>
+        )}
+      </div>
       <MobileTextInput
         value={text}
         onChange={setText}
@@ -355,34 +403,14 @@ function BeatLineEditor({
       {lineAssist.aiError ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{lineAssist.aiError}</div>
       ) : null}
-      {voiceFile ? (
-        <audio
-          controls
-          style={{ width: "100%", height: "32px" }}
-          src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(
-            folderName,
-          )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(voiceFile)}`}
-        />
-      ) : (
-        <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>No line generated yet.</div>
-      )}
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        <button
-          type="button"
+        <MobilePrimaryButton
+          size="chip"
           disabled={saving || (!dirty && Boolean(voiceFile))}
           onClick={() => void save()}
-          style={{
-            padding: "8px 14px",
-            borderRadius: "8px",
-            border: "1px solid var(--line)",
-            background: dirty || !voiceFile ? "var(--acid)" : "transparent",
-            color: dirty || !voiceFile ? "var(--void)" : "var(--chrome-dim)",
-            fontSize: "12px",
-            fontWeight: 600,
-          }}
         >
-          {saving ? "Generating…" : voiceFile && !dirty ? "Saved" : "Save & hear it"}
-        </button>
+          {saving ? "…" : voiceFile && !dirty ? "Saved" : "Save"}
+        </MobilePrimaryButton>
         {error ? <span style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</span> : null}
       </div>
     </div>

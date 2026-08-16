@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Card surface shared by every tappable panel. Flat fill — a panel-to-black
@@ -133,28 +134,31 @@ export function MobilePrimaryButton({
   onClick,
   disabled,
   tone = "accent",
+  size = "block",
 }: {
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   tone?: "accent" | "ghost";
+  size?: "block" | "chip";
 }) {
   const accent = tone === "accent";
+  const chip = size === "chip";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       style={{
-        width: "100%",
-        padding: "16px",
-        borderRadius: "14px",
-        fontSize: "16px",
+        width: chip ? "auto" : "100%",
+        flex: chip ? "0 0 auto" : undefined,
+        padding: chip ? "6px 10px" : "10px 12px",
+        borderRadius: "2px",
+        fontSize: chip ? "11px" : "13px",
         fontWeight: 600,
-        border: accent ? "none" : "1px solid var(--line)",
-        // Flat acid. A lime-to-black linear gradient turned the bottom
-        // third of Add / Start directing into mud. appearance:none so
-        // the browser cannot paint its own button wash on top.
+        letterSpacing: chip ? "0.06em" : undefined,
+        textTransform: chip ? "uppercase" : undefined,
+        border: accent ? "1px solid var(--acid)" : "1px solid var(--line)",
         appearance: "none",
         WebkitAppearance: "none",
         backgroundImage: "none",
@@ -164,11 +168,9 @@ export function MobilePrimaryButton({
             ? "var(--acid)"
             : "transparent",
         color: disabled ? "var(--chrome-dim)" : accent ? "var(--void)" : "var(--chrome)",
-        boxShadow:
-          disabled || !accent
-            ? "none"
-            : "inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 22px rgba(0,0,0,0.42)",
+        boxShadow: "none",
         touchAction: "manipulation",
+        whiteSpace: "nowrap",
       }}
     >
       {children}
@@ -193,7 +195,7 @@ export function MobileAiButton({
       style={{
         flex: "0 0 auto",
         padding: "4px 8px",
-        borderRadius: "6px",
+        borderRadius: "2px",
         border: "1px solid var(--magenta)",
         background: "transparent",
         color: "var(--magenta)",
@@ -252,6 +254,133 @@ export function MobileTextInput({
       <div style={{ position: "absolute", top: "8px", right: "8px" }}>
         <MobileAiButton onClick={onAi} busy={aiBusy} />
       </div>
+    </div>
+  );
+}
+
+export const mobileMediaFrame: CSSProperties = {
+  width: "100%",
+  borderRadius: "2px",
+  border: "1px solid var(--line)",
+  background: "var(--void)",
+  display: "block",
+};
+
+function clock(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) return "0:00";
+  const s = Math.floor(sec);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** Squared acid play + scrub — not the browser's rounded grey widget. */
+export function MobileAudioPlayer({ src }: { src: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [t, setT] = useState(0);
+  const [dur, setDur] = useState(0);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const onTime = () => setT(el.currentTime);
+    const onMeta = () => setDur(el.duration || 0);
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    const onEnded = () => setPlaying(false);
+    el.addEventListener("timeupdate", onTime);
+    el.addEventListener("loadedmetadata", onMeta);
+    el.addEventListener("play", onPlay);
+    el.addEventListener("pause", onPause);
+    el.addEventListener("ended", onEnded);
+    return () => {
+      el.removeEventListener("timeupdate", onTime);
+      el.removeEventListener("loadedmetadata", onMeta);
+      el.removeEventListener("play", onPlay);
+      el.removeEventListener("pause", onPause);
+      el.removeEventListener("ended", onEnded);
+    };
+  }, [src]);
+
+  function toggle() {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) el.pause();
+    else void el.play();
+  }
+
+  const pct = dur > 0 ? Math.min(100, (t / dur) * 100) : 0;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        width: "100%",
+        padding: "6px 8px",
+        borderRadius: "2px",
+        border: "1px solid var(--line)",
+        background: "var(--panel-2)",
+      }}
+    >
+      <audio ref={audioRef} src={src} preload="metadata" />
+      <button
+        type="button"
+        aria-label={playing ? "Pause" : "Play"}
+        onClick={toggle}
+        style={{
+          width: "28px",
+          height: "28px",
+          flex: "0 0 auto",
+          borderRadius: "2px",
+          border: "1px solid var(--acid)",
+          background: "var(--acid)",
+          color: "var(--void)",
+          fontSize: "11px",
+          fontWeight: 700,
+        }}
+      >
+        {playing ? "❚❚" : "▶"}
+      </button>
+      <div
+        role="slider"
+        aria-valuemin={0}
+        aria-valuemax={dur || 0}
+        aria-valuenow={t}
+        onClick={(e) => {
+          const el = audioRef.current;
+          if (!el || !dur) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = (e.clientX - rect.left) / rect.width;
+          el.currentTime = Math.max(0, Math.min(dur, x * dur));
+        }}
+        style={{
+          flex: 1,
+          height: "6px",
+          borderRadius: "2px",
+          background: "var(--void)",
+          cursor: "pointer",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: "var(--acid)",
+          }}
+        />
+      </div>
+      <span
+        style={{
+          flex: "0 0 auto",
+          fontSize: "11px",
+          color: "var(--chrome-dim)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {clock(t)}/{clock(dur)}
+      </span>
     </div>
   );
 }
