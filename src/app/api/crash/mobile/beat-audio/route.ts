@@ -167,23 +167,45 @@ export async function POST(req: Request) {
       error: "",
       ...(job.phase === "error" || job.phase === "animate" ? { phase: "review" as const } : {}),
     });
-    try {
-      const localPath = await resolveMobileBeatAudio({
-        styleId: job.styleId,
-        folderName: job.folderName,
-        beatId,
-        voiceFile: result.voiceFile,
-      });
-      if (localPath) {
+    // Generate runs on a different Vercel invocation than Save, with no
+    // shared disk — the mp3 only exists for Generate if this upload lands in
+    // Blob. A swallowed failure here used to report Save as fine (this
+    // instance still has the file on local disk to Hear it) and only surface
+    // as "Cloud IA2V needs the beat mp3" several steps later at Generate,
+    // with no link back to the real cause. Retry once for a network blip,
+    // then fail Save loudly so the line gets re-Saved while it's still fixable.
+    const localPath = await resolveMobileBeatAudio({
+      styleId: job.styleId,
+      folderName: job.folderName,
+      beatId,
+      voiceFile: result.voiceFile,
+    });
+    if (localPath) {
+      try {
         await uploadMobileMedia({
           styleId: job.styleId,
           folderName: job.folderName,
           kind: "audio",
           localPath,
         });
+      } catch {
+        try {
+          await uploadMobileMedia({
+            styleId: job.styleId,
+            folderName: job.folderName,
+            kind: "audio",
+            localPath,
+          });
+        } catch (e2) {
+          const detail = e2 instanceof Error ? e2.message : String(e2);
+          return NextResponse.json(
+            {
+              error: `Line voiced but failed to reach cloud storage — ${detail}. Save the line again.`,
+            },
+            { status: 502 },
+          );
+        }
       }
-    } catch {
-      /* best effort — clip generation still resolves the file locally on this instance */
     }
 
     return NextResponse.json({
