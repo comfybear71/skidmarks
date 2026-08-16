@@ -670,8 +670,29 @@ export function PlateReviewEditor({
             shots.find((s) => s.shotId === castPickerShotId)?.sceneId || "",
           )}
           onCancel={() => setCastPickerShotId(null)}
-          onPlaced={() => {
+          onPlaced={(result) => {
             const id = castPickerShotId;
+            if (result.job) onJobChange?.(result.job);
+            setStory((cur) => {
+              if (!cur || !id) return cur;
+              return {
+                ...cur,
+                scenes: cur.scenes.map((sc) => ({
+                  ...sc,
+                  shots: sc.shots.map((sh) =>
+                    sh.id === id
+                      ? {
+                          ...sh,
+                          ...(result.plateFile ? { plateFile: result.plateFile } : {}),
+                          ...(result.plateTakes ? { plateTakes: result.plateTakes } : {}),
+                          staging: result.staging,
+                          summary: result.staging,
+                        }
+                      : sh,
+                  ),
+                })),
+              };
+            });
             void fetchStory(job.styleId, job.folderName).then((fresh) => {
               if (fresh) setStory(fresh);
             });
@@ -699,23 +720,6 @@ export function PlateReviewEditor({
             shots.find((s) => s.shotId === openShotId)?.plateFile &&
               shots.find((s) => s.shotId === openShotId)?.plateFile !== "__error__",
           )}
-          assistHint={platePositionAssistHint({
-            people: (shotById(openShotId)?.beats || []).map((b) => b.speaker.trim()).filter(Boolean),
-            placeName:
-              job.scenes.find((sc) => sc.id === shots.find((s) => s.shotId === openShotId)?.sceneId)
-                ?.placeName || "",
-            placeLook: candidateLookPrompt(
-              job.locationCandidates,
-              shots.find((s) => s.shotId === openShotId)?.sceneId || "",
-            ),
-            looks: (shotById(openShotId)?.beats || [])
-              .map((b) => b.speaker.trim())
-              .filter(Boolean)
-              .map((name) => ({
-                name,
-                look: candidateLookPrompt(job.castCandidates, name),
-              })),
-          })}
           onPlateRebuilt={(plateFile, staging, summary, plateTakes) => {
             setStory((cur) => {
               if (!cur || !openShotId) return cur;
@@ -738,7 +742,6 @@ export function PlateReviewEditor({
               };
             });
           }}
-          onJobChange={onJobChange}
           onBeatSaved={(beatId, text, voiceFile) => {
             setStory((cur) => {
               if (!cur) return cur;
@@ -780,7 +783,12 @@ function CastIntoPlatePopup({
   placeName: string;
   placeLook: string;
   onCancel: () => void;
-  onPlaced: () => void;
+  onPlaced: (result: {
+    job?: MobileGenJob;
+    plateFile?: string;
+    plateTakes?: PlateTake[];
+    staging: string;
+  }) => void;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [staging, setStaging] = useState("");
@@ -810,7 +818,9 @@ function CastIntoPlatePopup({
           body: JSON.stringify({ jobId: job.id, shotId, speaker: picked, action: "add-cast" }),
         });
         const addData = (await addRes.json()) as { error?: string };
-        if (!addRes.ok) throw new Error(addData.error || "Couldn't add them");
+        if (!addRes.ok && !/already in this shot/i.test(addData.error || "")) {
+          throw new Error(addData.error || "Couldn't add them");
+        }
       }
       const existing = (shot?.staging || "").trim();
       const next = already
@@ -818,21 +828,31 @@ function CastIntoPlatePopup({
         : existing
           ? `${existing.replace(/\s+$/, "")} ${staging.trim()}`
           : staging.trim();
-      const saveRes = await fetch("/api/crash/mobile/plate", {
+      const drawRes = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jobId: job.id,
           shotId,
-          action: "save",
           staging: next,
+          summary: next,
         }),
       });
-      const saveData = (await saveRes.json()) as { error?: string };
-      if (!saveRes.ok) throw new Error(saveData.error || "Couldn't save the position");
-      onPlaced();
+      const drawData = (await drawRes.json()) as {
+        error?: string;
+        job?: MobileGenJob;
+        plateFile?: string;
+        plateTakes?: PlateTake[];
+      };
+      if (!drawRes.ok) throw new Error(drawData.error || "Couldn't draw that still");
+      onPlaced({
+        job: drawData.job,
+        plateFile: drawData.plateFile,
+        plateTakes: drawData.plateTakes,
+        staging: next,
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't put them in");
+      setError(e instanceof Error ? e.message : "Couldn't draw that still");
     } finally {
       setBusy(false);
     }
@@ -898,11 +918,10 @@ function CastIntoPlatePopup({
             <button
               key={name}
               type="button"
-              disabled={already && !selected}
+              disabled={false}
               onClick={() => {
-                if (already) return;
                 setPicked(name);
-                setStaging("");
+                setStaging(already ? shot?.staging?.trim() || "" : "");
                 setError("");
               }}
               style={{
@@ -913,7 +932,7 @@ function CastIntoPlatePopup({
                 background: "none",
                 opacity: grey ? 0.32 : 1,
                 filter: grey ? "grayscale(1)" : "none",
-                cursor: already && !selected ? "default" : "pointer",
+                cursor: "pointer",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -988,7 +1007,7 @@ function CastIntoPlatePopup({
             disabled={busy || assist.aiBusy || !staging.trim()}
             onClick={() => void putIn()}
           >
-            {busy ? "Putting them in…" : `Put ${picked} in`}
+            {busy ? "Drawing…" : "Draw this picture"}
           </MobilePrimaryButton>
           {assist.aiError ? (
             <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{assist.aiError}</div>
@@ -996,7 +1015,7 @@ function CastIntoPlatePopup({
         </div>
       ) : (
         <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>
-          Tap someone. The rest fade. Then say how they sit in this room.
+          Tap someone. The rest fade. Position them — that draws the still.
         </div>
       )}
       {error ? <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</div> : null}
@@ -1217,10 +1236,8 @@ function ShotLineEditor({
   error,
   placeSrc,
   jobPlated,
-  assistHint,
   onBeatSaved,
   onPlateRebuilt,
-  onJobChange,
 }: {
   styleId: string;
   folderName: string;
@@ -1230,7 +1247,6 @@ function ShotLineEditor({
   error: string;
   placeSrc?: string;
   jobPlated?: boolean;
-  assistHint?: string;
   onBeatSaved: (beatId: string, text: string, voiceFile: string) => void;
   onPlateRebuilt: (
     plateFile: string | undefined,
@@ -1238,7 +1254,6 @@ function ShotLineEditor({
     summary: string,
     plateTakes?: PlateTake[],
   ) => void;
-  onJobChange?: (job: MobileGenJob) => void;
 }) {
   if (loading) {
     return (
@@ -1268,21 +1283,6 @@ function ShotLineEditor({
         onPicked={(plateFile, staging) => onPlateRebuilt(plateFile, staging, shot.summary)}
       />
       {speakingBeats.length ? (
-        <PlateStagingEditor
-          key={`${shot.id}-${speakingBeats.map((b) => b.speaker).join(",")}`}
-          styleId={styleId}
-          jobId={jobId}
-          shot={shot}
-          assistHint={assistHint}
-          onRebuilt={onPlateRebuilt}
-          onJobChange={onJobChange}
-        />
-      ) : (
-        <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
-          Tap + above the picture to put someone in this room.
-        </div>
-      )}
-      {speakingBeats.length ? (
         speakingBeats.map((beat) => (
           <BeatLineEditor
             key={beat.id}
@@ -1293,145 +1293,11 @@ function ShotLineEditor({
             onSaved={(text, voiceFile) => onBeatSaved(beat.id, text, voiceFile)}
           />
         ))
-      ) : null}
-    </div>
-  );
-}
-
-function PlateStagingEditor({
-  styleId,
-  jobId,
-  shot,
-  assistHint,
-  onRebuilt,
-  onJobChange,
-}: {
-  styleId: string;
-  jobId: string;
-  shot: CrashStoryShot;
-  assistHint?: string;
-  onRebuilt: (
-    plateFile: string | undefined,
-    staging: string,
-    summary: string,
-    plateTakes?: PlateTake[],
-  ) => void;
-  onJobChange?: (job: MobileGenJob) => void;
-}) {
-  const [summary, setSummary] = useState(shot.summary || "");
-  const [staging, setStaging] = useState(shot.staging?.trim() || "");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const actionAssist = useMobileAssist(
-    "shot",
-    styleId,
-    () => summary,
-    setSummary,
-    assistHint || shot.title,
-  );
-  const plateAssist = useMobileAssist(
-    "plate",
-    styleId,
-    () => staging,
-    setStaging,
-    assistHint || `${shot.title}. ${summary || ""}`,
-  );
-
-  async function saveText() {
-    setError("");
-    try {
-      const res = await fetch("/api/crash/mobile/plate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId,
-          shotId: shot.id,
-          action: "save",
-          summary,
-          staging,
-        }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || "Couldn't save");
-      onRebuilt(undefined, staging, summary);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't save");
-    }
-  }
-
-  async function rebuild() {
-    setBusy(true);
-    setError("");
-    try {
-      const res = await fetch("/api/crash/mobile/plate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, shotId: shot.id, staging, summary }),
-      });
-      const data = (await res.json()) as {
-        error?: string;
-        plateFile?: string;
-        plateTakes?: PlateTake[];
-        job?: MobileGenJob;
-      };
-      if (!res.ok) throw new Error(data.error || "Couldn't rebuild the plate");
-      onRebuilt(data.plateFile, staging, summary, data.plateTakes);
-      if (data.job) onJobChange?.(data.job);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't rebuild the plate");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          {fieldLabel("Action")}
-          <div style={{ flex: 1 }} />
-          <MobileAiButton onClick={() => void actionAssist.runAssist()} busy={actionAssist.aiBusy} />
+      ) : (
+        <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
+          Tap + above the picture — pick someone, position them, that draws the still.
         </div>
-        <textarea
-          value={summary}
-          onChange={(e) => setSummary(e.target.value)}
-          onBlur={() => void saveText()}
-          rows={6}
-          placeholder="What we see — Jo on the bar, Matty behind it, the room going."
-          style={shotFieldStyle}
-        />
-        <div style={{ fontSize: "11px", color: "var(--chrome-dim)" }}>
-          Story text only — saved, but it doesn&apos;t draw anything. The picture comes from Position tweak below.
-        </div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          {fieldLabel("Position tweak — draws the picture")}
-          <div style={{ flex: 1 }} />
-          <MobileAiButton onClick={() => void plateAssist.runAssist()} busy={plateAssist.aiBusy} />
-        </div>
-        <textarea
-          value={staging}
-          onChange={(e) => setStaging(e.target.value)}
-          onBlur={() => void saveText()}
-          rows={3}
-          placeholder="Jo sitting on the bed, lying down, against the wall…"
-          style={shotFieldStyle}
-        />
-        <MobilePrimaryButton
-          disabled={busy || plateAssist.aiBusy || actionAssist.aiBusy || !staging.trim()}
-          onClick={() => void rebuild()}
-        >
-          {busy ? "Drawing…" : "Draw this picture"}
-        </MobilePrimaryButton>
-      </div>
-      {actionAssist.aiError ? (
-        <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{actionAssist.aiError}</div>
-      ) : null}
-      {plateAssist.aiError ? (
-        <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{plateAssist.aiError}</div>
-      ) : null}
-      {error ? <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</div> : null}
+      )}
     </div>
   );
 }
