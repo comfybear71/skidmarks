@@ -9,7 +9,7 @@ import {
 } from "@/lib/crashVoice";
 import { getVoiceLibraryEntry, resolveKeeperFile } from "@/lib/voiceLibrary";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
-import { readMobileGenJob } from "@/lib/mobileGenJob";
+import { saveMobileJobSpeakerVoice, readMobileGenJob } from "@/lib/mobileGenJob";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -33,10 +33,12 @@ export async function POST(req: Request) {
       jobId?: string;
       speaker?: string;
       voiceId?: string;
+      voiceName?: string;
     };
     const jobId = (body.jobId || "").trim();
     const speaker = (body.speaker || "").trim();
     const voiceIdIn = (body.voiceId || "").trim();
+    const voiceNameIn = (body.voiceName || "").trim();
     if (!jobId || !speaker) {
       return NextResponse.json({ error: "Need jobId and speaker" }, { status: 400 });
     }
@@ -80,11 +82,16 @@ export async function POST(req: Request) {
     }
 
     const audioBase64 = fs.readFileSync(filePath).toString("base64");
+    const lockedId = slot.approvedVoiceId?.trim() || voiceIdIn;
+    await saveMobileJobSpeakerVoice(jobId, speaker, {
+      voiceId: lockedId,
+      voiceName: voiceNameIn,
+    });
 
     return NextResponse.json({
       ok: true,
       audioBase64,
-      voiceId: slot.approvedVoiceId?.trim() || voiceIdIn,
+      voiceId: lockedId,
       voiceDescription: ready.voiceDescription,
     });
   } catch (e) {

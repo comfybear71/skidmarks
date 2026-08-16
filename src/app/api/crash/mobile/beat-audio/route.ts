@@ -7,6 +7,8 @@ import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { readMobileGenJob } from "@/lib/mobileGenJob";
 import { serveMediaFile } from "@/lib/serveMediaFile";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
+import { pinSpeakerLibraryVoice } from "@/lib/mobileVoiceReuse";
+import { jobVoiceForSpeaker } from "@/lib/mobileJobVoices";
 import { voiceNamesMatch } from "@/lib/voiceNameMatch";
 import path from "path";
 import type { ShowStyleId } from "@/lib/showStylePresets";
@@ -95,11 +97,17 @@ export async function POST(req: Request) {
       );
     }
 
-    // Voice is now a deliberate per-line step here, not an automatic pass
-    // that already ran before review — the first save for anyone new has no
-    // cast voice yet. Reuse an existing one if there's one to grab; only
-    // design a fresh one (real ElevenLabs cost) if reuse comes up empty.
-    await ensureSpeakerVoiceCast(job.styleId, speaker);
+    // CAST dropdown stores the library pick on the job. Pin that id onto
+    // this speaker before TTS — otherwise /tmp has no lock and reuse can
+    // grab leftover Comfy instead of Sunny Banks Nan.
+    const picked = jobVoiceForSpeaker(job.speakerVoices, speaker);
+    if (picked?.voiceId) {
+      if (!pinSpeakerLibraryVoice(job.styleId, speaker, picked.voiceId)) {
+        await ensureSpeakerVoiceCast(job.styleId, speaker);
+      }
+    } else {
+      await ensureSpeakerVoiceCast(job.styleId, speaker);
+    }
 
     const result = await synthesizeStoryBeat({ styleId: job.styleId, beatId, speaker, text });
     await writeMobileStory(result.story, job.folderName);

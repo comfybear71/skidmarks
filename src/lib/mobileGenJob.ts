@@ -6,6 +6,7 @@ import { useCloudStore } from "./cloudEnv";
 import { readMobileJobRow, saveMobileJobRow } from "./neonStore";
 import type { ShowStyleId } from "./showStylePresets";
 import type { ScriptCharacterData } from "./types";
+import { jobVoiceForSpeaker, withJobSpeakerVoice } from "./mobileJobVoices";
 
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
 
@@ -98,6 +99,12 @@ export type MobileGenJob = {
   phase: MobileGenPhase;
   /** Unique speaker names — drives the cast_images approval cursor. */
   speakers: string[];
+  /**
+   * CAST-assigned library voice per speaker name. Lives on the Neon job so
+   * the line editor can still find "Sunny Banks Nan" after Vercel /tmp
+   * wipes the crash-voice manifest. Older jobs omit this.
+   */
+  speakerVoices?: Record<string, { voiceId: string; voiceName?: string }>;
   /**
    * Parsed screenplay roster — kept on the job (already Neon-backed) so a
    * later request on a different Vercel instance can re-create Character
@@ -203,4 +210,28 @@ export async function patchMobileGenJob(
   const next = { ...job, ...patch };
   await writeMobileGenJob(next);
   return next;
+}
+
+/** Merge one CAST voice onto the job. Retries so parallel CAST cards don't clobber each other. */
+export async function saveMobileJobSpeakerVoice(
+  id: string,
+  speaker: string,
+  voice: { voiceId: string; voiceName?: string },
+): Promise<MobileGenJob | null> {
+  const voiceId = voice.voiceId.trim();
+  if (!voiceId) return readMobileGenJob(id);
+  for (let i = 0; i < 8; i++) {
+    const job = await readMobileGenJob(id);
+    if (!job) return null;
+    const speakerVoices = withJobSpeakerVoice(job.speakerVoices, speaker, {
+      voiceId,
+      voiceName: voice.voiceName,
+    });
+    await writeMobileGenJob({ ...job, speakerVoices });
+    const check = await readMobileGenJob(id);
+    if (jobVoiceForSpeaker(check?.speakerVoices, speaker)?.voiceId === voiceId) {
+      return check;
+    }
+  }
+  return readMobileGenJob(id);
 }
