@@ -314,41 +314,28 @@ export function PlateReviewEditor({
 
   return (
     <div style={{ marginBottom: "16px" }}>
-      {collapsed ? null : (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", margin: "0 2px 8px" }}>
-          <div
+      {collapsed ? null : shots.length || job.finalVideoFile ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", margin: "0 2px 8px" }}>
+          <button
+            type="button"
+            onClick={() => setClearConfirm((v) => !v)}
             style={{
+              flex: "0 0 auto",
+              padding: "4px 8px",
+              borderRadius: "2px",
+              border: "1px solid var(--line)",
+              background: "transparent",
               color: "var(--chrome-dim)",
               fontSize: "10px",
               textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              flex: 1,
+              letterSpacing: "0.06em",
+              cursor: "pointer",
             }}
           >
-            Shots — tap one, tweak position, redraw. Tap the picture to inspect.
-          </div>
-          {shots.length || job.finalVideoFile ? (
-            <button
-              type="button"
-              onClick={() => setClearConfirm((v) => !v)}
-              style={{
-                flex: "0 0 auto",
-                padding: "4px 8px",
-                borderRadius: "2px",
-                border: "1px solid var(--line)",
-                background: "transparent",
-                color: "var(--chrome-dim)",
-                fontSize: "10px",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                cursor: "pointer",
-              }}
-            >
-              {shots.length ? "Clear all" : "Clear video"}
-            </button>
-          ) : null}
+            {shots.length ? "Clear all" : "Clear video"}
+          </button>
         </div>
-      )}
+      ) : null}
 
       {!collapsed && clearConfirm ? (
         <div
