@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { jobHasEpisodePack, mobileMediaFolder } from "../src/lib/mobileJobFolder.ts";
 import { mobileLocationStillUrl, mobileMediaFolderName } from "../src/lib/mobileCandidateUrls.ts";
+import { screenplaySceneCount } from "../src/lib/mobileScreenplaySize.ts";
 
 const firstJob = { id: "mgen_20260816020100_abc", folderName: "" };
 assert.equal(mobileMediaFolder(firstJob), firstJob.id);
@@ -15,6 +16,10 @@ assert.equal(mobileMediaFolder(packed), "CURSOR_THE_PROJECT_PITCH");
 assert.equal(jobHasEpisodePack(packed), true);
 
 assert.equal(jobHasEpisodePack({ id: firstJob.id, folderName: "   " }), false);
+
+assert.equal(screenplaySceneCount(0), 1);
+assert.equal(screenplaySceneCount(1), 1);
+assert.equal(screenplaySceneCount(3), 3);
 
 assert.equal(mobileMediaFolderName(firstJob), firstJob.id);
 const locUrl = mobileLocationStillUrl(
