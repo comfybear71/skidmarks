@@ -19,7 +19,13 @@ import {
   attachAudioFilenamesToStory,
   attachPlateFilenamesToSceneKit,
   attachPlateFilenamesToStory,
+  storyIsEmptyPlateRecipe,
 } from "./cloudStoryMedia";
+import { burnLeftoverPackAudio, savedVoiceFilesOnStory } from "./burnLeftoverPackAudio";
+import {
+  isLeftoverPackVoiceFile,
+  storyHasLeftoverPackAudio,
+} from "./mobileSavedVoice";
 import { mapPackMp4sToBeats } from "./mediaMatch";
 
 function toListItem(row: NeonEpisodeRow): CrashLabEpisodeListItem {
@@ -82,14 +88,35 @@ async function hydrateEpisodeMedia(row: NeonEpisodeRow): Promise<{
     names,
     kitRaw?.plateFiles,
   );
-  const story = attachAudioFilenamesToStory(
-    withPlates,
-    audio.map((f) => f.filename),
-  );
+  const audioNames = audio.map((f) => f.filename);
+  const story = attachAudioFilenamesToStory(withPlates, audioNames);
   const labeled = {
     ...story,
     campaignLabel: story.campaignLabel?.trim() || row.name || story.campaignLabel,
   };
+  if (!storyIsEmptyPlateRecipe(labeled)) {
+    const leftoverBlob = audioNames.some((n) => isLeftoverPackVoiceFile(n));
+    const leftoverStory = storyHasLeftoverPackAudio(storyRaw);
+    if (leftoverBlob) {
+      await burnLeftoverPackAudio({
+        styleId: row.show_id as ShowStyleId,
+        folderName: row.folder_name,
+        keepFiles: savedVoiceFilesOnStory(labeled),
+      });
+    }
+    if (leftoverStory) {
+      await upsertNeonEpisode({
+        showId: row.show_id as ShowStyleId,
+        folderName: row.folder_name,
+        name: row.name,
+        hasStory: true,
+        hasSceneKit: Boolean(row.scene_kit_json),
+        storyJson: labeled,
+        sceneKitJson: row.scene_kit_json,
+        comfyDraftJson: row.comfy_draft_json,
+      });
+    }
+  }
   return {
     story: labeled,
     sceneKit: attachPlateFilenamesToSceneKit(

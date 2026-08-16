@@ -17,6 +17,7 @@ import {
 import {
   isLeftoverPackVoiceFile,
   isMobileSavedVoiceFile,
+  storyHasLeftoverPackAudio,
 } from "../src/lib/mobileSavedVoice.ts";
 
 assert.equal(isLeftoverPackVoiceFile("01_05_CRAZY_BIG_HOLE_JO_Not-that.mp3"), true);
@@ -27,6 +28,38 @@ assert.equal(
 );
 assert.equal(
   isLeftoverPackVoiceFile("01_01_CRAZY_BIG_HOLE_JO_her-line_mjx8k2.mp3"),
+  false,
+);
+assert.equal(
+  storyHasLeftoverPackAudio({
+    scenes: [
+      {
+        shots: [
+          {
+            beats: [
+              { voiceFile: "01_05_CRAZY_BIG_HOLE_JO_Not-that.mp3" },
+            ],
+          },
+        ],
+      },
+    ],
+  }),
+  true,
+);
+assert.equal(
+  storyHasLeftoverPackAudio({
+    scenes: [
+      {
+        shots: [
+          {
+            beats: [
+              { voiceFile: "01_01_CRAZY_BIG_HOLE_JO_her-line_mjx8k2.mp3" },
+            ],
+          },
+        ],
+      },
+    ],
+  }),
   false,
 );
 
