@@ -3,7 +3,7 @@ import path from "path";
 import { NextResponse } from "next/server";
 import { faceFilePath } from "@/lib/characters";
 import { resolveMobileMedia } from "@/lib/mobileMediaStore";
-import { isSafeMediaName } from "@/lib/cloudMedia";
+import { cloudBlobRedirect, isSafeMediaName } from "@/lib/cloudMedia";
 import { cloudShowAssetRedirect } from "@/lib/cloudShelf";
 import { CRASH_DIR } from "@/lib/paths";
 import type { ShowStyleId } from "@/lib/showStylePresets";
@@ -33,22 +33,27 @@ export async function GET(req: Request) {
   const folderName = url.searchParams.get("folderName") || "";
   const characterId = url.searchParams.get("characterId") || "";
   const fileName = url.searchParams.get("fileName") || "";
-  if (!styleId || !folderName || !isSafeMediaName(fileName)) {
+  if (!styleId || !isSafeMediaName(fileName)) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
+  // cast_build runs before a pack exists — folderName is often empty.
+  // Do not 400 on that; the face still lives on disk, under the job id in
+  // Blob, or as a filename row we can look up without an episode.
   const filePath =
     (characterId ? faceFilePath(characterId, fileName) : null) ||
-    (await resolveMobileMedia({
-      styleId,
-      folderName,
-      kind: "plates",
-      fileName,
-      destPath: path.join(CRASH_DIR, "gen", fileName),
-    }));
+    (folderName
+      ? await resolveMobileMedia({
+          styleId,
+          folderName,
+          kind: "plates",
+          fileName,
+          destPath: path.join(CRASH_DIR, "gen", fileName),
+        })
+      : null);
   if (!filePath) {
-    // A reused cast card is not a candidate from this run — it lives on the
-    // show's cast shelf, not in this episode's plates bucket.
+    const byName = await cloudBlobRedirect("plates", fileName);
+    if (byName) return byName;
     const shelf = await cloudShowAssetRedirect(styleId, "cast", fileName);
     if (shelf) return shelf;
     return NextResponse.json({ error: "Not found" }, { status: 404 });
