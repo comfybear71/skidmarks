@@ -6,7 +6,7 @@ import {
   isAssistKind,
 } from "@/lib/mobileAssist";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
-import { askGrok, textKeyPresent } from "@/lib/textGen";
+import { askGrok, missingXaiMessage, textKeyPresent } from "@/lib/textGen";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   try {
     if (!textKeyPresent()) {
       return NextResponse.json(
-        { error: "Missing XAI_API_KEY in MY MOVIES\\.env, then restart Studio." },
+        { error: missingXaiMessage() },
         { status: 503 },
       );
     }

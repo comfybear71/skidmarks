@@ -1,3 +1,4 @@
+import { runningOnVercel } from "./cloudEnv";
 import { getEnv } from "./env";
 
 /** Same xAI key as the image side. Override with XAI_TEXT_MODEL in .env. */
@@ -13,6 +14,13 @@ export function textKeyPresent(): boolean {
   return Boolean(key());
 }
 
+/** PC reads MY MOVIES\\.env. Live Vercel already has XAI_API_KEY in project env. */
+export function missingXaiMessage(): string {
+  return runningOnVercel()
+    ? "Missing XAI_API_KEY in Vercel environment variables."
+    : "Missing XAI_API_KEY in MY MOVIES\\.env, then restart Studio.";
+}
+
 type ChatResponse = {
   choices?: { message?: { content?: string } }[];
   error?: { message?: string } | string;
@@ -26,7 +34,7 @@ export async function askGrok(opts: {
   maxTokens?: number;
 }): Promise<string> {
   const apiKey = key();
-  if (!apiKey) throw new Error("Missing XAI_API_KEY in MY MOVIES\\.env");
+  if (!apiKey) throw new Error(missingXaiMessage());
 
   const res = await fetch("https://api.x.ai/v1/chat/completions", {
     method: "POST",
