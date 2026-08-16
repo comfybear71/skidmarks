@@ -47,6 +47,26 @@ function mobileClipSrc(job: { styleId: string; folderName: string }, clipFile: s
   return `/api/crash/mobile/clip?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&fileName=${encodeURIComponent(fileName)}`;
 }
 
+/** Every plate keeps its own clip(s). Match by beat first so short+long
+ * both sit under the still they were shot on, even if shotId drifted. */
+function clipsUnderPlate(
+  shotId: string,
+  beatIds: string[],
+  clips: MobileClipUnit[],
+): MobileClipUnit[] {
+  const want = new Set(beatIds.filter(Boolean));
+  const seen = new Set<string>();
+  const out: MobileClipUnit[] = [];
+  for (const clip of clips) {
+    if (seen.has(clip.beatId)) continue;
+    if (clip.shotId === shotId || want.has(clip.beatId)) {
+      seen.add(clip.beatId);
+      out.push(clip);
+    }
+  }
+  return out;
+}
+
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
   const file =
     approvedCandidateFileName(job.locationCandidates, sceneId) ||
@@ -465,7 +485,7 @@ export function PlateReviewEditor({
           overflowX: "auto",
           padding: "2px 2px 10px",
           touchAction: "pan-x pan-y",
-          alignItems: "flex-end",
+          alignItems: "flex-start",
         }}
       >
         {shots.map((s, i) => {
@@ -475,6 +495,14 @@ export function PlateReviewEditor({
             ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
             : placeSrc;
           const addingCast = castPickerShotId === s.shotId;
+          const storyShot = displayShot(s.shotId);
+          const beatIds =
+            storyShot?.beats.map((b) => b.id) ||
+            job.plateLtxCampaign?.tests
+              ?.filter((t) => t.shotId === s.shotId)
+              .map((t) => t.beatId) ||
+            [];
+          const underClips = clipsUnderPlate(s.shotId, beatIds, job.clips);
           return (
             <div
               key={s.shotId}
@@ -620,6 +648,49 @@ export function PlateReviewEditor({
                   </button>
                 ) : null}
               </div>
+              {!collapsed
+                ? underClips.map((clip) =>
+                    clip.clipFile ? (
+                      <video
+                        key={clip.beatId}
+                        src={mobileClipSrc(job, clip.clipFile)}
+                        controls
+                        playsInline
+                        preload={s.shotId === openShotId ? "metadata" : "none"}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          width: `${PLATE_TILE_PX}px`,
+                          aspectRatio: "16 / 9",
+                          objectFit: "cover",
+                          borderRadius: "2px",
+                          border: "1px solid var(--line)",
+                          background: "var(--void)",
+                          display: "block",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        key={clip.beatId}
+                        style={{
+                          width: `${PLATE_TILE_PX}px`,
+                          aspectRatio: "16 / 9",
+                          borderRadius: "2px",
+                          border: "1px dashed var(--line)",
+                          background: "var(--void)",
+                          color: "var(--chrome-dim)",
+                          fontSize: "9px",
+                          letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {clip.clipStatus === "error" ? "Fail" : "Clip"}
+                      </div>
+                    ),
+                  )
+                : null}
             </div>
           );
         })}
@@ -1377,16 +1448,27 @@ function ShotLineEditor({
         jobPlated={jobPlated}
         onPicked={(plateFile, staging) => onPlateRebuilt(plateFile, staging, shot.summary)}
       />
-      {clips
-        .filter((c) => {
-          if (!c.clipFile) return false;
-          if (c.shotId === shot.id) return true;
-          return shot.beats.some((b) => b.id === c.beatId);
-        })
-        .map((clip) => {
-          const test = campaign?.tests?.find((t) => t.beatId === clip.beatId);
+      {(() => {
+        const beatIds = shot.beats.map((b) => b.id);
+        const under = clipsUnderPlate(shot.id, beatIds, clips);
+        const slots = speakingBeats.map((beat) => ({
+          beatId: beat.id,
+          clip: under.find((c) => c.beatId === beat.id),
+          test: campaign?.tests?.find((t) => t.beatId === beat.id),
+        }));
+        for (const clip of under) {
+          if (slots.some((s) => s.beatId === clip.beatId)) continue;
+          slots.push({
+            beatId: clip.beatId,
+            clip,
+            test: campaign?.tests?.find((t) => t.beatId === clip.beatId),
+          });
+        }
+        return slots.map((slot) => {
+          const clip = slot.clip;
+          const test = slot.test;
           return (
-          <div key={`${clip.beatId}:${clip.clipFile}`}>
+          <div key={slot.beatId}>
             <div
               style={{
                 fontSize: "10px",
@@ -1396,18 +1478,18 @@ function ShotLineEditor({
                 marginBottom: "6px",
               }}
             >
-              {clip.clipStatus === "error"
+              {clip?.clipStatus === "error"
                 ? "Clip failed"
                 : test
                   ? `${test.id} · ${test.band}`
                   : "Clip"}
             </div>
-            {clip.clipStatus === "error" && clip.error ? (
+            {clip?.clipStatus === "error" && clip.error ? (
               <div style={{ fontSize: "12px", color: "var(--magenta-hot)", marginBottom: "6px" }}>
                 {clip.error}
               </div>
             ) : null}
-            {clip.clipFile ? (
+            {clip?.clipFile ? (
               <video
                 src={mobileClipSrc({ styleId, folderName }, clip.clipFile)}
                 controls
@@ -1415,7 +1497,22 @@ function ShotLineEditor({
                 preload="metadata"
                 style={{ ...mobileMediaFrame, width: "100%" }}
               />
-            ) : null}
+            ) : (
+              <div
+                style={{
+                  ...mobileMediaFrame,
+                  width: "100%",
+                  minHeight: "120px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--chrome-dim)",
+                  fontSize: "12px",
+                }}
+              >
+                {clip?.clipStatus === "pending" ? "Clip coming…" : "No clip yet"}
+              </div>
+            )}
             {test && onJobChange ? (
               <CampaignTestScoreRow
                 jobId={jobId}
@@ -1426,7 +1523,8 @@ function ShotLineEditor({
             ) : null}
           </div>
           );
-        })}
+        });
+      })()}
       {speakingBeats.length ? (
         speakingBeats.map((beat) => (
           <BeatLineEditor
