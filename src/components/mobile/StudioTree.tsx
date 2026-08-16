@@ -1084,12 +1084,14 @@ export function StudioTree({
 
         {platesOpen && job.phase === "review" ? (
           <div style={{ marginTop: "12px" }}>
-            <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "10px" }}>
+            <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: plated.length ? "10px" : 0 }}>
               {plated.length}/{job.shots.length} plated · {job.clips.length} lines
             </div>
-            <MobilePrimaryButton disabled={busy || !plated.length} onClick={onGenerateVideo}>
-              {busy ? "Casting voices…" : plated.length ? "Generate video" : "Rebuild a plate first"}
-            </MobilePrimaryButton>
+            {plated.length || busy ? (
+              <MobilePrimaryButton disabled={busy || !plated.length} onClick={onGenerateVideo}>
+                {busy ? "Casting voices…" : "Generate video"}
+              </MobilePrimaryButton>
+            ) : null}
           </div>
         ) : null}
 
