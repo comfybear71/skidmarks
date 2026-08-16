@@ -314,6 +314,16 @@ export async function POST(req: Request) {
           beatId: beat.id,
           voiceFile: beat.voiceFile,
         });
+        if (!audioPath) {
+          // The generic "GEN MP3 first" from runLtxCloudIa2v gives no way to
+          // tell "never voiced" apart from "voiced but unreachable from this
+          // request" — say exactly which file, whose story beat, and whether
+          // the queued clip even agrees with the story on what that file is.
+          throw new Error(
+            `Beat mp3 not reachable — story.voiceFile="${beat.voiceFile || "(empty)"}" ` +
+              `clip.voiceFile="${next.voiceFile || "(empty)"}" folderName="${job.folderName}" beatId=${beat.id}`,
+          );
+        }
 
         // Bare `NAME says: "line"` was the whole prompt LTX got — nothing held
         // the plate, so nothing stopped strangers walking in or the actual
