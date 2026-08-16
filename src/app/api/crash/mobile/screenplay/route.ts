@@ -43,7 +43,7 @@ export async function POST(req: Request) {
 
     const job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-    if (job.phase !== "location_build") {
+    if (job.phase !== "location_build" && job.phase !== "cast_build") {
       return NextResponse.json({ ok: true, job }); // already past this phase — idempotent
     }
     if (!job.speakers.length) {
