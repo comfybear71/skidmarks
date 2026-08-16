@@ -132,6 +132,7 @@ export async function POST(req: Request) {
         const fileName = await compositeShotPlate(job.styleId, scene, shot, {
           silentCast,
           styleRealism: job.styleRealism,
+          job,
         });
         try {
           await uploadMobileMedia({
