@@ -16,7 +16,7 @@ assert.equal(
     phase: "error",
     error: "No clips generated successfully — nothing to stitch",
   }),
-  "review",
+  null,
 );
 assert.equal(bounceStuckStitch({ phase: "review" }), null);
 

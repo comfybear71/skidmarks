@@ -92,6 +92,8 @@ export default function MobileHomePage() {
           jobId: job.id,
         });
         setJob(data.job);
+        if (data.job.error) setError(data.job.error);
+        if (data.job.phase === "error") stopPoll();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Step failed");
         stopPoll();
@@ -363,6 +365,7 @@ export default function MobileHomePage() {
         approveReview: true,
       });
       setJob(updated);
+      if (updated.error) setError(updated.error);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't start animation");
     } finally {

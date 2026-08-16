@@ -4,7 +4,8 @@ import { resolveMobileMedia, uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { isSafeMediaName } from "@/lib/cloudMedia";
 import { storyDialogueDir } from "@/lib/crashStoryLocations";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
-import { readMobileGenJob } from "@/lib/mobileGenJob";
+import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { upsertPendingClip } from "@/lib/mobileClipQueue";
 import { serveMediaFile } from "@/lib/serveMediaFile";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { pinSpeakerLibraryVoice } from "@/lib/mobileVoiceReuse";
@@ -141,6 +142,12 @@ export async function POST(req: Request) {
       })),
     };
     await writeMobileStory(next, job.folderName);
+    const clips = upsertPendingClip(
+      { ...job, clips: job.clips || [] },
+      next,
+      beatId,
+    );
+    const patched = await patchMobileGenJob(jobId, { clips, error: "" });
     try {
       const localPath = resolveBeatAudioPath(job.styleId, beatId, result.voiceFile);
       if (localPath) {
@@ -158,6 +165,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       voiceFile: result.voiceFile,
+      job: patched,
       imageMotion:
         next.scenes
           .flatMap((sc) => sc.shots.flatMap((sh) => sh.beats))
