@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MobileAiButton, MobileAudioPlayer, MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
 import { useMobileAssist } from "./useMobileAssist";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
@@ -27,6 +27,7 @@ import {
   buildDefaultBeatMotion,
   stripLtxLipSyncLead,
 } from "@/lib/mobileImageMotion";
+import { imageMotionAssistHint } from "@/lib/mobileAssist";
 
 /** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
 const PLATE_TILE_PX = 96;
@@ -1426,6 +1427,45 @@ function BeatLineEditor({
   const motionBody =
     motionDraft ?? (stripLtxLipSyncLead(beat.imageMotion || "") || defaultMotionBody);
   const motionDirty = motionDraft !== null;
+  const motionHint = useMemo(
+    () =>
+      imageMotionAssistHint({
+        speaker: beat.speaker,
+        line: text,
+        lookLock,
+        shotSpeakers,
+      }),
+    [beat.speaker, lookLock, shotSpeakers, text],
+  );
+
+  const persistMotion = useCallback(
+    async (body: string): Promise<string> => {
+      const res = await fetch("/api/crash/mobile/beat-motion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, beatId: beat.id, imageMotion: body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't keep Image motion");
+      const saved = stripLtxLipSyncLead((data.imageMotion as string) || body);
+      onSaved(text, voiceFile, saved);
+      return saved;
+    },
+    [beat.id, jobId, onSaved, text, voiceFile],
+  );
+
+  const motionAssist = useMobileAssist(
+    "image_motion",
+    styleId,
+    () => motionBody,
+    (v) => {
+      setMotionDraft(v);
+      void persistMotion(v)
+        .then(() => setMotionDraft(null))
+        .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep Image motion"));
+    },
+    motionHint,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -1467,19 +1507,6 @@ function BeatLineEditor({
       cancelled = true;
     };
   }, [jobId, styleId, beat.speaker, jobVoices]);
-
-  async function persistMotion(body: string): Promise<string> {
-    const res = await fetch("/api/crash/mobile/beat-motion", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId, beatId: beat.id, imageMotion: body }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Couldn't keep Image motion");
-    const saved = stripLtxLipSyncLead((data.imageMotion as string) || body);
-    onSaved(text, voiceFile, saved);
-    return saved;
-  }
 
   async function save() {
     setSaving(true);
@@ -1585,7 +1612,12 @@ function BeatLineEditor({
             placeholder="Held prop + action — phone, pie, racket. This is the one LTX prompt."
             multiline
             rows={8}
+            onAi={() => void motionAssist.runAssist()}
+            aiBusy={motionAssist.aiBusy}
           />
+          {motionAssist.aiError ? (
+            <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{motionAssist.aiError}</div>
+          ) : null}
           <div>
             <MobilePrimaryButton
               size="chip"

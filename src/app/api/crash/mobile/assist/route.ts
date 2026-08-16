@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  assistMaxTokens,
   assistSystem,
   assistUser,
   cleanAssistText,
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
         text: body.text || "",
         hint: body.hint,
       }),
-      maxTokens: kind === "episode" ? 4000 : kind === "vibe" ? 220 : kind === "shot" ? 400 : 180,
+      maxTokens: assistMaxTokens(kind),
     });
     return NextResponse.json({ ok: true, text: cleanAssistText(text) });
   } catch (e) {

@@ -28,6 +28,7 @@ import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import { MOBILE_STITCH_MOVIES } from "@/lib/mobilePipeline";
+import { isJoKeyboardWarrior } from "@/lib/mobileImageMotion";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
 
 function castFaceUrl(
@@ -810,6 +811,11 @@ export function StudioTree({
         : `Place · ${scene.placeName}: (picked, no words saved)`;
     }),
     "Every shot needs a Plate: line — who sits, leans, presents. Willing bodies. Not a lineup. Not pinning anyone down.",
+    ...(job.speakers.some((n) => isJoKeyboardWarrior(n))
+      ? [
+          "CRAZY BIG HOLE JO: Action and Plate have her holding her phone, staring at the screen like a crazed maniac, texting while she talks — unless a shot already names a different held prop (pie, racket).",
+        ]
+      : []),
   ].join("\n");
   const episodeAssist = useMobileAssist(
     "episode",
