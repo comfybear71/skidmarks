@@ -109,8 +109,24 @@ export async function POST(req: Request) {
     const story = await readMobileStory(job.styleId, job.folderName);
 
     if (add) {
-      const scene = story.scenes.find((sc) => sc.id === sceneIdIn);
-      if (!scene) return NextResponse.json({ error: "That location is not in the story" }, { status: 404 });
+      // A location approved via Locations only lands in job.scenes — it's
+      // meant to get carried into the real story doc when a script gets
+      // locked, but this flow skips scripts entirely. Create the story
+      // scene here instead of demanding a step nobody asked for.
+      let workingStory = story;
+      let scene = workingStory.scenes.find((sc) => sc.id === sceneIdIn);
+      if (!scene) {
+        const jobScene = job.scenes.find((s) => s.id === sceneIdIn);
+        if (!jobScene) return NextResponse.json({ error: "That location doesn't exist" }, { status: 404 });
+        scene = {
+          id: jobScene.id,
+          title: jobScene.placeName,
+          placeName: jobScene.placeName,
+          worldThumbKey: jobScene.worldThumbKey || "",
+          shots: [],
+        };
+        workingStory = { ...workingStory, scenes: [...workingStory.scenes, scene] };
+      }
       const solo = Boolean(speakerIn);
       const newShot = {
         id: newId("shot"),
@@ -124,8 +140,8 @@ export async function POST(req: Request) {
         sfx: [],
       };
       const added: CrashStoryDoc = {
-        ...story,
-        scenes: story.scenes.map((sc) =>
+        ...workingStory,
+        scenes: workingStory.scenes.map((sc) =>
           sc.id === scene.id ? { ...sc, shots: [...sc.shots, newShot] } : sc,
         ),
       };
