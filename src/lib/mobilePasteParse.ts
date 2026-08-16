@@ -7,6 +7,7 @@ import type {
   CrashStoryShot,
 } from "./crashStoryTypes";
 import type { ShowStyleId } from "./showStylePresets";
+import { defaultShotStaging } from "./mobilePlateStaging";
 
 export const MOBILE_PASTE_SAMPLE = `EPISODE: Crazy Big Hole Jo
 GAG: Jo falls in a hole. Matty has a bar.
@@ -129,7 +130,9 @@ function shotsToStory(
       id: newId("shot"),
       title: shot.title || placeName,
       summary: shot.summary,
-      staging: shot.staging || (cast.length ? `${cast.join(", ")} · ${placeName}` : placeName),
+      staging:
+        shot.staging ||
+        defaultShotStaging(placeName, cast),
       plateFile: "",
       beats,
       sfx: [],

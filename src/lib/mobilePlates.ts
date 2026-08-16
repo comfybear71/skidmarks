@@ -21,6 +21,7 @@ import {
 import { candidateLookPrompt } from "./mobileJobReady";
 import type { CrashStoryScene, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileGenJob } from "./mobileGenJob";
+import { peopleForShotPlate, uniqueBeatSpeakers } from "./mobilePlateStaging";
 
 /** Pull a show-shelf asset down to a temp file so code that needs a path works
  * the same whether the bytes came from disk or Blob. Keys arrive as "g:name". */
@@ -77,9 +78,7 @@ function resolveCastKeyByName(
 }
 
 function uniqueShotSpeakers(shot: CrashStoryShot): string[] {
-  return [
-    ...new Set(shot.beats.map((b) => b.speaker.trim()).filter(Boolean)),
-  ];
+  return uniqueBeatSpeakers(shot.beats);
 }
 
 export type PlateJobRef = Pick<
@@ -160,10 +159,10 @@ export async function compositeShotPlate(
   scene: CrashStoryScene,
   shot: CrashStoryShot,
   opts: {
-    /** Cast who never speak anywhere in the story. Shots are keyed off
-     * dialogue beats, so without this a silent character — the monkey in
-     * "a monkey holding hands with Elon Musk" — gets a cast card approved
-     * and then never appears in a single plate. */
+    /** Whole roster — used only to match names written in staging.
+     * Do not dump every unused speaker into the still. */
+    roster?: string[];
+    /** @deprecated ignored — a silent extra only appears if staging names them. */
     silentCast?: string[];
     /** The job's slider. Plates used to fall back to the style preset, so
      * dragging to photoreal changed the cast and location but not the plate
@@ -177,8 +176,11 @@ export async function compositeShotPlate(
 ): Promise<string> {
   const bgPath = await resolvePlateBackground(styleId, scene, opts.job);
 
-  const silent = (opts.silentCast || []).map((n) => n.trim()).filter(Boolean);
-  const speakers = [...new Set([...uniqueShotSpeakers(shot), ...silent])];
+  const speakers = peopleForShotPlate({
+    staging: shot.staging?.trim() || shot.summary?.trim() || "",
+    beatSpeakers: uniqueShotSpeakers(shot),
+    roster: [...(opts.roster || []), ...(opts.silentCast || [])],
+  });
   if (!speakers.length) throw new Error("Shot has no cast to composite");
 
   const manifest = readStyleCardManifest(styleId);

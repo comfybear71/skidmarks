@@ -71,14 +71,14 @@ Spoken line.
 - You may add more shots at the same Place. This is a full episode, not a 4-shot gag.
 - Use ONLY the locked cast names. Do not invent people.
 - Every Place: must be one of the locked places, spelled exactly.
-- Include a Plate: line on every shot — who sits, leans, walks, uses the furniture. Never a lineup of people standing in the foreground.
+- Include a Plate: line on every shot — one or two people only, who sits, leans, walks. Never the whole cast. Never a lineup in the foreground.
 - If the box already has a draft, refine it — keep what works, fix what is weak. Do not throw the whole thing away unless it is an empty template.
 - ElevenLabs tags in square brackets are allowed on lines: [grunts] [smugly].`,
 
-  plate: `WRITE: how people sit in this still — one or two sentences for the plate compositor.
-- Who is where. Sitting, leaning, walking through, using the bar or furniture.
-- Name the locked people and the place. Matching light.
-- Never a lineup of faces standing in the foreground like cutouts.`,
+  plate: `WRITE: how one or two people sit in this still — one or two sentences.
+- Name at most two locked people and the place. Sitting, leaning, walking, using the furniture.
+- Matching light. Nobody else in frame.
+- Never the whole cast. Never a lineup of faces in the foreground.`,
 };
 
 export function assistSystem(styleId: ShowStyleId, kind: AssistKind): string {

@@ -8,6 +8,7 @@ import { ZoomableStill, ZoomOverlay } from "./ZoomableStill";
 import { useMobileAssist } from "./useMobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "@/lib/crashStoryTypes";
+import { editorStagingSeed, uniqueBeatSpeakers } from "@/lib/mobilePlateStaging";
 
 async function fetchStory(styleId: string, folderName: string): Promise<CrashStoryDoc | null> {
   const res = await fetch(
@@ -125,6 +126,10 @@ export function PlateReviewEditor({
           folderName={job.folderName}
           jobId={job.id}
           plateSrc={openPlate?.plateFile ? plateSrcFor(openPlate.plateFile) : ""}
+          placeName={
+            job.scenes.find((sc) => sc.id === job.shots.find((s) => s.shotId === openShotId)?.sceneId)
+              ?.placeName || ""
+          }
           shot={shotById(openShotId)}
           loading={!story && !loadError}
           error={loadError}
@@ -171,6 +176,7 @@ function ShotLineEditor({
   folderName,
   jobId,
   plateSrc,
+  placeName,
   shot,
   loading,
   error,
@@ -182,6 +188,7 @@ function ShotLineEditor({
   folderName: string;
   jobId: string;
   plateSrc: string;
+  placeName: string;
   shot: CrashStoryShot | null;
   loading: boolean;
   error: string;
@@ -224,6 +231,7 @@ function ShotLineEditor({
         styleId={styleId}
         jobId={jobId}
         shot={shot}
+        placeName={placeName}
         onRebuilt={onPlateRebuilt}
         onJobChange={onJobChange}
       />
@@ -253,19 +261,24 @@ function PlateStagingEditor({
   styleId,
   jobId,
   shot,
+  placeName,
   onRebuilt,
   onJobChange,
 }: {
   styleId: string;
   jobId: string;
   shot: CrashStoryShot;
+  placeName: string;
   onRebuilt: (plateFile: string, staging: string) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
-  const [staging, setStaging] = useState(
-    shot.staging?.trim() ||
-      shot.summary?.trim() ||
-      "People inhabit the place — sitting, leaning, walking, using the furniture.",
+  const [staging, setStaging] = useState(() =>
+    editorStagingSeed({
+      staging: shot.staging,
+      summary: shot.summary,
+      placeName,
+      beatSpeakers: uniqueBeatSpeakers(shot.beats),
+    }),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

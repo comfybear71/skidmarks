@@ -11,6 +11,7 @@ import type {
 } from "./crashStoryTypes";
 import type { ShowStyleId } from "./showStylePresets";
 import { resolvePlaceKey } from "./cursorPromptBuild";
+import { defaultShotStaging } from "./mobilePlateStaging";
 
 const HEADING_RE = /^(EXT\.|INT\.)\s+(.+?)\s+-\s+(.+?)$/i;
 
@@ -70,7 +71,7 @@ function sceneToStoryScene(scene: ScriptSceneData, styleId: ShowStyleId): CrashS
     id: newId("shot"),
     title: scene.heading,
     summary: scene.action.join(" ").trim(),
-    staging: cast.length ? `${cast.join(", ")} · ${placeName}` : placeName,
+    staging: defaultShotStaging(placeName, cast),
     plateFile: "",
     beats,
     sfx: [],

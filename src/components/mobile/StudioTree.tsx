@@ -668,7 +668,7 @@ export function StudioTree({
         ? `Place · ${scene.placeName}: ${look}`
         : `Place · ${scene.placeName}: (picked, no words saved)`;
     }),
-    "Every shot needs a Plate: line — who sits, leans, walks. Not a lineup in the foreground.",
+    "Every shot needs a Plate: line — one or two people only. Not the whole cast. Not a lineup.",
   ].join("\n");
   const episodeAssist = useMobileAssist(
     "episode",

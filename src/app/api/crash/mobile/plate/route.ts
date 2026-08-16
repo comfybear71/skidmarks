@@ -55,14 +55,8 @@ export async function POST(req: Request) {
     scene = nextStory.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId))!;
     shot = scene.shots.find((sh) => sh.id === shotId)!;
 
-    const talking = new Set(
-      nextStory.scenes.flatMap((sc) =>
-        sc.shots.flatMap((sh) => sh.beats.map((b) => b.speaker.trim()).filter(Boolean)),
-      ),
-    );
-    const silentCast = job.speakers.filter((n) => n.trim() && !talking.has(n.trim()));
     const fileName = await compositeShotPlate(job.styleId, scene, shot, {
-      silentCast,
+      roster: job.speakers,
       styleRealism: job.styleRealism,
       job,
     });
