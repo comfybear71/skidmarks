@@ -249,16 +249,39 @@ export async function upsertNeonFile(row: {
   const sql = getSql();
   if (!sql) return;
   const id = fileRowId(row.episodeId, row.kind, row.filename);
-  await sql`
-    INSERT INTO files (id, episode_id, kind, blob_url, filename, blob_pathname)
-    VALUES (
-      ${id}, ${row.episodeId}, ${row.kind}, ${row.blobUrl},
-      ${row.filename}, ${row.blobPathname}
-    )
-    ON CONFLICT (id) DO UPDATE SET
-      blob_url = EXCLUDED.blob_url,
-      blob_pathname = EXCLUDED.blob_pathname
-  `;
+  try {
+    await sql`
+      INSERT INTO files (id, episode_id, kind, blob_url, filename, blob_pathname)
+      VALUES (
+        ${id}, ${row.episodeId}, ${row.kind}, ${row.blobUrl},
+        ${row.filename}, ${row.blobPathname}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        blob_url = EXCLUDED.blob_url,
+        blob_pathname = EXCLUDED.blob_pathname
+    `;
+  } catch (e) {
+    // files.episode_id FK rejects an id with no matching episodes row —
+    // mobileMediaFolder(job) hands cast_build/location_build candidate
+    // uploads the job id as a stand-in folder before any real pack exists,
+    // so this is the normal case there, not an edge case. The row still
+    // matters (cloudBlobRedirect's by-filename lookup is the only
+    // cross-instance fallback for location candidate images on Vercel) —
+    // retry unscoped rather than losing it to a swallowed error.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/foreign key|violates/i.test(msg)) throw e;
+    const fallbackId = `_prebuild/${row.kind}/${row.filename}`;
+    await sql`
+      INSERT INTO files (id, episode_id, kind, blob_url, filename, blob_pathname)
+      VALUES (
+        ${fallbackId}, NULL, ${row.kind}, ${row.blobUrl},
+        ${row.filename}, ${row.blobPathname}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        blob_url = EXCLUDED.blob_url,
+        blob_pathname = EXCLUDED.blob_pathname
+    `;
+  }
 }
 
 export async function listNeonFiles(opts: {
