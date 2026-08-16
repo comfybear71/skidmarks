@@ -519,6 +519,7 @@ export const CAMPAIGN_SPEECH: string[] = [
   oneLine(
     "I'm afraid to leave my room. These guys are meth heads and I've already been intimidated. I need to go to the toilet, shower and get my dinner ready. The boyfriend is a crack head and staying another night I guess. Night 3. He can pay my rent from now on.",
   ),
+  oneLine("Do something for fuck sake."),
 ];
 
 if (CAMPAIGN_SPEECH.length < 26) {
