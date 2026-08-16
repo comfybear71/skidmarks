@@ -1,6 +1,12 @@
 import fs from "fs";
 import { NextResponse } from "next/server";
-import { crashVoiceFilePath, ensureCrashVoiceSample, findCrashVoiceByName } from "@/lib/crashVoice";
+import {
+  crashVoiceFilePath,
+  ensureCrashVoiceSample,
+  ensureVoiceSlotFromCards,
+  findCrashVoiceByName,
+  lockCrashVoiceByExternalId,
+} from "@/lib/crashVoice";
 import { getVoiceLibraryEntry, resolveKeeperFile } from "@/lib/voiceLibrary";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { readMobileGenJob } from "@/lib/mobileGenJob";
@@ -9,9 +15,11 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * POST { jobId, speaker } — cast this speaker's voice if it doesn't have one
- * yet (reuse first, design only if reuse comes up empty — same priority
- * beat-audio's save uses), then make sure a sample take exists to play.
+ * POST { jobId, speaker, voiceId? } — cast this speaker's voice if it
+ * doesn't have one yet (reuse first, design only if reuse comes up empty
+ * — same priority beat-audio's save uses), then make sure a sample take
+ * exists to play. Pass voiceId to pin a specific library voice instead of
+ * leaving it to auto-pick.
  *
  * Returns the mp3 inline as a data URL rather than a /api/crash/voice/file
  * link — that route reads local disk only, and on Vercel the request that
@@ -24,9 +32,11 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as {
       jobId?: string;
       speaker?: string;
+      voiceId?: string;
     };
     const jobId = (body.jobId || "").trim();
     const speaker = (body.speaker || "").trim();
+    const voiceIdIn = (body.voiceId || "").trim();
     if (!jobId || !speaker) {
       return NextResponse.json({ error: "Need jobId and speaker" }, { status: 400 });
     }
@@ -34,15 +44,26 @@ export async function POST(req: Request) {
     const job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
-    const cast = await ensureSpeakerVoiceCast(job.styleId, speaker);
-    if (!cast) {
-      return NextResponse.json(
-        { error: "Couldn't cast a voice for this character — design quota may be used up" },
-        { status: 502 },
-      );
+    let slot = findCrashVoiceByName(job.styleId, speaker);
+    if (voiceIdIn) {
+      const base = slot || ensureVoiceSlotFromCards(job.styleId, speaker);
+      if (!base) return NextResponse.json({ error: "Couldn't set up a voice slot for this character" }, { status: 404 });
+      slot = await lockCrashVoiceByExternalId({
+        styleId: job.styleId,
+        castKey: base.castKey,
+        castName: speaker,
+        voiceId: voiceIdIn,
+      });
+    } else if (!slot?.approvedVoiceId?.trim()) {
+      const cast = await ensureSpeakerVoiceCast(job.styleId, speaker);
+      if (!cast) {
+        return NextResponse.json(
+          { error: "Couldn't cast a voice for this character — design quota may be used up" },
+          { status: 502 },
+        );
+      }
+      slot = findCrashVoiceByName(job.styleId, speaker);
     }
-
-    const slot = findCrashVoiceByName(job.styleId, speaker);
     if (!slot) return NextResponse.json({ error: "No voice slot for this character" }, { status: 404 });
 
     const ready = await ensureCrashVoiceSample({ styleId: job.styleId, castKey: slot.castKey });
