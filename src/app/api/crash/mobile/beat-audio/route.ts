@@ -10,7 +10,7 @@ import { serveMediaFile } from "@/lib/serveMediaFile";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { pinSpeakerLibraryVoice } from "@/lib/mobileVoiceReuse";
 import { candidateLookPrompt } from "@/lib/mobileJobReady";
-import { buildDefaultBeatMotion } from "@/lib/mobileImageMotion";
+import { buildDefaultBeatMotion, imageMotionUsableForLine, looksLikePlatePositionPrompt } from "@/lib/mobileImageMotion";
 import { jobVoiceForSpeaker } from "@/lib/mobileJobVoices";
 import { voiceNamesMatch } from "@/lib/voiceNameMatch";
 import {
@@ -69,6 +69,15 @@ export async function POST(req: Request) {
     const text = (body.text || "").trim();
     if (!jobId || !beatId || !text) {
       return NextResponse.json({ error: "Need jobId, beatId and text" }, { status: 400 });
+    }
+    if (looksLikePlatePositionPrompt(text)) {
+      return NextResponse.json(
+        {
+          error:
+            "That's the still position, not the spoken line. Wipe it. Type what she says, then Save.",
+        },
+        { status: 400 },
+      );
     }
 
     const job = await readMobileGenJob(jobId);
@@ -140,7 +149,12 @@ export async function POST(req: Request) {
             ...sh,
             beats: beats.map((b) => {
               if (b.id !== beatId) return b;
-              if (keepStoredImageMotion(b.imageMotion, leftovers)) return b;
+              if (
+                keepStoredImageMotion(b.imageMotion, leftovers) &&
+                imageMotionUsableForLine(b.imageMotion, text)
+              ) {
+                return b;
+              }
               return {
                 ...b,
                 imageMotion: buildDefaultBeatMotion({

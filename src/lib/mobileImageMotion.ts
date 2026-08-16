@@ -123,6 +123,43 @@ export function onlyTheseInFrame(names: string[]): string {
   return `Only ${roll} in frame, no one else appears.`;
 }
 
+/**
+ * Plate staging ("alone in the cell, only Jo in frame, sitting on the bed")
+ * is for the still. If it is Saved as the spoken line, LTX lip-syncs a
+ * position paragraph and often invents people walking through the room.
+ */
+export function looksLikePlatePositionPrompt(text: string): boolean {
+  const t = clean(text).toLowerCase();
+  if (!t) return false;
+  const hits = [
+    /only .{1,80} in frame/,
+    /no one else appears/,
+    /sitting on the bed/,
+    /\(the cell\)/,
+    /alone in .{1,80}bedroom/,
+    /holding her mobile phone, texting/,
+    /staring at the screen like a crazed maniac/,
+  ].filter((re) => re.test(t)).length;
+  return hits >= 2;
+}
+
+function imageMotionCitesLine(motion: string, line: string): boolean {
+  const spoken = clean(line);
+  if (!spoken) return true;
+  if (!/\bsays:\s*"/i.test(motion)) return false;
+  const needle = spoken.slice(0, 32).toLowerCase();
+  return motion.toLowerCase().includes(needle);
+}
+
+/** Keep a stored LTX body only if it still names this spoken line — not a still position. */
+export function imageMotionUsableForLine(motion: string | undefined, line: string): boolean {
+  const existing = stripLtxLipSyncLead(motion || "");
+  if (!existing) return false;
+  if (looksLikePlatePositionPrompt(existing)) return false;
+  if (looksLikePlatePositionPrompt(line)) return false;
+  return imageMotionCitesLine(existing, line);
+}
+
 function inFrameNames(speaker: string, shotSpeakers?: string[]): string[] {
   const names = (shotSpeakers || []).map(clean).filter(Boolean);
   if (!names.length) return [clean(speaker)].filter(Boolean);

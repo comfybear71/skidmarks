@@ -33,6 +33,7 @@ import type { ShowStyleId } from "@/lib/showStylePresets";
 import {
   LTX_LIP_SYNC_LEAD,
   buildDefaultBeatMotion,
+  looksLikePlatePositionPrompt,
   stripLtxLipSyncLead,
 } from "@/lib/mobileImageMotion";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
@@ -1470,6 +1471,7 @@ function BeatLineEditor({
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
   const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
+  const positionAsLine = looksLikePlatePositionPrompt(text);
   const playable = Boolean(
     voiceFile &&
       isMobileSavedVoiceFile(voiceFile) &&
@@ -1624,7 +1626,7 @@ function BeatLineEditor({
       <MobileTextInput
         value={text}
         onChange={setText}
-        placeholder="What they say — aim for 20-30 seconds, about 60-90 words for a test line."
+        placeholder="What she says — not the still position."
         multiline
         rows={2}
         onAi={() => void lineAssist.runAssist()}
@@ -1633,10 +1635,15 @@ function BeatLineEditor({
       {lineAssist.aiError ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{lineAssist.aiError}</div>
       ) : null}
+      {positionAsLine ? (
+        <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>
+          That&apos;s the still position, not the spoken line. Wipe it. Type what she says, then Save.
+        </div>
+      ) : null}
       <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
         <MobilePrimaryButton
           size="chip"
-          disabled={saving || savedTake}
+          disabled={saving || savedTake || positionAsLine}
           onClick={() => void save()}
         >
           {saving ? "…" : savedTake ? "Saved" : "Save"}

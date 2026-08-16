@@ -19,6 +19,10 @@ import {
   isMobileSavedVoiceFile,
   storyHasLeftoverPackAudio,
 } from "../src/lib/mobileSavedVoice.ts";
+import {
+  imageMotionUsableForLine,
+  looksLikePlatePositionPrompt,
+} from "../src/lib/mobileImageMotion.ts";
 
 assert.equal(isLeftoverPackVoiceFile("01_05_CRAZY_BIG_HOLE_JO_Not-that.mp3"), true);
 assert.equal(isMobileSavedVoiceFile("01_05_CRAZY_BIG_HOLE_JO_Not-that.mp3"), false);
@@ -218,5 +222,18 @@ const racketStill = plateCastStagingNote({
 });
 assert.match(racketStill, /tennis racket/);
 assert.doesNotMatch(racketStill, /mobile phone/);
+
+const joPosition =
+  "CRAZY BIG HOLE JO alone in Jo's bedroom (the cell). Only CRAZY BIG HOLE JO in frame, no one else appears. Sitting on the bed, holding her mobile phone, texting, staring at the screen like a crazed maniac.";
+assert.equal(looksLikePlatePositionPrompt(joPosition), true);
+assert.equal(looksLikePlatePositionPrompt("Jason just left for work, I don't care."), false);
+assert.equal(imageMotionUsableForLine(joPosition, "Jason just left for work."), false);
+assert.equal(
+  imageMotionUsableForLine(
+    'Use the provided start image as the first frame. CRAZY BIG HOLE JO says: "Jason just left for work."',
+    "Jason just left for work.",
+  ),
+  true,
+);
 
 console.log("check-mobile-plate-lines: ok");
