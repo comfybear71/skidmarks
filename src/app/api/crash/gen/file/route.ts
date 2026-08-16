@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   if (!isSafeMediaName(name)) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
-  const cloud = await cloudBlobRedirect("plates", name);
+  const cloud = await cloudBlobRedirect("plates", name, req);
   if (cloud) return cloud;
   const file = resolveGenOrPackPlate(name);
   if (!file || !fs.existsSync(file)) {

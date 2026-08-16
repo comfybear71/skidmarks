@@ -2,20 +2,19 @@ import fs from "fs";
 import { NextResponse } from "next/server";
 
 /**
- * Serve a local file with HTTP Range support. Mobile Safari/Chrome refuse to
+ * Serve bytes with HTTP Range support. Mobile Safari/Chrome refuse to
  * play <video> inline without a 206 response to their Range probe — every
  * mp4/mp3 route here used to always return the whole file with 200, which
  * downloads fine (curl, VLC, "Save to device") but silently fails to play
  * in the page itself.
  */
-export function serveMediaFile(
+export function serveMediaBuffer(
   req: Request,
-  filePath: string,
+  buf: Buffer,
   contentType: string,
   extraHeaders?: Record<string, string>,
 ): NextResponse {
-  const stat = fs.statSync(filePath);
-  const total = stat.size;
+  const total = buf.length;
   const baseHeaders: Record<string, string> = {
     "Content-Type": contentType,
     "Accept-Ranges": "bytes",
@@ -24,7 +23,6 @@ export function serveMediaFile(
 
   const range = req.headers.get("range");
   if (!range) {
-    const buf = fs.readFileSync(filePath);
     return new NextResponse(new Uint8Array(buf), {
       status: 200,
       headers: { ...baseHeaders, "Content-Length": String(total) },
@@ -41,18 +39,27 @@ export function serveMediaFile(
     });
   }
 
-  const chunkSize = end - start + 1;
-  const fd = fs.openSync(filePath, "r");
-  const buf = Buffer.alloc(chunkSize);
-  fs.readSync(fd, buf, 0, chunkSize, start);
-  fs.closeSync(fd);
-
-  return new NextResponse(new Uint8Array(buf), {
+  const slice = buf.subarray(start, end + 1);
+  return new NextResponse(new Uint8Array(slice), {
     status: 206,
     headers: {
       ...baseHeaders,
       "Content-Range": `bytes ${start}-${end}/${total}`,
-      "Content-Length": String(chunkSize),
+      "Content-Length": String(slice.length),
     },
   });
+}
+
+export function serveMediaFile(
+  req: Request,
+  filePath: string,
+  contentType: string,
+  extraHeaders?: Record<string, string>,
+): NextResponse {
+  return serveMediaBuffer(
+    req,
+    fs.readFileSync(filePath),
+    contentType,
+    extraHeaders,
+  );
 }

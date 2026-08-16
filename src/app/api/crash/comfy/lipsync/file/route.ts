@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 /** GET ?name=lipsync_….mp4 — serve a pulled MuseTalk render from data/crash/lipsync/ */
 export async function GET(req: Request) {
   const name = new URL(req.url).searchParams.get("name") || "";
-  const cloud = await cloudBlobRedirect("mp4", name);
+  const cloud = await cloudBlobRedirect("mp4", name, req);
   if (cloud) return cloud;
   const abs = lipsyncFilePath(name);
   if (!abs) {
