@@ -7,7 +7,7 @@ import { readMobileJobRow, saveMobileJobRow } from "./neonStore";
 import type { ShowStyleId } from "./showStylePresets";
 import type { ScriptCharacterData } from "./types";
 
-export { jobHasEpisodePack, mobileMediaFolder } from "./mobileJobFolder";
+export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
 
 /**
  * Checkpointed job document for the mobile Auto Studio pipeline. A run can
