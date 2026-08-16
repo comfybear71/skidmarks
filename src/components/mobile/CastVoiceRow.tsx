@@ -20,12 +20,13 @@ export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId:
   const [error, setError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const cacheRef = useRef<Record<string, string>>({});
+  const copiedToJob = useRef("");
 
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/crash/mobile/voices?jobId=${encodeURIComponent(jobId)}&speaker=${encodeURIComponent(name)}`)
       .then((r) => r.json())
-      .then((data: { voices?: { cast: boolean; voiceId?: string }[]; error?: string }) => {
+      .then((data: { voices?: { cast: boolean; voiceId?: string; voiceName?: string }[]; error?: string }) => {
         if (cancelled) return;
         const row = data.voices?.[0];
         if (row) setAssignedId(row.voiceId || "");
@@ -57,6 +58,37 @@ export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId:
       library,
     });
   }, [assignedId, library, name, styleId, userPick]);
+
+  const pickedName = (library || []).find((v) => v.voiceId === picked)?.name || "";
+
+  function persistPick(voiceId: string, voiceName: string) {
+    if (!voiceId) return;
+    void fetch("/api/crash/mobile/voices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId, speaker: name, voiceId, voiceName }),
+    })
+      .then((r) => r.json())
+      .then(() => setAssignedId(voiceId))
+      .catch(() => {
+        /* Save on the line still tries the last known pick */
+      });
+  }
+
+  useEffect(() => {
+    if (!assignedId || !library?.length) return;
+    const key = `${jobId}:${name}:${assignedId}`;
+    if (copiedToJob.current === key) return;
+    copiedToJob.current = key;
+    const voiceName = library.find((v) => v.voiceId === assignedId)?.name || "";
+    void fetch("/api/crash/mobile/voices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId, speaker: name, voiceId: assignedId, voiceName }),
+    }).catch(() => {
+      copiedToJob.current = "";
+    });
+  }, [assignedId, library, jobId, name]);
 
   function stop() {
     const audio = audioRef.current;
@@ -93,10 +125,15 @@ export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId:
     setBusy(true);
     setError("");
     try {
+      const voiceName = (library || []).find((v) => v.voiceId === voiceId)?.name || pickedName;
       const res = await fetch("/api/crash/mobile/voice-sample", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(voiceId ? { jobId, speaker: name, voiceId } : { jobId, speaker: name }),
+        body: JSON.stringify(
+          voiceId
+            ? { jobId, speaker: name, voiceId, voiceName }
+            : { jobId, speaker: name, voiceName },
+        ),
       });
       const data = (await res.json()) as {
         error?: string;
@@ -131,7 +168,9 @@ export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId:
           value={picked}
           onChange={(e) => {
             stop();
-            setUserPick(e.target.value);
+            const voiceId = e.target.value;
+            setUserPick(voiceId);
+            persistPick(voiceId, options.find((v) => v.voiceId === voiceId)?.name || "");
           }}
           disabled={busy}
           style={{

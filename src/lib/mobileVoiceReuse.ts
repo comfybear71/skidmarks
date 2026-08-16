@@ -51,6 +51,21 @@ export async function assignReusedVoice(
   return true;
 }
 
+/** Pin this speaker to a CAST-picked library id without designing or sampling. */
+export function pinSpeakerLibraryVoice(
+  styleId: ShowStyleId,
+  speaker: string,
+  voiceId: string,
+): boolean {
+  const id = voiceId.trim();
+  if (!id) return false;
+  const slot =
+    findCrashVoiceByName(styleId, speaker) || ensureVoiceSlotFromCards(styleId, speaker);
+  if (!slot) return false;
+  patchCrashVoiceApprovedId(styleId, slot.castKey, id);
+  return true;
+}
+
 /**
  * Vercel /tmp has no voice manifest, so Animate shows "no voice lock" and
  * hides Gen mp3 even when the ElevenLabs account already has DAP/Kim/Garry.

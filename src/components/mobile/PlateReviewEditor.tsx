@@ -13,6 +13,9 @@ import { platePositionAssistHint } from "@/lib/mobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 import { leftoverHydrateBeat, plateLineBeats, voiceFileBelongsToSpeaker } from "@/lib/mobilePlateLines";
+import { lineVoiceLabel, type JobSpeakerVoice } from "@/lib/mobileJobVoices";
+import { shownVoiceId } from "@/lib/mobileVoicePick";
+import type { ShowStyleId } from "@/lib/showStylePresets";
 
 /** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
 const PLATE_TILE_PX = 96;
@@ -726,6 +729,7 @@ export function PlateReviewEditor({
           folderName={job.folderName}
           jobId={job.id}
           jobSpeakers={job.speakers}
+          jobVoices={job.speakerVoices}
           shot={displayShot(openShotId)}
           loading={!story && !loadError}
           error={loadError}
@@ -1250,6 +1254,7 @@ function ShotLineEditor({
   folderName,
   jobId,
   jobSpeakers,
+  jobVoices,
   shot,
   loading,
   error,
@@ -1262,6 +1267,7 @@ function ShotLineEditor({
   folderName: string;
   jobId: string;
   jobSpeakers: string[];
+  jobVoices?: Record<string, JobSpeakerVoice>;
   shot: CrashStoryShot | null;
   loading: boolean;
   error: string;
@@ -1316,6 +1322,7 @@ function ShotLineEditor({
             styleId={styleId}
             folderName={folderName}
             jobId={jobId}
+            jobVoices={jobVoices}
             beat={beat}
             onSaved={(text, voiceFile) => onBeatSaved(beat.id, text, voiceFile)}
           />
@@ -1333,12 +1340,14 @@ function BeatLineEditor({
   styleId,
   folderName,
   jobId,
+  jobVoices,
   beat,
   onSaved,
 }: {
   styleId: string;
   folderName: string;
   jobId: string;
+  jobVoices?: Record<string, JobSpeakerVoice>;
   beat: CrashStoryBeat;
   onSaved: (text: string, voiceFile: string) => void;
 }) {
@@ -1346,7 +1355,9 @@ function BeatLineEditor({
   const [voiceFile, setVoiceFile] = useState(
     voiceFileBelongsToSpeaker(beat.voiceFile, beat.speaker) ? beat.voiceFile || "" : "",
   );
-  const [voiceName, setVoiceName] = useState("");
+  const [voiceName, setVoiceName] = useState(
+    lineVoiceLabel({ speaker: beat.speaker, jobVoices, library: [] }),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
@@ -1363,10 +1374,28 @@ function BeatLineEditor({
     ])
       .then(([status, lib]) => {
         if (cancelled) return;
-        const voiceId = (status.voices?.[0]?.voiceId || "").trim();
+        const row = status.voices?.[0] as { voiceId?: string; voiceName?: string } | undefined;
         const list = (lib.voices || []) as { voiceId: string; name: string }[];
-        const hit = list.find((v) => v.voiceId === voiceId);
-        if (hit?.name) setVoiceName(hit.name);
+        const assignedId =
+          (row?.voiceId || "").trim() ||
+          shownVoiceId({
+            assignedId: "",
+            speaker: beat.speaker,
+            styleId: styleId as ShowStyleId,
+            library: list,
+          });
+        const label = lineVoiceLabel({
+          speaker: beat.speaker,
+          jobVoices,
+          assignedVoiceId: assignedId,
+          library: [
+            ...list,
+            ...(row?.voiceId && row?.voiceName
+              ? [{ voiceId: row.voiceId, name: row.voiceName }]
+              : []),
+          ],
+        });
+        if (label) setVoiceName(label);
       })
       .catch(() => {
         /* line still edits — name is a hint */
@@ -1374,7 +1403,7 @@ function BeatLineEditor({
     return () => {
       cancelled = true;
     };
-  }, [jobId, styleId, beat.speaker]);
+  }, [jobId, styleId, beat.speaker, jobVoices]);
 
   async function save() {
     setSaving(true);
@@ -1401,9 +1430,6 @@ function BeatLineEditor({
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <div style={{ fontSize: "12px", color: "var(--acid)", fontWeight: 700, flex: "0 0 auto" }}>
           {beat.speaker}
-          {voiceName ? (
-            <span style={{ color: "var(--chrome-dim)", fontWeight: 500 }}> · {voiceName}</span>
-          ) : null}
         </div>
         {playable ? (
           <MobileAudioPlayer
@@ -1427,7 +1453,7 @@ function BeatLineEditor({
       {lineAssist.aiError ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{lineAssist.aiError}</div>
       ) : null}
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
         <MobilePrimaryButton
           size="chip"
           disabled={saving || (!dirty && Boolean(voiceFile))}
@@ -1435,6 +1461,19 @@ function BeatLineEditor({
         >
           {saving ? "…" : voiceFile && !dirty ? "Saved" : "Save"}
         </MobilePrimaryButton>
+        <span
+          style={{
+            fontSize: "12px",
+            color: voiceName ? "var(--acid)" : "var(--chrome-dim)",
+            fontWeight: voiceName ? 600 : 500,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            minWidth: 0,
+          }}
+        >
+          {voiceName || "No voice yet"}
+        </span>
         {error ? <span style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</span> : null}
       </div>
     </div>

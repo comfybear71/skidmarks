@@ -45,4 +45,21 @@ assert.equal(leftover.length, 1);
 assert.equal(leftover[0].speaker, "CRAZY BIG HOLE JO");
 assert.equal(leftover[0].voiceFile || "", "");
 
+const emptyCard = plateLineBeats({
+  shotId: "shot_jo",
+  title: "",
+  staging: "",
+  jobSpeakers: ["CRAZY BIG HOLE JO", "Comfy"],
+  beats: [
+    {
+      id: "shot_jo_a1",
+      speaker: "Comfy",
+      voiceFile: "01_01_Comfy_Keep-the-rhythm.mp3",
+    },
+    { id: "beat_jo", speaker: "CRAZY BIG HOLE JO", voiceFile: "" },
+  ],
+});
+assert.equal(emptyCard.length, 1);
+assert.equal(emptyCard[0].speaker, "CRAZY BIG HOLE JO");
+
 console.log("check-mobile-plate-lines: ok");
