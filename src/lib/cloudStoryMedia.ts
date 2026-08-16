@@ -1,6 +1,7 @@
 import type {
   CrashStoryBeat,
   CrashStoryDoc,
+  CrashStoryScene,
   CrashStoryShot,
 } from "./crashStoryTypes";
 import type { SceneKitDiskDraft } from "./crashSceneKitStore";
@@ -14,10 +15,53 @@ function isLogoName(name: string): boolean {
   return /^(cgen_|.*(?:logo|title|credits))/i.test(name);
 }
 
+function shotLooksUnplated(shot: CrashStoryShot): boolean {
+  if (cleanName(shot.plateFile)) return false;
+  if ((shot.plateTakes || []).some((t) => cleanName(t.fileName))) return false;
+  if (cleanName(shot.summary) || cleanName(shot.staging)) return false;
+  return !(shot.beats || []).some(
+    (b) => cleanName(b.speaker) || cleanName(b.text),
+  );
+}
+
+function sceneLooksLikeEmptyTemplate(scene: CrashStoryScene): boolean {
+  const title = cleanName(scene.title);
+  const place = cleanName(scene.placeName);
+  if (place) return false;
+  if (title && title !== "Scene 1" && title !== "Scene 01") return false;
+  return true;
+}
+
+/**
+ * EP01 / empty desk recipe: Scene 1, no place, at most one empty Shot 1.
+ * A real mobile pack after Clear all still has titled locations — leftover
+ * Blob plates must not be resurrected as shots (or glued onto a new card).
+ */
+export function storyIsEmptyPlateRecipe(story: CrashStoryDoc): boolean {
+  const scenes = story.scenes || [];
+  if (scenes.length > 1) return false;
+  if (scenes.some((s) => !sceneLooksLikeEmptyTemplate(s))) return false;
+  const shots = scenes.flatMap((s) => s.shots || []);
+  if (shots.length > 1) return false;
+  return shots.every(shotLooksUnplated);
+}
+
+/** GET hydrate invents leftover-mp3 beats as `${shotId}_a1`. User add-cast uses `beat_*`. */
+export function isHydratedLeftoverBeat(
+  shotId: string,
+  beat: Pick<CrashStoryBeat, "id">,
+): boolean {
+  const id = cleanName(beat.id);
+  const shot = cleanName(shotId);
+  if (!id || !shot) return false;
+  return id === `${shot}_hold` || new RegExp(`^${shot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}_a\\d+$`).test(id);
+}
+
 /**
  * Disk packs show a thumb when story.plateFile matches a file in plates\.
- * Cloud recipes sometimes have the files in Neon but empty plateFile ("no plate").
- * Keep existing names; fill empty slots from this episode's plate filenames.
+ * Cloud empty-recipe stubs (EP01 / GET without a pack) recover stills from
+ * leftover Blob/kit names. A real story with empty plateFile means unplated
+ * — do not steal an older Comfy still onto a Jo test card.
  */
 export function attachPlateFilenamesToStory(
   story: CrashStoryDoc,
@@ -61,9 +105,7 @@ export function attachPlateFilenamesToStory(
     };
   }
 
-  const existingShots = story.scenes.flatMap((s) => s.shots);
-  const plated = existingShots.filter((s) => cleanName(s.plateFile)).length;
-  const stubStory = existingShots.length <= 1 && plated === 0;
+  const stubStory = storyIsEmptyPlateRecipe(story);
 
   let scenes: CrashStoryDoc["scenes"];
   if (stubStory) {
@@ -84,17 +126,14 @@ export function attachPlateFilenamesToStory(
       ? [{ ...base, shots: source.map((f, i) => shotFromPlate(f, i + 1)) }]
       : story.scenes;
   } else {
-    let shotIndex = 0;
+    // Honor plateFile as written. Empty means this shot has not been drawn
+    // yet — leftover Blob names belong to parked media, not this card.
     scenes = story.scenes.map((scene) => ({
       ...scene,
       shots: scene.shots.map((shot) => {
-        const fromKit = kit[shotIndex];
-        shotIndex += 1;
-        let plateFile = keepOrFill(shot.plateFile, fromKit);
-        if (!plateFile) {
-          plateFile = takeFromPool((n) => !isLogoName(n));
-        }
-        return { ...shot, plateFile };
+        const have = cleanName(shot.plateFile);
+        if (have) taken.add(have);
+        return { ...shot, plateFile: have };
       }),
     }));
   }
@@ -210,7 +249,9 @@ export function attachPlateFilenamesToSceneKit(
     ? existing
     : fromStory.length
       ? fromStory
-      : plateFilenames.map(cleanName).filter(Boolean);
+      : storyIsEmptyPlateRecipe(story)
+        ? plateFilenames.map(cleanName).filter(Boolean)
+        : [];
   const havePlaces = (kit.worldKeys || []).filter(Boolean);
   const inferred = inferWorldKeysFromPlates(
     nextPlates,
@@ -275,10 +316,16 @@ function beatFromAudioName(
   };
 }
 
+function speakersMatch(a: string | undefined, b: string | undefined): boolean {
+  const left = normPerson(a || "");
+  const right = normPerson(b || "");
+  return Boolean(left && left === right);
+}
+
 /**
- * Disk packs link beats to audio\ mp3s. Cloud recipes often have empty
- * voiceFile (or empty beats → DAP silent hold) while Neon still has the mp3s.
- * Prefer those files over a silent-hold row.
+ * Disk packs link beats to audio\ mp3s. Cloud empty-recipe stubs recover
+ * leftover Blob mp3s as beats. A real mobile card (Jo on a titled location)
+ * must not inherit Comfy/Land lines — that also stole her voice.
  */
 export function attachAudioFilenamesToStory(
   story: CrashStoryDoc,
@@ -287,6 +334,7 @@ export function attachAudioFilenamesToStory(
   const pool = audioFilenames.map(cleanName).filter(Boolean);
   const dialogue = pool.filter((n) => !isSfxAudioName(n));
   if (!pool.length) return story;
+  const recoverLeftover = storyIsEmptyPlateRecipe(story);
 
   const taken = new Set<string>();
   const keep = (current: string | undefined): string => {
@@ -302,6 +350,16 @@ export function attachAudioFilenamesToStory(
     if (!n || taken.has(n) || !pool.includes(n)) return "";
     taken.add(n);
     return n;
+  };
+  const takeMatchingSpeaker = (speaker: string): string => {
+    const want = cleanName(speaker);
+    if (!want) return "";
+    const hit = dialogue.find((fn) => {
+      if (taken.has(fn)) return false;
+      const p = parseDialogueAudioName(fn);
+      return Boolean(p && speakersMatch(p.speaker, want));
+    });
+    return hit ? takeNamed(hit) : "";
   };
   const takeForShot = (shotNum: number): string => {
     const hit = dialogue.find((n) => {
@@ -330,7 +388,17 @@ export function attachAudioFilenamesToStory(
     shots: scene.shots.map((shot) => {
       shotNum += 1;
       const n = shotNum;
-      if (!shot.beats.length) {
+      const beatsIn = recoverLeftover
+        ? shot.beats
+        : shot.beats.filter((b) => !isHydratedLeftoverBeat(shot.id, b));
+      const silentHolds =
+        recoverLeftover &&
+        beatsIn.length > 0 &&
+        beatsIn.every(
+          (b) => !b.speaker.trim() && !b.text.trim() && !cleanName(b.voiceFile),
+        );
+      if (!beatsIn.length || silentHolds) {
+        if (!recoverLeftover) return { ...shot, beats: beatsIn };
         const files = dialogue
           .filter((fn) => {
             if (taken.has(fn)) return false;
@@ -346,7 +414,7 @@ export function attachAudioFilenamesToStory(
           const leftover = dialogue.filter(
             (fn) => !taken.has(fn) && !parseDialogueAudioName(fn),
           );
-          if (!leftover.length) return shot;
+          if (!leftover.length) return { ...shot, beats: beatsIn };
           files.push(leftover[0]!);
         }
         const beats = files.map((fn, i) => {
@@ -356,20 +424,37 @@ export function attachAudioFilenamesToStory(
         return { ...shot, beats };
       }
 
-      const beats = shot.beats.map((beat, beatIndex) => {
+      const beats = beatsIn.map((beat, beatIndex) => {
         const existing = keep(beat.voiceFile);
-        if (existing) return { ...beat, voiceFile: existing };
+        if (existing) {
+          const parsedExisting = parseDialogueAudioName(existing);
+          if (
+            !recoverLeftover &&
+            parsedExisting &&
+            beat.speaker.trim() &&
+            !speakersMatch(parsedExisting.speaker, beat.speaker)
+          ) {
+            // Parked Comfy/Land mp3 sitting on Jo's beat — drop it so Save
+            // voices her line with her library voice, not his leftover clip.
+            return { ...beat, voiceFile: undefined };
+          }
+          return { ...beat, voiceFile: existing };
+        }
         const byId = takeNamed(`${beat.id}.mp3`);
+        if (byId) return { ...beat, voiceFile: byId };
+        const speakerHit = takeMatchingSpeaker(beat.speaker);
+        if (speakerHit) return { ...beat, voiceFile: speakerHit };
+        if (!recoverLeftover) return beat;
         const parsedHit = dialogue.find((fn) => {
           if (taken.has(fn)) return false;
           const p = parseDialogueAudioName(fn);
           return Boolean(p && p.shotNum === n && p.beatNum === beatIndex + 1);
         });
         const fromParsed = parsedHit ? takeNamed(parsedHit) : "";
-        const voiceFile = byId || fromParsed || takeForShot(n);
+        const voiceFile = fromParsed || takeForShot(n);
         if (!voiceFile) return beat;
         const parsed = parseDialogueAudioName(voiceFile);
-        const silent = !beat.text.trim();
+        const silent = !beat.text.trim() && !beat.speaker.trim();
         return {
           ...beat,
           voiceFile,
@@ -382,47 +467,49 @@ export function attachAudioFilenamesToStory(
     }),
   }));
 
-  scenes = scenes.map((scene) => ({
-    ...scene,
-    shots: scene.shots.map((shot) => {
-      const hasVoice = shot.beats.some((b) => cleanName(b.voiceFile));
-      if (hasVoice || !shot.plateFile) return shot;
-      const unused = dialogue.filter((n) => !taken.has(n));
-      const hit = pickBestMediaMatch(shot.plateFile, unused, undefined, 3);
-      if (!hit) return shot;
-      const fam = hit.replace(/\.[^.]+$/, "").replace(/_\d+$/, "");
-      const famRe = new RegExp(
-        `^${fam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(_\\d+)?$`,
-        "i",
-      );
-      const takes = unused
-        .filter((n) => famRe.test(n.replace(/\.[^.]+$/, "")))
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-      const files = takes.length ? takes : [hit];
-      for (const f of files) taken.add(f);
-      const speakerGuess = (fn: string): string => {
-        const b = fn.replace(/\.[^.]+$/, "");
-        if (/^MUM_/i.test(b)) return "Mum";
-        if (/^DAD_/i.test(b)) return "Dad";
-        if (/^DAP_/i.test(b)) return "DAP";
-        if (/^FUZZ_/i.test(b)) return "Fuzz";
-        if (/^JUDGE_/i.test(b)) return "Judge";
-        if (/^SILAS_/i.test(b)) return "Silas";
-        const h = /^H\d+_(.+)$/i.exec(b);
-        if (h) return h[1].replace(/_/g, " ");
-        return "";
-      };
-      return {
-        ...shot,
-        beats: files.map((fn, i) => ({
-          id: `${shot.id}_a${i + 1}`,
-          speaker: speakerGuess(fn),
-          text: humanMediaLabel(fn),
-          voiceFile: fn,
-        })),
-      };
-    }),
-  }));
+  if (recoverLeftover) {
+    scenes = scenes.map((scene) => ({
+      ...scene,
+      shots: scene.shots.map((shot) => {
+        const hasVoice = shot.beats.some((b) => cleanName(b.voiceFile));
+        if (hasVoice || !shot.plateFile) return shot;
+        const unused = dialogue.filter((n) => !taken.has(n));
+        const hit = pickBestMediaMatch(shot.plateFile, unused, undefined, 3);
+        if (!hit) return shot;
+        const fam = hit.replace(/\.[^.]+$/, "").replace(/_\d+$/, "");
+        const famRe = new RegExp(
+          `^${fam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(_\\d+)?$`,
+          "i",
+        );
+        const takes = unused
+          .filter((n) => famRe.test(n.replace(/\.[^.]+$/, "")))
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        const files = takes.length ? takes : [hit];
+        for (const f of files) taken.add(f);
+        const speakerGuess = (fn: string): string => {
+          const b = fn.replace(/\.[^.]+$/, "");
+          if (/^MUM_/i.test(b)) return "Mum";
+          if (/^DAD_/i.test(b)) return "Dad";
+          if (/^DAP_/i.test(b)) return "DAP";
+          if (/^FUZZ_/i.test(b)) return "Fuzz";
+          if (/^JUDGE_/i.test(b)) return "Judge";
+          if (/^SILAS_/i.test(b)) return "Silas";
+          const h = /^H\d+_(.+)$/i.exec(b);
+          if (h) return h[1].replace(/_/g, " ");
+          return "";
+        };
+        return {
+          ...shot,
+          beats: files.map((fn, i) => ({
+            id: `${shot.id}_a${i + 1}`,
+            speaker: speakerGuess(fn),
+            text: humanMediaLabel(fn),
+            voiceFile: fn,
+          })),
+        };
+      }),
+    }));
+  }
 
   return {
     ...story,

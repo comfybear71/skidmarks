@@ -16,6 +16,14 @@ import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake } from "@
 /** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
 const PLATE_TILE_PX = 96;
 
+function leftoverHydrateBeat(shotId: string, beatId: string): boolean {
+  if (!shotId || !beatId) return false;
+  if (beatId === `${shotId}_hold`) return true;
+  return new RegExp(
+    `^${shotId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}_a\\d+$`,
+  ).test(beatId);
+}
+
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
   const file =
     approvedCandidateFileName(job.locationCandidates, sceneId) ||
@@ -140,6 +148,22 @@ export function PlateReviewEditor({
       if (shot) return shot;
     }
     return null;
+  };
+
+  /** Job strip is plated/unplated truth. Hydrate used to glue leftover
+   * Blob stills onto an empty plateFile — don't show Comfy on a Jo card. */
+  const displayShot = (shotId: string): CrashStoryShot | null => {
+    const fromStory = shotById(shotId);
+    if (!fromStory) return null;
+    const beats = fromStory.beats.filter((b) => !leftoverHydrateBeat(fromStory.id, b.id));
+    const fromJob = shots.find((s) => s.shotId === shotId);
+    const jobPlated = Boolean(
+      fromJob?.plateFile && fromJob.plateFile !== "__error__",
+    );
+    if (jobPlated || (!fromStory.plateFile && !(fromStory.plateTakes && fromStory.plateTakes.length))) {
+      return { ...fromStory, beats };
+    }
+    return { ...fromStory, plateFile: "", plateTakes: [], beats };
   };
 
   function defaultSceneId(): string | null {
@@ -656,7 +680,7 @@ export function PlateReviewEditor({
         <CastIntoPlatePopup
           job={job}
           shotId={castPickerShotId}
-          shot={shotById(castPickerShotId)}
+          shot={displayShot(castPickerShotId)}
           placeName={
             job.scenes.find(
               (sc) => sc.id === shots.find((s) => s.shotId === castPickerShotId)?.sceneId,
@@ -708,7 +732,7 @@ export function PlateReviewEditor({
           styleId={job.styleId}
           folderName={job.folderName}
           jobId={job.id}
-          shot={shotById(openShotId)}
+          shot={displayShot(openShotId)}
           loading={!story && !loadError}
           error={loadError}
           placeSrc={

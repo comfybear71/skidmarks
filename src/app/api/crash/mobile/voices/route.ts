@@ -25,6 +25,7 @@ export async function GET(req: Request) {
     return {
       name,
       cast: Boolean(slot?.approvedVoiceId?.trim()),
+      voiceId: slot?.approvedVoiceId?.trim() || "",
       voiceDescription: slot?.voiceDescription || "",
     };
   });

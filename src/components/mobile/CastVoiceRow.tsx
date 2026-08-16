@@ -1,44 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { MobilePrimaryButton } from "./MobileUi";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { pickLibraryVoiceId, shownVoiceId } from "@/lib/mobileVoicePick";
+import type { ShowStyleId } from "@/lib/showStylePresets";
 
 type LibraryVoice = { voiceId: string; name: string; gender?: string };
 
 /**
- * Voice lives with the face — one compact row, not a whole second card.
- * Status loads read-only (local manifest, no ElevenLabs call). The picker
- * lists the account's real voices so a character isn't stuck with
- * whatever the auto-pick (name match, then a stable-but-arbitrary
- * fallback) decided — "Auto" keeps that behaviour, anything else pins
- * that exact voice. Hear plays inline from the response bytes (no
- * separate /api/crash/voice/file round trip — that route reads local
- * disk only and a second Vercel invocation may not have the file the
- * first one just wrote).
+ * Face card voice strip — name of the recycled library voice + a play/stop
+ * chip. No "Voice" label, no Auto, no Cast+hear. Play fetches a sample
+ * (pins the picker if they chose one) and swaps to stop while it runs.
  */
 export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId: string; name: string }) {
-  const [cast, setCast] = useState<boolean | null>(null);
-  const [description, setDescription] = useState("");
+  const [assignedId, setAssignedId] = useState("");
   const [library, setLibrary] = useState<LibraryVoice[] | null>(null);
-  const [picked, setPicked] = useState("");
+  const [userPick, setUserPick] = useState("");
   const [busy, setBusy] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const cacheRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/crash/mobile/voices?jobId=${encodeURIComponent(jobId)}&speaker=${encodeURIComponent(name)}`)
       .then((r) => r.json())
-      .then((data: { voices?: { cast: boolean; voiceDescription: string }[]; error?: string }) => {
+      .then((data: { voices?: { cast: boolean; voiceId?: string }[]; error?: string }) => {
         if (cancelled) return;
         const row = data.voices?.[0];
-        if (row) {
-          setCast(row.cast);
-          setDescription(row.voiceDescription);
-        } else {
-          setError(data.error || "Couldn't load voice status");
-        }
+        if (row) setAssignedId(row.voiceId || "");
+        else setError(data.error || "Couldn't load voice status");
       })
       .catch(() => {
         if (!cancelled) setError("Couldn't load voice status");
@@ -49,14 +40,56 @@ export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId:
         if (!cancelled && data.voices) setLibrary(data.voices);
       })
       .catch(() => {
-        /* picker just won't show a list — Hear still works */
+        /* picker just won't show a list — play still works */
       });
     return () => {
       cancelled = true;
     };
   }, [jobId, styleId, name]);
 
-  async function hear(voiceId: string) {
+  const picked = useMemo(() => {
+    if (userPick) return userPick;
+    if (!library?.length) return assignedId;
+    return shownVoiceId({
+      assignedId,
+      speaker: name,
+      styleId: styleId as ShowStyleId,
+      library,
+    });
+  }, [assignedId, library, name, styleId, userPick]);
+
+  function stop() {
+    const audio = audioRef.current;
+    if (!audio) {
+      setPlaying(false);
+      return;
+    }
+    audio.pause();
+    audio.currentTime = 0;
+    setPlaying(false);
+  }
+
+  function wire(audio: HTMLAudioElement, src: string) {
+    audio.onplay = () => setPlaying(true);
+    audio.onpause = () => setPlaying(false);
+    audio.onended = () => setPlaying(false);
+    audio.src = src;
+    return audio.play().catch(() => {});
+  }
+
+  async function play() {
+    const voiceId =
+      picked ||
+      (library?.length
+        ? pickLibraryVoiceId(styleId as ShowStyleId, name, library)
+        : "");
+    const cached = voiceId ? cacheRef.current[voiceId] : "";
+    const audio = audioRef.current || new Audio();
+    audioRef.current = audio;
+    if (cached) {
+      await wire(audio, cached);
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -68,18 +101,16 @@ export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId:
       const data = (await res.json()) as {
         error?: string;
         audioBase64?: string;
-        voiceDescription?: string;
+        voiceId?: string;
       };
       if (!res.ok || !data.audioBase64) throw new Error(data.error || "Couldn't get a sample");
-      setCast(true);
-      if (data.voiceDescription) setDescription(data.voiceDescription);
-      const audio = audioRef.current || new Audio();
-      audioRef.current = audio;
-      audio.onplay = () => setPlaying(true);
-      audio.onpause = () => setPlaying(false);
-      audio.onended = () => setPlaying(false);
-      audio.src = `data:audio/mpeg;base64,${data.audioBase64}`;
-      await audio.play().catch(() => {});
+      const locked = data.voiceId || voiceId;
+      const src = `data:audio/mpeg;base64,${data.audioBase64}`;
+      if (locked) {
+        setAssignedId(locked);
+        cacheRef.current[locked] = src;
+      }
+      await wire(audio, src);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't get a sample");
     } finally {
@@ -87,27 +118,26 @@ export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId:
     }
   }
 
+  const options = [...(library || [])];
+  if (picked && !options.some((v) => v.voiceId === picked)) {
+    options.unshift({ voiceId: picked, name: "Chosen voice" });
+  }
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-      <span
-        style={{
-          color: "var(--chrome-dim)",
-          fontSize: "10px",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          flex: "0 0 auto",
-        }}
-      >
-        Voice
-      </span>
-      {library?.length ? (
+    <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, flex: "1 1 auto" }}>
+      {options.length ? (
         <select
+          aria-label="Voice"
           value={picked}
-          onChange={(e) => setPicked(e.target.value)}
+          onChange={(e) => {
+            stop();
+            setUserPick(e.target.value);
+          }}
           disabled={busy}
           style={{
-            flex: "0 1 auto",
-            maxWidth: "150px",
+            flex: "1 1 auto",
+            minWidth: 0,
+            maxWidth: "160px",
             padding: "6px 8px",
             borderRadius: "2px",
             border: "1px solid var(--line)",
@@ -116,31 +146,63 @@ export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId:
             fontSize: "12px",
           }}
         >
-          <option value="">Auto</option>
-          {library.map((v) => (
+          {options.map((v) => (
             <option key={v.voiceId} value={v.voiceId}>
               {v.name}
             </option>
           ))}
         </select>
-      ) : null}
-      <MobilePrimaryButton size="chip" disabled={busy} onClick={() => void hear(picked)}>
-        {busy ? "…" : playing ? "Playing…" : cast ? "▶ Hear" : "Cast + hear"}
-      </MobilePrimaryButton>
-      {error ? (
-        <span style={{ fontSize: "11px", color: "var(--magenta-hot)" }}>{error}</span>
-      ) : description ? (
+      ) : (
         <span
           style={{
-            fontSize: "11px",
+            flex: "1 1 auto",
+            minWidth: 0,
+            fontSize: "12px",
             color: "var(--chrome-dim)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            maxWidth: "180px",
           }}
         >
-          {description}
+          {busy ? "…" : ""}
+        </span>
+      )}
+      <button
+        type="button"
+        aria-label={playing ? "Stop" : "Play"}
+        disabled={busy}
+        onClick={() => {
+          if (playing) stop();
+          else void play();
+        }}
+        style={{
+          width: "28px",
+          height: "28px",
+          flex: "0 0 auto",
+          padding: 0,
+          borderRadius: "2px",
+          border: "1px solid var(--acid)",
+          background: busy ? "var(--panel-2)" : "var(--acid)",
+          color: busy ? "var(--chrome-dim)" : "var(--void)",
+          fontSize: playing ? "12px" : "11px",
+          fontWeight: 700,
+          lineHeight: 1,
+        }}
+      >
+        {busy ? "…" : playing ? "■" : "▶"}
+      </button>
+      {error ? (
+        <span
+          style={{
+            fontSize: "11px",
+            color: "var(--magenta-hot)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            maxWidth: "90px",
+          }}
+        >
+          {error}
         </span>
       ) : null}
     </div>
