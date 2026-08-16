@@ -136,7 +136,7 @@ export async function POST(req: Request) {
         id: newId("shot"),
         title: solo ? speakerIn : scene.placeName,
         summary: solo
-          ? `${speakerIn}, solo — position, voice, and lip sync only. No one else in frame.`
+          ? `${speakerIn}, solo. Only ${speakerIn} in frame, no one else appears.`
           : "",
         staging: solo ? defaultSoloStaging(speakerIn) : "",
         plateFile: "",

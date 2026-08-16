@@ -175,7 +175,7 @@ export function plateCastStagingNote(opts: {
   const staging =
     (opts.staging || "").trim() ||
     (solo
-      ? `${name} alone in this place. No one else in frame.`
+      ? `${name} alone. Only ${name} in frame, no one else appears.`
       : "People inhabit the place — sitting, leaning, presenting, using the furniture.");
   return [
     staging,
@@ -183,7 +183,7 @@ export function plateCastStagingNote(opts: {
     opts.looks,
     opts.placeLook ? `This place: ${opts.placeLook}` : "",
     solo
-      ? `${name} is the only person. Empty of extra people and animals. Do not invent anyone else.`
+      ? `Only ${name} in frame, no one else appears. ${name} is the only person. Empty of extra people and animals. Do not invent anyone else.`
       : speakers[0]
         ? `${speakers[0]} is prominent if this is their line.`
         : "",

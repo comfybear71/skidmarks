@@ -95,7 +95,7 @@ export function joPhoneStagingExtra(speakers: string[], staging: string): string
 
 export function defaultSoloStaging(speaker: string): string {
   const who = speaker.trim() || "The character";
-  const alone = `${who} alone, standing centre-frame, facing camera, mid body.`;
+  const alone = `${who} alone. Only ${who} in frame, no one else appears. Standing centre-frame, facing camera, mid body.`;
   if (!isJoKeyboardWarrior(who)) return alone;
   return `${alone} Holding her mobile phone, texting, staring at the screen like a crazed maniac.`;
 }
@@ -114,6 +114,21 @@ function holdAction(speaker: string): string {
   return "holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies";
 }
 
+export function onlyTheseInFrame(names: string[]): string {
+  const unique = [...new Set(names.map(clean).filter(Boolean))];
+  const roll =
+    unique.length <= 1
+      ? unique[0] || "the person in the start image"
+      : `${unique.slice(0, -1).join(", ")} and ${unique[unique.length - 1]}`;
+  return `Only ${roll} in frame, no one else appears.`;
+}
+
+function inFrameNames(speaker: string, shotSpeakers?: string[]): string[] {
+  const names = (shotSpeakers || []).map(clean).filter(Boolean);
+  if (!names.length) return [clean(speaker)].filter(Boolean);
+  return [...new Set(names)];
+}
+
 /** Speaking beat — the mandatory shape from the standard. */
 export function buildSpeakingMotion(opts: {
   styleId: ShowStyleId;
@@ -121,6 +136,7 @@ export function buildSpeakingMotion(opts: {
   line: string;
   /** The character's look, so the plate's subject is named and held. */
   lookLock?: string;
+  shotSpeakers?: string[];
 }): string {
   const name = clean(opts.speaker) || "The character";
   const look = clean(opts.lookLock || "");
@@ -129,6 +145,7 @@ export function buildSpeakingMotion(opts: {
     [
       "Use the provided start image as the first frame.",
       `${who} is prominent, ${speakingAction(opts.speaker)}.`,
+      onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
       "Props and background stay exactly as the start image, nothing new enters frame.",
       `${name} says: "${clean(opts.line)}".`,
       "Camera holds. Same person and objects as the start image.",
@@ -143,6 +160,7 @@ export function buildHoldMotion(opts: {
   styleId: ShowStyleId;
   speaker: string;
   lookLock?: string;
+  shotSpeakers?: string[];
 }): string {
   const name = clean(opts.speaker) || "The character";
   const look = clean(opts.lookLock || "");
@@ -151,6 +169,7 @@ export function buildHoldMotion(opts: {
     [
       "Use the provided start image as the first frame.",
       `${who} ${holdAction(opts.speaker)}.`,
+      onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
       "Props and background stay exactly as the start image, nothing new enters frame.",
       "No dialogue. Camera holds, no cuts. Same person and objects as the start image.",
       "No new people enter the frame.",
@@ -171,14 +190,10 @@ export function buildGroupHoldMotion(opts: {
   names: string[];
 }): string {
   const names = opts.names.map(clean).filter(Boolean);
-  const roll =
-    names.length <= 1
-      ? names[0] || "The characters"
-      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `Only ${roll} in frame, no one else appears.`,
+      onlyTheseInFrame(names),
       "Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies.",
       "All mouths stay closed.",
       "Props and background stay exactly as the start image, nothing new enters frame.",
@@ -211,6 +226,7 @@ export function buildDefaultBeatMotion(opts: {
       speaker: opts.speaker,
       line,
       lookLock: opts.lookLock,
+      shotSpeakers: opts.shotSpeakers,
     });
   }
   const names = (opts.shotSpeakers || []).map(clean).filter(Boolean);
@@ -219,6 +235,7 @@ export function buildDefaultBeatMotion(opts: {
     styleId: opts.styleId,
     speaker: opts.speaker,
     lookLock: opts.lookLock,
+    shotSpeakers: names.length ? names : undefined,
   });
 }
 

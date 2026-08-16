@@ -139,8 +139,10 @@ const joStill = plateCastStagingNote({
 assert.match(joStill, /mobile phone/i);
 assert.match(joStill, /texting/i);
 assert.match(joStill, /crazed maniac/i);
+assert.match(joStill, /Only CRAZY BIG HOLE JO in frame/);
 assert.match(joStill, /only person/i);
 assert.doesNotMatch(joStill, /\bComfy\b/);
+assert.doesNotMatch(joStill, /\bLand\b/);
 assert.doesNotMatch(joStill, /People inhabit the place/);
 assert.doesNotMatch(joStill, /Bodies in the room/);
 
