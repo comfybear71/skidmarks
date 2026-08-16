@@ -1,0 +1,30 @@
+/**
+ * Mobile Auto Studio still stops before concatenating clips into a movie.
+ * Plates, lines, and prompts first. Flip this when stitch is ready.
+ */
+export const MOBILE_STITCH_MOVIES = false;
+
+export function bounceStuckStitch(opts: {
+  phase: string;
+  error?: string;
+}): "review" | null {
+  if (MOBILE_STITCH_MOVIES) return null;
+  if (opts.phase === "stitch") return "review";
+  if (
+    opts.phase === "error" &&
+    /stitch|No clips generated/i.test(opts.error || "")
+  ) {
+    return "review";
+  }
+  return null;
+}
+
+export function phaseAfterAnimateQueue(pendingLeft: boolean): "animate" | "stitch" | "review" {
+  if (pendingLeft) return "animate";
+  return MOBILE_STITCH_MOVIES ? "stitch" : "review";
+}
+
+export function phaseAfterErrorResume(pendingLeft: boolean): "animate" | "stitch" | "review" {
+  if (pendingLeft) return "animate";
+  return MOBILE_STITCH_MOVIES ? "stitch" : "review";
+}

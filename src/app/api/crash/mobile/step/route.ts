@@ -11,6 +11,12 @@ import { writeSilentMp3 } from "@/lib/silentAudio";
 import { runLtxSmoke } from "@/lib/ltxSmoke";
 import { resolveComfyUrl, probeComfyUrl } from "@/lib/comfyClient";
 import { stitchClips, mobileFinalVideoPath } from "@/lib/mobileStitch";
+import {
+  bounceStuckStitch,
+  MOBILE_STITCH_MOVIES,
+  phaseAfterAnimateQueue,
+  phaseAfterErrorResume,
+} from "@/lib/mobilePipeline";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
 import { allCastApproved, allLocationsApproved } from "@/lib/mobileJobReady";
 import { CRASH_DIR } from "@/lib/paths";
@@ -46,10 +52,12 @@ async function ensureComfyReady(): Promise<string> {
 /**
  * POST { jobId, approveReview? } — advances the AUTOMATIC phases one
  * bounded unit at a time (plates -> voices -> [review, human-gated] ->
- * animate -> stitch -> done). cast_images/location_images are human-gated
- * via /candidates and only checked here for whether they're complete
- * enough to move on. Never does more than one shot/clip of real work per
- * call so a long run survives many short requests instead of one huge one.
+ * animate -> stitch -> done). Stitch is parked (MOBILE_STITCH_MOVIES) until
+ * plates and prompts are right — animate then returns to review.
+ * cast_images/location_images are human-gated via /candidates and only
+ * checked here for whether they're complete enough to move on. Never does
+ * more than one shot/clip of real work per call so a long run survives
+ * many short requests instead of one huge one.
  */
 export async function POST(req: Request) {
   try {
@@ -70,8 +78,16 @@ export async function POST(req: Request) {
     // to pick up whatever is still pending, or straight to stitch if none
     // is. Otherwise leave the job in error — nothing actually changed.
     if (job.phase === "error" && job.clips.some((c) => c.clipStatus === "done")) {
-      const nextPhase = job.clips.some((c) => c.clipStatus === "pending") ? "animate" : "stitch";
+      const nextPhase = phaseAfterErrorResume(
+        job.clips.some((c) => c.clipStatus === "pending"),
+      );
       job = (await patchMobileGenJob(jobId, { phase: nextPhase, error: "" }))!;
+      return NextResponse.json({ ok: true, job, advanced: true });
+    }
+
+    const unstick = bounceStuckStitch({ phase: job.phase, error: job.error });
+    if (unstick) {
+      job = (await patchMobileGenJob(jobId, { phase: unstick, error: "" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
@@ -173,7 +189,9 @@ export async function POST(req: Request) {
     if (job.phase === "animate") {
       const next = job.clips.find((c) => c.clipStatus === "pending");
       if (!next) {
-        job = (await patchMobileGenJob(jobId, { phase: "stitch" }))!;
+        job = (await patchMobileGenJob(jobId, {
+          phase: phaseAfterAnimateQueue(false),
+        }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
       const shot = job.shots.find((s) => s.shotId === next.shotId);
@@ -301,6 +319,10 @@ export async function POST(req: Request) {
     }
 
     if (job.phase === "stitch") {
+      if (!MOBILE_STITCH_MOVIES) {
+        job = (await patchMobileGenJob(jobId, { phase: "review", error: "" }))!;
+        return NextResponse.json({ ok: true, job, advanced: true });
+      }
       const done = job.clips.filter((c) => c.clipStatus === "done" && c.clipFile);
       if (!done.length) {
         // Every clip's real failure is recorded on the clip and was then
