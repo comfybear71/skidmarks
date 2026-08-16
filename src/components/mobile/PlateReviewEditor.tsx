@@ -3,8 +3,69 @@
 import { useEffect, useRef, useState } from "react";
 import { MobileAiButton, MobileAudioPlayer, MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
 import { useMobileAssist } from "./useMobileAssist";
+import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
+import {
+  approvedCandidateFileName,
+  candidateLookPrompt,
+  preferredCandidate,
+} from "@/lib/mobileJobReady";
+import { platePositionAssistHint } from "@/lib/mobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
+
+/** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
+const PLATE_TILE_PX = 96;
+
+function placeStillUrl(job: MobileGenJob, sceneId: string): string {
+  const file =
+    approvedCandidateFileName(job.locationCandidates, sceneId) ||
+    preferredCandidate(job.locationCandidates[sceneId] || [])?.fileName ||
+    "";
+  return file ? mobileLocationStillUrl(job, file) : "";
+}
+
+function speakerFaceUrl(job: MobileGenJob, name: string): string {
+  const file =
+    approvedCandidateFileName(job.castCandidates, name) ||
+    preferredCandidate(job.castCandidates[name] || [])?.fileName ||
+    "";
+  if (!file) return "";
+  return (
+    `/api/crash/mobile/cast-face?styleId=${encodeURIComponent(job.styleId)}` +
+    `&folderName=${encodeURIComponent(job.folderName || job.id)}` +
+    `&characterId=` +
+    `&fileName=${encodeURIComponent(file)}`
+  );
+}
+
+function fieldLabel(text: string) {
+  return (
+    <div
+      style={{
+        color: "var(--chrome-dim)",
+        fontSize: "10px",
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        flex: "0 0 auto",
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
+const shotFieldStyle = {
+  width: "100%",
+  minWidth: 0,
+  padding: "8px",
+  borderRadius: "2px",
+  border: "1px solid var(--line)",
+  background: "var(--panel-2)",
+  color: "var(--chrome)",
+  fontSize: "13px",
+  fontFamily: "inherit",
+  resize: "vertical" as const,
+};
 
 /** One removed shot, kept around just long enough to put back. */
 type RemovedShot = { sceneId: string; shot: CrashStoryShot };
@@ -40,6 +101,7 @@ export function PlateReviewEditor({
   const [loadError, setLoadError] = useState("");
   const [openShotId, setOpenShotId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [castPickerShotId, setCastPickerShotId] = useState<string | null>(null);
   const [addBusySpeaker, setAddBusySpeaker] = useState<string | null>(null);
   const [addError, setAddError] = useState("");
   const [removedBuffer, setRemovedBuffer] = useState<RemovedShot[]>([]);
@@ -48,13 +110,18 @@ export function PlateReviewEditor({
   const [undoBusy, setUndoBusy] = useState(false);
   const [actionError, setActionError] = useState("");
 
+  const shots = job.shots;
+  const shotIdsKey = shots.map((s) => s.shotId).join("\0");
+
   useEffect(() => {
     let cancelled = false;
     fetchStory(job.styleId, job.folderName)
       .then((s) => {
         if (cancelled) return;
-        if (s) setStory(s);
-        else setLoadError("Couldn't load the lines for this episode");
+        if (s) {
+          setStory(s);
+          setLoadError("");
+        } else setLoadError("Couldn't load the lines for this episode");
       })
       .catch(() => {
         if (!cancelled) setLoadError("Couldn't load the lines for this episode");
@@ -62,9 +129,8 @@ export function PlateReviewEditor({
     return () => {
       cancelled = true;
     };
-  }, [job.styleId, job.folderName]);
+  }, [job.styleId, job.folderName, shotIdsKey]);
 
-  const shots = job.shots;
   if (!shots.length && !story) return null;
 
   const shotById = (shotId: string): CrashStoryShot | null => {
@@ -77,16 +143,23 @@ export function PlateReviewEditor({
   };
 
   function defaultSceneId(): string | null {
-    if (!story) return null;
+    const known = (id: string | undefined): string | null => {
+      if (!id) return null;
+      if (job.scenes.some((s) => s.id === id)) return id;
+      if (story?.scenes.some((s) => s.id === id)) return id;
+      return null;
+    };
     if (openShotId) {
-      const sc = story.scenes.find((s) => s.shots.some((sh) => sh.id === openShotId));
+      const sc = story?.scenes.find((s) => s.shots.some((sh) => sh.id === openShotId));
       if (sc) return sc.id;
+      const fromOpen = known(shots.find((s) => s.shotId === openShotId)?.sceneId);
+      if (fromOpen) return fromOpen;
     }
     if (shots.length) {
-      const lastSceneId = shots[shots.length - 1].sceneId;
-      if (story.scenes.some((s) => s.id === lastSceneId)) return lastSceneId;
+      const last = known(shots[shots.length - 1].sceneId);
+      if (last) return last;
     }
-    return story.scenes[0]?.id || null;
+    return job.scenes[0]?.id || story?.scenes[0]?.id || null;
   }
 
   const usedShotSpeakers = new Set(
@@ -354,145 +427,192 @@ export function PlateReviewEditor({
       <div
         style={{
           display: "flex",
-          gap: "8px",
+          gap: "10px",
           overflowX: "auto",
           padding: "2px 2px 10px",
           touchAction: "pan-x pan-y",
+          alignItems: "flex-end",
         }}
       >
         {shots.map((s, i) => {
           const plated = Boolean(s.plateFile && s.plateFile !== "__error__");
+          const placeSrc = placeStillUrl(job, s.sceneId);
+          const thumbSrc = plated
+            ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
+            : placeSrc;
+          const addingCast = castPickerShotId === s.shotId;
           return (
-            <div key={s.shotId} style={{ position: "relative", flex: "0 0 auto" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (collapsed) {
-                    onExpand?.();
-                    setOpenShotId(s.shotId);
-                    return;
-                  }
-                  setOpenShotId((cur) => (cur === s.shotId ? null : s.shotId));
-                }}
-                style={{
-                  padding: "2px",
-                  border: s.shotId === openShotId ? "2px solid var(--acid)" : "2px solid var(--line)",
-                  borderRadius: "2px",
-                  background: "var(--panel-2)",
-                  cursor: "pointer",
-                  lineHeight: 0,
-                }}
-              >
-                {plated ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={`/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`}
-                    alt=""
-                    style={{
-                      width: "72px",
-                      height: "72px",
-                      objectFit: "cover",
-                      borderRadius: "2px",
-                      display: "block",
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "72px",
-                      height: "72px",
-                      borderRadius: "2px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--chrome-dim)",
-                      fontSize: "11px",
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    {i + 1}
-                  </div>
-                )}
-              </button>
-              {!collapsed && plated ? (
-                <button
-                  type="button"
-                  aria-label="Park this shot plate"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void dropPlate(s.shotId);
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: "4px",
-                    left: "4px",
-                    width: "20px",
-                    height: "20px",
-                    padding: 0,
-                    borderRadius: "2px",
-                    border: "none",
-                    background: "rgba(0,0,0,0.72)",
-                    color: "var(--chrome)",
-                    fontSize: "14px",
-                    lineHeight: 1,
-                    cursor: "pointer",
-                  }}
-                >
-                  ×
-                </button>
-              ) : null}
+            <div
+              key={s.shotId}
+              style={{
+                position: "relative",
+                flex: "0 0 auto",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
               {!collapsed ? (
                 <button
                   type="button"
-                  aria-label="Remove this shot"
+                  aria-label="Add cast to this plate"
                   onClick={(e) => {
                     e.stopPropagation();
-                    void removeShot(s.shotId);
+                    setPickerOpen(false);
+                    setOpenShotId(s.shotId);
+                    setCastPickerShotId((cur) => (cur === s.shotId ? null : s.shotId));
                   }}
                   style={{
-                    position: "absolute",
-                    bottom: "4px",
-                    right: "4px",
-                    width: "20px",
-                    height: "20px",
+                    width: "28px",
+                    height: "28px",
                     padding: 0,
                     borderRadius: "2px",
-                    border: "none",
-                    background: "rgba(0,0,0,0.72)",
-                    color: "var(--chrome)",
-                    fontSize: "14px",
+                    border: addingCast ? "1px solid var(--acid)" : "1px solid var(--line)",
+                    background: addingCast ? "var(--acid)" : "var(--panel-2)",
+                    color: addingCast ? "#111" : "var(--acid)",
+                    fontSize: "20px",
                     lineHeight: 1,
                     cursor: "pointer",
                   }}
                 >
-                  −
+                  +
                 </button>
               ) : null}
+              <div style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (collapsed) {
+                      onExpand?.();
+                      setOpenShotId(s.shotId);
+                      return;
+                    }
+                    setCastPickerShotId(null);
+                    setOpenShotId((cur) => (cur === s.shotId ? null : s.shotId));
+                  }}
+                  style={{
+                    padding: "2px",
+                    border: s.shotId === openShotId ? "2px solid var(--acid)" : "2px solid var(--line)",
+                    borderRadius: "2px",
+                    background: "var(--panel-2)",
+                    cursor: "pointer",
+                    lineHeight: 0,
+                  }}
+                >
+                  {thumbSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={thumbSrc}
+                      alt=""
+                      style={{
+                        width: `${PLATE_TILE_PX}px`,
+                        height: `${PLATE_TILE_PX}px`,
+                        objectFit: "cover",
+                        borderRadius: "2px",
+                        display: "block",
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: `${PLATE_TILE_PX}px`,
+                        height: `${PLATE_TILE_PX}px`,
+                        borderRadius: "2px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--chrome-dim)",
+                        fontSize: "13px",
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      {i + 1}
+                    </div>
+                  )}
+                </button>
+                {!collapsed && plated ? (
+                  <button
+                    type="button"
+                    aria-label="Park this shot plate"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void dropPlate(s.shotId);
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: "4px",
+                      left: "4px",
+                      width: "22px",
+                      height: "22px",
+                      padding: 0,
+                      borderRadius: "2px",
+                      border: "none",
+                      background: "rgba(0,0,0,0.72)",
+                      color: "var(--chrome)",
+                      fontSize: "14px",
+                      lineHeight: 1,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ×
+                  </button>
+                ) : null}
+                {!collapsed ? (
+                  <button
+                    type="button"
+                    aria-label="Remove this shot"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void removeShot(s.shotId);
+                    }}
+                    style={{
+                      position: "absolute",
+                      bottom: "4px",
+                      right: "4px",
+                      width: "22px",
+                      height: "22px",
+                      padding: 0,
+                      borderRadius: "2px",
+                      border: "none",
+                      background: "rgba(0,0,0,0.72)",
+                      color: "var(--chrome)",
+                      fontSize: "14px",
+                      lineHeight: 1,
+                      cursor: "pointer",
+                    }}
+                  >
+                    −
+                  </button>
+                ) : null}
+              </div>
             </div>
           );
         })}
 
-        {story && story.scenes.length ? (
+        {(story?.scenes.length || job.scenes.length) ? (
           <button
             type="button"
-            aria-label="Add a character test card"
+            aria-label="Add a new plate"
             onClick={() => {
               if (collapsed) {
                 onExpand?.();
+                setCastPickerShotId(null);
                 setPickerOpen(true);
                 return;
               }
+              setCastPickerShotId(null);
               setPickerOpen((v) => !v);
             }}
             style={{
               flex: "0 0 auto",
-              width: "76px",
-              height: "76px",
+              width: `${PLATE_TILE_PX + 4}px`,
+              height: `${PLATE_TILE_PX + 4}px`,
               borderRadius: "2px",
               border: pickerOpen ? "2px solid var(--acid)" : "2px dashed var(--line)",
               background: "var(--panel-2)",
               color: "var(--chrome-dim)",
-              fontSize: "26px",
+              fontSize: "32px",
               lineHeight: 1,
               cursor: "pointer",
             }}
@@ -513,7 +633,7 @@ export function PlateReviewEditor({
               marginBottom: "8px",
             }}
           >
-            One character, one card — pick who to test
+            New plate — pick who to test
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
             {job.speakers.map((name) => {
@@ -545,21 +665,70 @@ export function PlateReviewEditor({
         </div>
       ) : null}
 
-      {!collapsed && openShotId ? (
+      {!collapsed && castPickerShotId ? (
+        <CastIntoPlatePopup
+          job={job}
+          shotId={castPickerShotId}
+          shot={shotById(castPickerShotId)}
+          placeName={
+            job.scenes.find(
+              (sc) => sc.id === shots.find((s) => s.shotId === castPickerShotId)?.sceneId,
+            )?.placeName ||
+            story?.scenes.find((sc) => sc.shots.some((sh) => sh.id === castPickerShotId))
+              ?.placeName ||
+            ""
+          }
+          placeLook={candidateLookPrompt(
+            job.locationCandidates,
+            shots.find((s) => s.shotId === castPickerShotId)?.sceneId || "",
+          )}
+          onCancel={() => setCastPickerShotId(null)}
+          onPlaced={() => {
+            const id = castPickerShotId;
+            void fetchStory(job.styleId, job.folderName).then((fresh) => {
+              if (fresh) setStory(fresh);
+            });
+            setCastPickerShotId(null);
+            if (id) setOpenShotId(id);
+          }}
+        />
+      ) : null}
+
+      {!collapsed && openShotId && !castPickerShotId ? (
         <ShotLineEditor
           key={openShotId}
           styleId={job.styleId}
           folderName={job.folderName}
           jobId={job.id}
           shot={shotById(openShotId)}
-          speakers={job.speakers}
           loading={!story && !loadError}
           error={loadError}
-          onCastAdded={() => {
-            void fetchStory(job.styleId, job.folderName).then((fresh) => {
-              if (fresh) setStory(fresh);
-            });
-          }}
+          placeSrc={
+            shots.find((s) => s.shotId === openShotId)
+              ? placeStillUrl(job, shots.find((s) => s.shotId === openShotId)!.sceneId)
+              : ""
+          }
+          jobPlated={Boolean(
+            shots.find((s) => s.shotId === openShotId)?.plateFile &&
+              shots.find((s) => s.shotId === openShotId)?.plateFile !== "__error__",
+          )}
+          assistHint={platePositionAssistHint({
+            people: (shotById(openShotId)?.beats || []).map((b) => b.speaker.trim()).filter(Boolean),
+            placeName:
+              job.scenes.find((sc) => sc.id === shots.find((s) => s.shotId === openShotId)?.sceneId)
+                ?.placeName || "",
+            placeLook: candidateLookPrompt(
+              job.locationCandidates,
+              shots.find((s) => s.shotId === openShotId)?.sceneId || "",
+            ),
+            looks: (shotById(openShotId)?.beats || [])
+              .map((b) => b.speaker.trim())
+              .filter(Boolean)
+              .map((name) => ({
+                name,
+                look: candidateLookPrompt(job.castCandidates, name),
+              })),
+          })}
           onPlateRebuilt={(plateFile, staging, summary, plateTakes) => {
             setStory((cur) => {
               if (!cur || !openShotId) return cur;
@@ -606,6 +775,248 @@ export function PlateReviewEditor({
   );
 }
 
+/** Scrollable "everyone" picker. Tap one face — the rest grey out, that
+ * person lights up, and a position box with AI appears for dropping them
+ * into this place still. */
+function CastIntoPlatePopup({
+  job,
+  shotId,
+  shot,
+  placeName,
+  placeLook,
+  onCancel,
+  onPlaced,
+}: {
+  job: MobileGenJob;
+  shotId: string;
+  shot: CrashStoryShot | null;
+  placeName: string;
+  placeLook: string;
+  onCancel: () => void;
+  onPlaced: () => void;
+}) {
+  const [picked, setPicked] = useState<string | null>(null);
+  const [staging, setStaging] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const inShot = new Set((shot?.beats || []).map((b) => b.speaker.trim().toLowerCase()).filter(Boolean));
+  const hint = platePositionAssistHint({
+    people: picked ? [picked] : [],
+    placeName,
+    placeLook,
+    looks: picked
+      ? [{ name: picked, look: candidateLookPrompt(job.castCandidates, picked) }]
+      : [],
+  });
+  const assist = useMobileAssist("plate", job.styleId, () => staging, setStaging, hint);
+
+  async function putIn() {
+    if (!picked || !staging.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const already = inShot.has(picked.trim().toLowerCase());
+      if (!already) {
+        const addRes = await fetch("/api/crash/mobile/plate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: job.id, shotId, speaker: picked, action: "add-cast" }),
+        });
+        const addData = (await addRes.json()) as { error?: string };
+        if (!addRes.ok) throw new Error(addData.error || "Couldn't add them");
+      }
+      const existing = (shot?.staging || "").trim();
+      const next = already
+        ? staging.trim()
+        : existing
+          ? `${existing.replace(/\s+$/, "")} ${staging.trim()}`
+          : staging.trim();
+      const saveRes = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: job.id,
+          shotId,
+          action: "save",
+          staging: next,
+        }),
+      });
+      const saveData = (await saveRes.json()) as { error?: string };
+      if (!saveRes.ok) throw new Error(saveData.error || "Couldn't save the position");
+      onPlaced();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't put them in");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        ...mobileCard,
+        padding: "12px",
+        marginBottom: "10px",
+        maxHeight: "70vh",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div
+          style={{
+            flex: 1,
+            color: "var(--chrome-dim)",
+            fontSize: "10px",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
+        >
+          Who&apos;s in this plate
+        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          style={{
+            padding: "4px 8px",
+            border: "none",
+            background: "transparent",
+            color: "var(--chrome-dim)",
+            fontSize: "18px",
+            lineHeight: 1,
+            cursor: "pointer",
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          gap: "10px",
+          overflowX: "auto",
+          padding: "2px 0 8px",
+          touchAction: "pan-x pan-y",
+        }}
+      >
+        {job.speakers.map((name) => {
+          const selected = picked === name;
+          const already = inShot.has(name.trim().toLowerCase());
+          const grey = Boolean(picked && !selected) || (already && !selected);
+          const face = speakerFaceUrl(job, name);
+          return (
+            <button
+              key={name}
+              type="button"
+              disabled={already && !selected}
+              onClick={() => {
+                if (already) return;
+                setPicked(name);
+                setStaging("");
+                setError("");
+              }}
+              style={{
+                flex: "0 0 auto",
+                width: "72px",
+                padding: 0,
+                border: "none",
+                background: "none",
+                opacity: grey ? 0.32 : 1,
+                filter: grey ? "grayscale(1)" : "none",
+                cursor: already && !selected ? "default" : "pointer",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              <span
+                style={{
+                  width: "64px",
+                  height: "64px",
+                  borderRadius: "10px",
+                  border: selected ? "2px solid var(--acid)" : "2px solid var(--line)",
+                  overflow: "hidden",
+                  display: "block",
+                  background: "var(--panel-2)",
+                }}
+              >
+                {face ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={face}
+                    alt=""
+                    style={{ width: "64px", height: "64px", objectFit: "cover", display: "block" }}
+                  />
+                ) : (
+                  <span
+                    style={{
+                      width: "64px",
+                      height: "64px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--chrome-dim)",
+                      fontSize: "18px",
+                    }}
+                  >
+                    {name.slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+              </span>
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: selected ? "var(--acid)" : "var(--chrome)",
+                  maxWidth: "72px",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {already && !selected ? `${name} · in` : name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {picked ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            {fieldLabel(`Position ${picked}`)}
+            <div style={{ flex: 1 }} />
+            <MobileAiButton onClick={() => void assist.runAssist()} busy={assist.aiBusy} />
+          </div>
+          <textarea
+            value={staging}
+            onChange={(e) => setStaging(e.target.value)}
+            rows={3}
+            placeholder={`${picked} in ${placeName || "this room"} — sitting, lying down, against the wall…`}
+            style={shotFieldStyle}
+          />
+          <MobilePrimaryButton
+            disabled={busy || assist.aiBusy || !staging.trim()}
+            onClick={() => void putIn()}
+          >
+            {busy ? "Putting them in…" : `Put ${picked} in`}
+          </MobilePrimaryButton>
+          {assist.aiError ? (
+            <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{assist.aiError}</div>
+          ) : null}
+        </div>
+      ) : (
+        <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>
+          Tap someone. The rest fade. Then say how they sit in this room.
+        </div>
+      )}
+      {error ? <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</div> : null}
+    </div>
+  );
+}
+
 /** A conversation shot can carry several takes — swipe or tap the arrows to
  * move between them. Picking one mirrors it onto plateFile/staging so
  * everything downstream (strip thumb, Animate) still just reads plateFile.
@@ -614,10 +1025,14 @@ export function PlateReviewEditor({
 function PlatePreview({
   shot,
   jobId,
+  placeSrc,
+  jobPlated,
   onPicked,
 }: {
   shot: CrashStoryShot;
   jobId: string;
+  placeSrc?: string;
+  jobPlated?: boolean;
   onPicked: (plateFile: string, staging: string) => void;
 }) {
   const [zoomed, setZoomed] = useState(false);
@@ -625,19 +1040,23 @@ function PlatePreview({
   const touchStartX = useRef<number | null>(null);
 
   const takes: PlateTake[] =
-    shot.plateTakes && shot.plateTakes.length
-      ? shot.plateTakes
-      : shot.plateFile && shot.plateFile !== "__error__"
-        ? [{ id: "legacy", fileName: shot.plateFile, staging: shot.staging || "", approved: true }]
-        : [];
-  if (!takes.length) return null;
-
+    jobPlated === false
+      ? []
+      : shot.plateTakes && shot.plateTakes.length
+        ? shot.plateTakes
+        : shot.plateFile && shot.plateFile !== "__error__"
+          ? [{ id: "legacy", fileName: shot.plateFile, staging: shot.staging || "", approved: true }]
+          : [];
+  const showTakes = takes.length > 0;
   const activeIndex = Math.max(
     0,
     takes.findIndex((t) => t.fileName === shot.plateFile),
   );
   const active = takes[activeIndex] || takes[0];
-  const src = `/api/crash/gen/file?name=${encodeURIComponent(active.fileName)}`;
+  const src = showTakes
+    ? `/api/crash/gen/file?name=${encodeURIComponent(active.fileName)}`
+    : placeSrc || "";
+  if (!src) return null;
 
   async function pick(index: number) {
     const take = takes[index];
@@ -802,111 +1221,29 @@ function PlatePreview({
   );
 }
 
-function AddCastRow({
-  jobId,
-  shot,
-  speakers,
-  onAdded,
-}: {
-  jobId: string;
-  shot: CrashStoryShot;
-  speakers: string[];
-  onAdded: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const inShot = new Set(shot.beats.map((b) => b.speaker.trim().toLowerCase()));
-  const available = speakers.filter((n) => !inShot.has(n.trim().toLowerCase()));
-
-  async function add(speaker: string) {
-    setBusy(speaker);
-    setError("");
-    try {
-      const res = await fetch("/api/crash/mobile/plate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, shotId: shot.id, speaker, action: "add-cast" }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || "Couldn't add them");
-      setOpen(false);
-      onAdded();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't add them");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          padding: "6px 10px",
-          borderRadius: "2px",
-          border: "1px dashed var(--line)",
-          background: "transparent",
-          color: "var(--acid)",
-          fontSize: "12px",
-          cursor: "pointer",
-        }}
-      >
-        + Add cast
-      </button>
-      {open ? (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
-          {available.length ? (
-            available.map((name) => (
-              <button
-                key={name}
-                type="button"
-                disabled={Boolean(busy)}
-                onClick={() => void add(name)}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: "2px",
-                  border: "1px solid var(--line)",
-                  background: "transparent",
-                  color: busy === name ? "var(--acid)" : "var(--chrome)",
-                  fontSize: "12px",
-                }}
-              >
-                {busy === name ? "…" : name}
-              </button>
-            ))
-          ) : (
-            <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>Everyone&apos;s already in this shot.</div>
-          )}
-        </div>
-      ) : null}
-      {error ? <div style={{ fontSize: "11px", color: "var(--magenta-hot)", marginTop: "4px" }}>{error}</div> : null}
-    </div>
-  );
-}
-
 function ShotLineEditor({
   styleId,
   folderName,
   jobId,
   shot,
-  speakers,
   loading,
   error,
+  placeSrc,
+  jobPlated,
+  assistHint,
   onBeatSaved,
   onPlateRebuilt,
-  onCastAdded,
   onJobChange,
 }: {
   styleId: string;
   folderName: string;
   jobId: string;
   shot: CrashStoryShot | null;
-  speakers: string[];
   loading: boolean;
   error: string;
+  placeSrc?: string;
+  jobPlated?: boolean;
+  assistHint?: string;
   onBeatSaved: (beatId: string, text: string, voiceFile: string) => void;
   onPlateRebuilt: (
     plateFile: string | undefined,
@@ -914,7 +1251,6 @@ function ShotLineEditor({
     summary: string,
     plateTakes?: PlateTake[],
   ) => void;
-  onCastAdded: () => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
   if (loading) {
@@ -940,16 +1276,25 @@ function ShotLineEditor({
       <PlatePreview
         shot={shot}
         jobId={jobId}
+        placeSrc={placeSrc}
+        jobPlated={jobPlated}
         onPicked={(plateFile, staging) => onPlateRebuilt(plateFile, staging, shot.summary)}
       />
-      <PlateStagingEditor
-        key={shot.plateFile}
-        styleId={styleId}
-        jobId={jobId}
-        shot={shot}
-        onRebuilt={onPlateRebuilt}
-        onJobChange={onJobChange}
-      />
+      {speakingBeats.length ? (
+        <PlateStagingEditor
+          key={`${shot.id}-${speakingBeats.map((b) => b.speaker).join(",")}`}
+          styleId={styleId}
+          jobId={jobId}
+          shot={shot}
+          assistHint={assistHint}
+          onRebuilt={onPlateRebuilt}
+          onJobChange={onJobChange}
+        />
+      ) : (
+        <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
+          Tap + above the picture to put someone in this room.
+        </div>
+      )}
       {speakingBeats.length ? (
         speakingBeats.map((beat) => (
           <BeatLineEditor
@@ -961,55 +1306,23 @@ function ShotLineEditor({
             onSaved={(text, voiceFile) => onBeatSaved(beat.id, text, voiceFile)}
           />
         ))
-      ) : (
-        <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
-          No one in this shot yet — add cast below.
-        </div>
-      )}
-      <AddCastRow jobId={jobId} shot={shot} speakers={speakers} onAdded={onCastAdded} />
+      ) : null}
     </div>
   );
 }
-
-function fieldLabel(text: string) {
-  return (
-    <div
-      style={{
-        color: "var(--chrome-dim)",
-        fontSize: "10px",
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        flex: "0 0 auto",
-      }}
-    >
-      {text}
-    </div>
-  );
-}
-
-const shotFieldStyle = {
-  width: "100%",
-  minWidth: 0,
-  padding: "8px",
-  borderRadius: "2px",
-  border: "1px solid var(--line)",
-  background: "var(--panel-2)",
-  color: "var(--chrome)",
-  fontSize: "13px",
-  fontFamily: "inherit",
-  resize: "vertical" as const,
-};
 
 function PlateStagingEditor({
   styleId,
   jobId,
   shot,
+  assistHint,
   onRebuilt,
   onJobChange,
 }: {
   styleId: string;
   jobId: string;
   shot: CrashStoryShot;
+  assistHint?: string;
   onRebuilt: (
     plateFile: string | undefined,
     staging: string,
@@ -1019,10 +1332,7 @@ function PlateStagingEditor({
   onJobChange?: (job: MobileGenJob) => void;
 }) {
   const [summary, setSummary] = useState(shot.summary || "");
-  const [staging, setStaging] = useState(
-    shot.staging?.trim() ||
-      "Who sits, leans, presents — Jo on the bar, Matty behind it.",
-  );
+  const [staging, setStaging] = useState(shot.staging?.trim() || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const actionAssist = useMobileAssist(
@@ -1030,14 +1340,14 @@ function PlateStagingEditor({
     styleId,
     () => summary,
     setSummary,
-    shot.title,
+    assistHint || shot.title,
   );
   const plateAssist = useMobileAssist(
     "plate",
     styleId,
     () => staging,
     setStaging,
-    `${shot.title}. ${summary || ""}`,
+    assistHint || `${shot.title}. ${summary || ""}`,
   );
 
   async function saveText() {
@@ -1118,7 +1428,7 @@ function PlateStagingEditor({
           onChange={(e) => setStaging(e.target.value)}
           onBlur={() => void saveText()}
           rows={3}
-          placeholder="Who sits, leans, presents — Jo on the bar, Matty behind it"
+          placeholder="Jo sitting on the bed, lying down, against the wall…"
           style={shotFieldStyle}
         />
         <MobilePrimaryButton

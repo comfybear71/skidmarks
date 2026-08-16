@@ -79,7 +79,7 @@ Spoken line.
 - ElevenLabs tags in square brackets are allowed on lines: [grunts] [smugly].`,
 
   plate: `WRITE: how people sit in this still — one or two sentences for the plate compositor.
-- Who is where. Sitting, leaning, walking through, presenting, using the bar or furniture.
+- Who is where. Sitting, leaning, lying on the bed, against the wall, using the furniture of THIS place.
 - Name the locked people and the place. Matching light.
 - Everyone is into it. Hands on hips, climbing on, looking back grinning.
 - Never a lineup of faces standing in the foreground like cutouts.
@@ -93,6 +93,29 @@ Spoken line.
 
 export function assistSystem(styleId: ShowStyleId, kind: AssistKind): string {
   return `${house(styleId)}\n\n${FIELD[kind]}`;
+}
+
+/** Hint for the plate position box — character looks + the locked place,
+ * so AI can put Jo on the bed in her cell instead of inventing a bar. */
+export function platePositionAssistHint(opts: {
+  people: string[];
+  placeName: string;
+  placeLook: string;
+  looks: { name: string; look: string }[];
+}): string {
+  const who = opts.people.length ? opts.people.join(", ") : "(nobody in yet)";
+  const lines = [
+    `People in this still: ${who}`,
+    `Place: ${opts.placeName.trim() || "(unnamed)"}`,
+  ];
+  if (opts.placeLook.trim()) lines.push(`Place look: ${opts.placeLook.trim()}`);
+  for (const row of opts.looks) {
+    if (row.look.trim()) lines.push(`Look · ${row.name}: ${row.look.trim()}`);
+  }
+  lines.push(
+    "Write how they use THIS room — sit on the bed, lie down, lean on the wall, bang a head against it, stand in the doorway. Willing bodies. Not a lineup.",
+  );
+  return lines.join("\n");
 }
 
 export function assistUser(opts: {

@@ -757,10 +757,11 @@ export function StudioTree({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId: job.id, action: "add", sceneId }),
       });
-      const data = (await res.json()) as { error?: string; job?: MobileGenJob };
+      const data = (await res.json()) as { error?: string; job?: MobileGenJob; shotId?: string };
       if (!res.ok) throw new Error(data.error || "Couldn't add a plate there");
       if (data.job) onJobChange(data.job);
       setAddPlateDoneFor(sceneId);
+      setPlatesOpen(true);
     } catch (e) {
       setAddPlateError(e instanceof Error ? e.message : "Couldn't add a plate there");
     } finally {
