@@ -1,6 +1,6 @@
 "use client";
 
-import { mobileCard } from "./MobileUi";
+import { MobilePrimaryButton, mobileCard } from "./MobileUi";
 import { ZoomableStill } from "./ZoomableStill";
 import type { MobileImageCandidate } from "@/lib/mobileGenJob";
 
@@ -26,8 +26,8 @@ export function SingleCandidateCard({
 
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
-      <div style={{ ...mobileCard, position: "relative", overflow: "hidden" }}>
-        <ZoomableStill src={src} alt="Candidate" height={300} />
+      <div style={{ ...mobileCard, position: "relative", overflow: "hidden", borderRadius: "2px" }}>
+        <ZoomableStill src={src} alt="Candidate" height={380} fit="contain" />
         {candidate.approved ? (
           <div
             style={{
@@ -51,41 +51,17 @@ export function SingleCandidateCard({
         ) : null}
       </div>
 
-      <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onReroll}
-          style={{
-            flex: 1,
-            padding: "14px",
-            borderRadius: "10px",
-            border: "1px solid var(--line)",
-            background: "transparent",
-            color: busy ? "var(--chrome-dim)" : "var(--chrome)",
-            fontWeight: 600,
-            fontSize: "14px",
-          }}
-        >
-          {busy ? "Generating…" : "Not this one"}
-        </button>
-        <button
-          type="button"
-          disabled={busy || candidate.approved}
-          onClick={() => onApprove(candidate)}
-          style={{
-            flex: 1,
-            padding: "14px",
-            borderRadius: "10px",
-            border: "none",
-            background: candidate.approved ? "var(--panel-2)" : "var(--acid)",
-            color: candidate.approved ? "var(--chrome-dim)" : "var(--void)",
-            fontWeight: 600,
-            fontSize: "14px",
-          }}
-        >
-          {candidate.approved ? "Picked ✓" : "Pick this one"}
-        </button>
+      <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+        <div style={{ flex: 1 }}>
+          <MobilePrimaryButton tone="ghost" disabled={busy} onClick={onReroll}>
+            {busy ? "Generating…" : "Not this one"}
+          </MobilePrimaryButton>
+        </div>
+        <div style={{ flex: 1 }}>
+          <MobilePrimaryButton disabled={busy || candidate.approved} onClick={() => onApprove(candidate)}>
+            {candidate.approved ? "Picked ✓" : "Pick this one"}
+          </MobilePrimaryButton>
+        </div>
       </div>
     </div>
   );

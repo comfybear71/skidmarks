@@ -48,15 +48,19 @@ export function ZoomableStill({
   alt,
   height = 220,
   showHint = true,
+  fit = "contain",
   style,
 }: {
   src: string;
   alt?: string;
   height?: number | string;
   showHint?: boolean;
+  /** contain = whole still (cast/place). cover crops to a torso. */
+  fit?: "contain" | "cover";
   style?: CSSProperties;
 }) {
   const [zoomed, setZoomed] = useState(false);
+  const maxH = typeof height === "number" ? height : 380;
 
   return (
     <>
@@ -74,7 +78,8 @@ export function ZoomableStill({
           position: "relative",
           overflow: "hidden",
           cursor: "zoom-in",
-          height,
+          background: "var(--void)",
+          height: fit === "cover" ? height : "auto",
           ...style,
         }}
       >
@@ -83,7 +88,15 @@ export function ZoomableStill({
           src={src}
           alt={alt || ""}
           draggable={false}
-          style={{ width: "100%", height: "100%", objectFit: "cover", userSelect: "none", display: "block" }}
+          style={{
+            width: "100%",
+            height: fit === "cover" ? "100%" : "auto",
+            maxHeight: fit === "contain" ? maxH : undefined,
+            objectFit: fit,
+            objectPosition: "center top",
+            userSelect: "none",
+            display: "block",
+          }}
         />
         {showHint ? (
           <span
