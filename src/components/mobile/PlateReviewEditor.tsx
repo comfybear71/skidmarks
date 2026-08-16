@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { mobileCard } from "./MobileUi";
+import { MobileTextInput, mobileCard } from "./MobileUi";
+import { useMobileAssist } from "./useMobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "@/lib/crashStoryTypes";
 
@@ -201,6 +202,7 @@ function BeatLineEditor({
   const [voiceFile, setVoiceFile] = useState(beat.voiceFile || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
   const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
 
   async function save() {
@@ -226,19 +228,17 @@ function BeatLineEditor({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ fontSize: "12px", color: "var(--acid)", fontWeight: 700 }}>{beat.speaker}</div>
-      <textarea
+      <MobileTextInput
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={setText}
+        multiline
         rows={2}
-        style={{
-          ...mobileCard,
-          padding: "10px",
-          color: "var(--chrome)",
-          fontSize: "14px",
-          fontFamily: "inherit",
-          resize: "vertical",
-        }}
+        onAi={() => void lineAssist.runAssist()}
+        aiBusy={lineAssist.aiBusy}
       />
+      {lineAssist.aiError ? (
+        <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{lineAssist.aiError}</div>
+      ) : null}
       {voiceFile ? (
         <audio
           controls

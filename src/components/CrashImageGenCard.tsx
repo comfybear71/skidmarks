@@ -19,6 +19,7 @@ import {
   CRASH_PANEL_TITLE_COL,
 } from "@/lib/crashLabPanel";
 import { crashGenExamplePrompt, crashGenStylePickPrompt, pickStyleIdeaPrompt } from "@/lib/crashGenExamples";
+import { requestAssist } from "@/lib/mobileAssistClient";
 import { useCrashDeskMode } from "@/hooks/useCrashDeskMode";
 import { usePanelPointerDrag } from "@/hooks/usePanelPointerDrag";
 import {
@@ -127,6 +128,7 @@ export function CrashImageGenCard() {
     total: number;
   } | null>(null);
   const [error, setError] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
   const [fileName, setFileName] = useState("");
   const [url, setUrl] = useState("");
   const [lockedBg, setLockedBg] = useState<{
@@ -560,6 +562,24 @@ export function CrashImageGenCard() {
     setPrompt(idea);
     setAttachMsg("Idea filled — edit it, then Generate or Tweak");
     setError("");
+  }
+
+  async function draftPromptWithAi() {
+    setAiBusy(true);
+    setError("");
+    try {
+      const next = await requestAssist({
+        kind: "image_prompt",
+        text: prompt,
+        styleId: activeStyleId,
+      });
+      setPrompt(next);
+      setAttachMsg("AI drafted — edit it, then Generate or Tweak");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "AI assist failed");
+    } finally {
+      setAiBusy(false);
+    }
   }
 
   function pullNewCharacterFromScriptDesk() {
@@ -1807,6 +1827,7 @@ export function CrashImageGenCard() {
             disabled={busy || plating}
           />
           <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] px-2 py-1">
+            <span className="flex items-center gap-1">
             <button
               type="button"
               className="flex items-center gap-0.5 rounded-sm border border-[var(--acid)] bg-[var(--panel)] px-1.5 py-0.5 text-[9px] text-[var(--acid)] hover:bg-[var(--acid)]/10 disabled:opacity-40"
@@ -1823,6 +1844,16 @@ export function CrashImageGenCard() {
               </svg>
               Idea
             </button>
+            <button
+              type="button"
+              className="rounded-sm border border-[var(--magenta)] bg-[var(--panel)] px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-[var(--magenta)] hover:bg-[var(--magenta)]/10 disabled:opacity-40"
+              disabled={busy || plating || aiBusy}
+              onClick={() => void draftPromptWithAi()}
+              title="Draft this box — press again for a different take"
+            >
+              {aiBusy ? "…" : "AI"}
+            </button>
+            </span>
             <button
               type="button"
               className="rounded-sm border border-[var(--magenta-hot)] bg-[var(--panel)] px-1.5 py-0.5 text-[9px] text-[var(--magenta-hot)] hover:bg-[var(--magenta-hot)]/10 disabled:opacity-40"
