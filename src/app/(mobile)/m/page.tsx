@@ -214,6 +214,36 @@ export default function MobileHomePage() {
     [job],
   );
 
+  const makeCharacterPlate = useCallback(
+    async (name: string) => {
+      if (!job) return;
+      setJob((prev) =>
+        prev
+          ? {
+              ...prev,
+              characterPlates: {
+                ...(prev.characterPlates || {}),
+                [name]: {
+                  fileName: prev.characterPlates?.[name]?.fileName || "",
+                  status: "pending",
+                },
+              },
+            }
+          : prev,
+      );
+      try {
+        const { job: updated } = await postJson<{ job: MobileGenJob }>(
+          "/api/crash/mobile/character-plate",
+          { jobId: job.id, name },
+        );
+        setJob(updated);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't make the character plate");
+      }
+    },
+    [job],
+  );
+
   const approveCandidate = useCallback(
     async (kind: "cast" | "location", target: string, candidateId: string) => {
       if (!job) return;
@@ -374,6 +404,7 @@ export default function MobileHomePage() {
           writingScript={writingScript}
           onGenerateCast={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApproveCast={(name, candidateId) => approveCandidate("cast", name, candidateId)}
+          onMakeCharacterPlate={(name) => void makeCharacterPlate(name)}
           onAddCast={(name, description) => addRosterItem("cast", name, description)}
           onUploadCast={(name, file) => uploadCandidate("cast", name, file)}
           onGenerateLocation={(id, customPrompt) => genCandidates("location", id, customPrompt)}

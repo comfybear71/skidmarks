@@ -1,10 +1,20 @@
+import fs from "fs";
+import path from "path";
 import { NextResponse } from "next/server";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { cloudShowAssetRedirect } from "@/lib/cloudShelf";
+import { resolveCharacterPlatePath } from "@/lib/characterPlates";
 
 export const runtime = "nodejs";
 
-/** GET ?styleId=sunny_banks&file=plate_dazza.png — stream one character plate. */
+const MIME: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+};
+
+/** GET ?styleId=skidmarks&file=plate_baby.jpg — stream one character plate. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const styleId = parseStyleCardId(url.searchParams.get("styleId"));
@@ -14,5 +24,13 @@ export async function GET(req: Request) {
   }
   const streamed = await cloudShowAssetRedirect(styleId, "character_plate", filename);
   if (streamed) return streamed;
-  return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const local = resolveCharacterPlatePath(styleId, filename);
+  if (!local) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const ext = path.extname(filename).toLowerCase();
+  return new NextResponse(fs.readFileSync(local), {
+    headers: {
+      "Content-Type": MIME[ext] || "application/octet-stream",
+      "Cache-Control": "private, max-age=120",
+    },
+  });
 }

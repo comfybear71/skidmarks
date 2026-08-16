@@ -13,6 +13,7 @@ import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
 import { allCastApproved, allLocationsApproved, latestCandidate } from "@/lib/mobileJobReady";
+import { characterPlateFileUrl } from "@/lib/characterPlates";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
@@ -490,6 +491,7 @@ export function StudioTree({
   writingScript,
   onGenerateCast,
   onApproveCast,
+  onMakeCharacterPlate,
   onAddCast,
   onUploadCast,
   onGenerateLocation,
@@ -508,6 +510,7 @@ export function StudioTree({
   writingScript: boolean;
   onGenerateCast: (name: string, customPrompt?: string) => void;
   onApproveCast: (name: string, candidateId: string) => void;
+  onMakeCharacterPlate: (name: string) => void;
   onAddCast: (name: string, description?: string) => void;
   onUploadCast: (name: string, file: File) => void;
   onGenerateLocation: (sceneId: string, customPrompt?: string) => void;
@@ -614,11 +617,52 @@ export function StudioTree({
             onGenerate={(p) => onGenerateCast(castFocus, p)}
             onApprove={(id) => {
               onApproveCast(castFocus, id);
+              onMakeCharacterPlate(castFocus);
               setOpenCast(null);
             }}
             onUpload={(file) => onUploadCast(castFocus, file)}
           />
         ) : null}
+        {job.speakers.map((name) => {
+          const row = job.characterPlates?.[name];
+          if (!row) return null;
+          return (
+            <div key={`plate-${name}`} style={{ marginTop: "12px" }}>
+              <div
+                style={{
+                  color: "var(--chrome-dim)",
+                  fontSize: "11px",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  marginBottom: "6px",
+                }}
+              >
+                Character plate · {name}
+              </div>
+              {row?.status === "pending" ? (
+                <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "8px 0" }}>
+                  <ShimmerText>Locking {name} for the series</ShimmerText>
+                </div>
+              ) : row?.status === "error" ? (
+                <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>
+                  {row.error || "Couldn't make the character plate"}
+                </div>
+              ) : row?.fileName ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={characterPlateFileUrl(job.styleId, row.fileName)}
+                  alt={`${name} character plate`}
+                  style={{
+                    width: "100%",
+                    borderRadius: "10px",
+                    display: "block",
+                    border: "1px solid var(--line)",
+                  }}
+                />
+              ) : null}
+            </div>
+          );
+        })}
       </TreeBranch>
 
       <TreeBranch label="Locations">
