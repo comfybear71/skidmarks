@@ -18,6 +18,19 @@ export type CrashStoryBeat = {
   voiceFile?: string;
 };
 
+/** One drawn still for a shot — a conversation shot can want several, each
+ * framed on a different moment/speaker, swiped through rather than one
+ * static picture standing in for the whole back-and-forth. */
+export type PlateTake = {
+  id: string;
+  /** cplate_*.png under data/crash/gen/ */
+  fileName: string;
+  /** The position tweak that drew this specific take. */
+  staging: string;
+  /** The take currently mirrored onto plateFile/staging below. */
+  approved: boolean;
+};
+
 export type CrashStoryShot = {
   id: string;
   title: string;
@@ -27,8 +40,11 @@ export type CrashStoryShot = {
    * e.g. "Sharon prominent · cafe table · Kim secondary back"
    */
   staging?: string;
-  /** cplate_*.png under data/crash/gen/ */
+  /** cplate_*.png under data/crash/gen/ — always mirrors the approved take. */
   plateFile: string;
+  /** Every still drawn for this shot. Older shots have none — plateFile is
+   * their only picture, treated as a single take. */
+  plateTakes?: PlateTake[];
   beats: CrashStoryBeat[];
   sfx: CrashStorySfx[];
 };

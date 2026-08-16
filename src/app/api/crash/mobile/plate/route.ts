@@ -4,7 +4,7 @@ import { compositeShotPlate } from "@/lib/mobilePlates";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
-import type { CrashStoryDoc, CrashStoryShot } from "@/lib/crashStoryTypes";
+import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 import { newId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
 
@@ -14,7 +14,7 @@ export const maxDuration = 180;
 function patchShotFields(
   story: CrashStoryDoc,
   shotId: string,
-  patch: { staging?: string; summary?: string; plateFile?: string },
+  patch: { staging?: string; summary?: string; plateFile?: string; plateTakes?: PlateTake[] },
 ): CrashStoryDoc {
   return {
     ...story,
@@ -42,6 +42,9 @@ function patchShotFields(
  * go (start fresh). Returns the full removed list for Undo.
  * POST { jobId, sceneId, shot, action: "restore" } — undo for "remove"/
  * "clear": puts an exact shot object back where it came from.
+ * POST { jobId, shotId, takeId, action: "pick" } — a conversation shot can
+ * carry several takes (drawn on different position tweaks); this mirrors
+ * one onto plateFile/staging without drawing anything new.
  */
 export async function POST(req: Request) {
   try {
@@ -54,11 +57,13 @@ export async function POST(req: Request) {
       summary?: string;
       action?: string;
       shot?: CrashStoryShot;
+      takeId?: string;
     };
     const jobId = (body.jobId || "").trim();
     const shotId = (body.shotId || "").trim();
     const sceneIdIn = (body.sceneId || "").trim();
     const speakerIn = (body.speaker || "").trim();
+    const takeIdIn = (body.takeId || "").trim();
     const stagingIn = body.staging !== undefined ? String(body.staging) : undefined;
     const summaryIn = body.summary !== undefined ? String(body.summary) : undefined;
     const action = (body.action || "rebuild").trim().toLowerCase();
@@ -68,6 +73,7 @@ export async function POST(req: Request) {
     const remove = action === "remove";
     const clear = action === "clear";
     const restore = action === "restore";
+    const pick = action === "pick";
     if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
     if (!add && !remove && !clear && !restore && !shotId) {
       return NextResponse.json({ error: "Need shotId" }, { status: 400 });
@@ -77,7 +83,8 @@ export async function POST(req: Request) {
     if (restore && (!sceneIdIn || !body.shot?.id)) {
       return NextResponse.json({ error: "Need sceneId and shot" }, { status: 400 });
     }
-    if (!drop && !saveOnly && !add && !remove && !clear && !restore && !(stagingIn || "").trim()) {
+    if (pick && !takeIdIn) return NextResponse.json({ error: "Need takeId" }, { status: 400 });
+    if (!drop && !saveOnly && !add && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
       return NextResponse.json(
         { error: "Say who sits where — not two people stuck in the front." },
         { status: 400 },
@@ -168,6 +175,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
     }
 
+    if (pick) {
+      const take = (shot.plateTakes || []).find((t) => t.id === takeIdIn);
+      if (!take) return NextResponse.json({ error: "That take is not on this shot" }, { status: 404 });
+      const plateTakes = (shot.plateTakes || []).map((t) => ({ ...t, approved: t.id === takeIdIn }));
+      const picked = patchShotFields(story, shotId, {
+        plateFile: take.fileName,
+        staging: take.staging,
+        plateTakes,
+      });
+      await writeMobileStory(picked, job.folderName);
+      const shots = job.shots.map((s) =>
+        s.shotId === shotId ? { ...s, plateFile: take.fileName, error: "" } : s,
+      );
+      const updated = await patchMobileGenJob(jobId, { shots, error: "" });
+      return NextResponse.json({ ok: true, job: updated, plateFile: take.fileName, staging: take.staging });
+    }
+
     if (remove) {
       const removedShot = shot;
       const removedSceneId = scene.id;
@@ -245,13 +269,15 @@ export async function POST(req: Request) {
       /* still usable this request */
     }
 
-    const plated = patchShotFields(nextStory, shotId, { plateFile: fileName, staging });
+    const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: true };
+    const plateTakes = [...(shot.plateTakes || []).map((t) => ({ ...t, approved: false })), newTake];
+    const plated = patchShotFields(nextStory, shotId, { plateFile: fileName, staging, plateTakes });
     await writeMobileStory(plated, job.folderName);
     const shots = job.shots.map((s) =>
       s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
     );
     const updated = await patchMobileGenJob(jobId, { shots, error: "" });
-    return NextResponse.json({ ok: true, job: updated, plateFile: fileName });
+    return NextResponse.json({ ok: true, job: updated, plateFile: fileName, plateTakes });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },

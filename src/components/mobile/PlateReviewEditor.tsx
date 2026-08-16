@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MobileAiButton, MobileAudioPlayer, MobilePrimaryButton, MobileTextInput, mobileCard } from "./MobileUi";
 import { useMobileAssist } from "./useMobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
-import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "@/lib/crashStoryTypes";
+import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 
 /** One removed shot, kept around just long enough to put back. */
 type RemovedShot = { sceneId: string; shot: CrashStoryShot };
@@ -553,7 +553,7 @@ export function PlateReviewEditor({
           shot={shotById(openShotId)}
           loading={!story && !loadError}
           error={loadError}
-          onPlateRebuilt={(plateFile, staging, summary) => {
+          onPlateRebuilt={(plateFile, staging, summary, plateTakes) => {
             setStory((cur) => {
               if (!cur || !openShotId) return cur;
               return {
@@ -567,6 +567,7 @@ export function PlateReviewEditor({
                           ...(plateFile !== undefined ? { plateFile } : {}),
                           ...(staging !== undefined ? { staging } : {}),
                           ...(summary !== undefined ? { summary } : {}),
+                          ...(plateTakes !== undefined ? { plateTakes } : {}),
                         }
                       : sh,
                   ),
@@ -598,18 +599,94 @@ export function PlateReviewEditor({
   );
 }
 
-/** The strip thumb is 72px — too small to check for artifacts. Tap it to
- * see the actual plate full screen, same zoom-to-inspect pattern as cast
- * and location candidates. */
-function PlatePreview({ plateFile, title }: { plateFile: string; title: string }) {
+/** A conversation shot can carry several takes — swipe or tap the arrows to
+ * move between them. Picking one mirrors it onto plateFile/staging so
+ * everything downstream (strip thumb, Animate) still just reads plateFile.
+ * Tap the picture itself to inspect full screen. Older shots with no
+ * plateTakes fall back to treating plateFile as a single take. */
+function PlatePreview({
+  shot,
+  jobId,
+  onPicked,
+}: {
+  shot: CrashStoryShot;
+  jobId: string;
+  onPicked: (plateFile: string, staging: string) => void;
+}) {
   const [zoomed, setZoomed] = useState(false);
-  if (!plateFile || plateFile === "__error__") return null;
-  const src = `/api/crash/gen/file?name=${encodeURIComponent(plateFile)}`;
+  const [busy, setBusy] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+
+  const takes: PlateTake[] =
+    shot.plateTakes && shot.plateTakes.length
+      ? shot.plateTakes
+      : shot.plateFile && shot.plateFile !== "__error__"
+        ? [{ id: "legacy", fileName: shot.plateFile, staging: shot.staging || "", approved: true }]
+        : [];
+  if (!takes.length) return null;
+
+  const activeIndex = Math.max(
+    0,
+    takes.findIndex((t) => t.fileName === shot.plateFile),
+  );
+  const active = takes[activeIndex] || takes[0];
+  const src = `/api/crash/gen/file?name=${encodeURIComponent(active.fileName)}`;
+
+  async function pick(index: number) {
+    const take = takes[index];
+    if (!take || index === activeIndex || busy) return;
+    if (take.id === "legacy") {
+      onPicked(take.fileName, take.staging);
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, shotId: shot.id, action: "pick", takeId: take.id }),
+      });
+      const data = (await res.json()) as { plateFile?: string; staging?: string };
+      if (res.ok) onPicked(data.plateFile ?? take.fileName, data.staging ?? take.staging);
+    } catch {
+      /* strip stays on the current take */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const arrowStyle = {
+    position: "absolute" as const,
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: "32px",
+    height: "32px",
+    borderRadius: "999px",
+    border: "none",
+    background: "rgba(0,0,0,0.55)",
+    color: "var(--chrome)",
+    fontSize: "18px",
+    lineHeight: 1,
+    cursor: "pointer",
+  };
+
   return (
     <div style={{ position: "relative" }}>
       <button
         type="button"
         onClick={() => setZoomed(true)}
+        onTouchStart={(e) => {
+          touchStartX.current = e.touches[0]?.clientX ?? null;
+        }}
+        onTouchEnd={(e) => {
+          const startX = touchStartX.current;
+          touchStartX.current = null;
+          if (startX === null) return;
+          const dx = (e.changedTouches[0]?.clientX ?? startX) - startX;
+          if (Math.abs(dx) < 40) return;
+          if (dx < 0) void pick(activeIndex + 1);
+          else void pick(activeIndex - 1);
+        }}
         aria-label="Enlarge this plate"
         style={{
           display: "block",
@@ -625,25 +702,71 @@ function PlatePreview({ plateFile, title }: { plateFile: string; title: string }
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
-          alt={title}
-          style={{ width: "100%", maxHeight: "260px", objectFit: "contain", display: "block" }}
+          alt={shot.title}
+          style={{ width: "100%", maxHeight: "260px", objectFit: "contain", display: "block", opacity: busy ? 0.6 : 1 }}
         />
       </button>
-      <span
-        style={{
-          position: "absolute",
-          bottom: "8px",
-          right: "8px",
-          padding: "4px 8px",
-          borderRadius: "999px",
-          background: "rgba(0,0,0,0.55)",
-          color: "var(--chrome)",
-          fontSize: "11px",
-          pointerEvents: "none",
-        }}
-      >
-        Tap to enlarge
-      </span>
+      {takes.length > 1 ? (
+        <>
+          <button
+            type="button"
+            aria-label="Previous take"
+            disabled={busy || activeIndex === 0}
+            onClick={() => void pick(activeIndex - 1)}
+            style={{ ...arrowStyle, left: "6px", opacity: activeIndex === 0 ? 0.3 : 1 }}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            aria-label="Next take"
+            disabled={busy || activeIndex === takes.length - 1}
+            onClick={() => void pick(activeIndex + 1)}
+            style={{ ...arrowStyle, right: "6px", opacity: activeIndex === takes.length - 1 ? 0.3 : 1 }}
+          >
+            ›
+          </button>
+          <div
+            style={{
+              position: "absolute",
+              bottom: "8px",
+              left: 0,
+              right: 0,
+              display: "flex",
+              justifyContent: "center",
+              gap: "5px",
+            }}
+          >
+            {takes.map((t, i) => (
+              <span
+                key={t.id}
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "999px",
+                  background: i === activeIndex ? "var(--acid)" : "rgba(255,255,255,0.35)",
+                }}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <span
+          style={{
+            position: "absolute",
+            bottom: "8px",
+            right: "8px",
+            padding: "4px 8px",
+            borderRadius: "999px",
+            background: "rgba(0,0,0,0.55)",
+            color: "var(--chrome)",
+            fontSize: "11px",
+            pointerEvents: "none",
+          }}
+        >
+          Tap to enlarge
+        </span>
+      )}
       {zoomed ? (
         <div
           onClick={() => setZoomed(false)}
@@ -662,7 +785,7 @@ function PlatePreview({ plateFile, title }: { plateFile: string; title: string }
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt={title} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+          <img src={src} alt={shot.title} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
           <span style={{ position: "absolute", top: "16px", right: "18px", color: "var(--chrome)", fontSize: "24px" }}>
             ✕
           </span>
@@ -690,7 +813,12 @@ function ShotLineEditor({
   loading: boolean;
   error: string;
   onBeatSaved: (beatId: string, text: string, voiceFile: string) => void;
-  onPlateRebuilt: (plateFile: string | undefined, staging: string, summary: string) => void;
+  onPlateRebuilt: (
+    plateFile: string | undefined,
+    staging: string,
+    summary: string,
+    plateTakes?: PlateTake[],
+  ) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
   if (loading) {
@@ -713,8 +841,13 @@ function ShotLineEditor({
 
   return (
     <div style={{ ...mobileCard, padding: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
-      <PlatePreview plateFile={shot.plateFile} title={shot.title} />
+      <PlatePreview
+        shot={shot}
+        jobId={jobId}
+        onPicked={(plateFile, staging) => onPlateRebuilt(plateFile, staging, shot.summary)}
+      />
       <PlateStagingEditor
+        key={shot.plateFile}
         styleId={styleId}
         jobId={jobId}
         shot={shot}
@@ -780,7 +913,12 @@ function PlateStagingEditor({
   styleId: string;
   jobId: string;
   shot: CrashStoryShot;
-  onRebuilt: (plateFile: string | undefined, staging: string, summary: string) => void;
+  onRebuilt: (
+    plateFile: string | undefined,
+    staging: string,
+    summary: string,
+    plateTakes?: PlateTake[],
+  ) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
   const [summary, setSummary] = useState(shot.summary || "");
@@ -839,10 +977,11 @@ function PlateStagingEditor({
       const data = (await res.json()) as {
         error?: string;
         plateFile?: string;
+        plateTakes?: PlateTake[];
         job?: MobileGenJob;
       };
       if (!res.ok) throw new Error(data.error || "Couldn't rebuild the plate");
-      onRebuilt(data.plateFile, staging, summary);
+      onRebuilt(data.plateFile, staging, summary, data.plateTakes);
       if (data.job) onJobChange?.(data.job);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't rebuild the plate");
