@@ -62,7 +62,9 @@ assert.match(hint, /Crazy Jo/);
 assert.match(hint, /Jo's bedroom/);
 assert.match(hint, /wild Territory woman/);
 assert.match(hint, /this room/i);
-assert.match(hint, /phone/i);
+assert.match(hint, /mobile phone/i);
+assert.match(hint, /texting/i);
+assert.match(hint, /crazed maniac/i);
 
 const comfyPlate = platePositionAssistHint({
   people: ["Comfy"],
@@ -81,5 +83,14 @@ const motionHint = imageMotionAssistHint({
 assert.match(motionHint, /CRAZY BIG HOLE JO/);
 assert.match(motionHint, /get stuffed/);
 assert.match(motionHint, /lip-sync lead/i);
+assert.doesNotMatch(motionHint, /Also in this shot/);
+
+const crowdHint = imageMotionAssistHint({
+  speaker: "CRAZY BIG HOLE JO",
+  line: "get stuffed",
+  lookLock: "",
+  shotSpeakers: ["CRAZY BIG HOLE JO", "Comfy"],
+});
+assert.match(crowdHint, /Also in this shot: Comfy/);
 
 console.log("check-mobile-assist: ok");

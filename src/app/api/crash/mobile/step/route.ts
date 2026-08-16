@@ -20,6 +20,11 @@ import {
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
 import { mergeClipsFromStory, clipQueueError } from "@/lib/mobileClipQueue";
 import { allCastApproved, allLocationsApproved, candidateLookPrompt } from "@/lib/mobileJobReady";
+import {
+  imageMotionNamesLeftovers,
+  leftoverHydrateSpeakers,
+  shotSpeakersOnCard,
+} from "@/lib/mobilePlateLines";
 import { CRASH_DIR } from "@/lib/paths";
 import {
   buildDefaultBeatMotion,
@@ -247,7 +252,7 @@ export async function POST(req: Request) {
         if (!shot.plateFile) {
           throw new Error(`Shot ${next.shotId} has no plate yet`);
         }
-        if (!beat) {
+        if (!storyShot || !beat) {
           throw new Error(`Line ${next.beatId} is missing from the story for shot ${next.shotId}`);
         }
         const platePath =
@@ -283,11 +288,19 @@ export async function POST(req: Request) {
           job.roster.find(
             (c) => c.name.trim().toLowerCase() === beat.speaker.trim().toLowerCase(),
           )?.appearance;
-        const shotCast = [
-          ...new Set((storyShot?.beats || []).map((b) => b.speaker.trim()).filter(Boolean)),
-        ];
+        const leftovers = leftoverHydrateSpeakers(storyShot.id, storyShot.beats);
+        const shotCast = shotSpeakersOnCard({
+          shotId: storyShot.id,
+          title: storyShot.title,
+          staging: storyShot.staging,
+          summary: storyShot.summary,
+          plateFile: storyShot.plateFile,
+          jobSpeakers: job.speakers,
+          beats: storyShot.beats,
+        });
+        const stored = stripLtxLipSyncLead(beat.imageMotion || "");
         const body =
-          stripLtxLipSyncLead(beat.imageMotion || "") ||
+          (stored && !imageMotionNamesLeftovers(stored, leftovers) ? stored : "") ||
           buildDefaultBeatMotion({
             styleId: job.styleId,
             speaker: beat.speaker,

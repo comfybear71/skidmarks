@@ -15,6 +15,7 @@ import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake } from "@
 import {
   leftoverHydrateBeat,
   plateLineBeats,
+  shotSpeakersOnCard,
   speakersAlreadyInPlate,
   castPopupFaceGrey,
   voiceFileBelongsToSpeaker,
@@ -1362,7 +1363,15 @@ function ShotLineEditor({
             jobId={jobId}
             jobVoices={jobVoices}
             lookLock={lookForSpeaker(beat.speaker)}
-            shotSpeakers={[...new Set(shot.beats.map((b) => b.speaker.trim()).filter(Boolean))]}
+            shotSpeakers={shotSpeakersOnCard({
+              shotId: shot.id,
+              title: shot.title,
+              staging: shot.staging,
+              summary: shot.summary,
+              plateFile: shot.plateFile,
+              jobSpeakers,
+              beats: shot.beats,
+            })}
             beat={beat}
             onSaved={(text, voiceFile, imageMotion, nextJob) =>
               onBeatSaved(beat.id, text, voiceFile, imageMotion, nextJob)

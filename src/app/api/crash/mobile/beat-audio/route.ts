@@ -13,6 +13,12 @@ import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { buildDefaultBeatMotion } from "@/lib/mobileImageMotion";
 import { jobVoiceForSpeaker } from "@/lib/mobileJobVoices";
 import { voiceNamesMatch } from "@/lib/voiceNameMatch";
+import {
+  dropLeftoverHydrateBeats,
+  keepStoredImageMotion,
+  leftoverHydrateSpeakers,
+  shotSpeakersOnCard,
+} from "@/lib/mobilePlateLines";
 import path from "path";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
@@ -122,23 +128,36 @@ export async function POST(req: Request) {
       ...result.story,
       scenes: result.story.scenes.map((sc) => ({
         ...sc,
-        shots: sc.shots.map((sh) => ({
-          ...sh,
-          beats: sh.beats.map((b) => {
-            if (b.id !== beatId) return b;
-            if ((b.imageMotion || "").trim()) return b;
-            return {
-              ...b,
-              imageMotion: buildDefaultBeatMotion({
-                styleId: job.styleId,
-                speaker,
-                line: text,
-                lookLock,
-                shotSpeakers: sh.beats.map((x) => x.speaker),
-              }),
-            };
-          }),
-        })),
+        shots: sc.shots.map((sh) => {
+          const leftovers = leftoverHydrateSpeakers(sh.id, sh.beats);
+          const beats = dropLeftoverHydrateBeats(sh.id, sh.beats, beatId);
+          const onCard = shotSpeakersOnCard({
+            shotId: sh.id,
+            title: sh.title,
+            staging: sh.staging,
+            summary: sh.summary,
+            plateFile: sh.plateFile,
+            jobSpeakers: job.speakers,
+            beats,
+          });
+          return {
+            ...sh,
+            beats: beats.map((b) => {
+              if (b.id !== beatId) return b;
+              if (keepStoredImageMotion(b.imageMotion, leftovers)) return b;
+              return {
+                ...b,
+                imageMotion: buildDefaultBeatMotion({
+                  styleId: job.styleId,
+                  speaker,
+                  line: text,
+                  lookLock,
+                  shotSpeakers: onCard,
+                }),
+              };
+            }),
+          };
+        }),
       })),
     };
     await writeMobileStory(next, job.folderName);

@@ -3,7 +3,9 @@ import {
   LTX_LIP_SYNC_LEAD,
   buildDefaultBeatMotion,
   buildGlobalPrompt,
+  defaultSoloStaging,
   isJoKeyboardWarrior,
+  joPhoneStagingExtra,
   ltxSendPrompt,
   stripLtxLipSyncLead,
   withLtxLipSyncLead,
@@ -22,7 +24,8 @@ const jo = buildDefaultBeatMotion({
   lookLock: "sitting on her bed",
 });
 assert.match(jo, /^Use the provided start image as the first frame\./);
-assert.match(jo, /holding her phone/);
+assert.match(jo, /holding her mobile phone/);
+assert.match(jo, /texting/);
 assert.match(jo, /crazed maniac/);
 assert.match(jo, /keyboard warrior/);
 assert.match(jo, /speaks the line as she types/);
@@ -34,7 +37,7 @@ assert.doesNotMatch(jo, /^perfect lip sync/i);
 
 const sent = ltxSendPrompt(jo);
 assert.ok(sent.startsWith(LTX_LIP_SYNC_LEAD));
-assert.match(sent, /holding her phone/);
+assert.match(sent, /holding her mobile phone/);
 assert.equal(stripLtxLipSyncLead(sent), jo);
 assert.equal(withLtxLipSyncLead(sent), sent);
 
@@ -68,8 +71,30 @@ const holdJo = buildDefaultBeatMotion({
   speaker: "CRAZY BIG HOLE JO",
   line: "",
 });
-assert.match(holdJo, /holding her phone/);
+assert.match(holdJo, /holding her phone|holding her mobile phone/);
 assert.match(holdJo, /No dialogue/);
+assert.match(holdJo, /crazed maniac/);
+assert.match(holdJo, /mobile phone/);
+
+const joOnlyHold = buildDefaultBeatMotion({
+  styleId: "skidmarks",
+  speaker: "CRAZY BIG HOLE JO",
+  line: "",
+  shotSpeakers: ["CRAZY BIG HOLE JO"],
+});
+assert.doesNotMatch(joOnlyHold, /\bComfy\b/);
+assert.doesNotMatch(joOnlyHold, /\bLand\b/);
+assert.doesNotMatch(joOnlyHold, /Only /);
+assert.match(joOnlyHold, /mobile phone/);
+assert.match(joOnlyHold, /texting/);
+assert.match(joOnlyHold, /crazed maniac/);
+
+assert.equal(
+  defaultSoloStaging("CRAZY BIG HOLE JO"),
+  "CRAZY BIG HOLE JO alone, standing centre-frame, facing camera, mid body. Holding her mobile phone, texting, staring at the screen like a crazed maniac.",
+);
+assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "standing centre-frame").length > 0, true);
+assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "tennis racket in hand"), "");
 
 assert.match(buildGlobalPrompt("skidmarks"), /dication is perfect/);
 

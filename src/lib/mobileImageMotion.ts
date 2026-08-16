@@ -76,16 +76,40 @@ export function isJoKeyboardWarrior(speaker: string): boolean {
   return n.includes("crazy big hole jo") || speakerVoiceKey(speaker) === "jo";
 }
 
+/** Gold still / motion lock — phone in her hands, staring manic, texting. */
+export const JO_PHONE_LOCK =
+  "holding her mobile phone, texting, staring at the screen like a crazed maniac";
+
+function stagingAlreadyNamesHeldProp(staging: string): boolean {
+  const text = staging.toLowerCase();
+  if (/\b(racket|pie)\b/.test(text)) return true;
+  return /\b(phone|mobile)\b/.test(text);
+}
+
+/** Extra sentence for the plate still when Jo is on the card and no other prop is named. */
+export function joPhoneStagingExtra(speakers: string[], staging: string): string {
+  if (!speakers.some((n) => isJoKeyboardWarrior(n))) return "";
+  if (stagingAlreadyNamesHeldProp(staging)) return "";
+  return `Holding her mobile phone, texting, staring at the screen like a crazed maniac.`;
+}
+
+export function defaultSoloStaging(speaker: string): string {
+  const who = speaker.trim() || "The character";
+  const alone = `${who} alone, standing centre-frame, facing camera, mid body.`;
+  if (!isJoKeyboardWarrior(who)) return alone;
+  return `${alone} Holding her mobile phone, texting, staring at the screen like a crazed maniac.`;
+}
+
 function speakingAction(speaker: string): string {
   if (isJoKeyboardWarrior(speaker)) {
-    return "holding her phone, staring at the screen like a crazed maniac, thumbs hammering the keys as she texts, mouth and head move naturally while she speaks the line as she types, keyboard warrior";
+    return `${JO_PHONE_LOCK}, thumbs hammering the keys as she texts, mouth and head move naturally while she speaks the line as she types, keyboard warrior`;
   }
   return "mouth and head move naturally while speaking, subtle gesture";
 }
 
 function holdAction(speaker: string): string {
   if (isJoKeyboardWarrior(speaker)) {
-    return "is prominent, holding her phone, staring at the screen like a crazed maniac, thumbs tapping the keys, holds her pose, subtle idle motion, weight shift, breathing, heat haze, flies";
+    return `is prominent, ${JO_PHONE_LOCK}, thumbs tapping the keys, holds her pose, subtle idle motion, weight shift, breathing, heat haze, flies`;
   }
   return "holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies";
 }

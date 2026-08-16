@@ -167,7 +167,7 @@ export function platePositionAssistHint(opts: {
   );
   if (opts.people.some((n) => isJoKeyboardWarrior(n))) {
     lines.push(
-      "CRAZY BIG HOLE JO holds her phone, staring at the screen like a crazed maniac, unless this box already names a different held prop.",
+      "CRAZY BIG HOLE JO is holding her mobile phone, texting, staring at the screen like a crazed maniac, unless this box already names a different held prop.",
     );
   }
   return lines.join("\n");
@@ -184,8 +184,13 @@ export function imageMotionAssistHint(opts: {
     `Spoken line: ${opts.line.trim() || "(none — hold)"}`,
   ];
   if (opts.lookLock.trim()) lines.push(`Look lock: ${opts.lookLock.trim()}`);
-  if (opts.shotSpeakers.length) {
-    lines.push(`Also in this shot: ${opts.shotSpeakers.join(", ")}`);
+  const others = opts.shotSpeakers
+    .map((s) => s.trim())
+    .filter(
+      (s) => s && s.toLowerCase() !== opts.speaker.trim().toLowerCase(),
+    );
+  if (others.length) {
+    lines.push(`Also in this shot: ${others.join(", ")}`);
   }
   lines.push("Write the Image motion body only. Do not write the lip-sync lead.");
   return lines.join("\n");
