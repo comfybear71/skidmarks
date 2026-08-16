@@ -229,8 +229,9 @@ export async function importUploadedCastCandidate(
   mime: string,
 ): Promise<MobileImageCandidate> {
   const ext = extFromUpload(fileName, mime);
+  const look = (getCharacter(characterId)?.lookNote || "").trim();
   const saved = addFaceAttempt(characterId, {
-    note: "Dropped back in",
+    note: look || "Dropped back in",
     buffer,
     ext,
     source: "upload",
@@ -247,7 +248,12 @@ export async function importUploadedCastCandidate(
       /* same-instance approve can still read disk */
     });
   }
-  return { id: saved.attempt.id, fileName: saved.attempt.fileName, approved: false, prompt: "" };
+  return {
+    id: saved.attempt.id,
+    fileName: saved.attempt.fileName,
+    approved: false,
+    prompt: look,
+  };
 }
 
 export async function importUploadedLocationCandidate(

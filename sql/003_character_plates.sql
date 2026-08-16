@@ -19,8 +19,8 @@ ALTER TABLE files ADD CONSTRAINT files_kind_check CHECK (
   )
 );
 
--- One plate per character per show — re-uploading a character's sheet replaces
--- it rather than stacking duplicates the resolver would have to choose between.
+-- One plate per character per show. A later pick or a test must not replace
+-- an existing sheet (Baby stays Baby). Explicit re-upload passes replace=true.
 CREATE UNIQUE INDEX IF NOT EXISTS files_character_plate_name_idx
   ON files (show_id, label_name)
   WHERE kind = 'character_plate' AND label_name IS NOT NULL;

@@ -3,15 +3,14 @@
 import type { CSSProperties, ReactNode } from "react";
 
 /**
- * Card surface shared by every tappable panel: rounder corners, a soft
- * top-down gradient instead of a flat fill, and a lift shadow with a hairline
- * inset highlight. Flat panels with a 1px border read as a form; this reads as
- * something you press.
+ * Card surface shared by every tappable panel. Flat fill — a panel-to-black
+ * linear gradient made every box look dirty. Lift is the inset hairline
+ * and the drop shadow, not a wash.
  */
 export const mobileCard: CSSProperties = {
   borderRadius: "16px",
   border: "1px solid var(--line)",
-  background: "linear-gradient(160deg, var(--panel-2) 0%, var(--panel) 100%)",
+  background: "var(--panel)",
   boxShadow:
     "inset 0 1px 0 rgba(255,255,255,0.045), 0 10px 28px rgba(0,0,0,0.45)",
 };
@@ -20,7 +19,6 @@ export const mobileCard: CSSProperties = {
 export const mobileCardSelected: CSSProperties = {
   ...mobileCard,
   border: "1px solid var(--acid)",
-  background: "linear-gradient(160deg, var(--panel-2) 0%, var(--panel) 100%)",
   boxShadow:
     "inset 0 1px 0 rgba(255,255,255,0.07), 0 10px 30px rgba(0,0,0,0.5), 0 0 0 1px var(--acid)",
 };
@@ -154,18 +152,18 @@ export function MobilePrimaryButton({
         fontSize: "16px",
         fontWeight: 600,
         border: accent ? "none" : "1px solid var(--line)",
-        // Gradient rather than a flat fill, darkening toward the bottom so the
-        // button reads as lit from above like the cards around it.
+        // Flat acid. A lime-to-black linear gradient turned the bottom
+        // third of Add / Start directing into mud.
         background: disabled
           ? "var(--panel-2)"
           : accent
-            ? "linear-gradient(180deg, var(--acid) 0%, var(--acid) 58%, rgba(0,0,0,0.20) 100%)"
+            ? "var(--acid)"
             : "transparent",
         color: disabled ? "var(--chrome-dim)" : accent ? "var(--void)" : "var(--chrome)",
         boxShadow:
           disabled || !accent
             ? "none"
-            : "inset 0 1px 0 rgba(255,255,255,0.28), 0 8px 22px rgba(0,0,0,0.42)",
+            : "inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 22px rgba(0,0,0,0.42)",
         touchAction: "manipulation",
       }}
     >

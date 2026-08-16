@@ -13,6 +13,7 @@ import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
 import { allCastApproved, allLocationsApproved, latestCandidate } from "@/lib/mobileJobReady";
+import { characterPlateFileUrl } from "@/lib/characterPlatePrompt";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
@@ -205,11 +206,16 @@ function AddForm({
   namePlaceholder: string;
   descriptionPlaceholder?: string;
   busy: boolean;
-  onAdd: (name: string, description?: string) => void;
+  onAdd: (name: string, description?: string, file?: File) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const acceptPhoto = nameKind === "cast_look";
   const nameAssist = useMobileAssist(
     nameKind === "location" ? "location" : "cast_look",
     styleId,
@@ -217,8 +223,48 @@ function AddForm({
     descriptionPlaceholder ? setDescription : setName,
     name.trim() || undefined,
   );
+
+  const takePhoto = (file: File | undefined) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    if (photoUrl) URL.revokeObjectURL(photoUrl);
+    setPhoto(file);
+    setPhotoUrl(URL.createObjectURL(file));
+  };
+
+  useEffect(() => {
+    return () => {
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+    };
+  }, [photoUrl]);
+
   return (
-    <div style={{ ...mobileCard, padding: "12px", marginTop: "10px" }}>
+    <div
+      style={{
+        ...mobileCard,
+        padding: "12px",
+        marginTop: "10px",
+        outline: dragOver ? "2px dashed var(--acid)" : "none",
+        outlineOffset: "4px",
+      }}
+      onDragOver={
+        acceptPhoto
+          ? (e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }
+          : undefined
+      }
+      onDragLeave={acceptPhoto ? () => setDragOver(false) : undefined}
+      onDrop={
+        acceptPhoto
+          ? (e) => {
+              e.preventDefault();
+              setDragOver(false);
+              takePhoto(e.dataTransfer.files[0]);
+            }
+          : undefined
+      }
+    >
       <MobileTextInput
         value={name}
         onChange={setName}
@@ -238,6 +284,58 @@ function AddForm({
           />
         </div>
       ) : null}
+      {acceptPhoto ? (
+        <div style={{ marginTop: "10px" }}>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={(e) => {
+              takePhoto(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+            style={{
+              width: "100%",
+              padding: photoUrl ? "8px" : "10px",
+              borderRadius: "8px",
+              border: "1px dashed var(--line)",
+              background: "transparent",
+              color: "var(--chrome-dim)",
+              fontSize: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              textAlign: "left",
+            }}
+          >
+            {photoUrl ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photoUrl}
+                  alt=""
+                  style={{
+                    width: "56px",
+                    height: "72px",
+                    objectFit: "cover",
+                    borderRadius: "6px",
+                    flex: "0 0 auto",
+                  }}
+                />
+                <span>This still is them. Add puts it in the tree — More nudges it.</span>
+              </>
+            ) : (
+              <span>{dragOver ? "Drop it here" : "Drop their photo — or tap to choose"}</span>
+            )}
+          </button>
+        </div>
+      ) : null}
       {nameAssist.aiError ? (
         <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
           {nameAssist.aiError}
@@ -246,7 +344,7 @@ function AddForm({
       <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
         <MobilePrimaryButton
           disabled={busy || !name.trim()}
-          onClick={() => onAdd(name.trim(), description.trim() || undefined)}
+          onClick={() => onAdd(name.trim(), description.trim() || undefined, photo || undefined)}
         >
           Add
         </MobilePrimaryButton>
@@ -466,7 +564,7 @@ function CandidatePicker({
             fontSize: "12px",
           }}
         >
-          {dragOver ? "Drop it here" : "Drop a photo back — or tap to choose one"}
+          {dragOver ? "Drop it here" : "Drop a photo — or tap to choose. More nudges the still on screen."}
         </button>
       </div>
       {promptAssist.aiError ? (
@@ -490,6 +588,7 @@ export function StudioTree({
   writingScript,
   onGenerateCast,
   onApproveCast,
+  onMakeCharacterPlate,
   onAddCast,
   onUploadCast,
   onGenerateLocation,
@@ -508,7 +607,8 @@ export function StudioTree({
   writingScript: boolean;
   onGenerateCast: (name: string, customPrompt?: string) => void;
   onApproveCast: (name: string, candidateId: string) => void;
-  onAddCast: (name: string, description?: string) => void;
+  onMakeCharacterPlate: (name: string) => void;
+  onAddCast: (name: string, description?: string, file?: File) => void;
   onUploadCast: (name: string, file: File) => void;
   onGenerateLocation: (sceneId: string, customPrompt?: string) => void;
   onApproveLocation: (sceneId: string, candidateId: string) => void;
@@ -593,8 +693,8 @@ export function StudioTree({
             namePlaceholder="e.g. Tomato"
             descriptionPlaceholder="What do they look like? e.g. a heavy metal tomato"
             busy={busy}
-            onAdd={(name, description) => {
-              onAddCast(name, description);
+            onAdd={(name, description, file) => {
+              onAddCast(name, description, file);
               setAdding(null);
               setOpenCast(name);
             }}
@@ -614,11 +714,52 @@ export function StudioTree({
             onGenerate={(p) => onGenerateCast(castFocus, p)}
             onApprove={(id) => {
               onApproveCast(castFocus, id);
+              onMakeCharacterPlate(castFocus);
               setOpenCast(null);
             }}
             onUpload={(file) => onUploadCast(castFocus, file)}
           />
         ) : null}
+        {job.speakers.map((name) => {
+          const row = job.characterPlates?.[name];
+          if (!row) return null;
+          return (
+            <div key={`plate-${name}`} style={{ marginTop: "12px" }}>
+              <div
+                style={{
+                  color: "var(--chrome-dim)",
+                  fontSize: "11px",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  marginBottom: "6px",
+                }}
+              >
+                Character plate · {name}
+              </div>
+              {row?.status === "pending" ? (
+                <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "8px 0" }}>
+                  <ShimmerText>Locking {name} for the series</ShimmerText>
+                </div>
+              ) : row?.status === "error" ? (
+                <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>
+                  {row.error || "Couldn't make the character plate"}
+                </div>
+              ) : row?.fileName ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={characterPlateFileUrl(job.styleId, row.fileName)}
+                  alt={`${name} character plate`}
+                  style={{
+                    width: "100%",
+                    borderRadius: "10px",
+                    display: "block",
+                    border: "1px solid var(--line)",
+                  }}
+                />
+              ) : null}
+            </div>
+          );
+        })}
       </TreeBranch>
 
       <TreeBranch label="Locations">

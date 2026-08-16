@@ -111,6 +111,12 @@ export type MobileGenJob = {
   castCandidates: Record<string, MobileImageCandidate[]>;
   /** Candidate location stills per scene id, awaiting a swipe pick. */
   locationCandidates: Record<string, MobileImageCandidate[]>;
+  /** Series character plates (front/3/4/profile/back) per speaker name.
+   * Show-level sheets — not shot plates. Older jobs omit this. */
+  characterPlates?: Record<
+    string,
+    { fileName: string; status: "pending" | "done" | "error"; error?: string }
+  >;
   shots: MobileShotUnit[];
   clips: MobileClipUnit[];
   finalVideoFile: string;
@@ -154,6 +160,7 @@ export async function createMobileGenJob(opts: {
     scenes: [],
     castCandidates: {},
     locationCandidates: {},
+    characterPlates: {},
     shots: [],
     clips: [],
     finalVideoFile: "",

@@ -171,16 +171,35 @@ export default function MobileHomePage() {
   // roster/world and picks a face like anything else; giving it a line is a
   // later, separate decision.
   const addRosterItem = useCallback(
-    async (kind: "cast" | "location", name: string, description?: string) => {
+    async (
+      kind: "cast" | "location",
+      name: string,
+      description?: string,
+      file?: File,
+    ) => {
       if (!job) return;
       setBusy(true);
       setError("");
       try {
-        const { job: updated } = await postJson<{ job: MobileGenJob }>(
+        const { job: added } = await postJson<{ job: MobileGenJob }>(
           "/api/crash/mobile/candidates",
           { jobId: job.id, kind, action: "add", name, description },
         );
-        setJob(updated);
+        setJob(added);
+        if (file && kind === "cast") {
+          const form = new FormData();
+          form.set("jobId", added.id);
+          form.set("kind", "cast");
+          form.set("target", name);
+          form.set("file", file);
+          const res = await fetch("/api/crash/mobile/candidate-upload", {
+            method: "POST",
+            body: form,
+          });
+          const data = (await res.json()) as { job?: MobileGenJob; error?: string };
+          if (!res.ok || !data.job) throw new Error(data.error || "Couldn't use that photo");
+          setJob(data.job);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't add that");
       } finally {
@@ -209,6 +228,36 @@ export default function MobileHomePage() {
         setError(e instanceof Error ? e.message : "Couldn't use that photo");
       } finally {
         setBusy(false);
+      }
+    },
+    [job],
+  );
+
+  const makeCharacterPlate = useCallback(
+    async (name: string) => {
+      if (!job) return;
+      setJob((prev) =>
+        prev
+          ? {
+              ...prev,
+              characterPlates: {
+                ...(prev.characterPlates || {}),
+                [name]: {
+                  fileName: prev.characterPlates?.[name]?.fileName || "",
+                  status: "pending",
+                },
+              },
+            }
+          : prev,
+      );
+      try {
+        const { job: updated } = await postJson<{ job: MobileGenJob }>(
+          "/api/crash/mobile/character-plate",
+          { jobId: job.id, name },
+        );
+        setJob(updated);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't make the character plate");
       }
     },
     [job],
@@ -374,7 +423,10 @@ export default function MobileHomePage() {
           writingScript={writingScript}
           onGenerateCast={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApproveCast={(name, candidateId) => approveCandidate("cast", name, candidateId)}
-          onAddCast={(name, description) => addRosterItem("cast", name, description)}
+          onMakeCharacterPlate={(name) => void makeCharacterPlate(name)}
+          onAddCast={(name, description, file) =>
+            addRosterItem("cast", name, description, file)
+          }
           onUploadCast={(name, file) => uploadCandidate("cast", name, file)}
           onGenerateLocation={(id, customPrompt) => genCandidates("location", id, customPrompt)}
           onApproveLocation={(id, candidateId) => approveCandidate("location", id, candidateId)}
