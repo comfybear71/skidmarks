@@ -147,14 +147,13 @@ export function MobilePrimaryButton({
       disabled={disabled}
       style={{
         width: "100%",
-        padding: "16px",
-        borderRadius: "14px",
-        fontSize: "16px",
+        padding: "7px 12px",
+        borderRadius: "2px",
+        fontSize: "13px",
         fontWeight: 600,
+        lineHeight: 1.2,
         border: accent ? "none" : "1px solid var(--line)",
-        // Flat acid. A lime-to-black linear gradient turned the bottom
-        // third of Add / Start directing into mud. appearance:none so
-        // the browser cannot paint its own button wash on top.
+        // Flat acid, short chip — the 16px/14px slab ate the phone.
         appearance: "none",
         WebkitAppearance: "none",
         backgroundImage: "none",
@@ -164,10 +163,7 @@ export function MobilePrimaryButton({
             ? "var(--acid)"
             : "transparent",
         color: disabled ? "var(--chrome-dim)" : accent ? "var(--void)" : "var(--chrome)",
-        boxShadow:
-          disabled || !accent
-            ? "none"
-            : "inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 22px rgba(0,0,0,0.42)",
+        boxShadow: "none",
         touchAction: "manipulation",
       }}
     >
