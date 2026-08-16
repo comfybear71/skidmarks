@@ -457,8 +457,8 @@ function CandidatePicker({
   error: string;
   promptPlaceholder: string;
   promptLabel?: string;
-  /** Cast doesn't need "drop your own photo" now that voice lives in this
-   * same card — one less way in, one less thing to double-handle. */
+  /** No "drop a photo" strip — CAST has voice in this card; Places go to
+   * Add to plate. More still nudges the still on screen. */
   hideUpload?: boolean;
   /** Extra content rendered after the Look row — the per-character voice
    * control, so face/look/voice are one card instead of three. */
@@ -504,20 +504,28 @@ function CandidatePicker({
     <div
       style={{
         marginTop: "10px",
-        outline: dragOver ? "2px dashed var(--acid)" : "none",
+        outline: !hideUpload && dragOver ? "2px dashed var(--acid)" : "none",
         outlineOffset: "4px",
         borderRadius: "12px",
       }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragOver(true);
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragOver(false);
-        takeFile(e.dataTransfer.files[0]);
-      }}
+      onDragOver={
+        hideUpload
+          ? undefined
+          : (e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }
+      }
+      onDragLeave={hideUpload ? undefined : () => setDragOver(false)}
+      onDrop={
+        hideUpload
+          ? undefined
+          : (e) => {
+              e.preventDefault();
+              setDragOver(false);
+              takeFile(e.dataTransfer.files[0]);
+            }
+      }
     >
       <div style={{ color: "var(--acid)", fontWeight: 700, fontSize: "13px", marginBottom: "8px" }}>
         {label}
@@ -998,6 +1006,7 @@ export function StudioTree({
             error={error}
             promptPlaceholder="e.g. Mars, a dive bar, outer space"
             promptLabel="Place"
+            hideUpload
             extra={
               job.folderName ? (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>

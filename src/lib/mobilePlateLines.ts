@@ -58,6 +58,7 @@ export function plateLineBeats<T extends LineBeat>(opts: {
   title?: string;
   staging?: string;
   summary?: string;
+  plateFile?: string;
   jobSpeakers: string[];
   beats: T[];
 }): T[] {
@@ -68,4 +69,29 @@ export function plateLineBeats<T extends LineBeat>(opts: {
     if (!voiceFileBelongsToSpeaker(b.voiceFile, b.speaker)) return false;
     return speakerMentionedOnPlate(b.speaker, opts.jobSpeakers, words);
   });
+}
+
+/** Before anyone is tapped, every face stays in colour. Grey is "the rest" after a pick. */
+export function castPopupFaceGrey(picked: string | null, name: string): boolean {
+  return Boolean(picked) && picked !== name;
+}
+
+/** People actually added to this plate — leftover Comfy/Land mp3s do not count. */
+export function speakersAlreadyInPlate(opts: {
+  shotId: string;
+  title?: string;
+  staging?: string;
+  summary?: string;
+  plateFile?: string;
+  jobSpeakers: string[];
+  beats: LineBeat[];
+}): string[] {
+  const emptyCard =
+    !String(opts.plateFile || "").trim() &&
+    !String(opts.staging || "").trim() &&
+    !String(opts.summary || "").trim();
+  return plateLineBeats(opts)
+    .filter((b) => !(emptyCard && packDialogueSpeaker(b.voiceFile || "")))
+    .map((b) => b.speaker.trim())
+    .filter(Boolean);
 }

@@ -12,7 +12,13 @@ import {
 import { platePositionAssistHint } from "@/lib/mobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
-import { leftoverHydrateBeat, plateLineBeats, voiceFileBelongsToSpeaker } from "@/lib/mobilePlateLines";
+import {
+  leftoverHydrateBeat,
+  plateLineBeats,
+  speakersAlreadyInPlate,
+  castPopupFaceGrey,
+  voiceFileBelongsToSpeaker,
+} from "@/lib/mobilePlateLines";
 import { lineVoiceLabel, type JobSpeakerVoice } from "@/lib/mobileJobVoices";
 import { shownVoiceId } from "@/lib/mobileVoicePick";
 import type { ShowStyleId } from "@/lib/showStylePresets";
@@ -816,7 +822,17 @@ function CastIntoPlatePopup({
   const [staging, setStaging] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const inShot = new Set((shot?.beats || []).map((b) => b.speaker.trim().toLowerCase()).filter(Boolean));
+  const inShot = new Set(
+    speakersAlreadyInPlate({
+      shotId: shot?.id || shotId,
+      title: shot?.title,
+      staging: shot?.staging,
+      summary: shot?.summary,
+      plateFile: shot?.plateFile,
+      jobSpeakers: job.speakers,
+      beats: shot?.beats || [],
+    }).map((n) => n.toLowerCase()),
+  );
   const hint = platePositionAssistHint({
     people: picked ? [picked] : [],
     placeName,
@@ -934,7 +950,7 @@ function CastIntoPlatePopup({
         {job.speakers.map((name) => {
           const selected = picked === name;
           const already = inShot.has(name.trim().toLowerCase());
-          const grey = Boolean(picked && !selected) || (already && !selected);
+          const grey = castPopupFaceGrey(picked, name);
           const face = speakerFaceUrl(job, name);
           return (
             <button
