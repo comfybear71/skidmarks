@@ -23,11 +23,12 @@ import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { activePackDir } from "./crashActivePack";
 import { loadWorkflowTemplate } from "./workflowTemplates";
+import { LTX_FPS, ltxDurationFrames } from "./ltxDuration";
 
 const HOTFIX_FILE = "LTX_Director_2_Workflow_Hotfix.json";
 
 const UPLOAD_SUB = "studio_ltx";
-const FPS = 24;
+const FPS = LTX_FPS;
 
 export type LtxProgressStep =
   | "resolving"
@@ -531,7 +532,7 @@ export async function runLtxSmoke(input: LtxSmokeInput): Promise<LtxSmokeResult>
     const sec = hasAudio
       ? estimateMp3DurationSec(input.audioPath!)
       : 3;
-    frames = Math.max(24, Math.min(240, Math.round(sec * FPS)));
+    frames = ltxDurationFrames(sec);
   }
 
   progress({

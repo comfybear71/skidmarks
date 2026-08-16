@@ -35,7 +35,7 @@ export default function MobileHomePage() {
 
   const [job, setJob] = useState<MobileGenJob | null>(null);
   const [busy, setBusy] = useState(false);
-  const [writingScript, setWritingScript] = useState(false);
+  const [lockingScript, setLockingScript] = useState(false);
   const [error, setError] = useState("");
   const [characterIds, setCharacterIds] = useState<Record<string, string>>({});
   const [resuming, setResuming] = useState(true);
@@ -146,27 +146,28 @@ export default function MobileHomePage() {
     // refetch so the new one's face-generation calls get a real characterId.
   }, [job?.phase, job?.speakers.length]);
 
-  const runScreenplay = useCallback(async (jobId: string) => {
+  const runScreenplay = useCallback(async (jobId: string, script: string) => {
     setBusy(true);
-    setWritingScript(true);
+    setLockingScript(true);
     setError("");
     try {
       const { job: withScreenplay } = await postJson<{ job: MobileGenJob }>(
         "/api/crash/mobile/screenplay",
-        { jobId },
+        { jobId, script },
       );
       setJob(withScreenplay);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't write the screenplay");
+      setError(e instanceof Error ? e.message : "Couldn't lock the script");
     } finally {
-      setWritingScript(false);
+      setLockingScript(false);
       setBusy(false);
     }
   }, []);
 
   // Job creation used to fall straight into writing the screenplay; cast and
   // locations are built freeform first now, so this just creates the job —
-  // it lands on "cast_build" and the script gets written once that's done.
+  // it lands on "cast_build". The episode is a template + AI draft + refine,
+  // then Lock — Grok does not write-and-lock in one tap.
   const startRun = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -353,7 +354,7 @@ export default function MobileHomePage() {
   const vibeAssist = useMobileAssist("vibe", styleId, () => prompt, setPrompt);
 
   return (
-    <main style={{ minHeight: "100dvh" }}>
+    <main className="mobile-shell" style={{ minHeight: "100dvh" }}>
       {error ? (
         <div style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}
@@ -465,7 +466,7 @@ export default function MobileHomePage() {
           characterIds={characterIds}
           busy={busy}
           error={error}
-          writingScript={writingScript}
+          lockingScript={lockingScript}
           onGenerateCast={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApproveCast={(name, candidateId) => approveCandidate("cast", name, candidateId)}
           onMakeCharacterPlate={(name) => void makeCharacterPlate(name)}
@@ -477,7 +478,7 @@ export default function MobileHomePage() {
           onApproveLocation={(id, candidateId) => approveCandidate("location", id, candidateId)}
           onAddLocation={(name) => addRosterItem("location", name)}
           onUploadLocation={(id, file) => uploadCandidate("location", id, file)}
-          onWriteScript={() => void runScreenplay(job.id)}
+          onDropScript={(script) => void runScreenplay(job.id, script)}
           onGenerateVideo={() => void approveReview()}
           onRetryError={() => void retryFromError(job.id)}
           onJobChange={setJob}

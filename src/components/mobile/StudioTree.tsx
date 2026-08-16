@@ -8,6 +8,7 @@ import {
   ShimmerText,
   mobileCard,
 } from "./MobileUi";
+import { episodeTemplateFromJob } from "@/lib/mobilePasteScript";
 import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
@@ -600,7 +601,7 @@ export function StudioTree({
   characterIds,
   busy,
   error,
-  writingScript,
+  lockingScript,
   onGenerateCast,
   onApproveCast,
   onMakeCharacterPlate,
@@ -610,7 +611,7 @@ export function StudioTree({
   onApproveLocation,
   onAddLocation,
   onUploadLocation,
-  onWriteScript,
+  onDropScript,
   onGenerateVideo,
   onRetryError,
   onJobChange,
@@ -619,7 +620,7 @@ export function StudioTree({
   characterIds: Record<string, string>;
   busy: boolean;
   error: string;
-  writingScript: boolean;
+  lockingScript: boolean;
   onGenerateCast: (name: string, customPrompt?: string) => void;
   onApproveCast: (name: string, candidateId: string) => void | Promise<boolean | void>;
   onMakeCharacterPlate: (name: string) => void | Promise<void>;
@@ -629,7 +630,7 @@ export function StudioTree({
   onApproveLocation: (sceneId: string, candidateId: string) => void;
   onAddLocation: (name: string) => void;
   onUploadLocation: (sceneId: string, file: File) => void;
-  onWriteScript: () => void;
+  onDropScript: (script: string) => void;
   onGenerateVideo: () => void;
   onRetryError: () => void;
   onJobChange: (job: MobileGenJob) => void;
@@ -637,6 +638,19 @@ export function StudioTree({
   const [adding, setAdding] = useState<"cast" | "location" | null>(null);
   const [openCast, setOpenCast] = useState<string | null>(null);
   const [openPlace, setOpenPlace] = useState<string | null>(null);
+  const [scriptDraft, setScriptDraft] = useState("");
+  const episodeHint = [
+    `Vibe: ${job.prompt}`,
+    `Cast (spell these names exactly, nobody else): ${job.speakers.join(", ")}`,
+    `Places (every Place: line must be one of these, spelled exactly): ${job.scenes.map((s) => s.placeName).join(" | ")}`,
+  ].join("\n");
+  const episodeAssist = useMobileAssist(
+    "episode",
+    job.styleId,
+    () => scriptDraft,
+    setScriptDraft,
+    episodeHint,
+  );
 
   const firstOpenCast = job.speakers.find((n) => !job.castCandidates[n]?.some((c) => c.approved));
   const firstOpenPlace = job.scenes.find((s) => !job.locationCandidates[s.id]?.some((c) => c.approved));
@@ -649,6 +663,11 @@ export function StudioTree({
   useEffect(() => {
     if (job.scenes.length && !openPlace && firstOpenPlace) setOpenPlace(firstOpenPlace.id);
   }, [job.scenes.length, firstOpenPlace, openPlace]);
+  useEffect(() => {
+    if (!scriptDraft.trim() && job.scenes.length) {
+      setScriptDraft(episodeTemplateFromJob(job));
+    }
+  }, [job.id, job.scenes.length, job.speakers.length, job.prompt, scriptDraft]);
 
   const canWrite =
     allCastApproved(job) &&
@@ -858,20 +877,57 @@ export function StudioTree({
       </TreeBranch>
 
       <TreeBranch label="Plates">
-        {writingScript ? (
+        {lockingScript ? (
           <div style={{ padding: "8px 0 16px" }}>
-            <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Writing the script…</ShimmerText>
+            <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Locking the episode…</ShimmerText>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
-              Lines land on the plates once they are built.
+              Plates and audio come from what you pasted.
             </div>
           </div>
         ) : null}
 
-        {canWrite && !writingScript ? (
+        {canWrite && !lockingScript ? (
           <div style={{ marginBottom: "12px" }}>
-            <MobilePrimaryButton disabled={busy} onClick={onWriteScript}>
-              {busy ? "Writing…" : "Write the script"}
-            </MobilePrimaryButton>
+            <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
+              Template is your places. AI drafts the story and beats from this
+              cast. Tweak it until it is right. Lock it — plates, audio, then
+              Comfy. Same pack opens in Crash Lab.
+            </div>
+            <MobileTextInput
+              value={scriptDraft}
+              onChange={setScriptDraft}
+              placeholder="EPISODE: …"
+              multiline
+              rows={14}
+              onAi={() => void episodeAssist.runAssist()}
+              aiBusy={episodeAssist.aiBusy}
+            />
+            {episodeAssist.aiError ? (
+              <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
+                {episodeAssist.aiError}
+              </div>
+            ) : null}
+            <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              <MobilePrimaryButton
+                tone="ghost"
+                disabled={busy || episodeAssist.aiBusy}
+                onClick={() => void episodeAssist.runAssist()}
+              >
+                {episodeAssist.aiBusy ? "Drafting…" : "AI the story"}
+              </MobilePrimaryButton>
+              <MobilePrimaryButton
+                disabled={busy || episodeAssist.aiBusy || !scriptDraft.trim()}
+                onClick={() => onDropScript(scriptDraft)}
+              >
+                {busy ? "Locking…" : "Lock the episode"}
+              </MobilePrimaryButton>
+            </div>
+          </div>
+        ) : null}
+
+        {job.folderName ? (
+          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "0 0 10px" }}>
+            Crash Lab: Open <span style={{ color: "var(--acid)" }}>{job.folderName}</span>
           </div>
         ) : null}
 
@@ -930,12 +986,12 @@ export function StudioTree({
         ) : null}
 
         {!canWrite &&
-        !writingScript &&
+        !lockingScript &&
         !plated.length &&
         job.phase !== "plates" &&
         job.phase !== "error" ? (
           <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "4px 0 8px" }}>
-            Add a character and a place above. The plates hang here after the script.
+            Add a character and a place above. Paste the episode here when the row is picked.
           </div>
         ) : null}
       </TreeBranch>

@@ -17,6 +17,7 @@ import { getEnv } from "./env";
 import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { loadWorkflowTemplate } from "./workflowTemplates";
+import { clampLtxDurationSec } from "./ltxDuration";
 
 function estimateMp3DurationSec(filePath: string): number {
   try {
@@ -195,12 +196,8 @@ export async function runLtxCloudIa2v(
     imageMotion,
     plateFileName: path.basename(input.platePath),
   });
-  const durationSec = Math.max(
-    2,
-    Math.min(
-      12,
-      Math.ceil(estimateMp3DurationSec(input.audioPath) + 0.25),
-    ),
+  const durationSec = clampLtxDurationSec(
+    Math.ceil(estimateMp3DurationSec(input.audioPath) + 0.25),
   );
 
   progress({

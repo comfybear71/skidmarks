@@ -9,6 +9,13 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Phone column on a PC — full-bleed cards on a 1920 screen looked broken. */
+.mobile-shell {
+  width: 100%;
+  max-width: 42rem;
+  margin: 0 auto;
+}
+
 @keyframes mobileStepIn {
   from {
     opacity: 0;

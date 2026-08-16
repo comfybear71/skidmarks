@@ -9,7 +9,7 @@ import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { askGrok, missingXaiMessage, textKeyPresent } from "@/lib/textGen";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 /** POST { kind, text, styleId, hint? } — draft the box. Press again for another take. */
 export async function POST(req: Request) {
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
         text: body.text || "",
         hint: body.hint,
       }),
-      maxTokens: kind === "vibe" ? 220 : 180,
+      maxTokens: kind === "episode" ? 4000 : kind === "vibe" ? 220 : 180,
     });
     return NextResponse.json({ ok: true, text: cleanAssistText(text) });
   } catch (e) {
