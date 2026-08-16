@@ -68,11 +68,12 @@ export default function MobileHomePage() {
     }
   }, []);
 
-  // Drive the automatic phases (plates/animate/stitch) by polling /step
+  // Drive the automatic phases (plates/animate) by polling /step
   // repeatedly — each call does one bounded unit of work. "review" is
   // deliberately not here — it waits on Generate video, not a timer.
+  // Stitch is parked until plates/prompts are right (MOBILE_STITCH_MOVIES).
   useEffect(() => {
-    const autoPhases = ["plates", "animate", "stitch"];
+    const autoPhases = ["plates", "animate"];
     if (!job || !autoPhases.includes(job.phase)) {
       stopPoll();
       return;

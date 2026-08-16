@@ -27,6 +27,7 @@ import {
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
+import { MOBILE_STITCH_MOVIES } from "@/lib/mobilePipeline";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
 
 function castFaceUrl(
@@ -1100,7 +1101,7 @@ export function StudioTree({
           />
         ) : null}
 
-        {platesOpen && job.phase === "review" ? (
+        {platesOpen && job.phase === "review" && MOBILE_STITCH_MOVIES ? (
           <div style={{ marginTop: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: plated.length ? "10px" : 0 }}>
               {plated.length}/{job.shots.length} plated · {job.clips.length} lines
@@ -1111,9 +1112,13 @@ export function StudioTree({
               </MobilePrimaryButton>
             ) : null}
           </div>
+        ) : platesOpen && job.phase === "review" ? (
+          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "12px" }}>
+            {plated.length}/{job.shots.length} plated · {job.clips.length} lines
+          </div>
         ) : null}
 
-        {platesOpen && (job.phase === "animate" || job.phase === "stitch") && (
+        {platesOpen && MOBILE_STITCH_MOVIES && (job.phase === "animate" || job.phase === "stitch") && (
           <div style={{ padding: "8px 0" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>
               {job.phase === "animate"
