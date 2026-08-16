@@ -7,6 +7,8 @@ import { readMobileJobRow, saveMobileJobRow } from "./neonStore";
 import type { ShowStyleId } from "./showStylePresets";
 import type { ScriptCharacterData } from "./types";
 
+export { jobHasEpisodePack, mobileMediaFolder } from "./mobileJobFolder";
+
 /**
  * Checkpointed job document for the mobile Auto Studio pipeline. A run can
  * span many /api/crash/mobile/step calls (each doing one bounded unit of
@@ -77,12 +79,6 @@ export type MobileSceneRef = {
   worldThumbKey: string;
 };
 
-/** Blob folder for a run. Empty until the screenplay creates a pack —
- *  use the job id so cast/location candidates still have a place to live. */
-export function mobileMediaFolder(job: { id: string; folderName: string }): string {
-  return job.folderName.trim() || job.id;
-}
-
 export type MobileGenJob = {
   id: string;
   styleId: ShowStyleId;
@@ -138,6 +134,9 @@ export async function createMobileGenJob(opts: {
   const job: MobileGenJob = {
     id: sortableId("mgen"),
     styleId: opts.styleId,
+    // Leave empty until the screenplay mints a real pack. Do not put the
+    // job id here — a set folderName used to mean "pack exists" and would
+    // write a story against it. Cast faces live under mobileMediaFolder.
     folderName: "",
     prompt: opts.prompt,
     targetDurationSec: opts.targetDurationSec,

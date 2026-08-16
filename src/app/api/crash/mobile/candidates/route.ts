@@ -9,7 +9,7 @@ import {
 import { createCharacter, listCharacters } from "@/lib/characters";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
-import { mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { jobHasEpisodePack, mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { newId } from "@/lib/types";
 
 // One candidate at a time, not a batch to swipe through — a dud gets
@@ -84,12 +84,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `${name} is already in the locations` }, { status: 400 });
       }
       const sceneId = newId("scene");
-      // No episode pack exists yet during location_build (job.folderName is
+      // No episode pack exists yet during location_build (folderName is
       // still empty — the screenplay hasn't run) — nothing to sync a story
       // doc against. job.scenes' own worldThumbKey is the source of truth
       // until the screenplay reconciliation step carries it into the real
-      // story once a pack exists.
-      if (job.folderName) {
+      // story once a pack exists. job id is only a media shelf, not a pack.
+      if (jobHasEpisodePack(job)) {
         const story = await readMobileStory(job.styleId, job.folderName);
         await writeMobileStory(
           {
@@ -189,7 +189,7 @@ export async function POST(req: Request) {
     // job doc. Nothing to patch yet during location_build (no pack, no
     // story); the screenplay reconciliation step carries job.scenes'
     // worldThumbKey into the real story once one exists.
-    if (job.folderName) {
+    if (jobHasEpisodePack(job)) {
       const story = await readMobileStory(job.styleId, job.folderName);
       const nextScenes = story.scenes.map((sc) =>
         sc.id === target ? { ...sc, worldThumbKey: thumbKey } : sc,
