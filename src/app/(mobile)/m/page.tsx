@@ -9,6 +9,7 @@ import {
   mobileCardSelected,
 } from "@/components/mobile/MobileUi";
 import { StudioTree } from "@/components/mobile/StudioTree";
+import { useMobileAssist } from "@/components/mobile/useMobileAssist";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
@@ -235,6 +236,8 @@ export default function MobileHomePage() {
     }
   }, [job]);
 
+  const vibeAssist = useMobileAssist("vibe", styleId, () => prompt, setPrompt);
+
   return (
     <main style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
       {error ? (
@@ -245,7 +248,20 @@ export default function MobileHomePage() {
 
       {!job ? (
         <ActiveStepPanel title="What's the vibe?" subtitle="You direct. We hold the cast, the places, and the plates.">
-          <MobileTextInput value={prompt} onChange={setPrompt} placeholder="A crew lands on Mars and immediately regrets it..." multiline rows={3} />
+          <MobileTextInput
+            value={prompt}
+            onChange={setPrompt}
+            placeholder="A crew lands on Mars and immediately regrets it..."
+            multiline
+            rows={3}
+            onAi={() => void vibeAssist.runAssist()}
+            aiBusy={vibeAssist.aiBusy}
+          />
+          {vibeAssist.aiError ? (
+            <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
+              {vibeAssist.aiError}
+            </div>
+          ) : null}
 
           {/* Named show = naming this episode's look. Slider = something else. */}
           <div

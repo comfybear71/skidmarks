@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  MobileAiButton,
   MobilePrimaryButton,
   MobileTextInput,
   ShimmerText,
   mobileCard,
 } from "./MobileUi";
+import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { StoryFeed } from "./StoryFeed";
@@ -190,12 +192,16 @@ function PlusTile({ label, onClick }: { label: string; onClick: () => void }) {
 }
 
 function AddForm({
+  styleId,
+  nameKind,
   namePlaceholder,
   descriptionPlaceholder,
   busy,
   onAdd,
   onCancel,
 }: {
+  styleId: string;
+  nameKind: "cast_look" | "location";
   namePlaceholder: string;
   descriptionPlaceholder?: string;
   busy: boolean;
@@ -204,9 +210,22 @@ function AddForm({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const nameAssist = useMobileAssist(
+    nameKind === "location" ? "location" : "cast_look",
+    styleId,
+    () => (descriptionPlaceholder ? description : name),
+    descriptionPlaceholder ? setDescription : setName,
+    name.trim() || undefined,
+  );
   return (
     <div style={{ ...mobileCard, padding: "12px", marginTop: "10px" }}>
-      <MobileTextInput value={name} onChange={setName} placeholder={namePlaceholder} />
+      <MobileTextInput
+        value={name}
+        onChange={setName}
+        placeholder={namePlaceholder}
+        onAi={descriptionPlaceholder ? undefined : () => void nameAssist.runAssist()}
+        aiBusy={nameAssist.aiBusy}
+      />
       {descriptionPlaceholder ? (
         <div style={{ marginTop: "8px" }}>
           <MobileTextInput
@@ -214,7 +233,14 @@ function AddForm({
             onChange={setDescription}
             placeholder={descriptionPlaceholder}
             multiline
+            onAi={() => void nameAssist.runAssist()}
+            aiBusy={nameAssist.aiBusy}
           />
+        </div>
+      ) : null}
+      {nameAssist.aiError ? (
+        <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
+          {nameAssist.aiError}
         </div>
       ) : null}
       <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
@@ -233,6 +259,7 @@ function AddForm({
 }
 
 function CandidatePicker({
+  styleId,
   label,
   candidates,
   imageSrc,
@@ -242,6 +269,7 @@ function CandidatePicker({
   onGenerate,
   onApprove,
 }: {
+  styleId: string;
   label: string;
   candidates: MobileImageCandidate[];
   imageSrc: (c: MobileImageCandidate) => string;
@@ -252,6 +280,13 @@ function CandidatePicker({
   onApprove: (candidateId: string) => void;
 }) {
   const [customPrompt, setCustomPrompt] = useState("");
+  const promptAssist = useMobileAssist(
+    "image_prompt",
+    styleId,
+    () => customPrompt,
+    setCustomPrompt,
+    label,
+  );
   const asked = useRef(false);
   useEffect(() => {
     if (asked.current || busy || candidates.length) return;
@@ -287,7 +322,7 @@ function CandidatePicker({
         </MobilePrimaryButton>
       )}
       {candidates.length || error ? (
-        <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+        <div style={{ display: "flex", gap: "8px", marginTop: "10px", alignItems: "center" }}>
           <input
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
@@ -301,6 +336,10 @@ function CandidatePicker({
               color: "var(--chrome)",
               fontSize: "13px",
             }}
+          />
+          <MobileAiButton
+            onClick={() => void promptAssist.runAssist()}
+            busy={promptAssist.aiBusy}
           />
           <button
             type="button"
@@ -320,6 +359,11 @@ function CandidatePicker({
           >
             More
           </button>
+        </div>
+      ) : null}
+      {promptAssist.aiError ? (
+        <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
+          {promptAssist.aiError}
         </div>
       ) : null}
     </div>
@@ -432,6 +476,8 @@ export function StudioTree({
         </div>
         {adding === "cast" ? (
           <AddForm
+            styleId={job.styleId}
+            nameKind="cast_look"
             namePlaceholder="e.g. Tomato"
             descriptionPlaceholder="What do they look like? e.g. a heavy metal tomato"
             busy={busy}
@@ -446,6 +492,7 @@ export function StudioTree({
         {castFocus && adding !== "cast" ? (
           <CandidatePicker
             key={`cast-${castFocus}`}
+            styleId={job.styleId}
             label={castFocus}
             candidates={job.castCandidates[castFocus] || []}
             imageSrc={(c) => castFaceUrl(job, castFocus, c.fileName, characterIds)}
@@ -490,6 +537,8 @@ export function StudioTree({
         </div>
         {adding === "location" ? (
           <AddForm
+            styleId={job.styleId}
+            nameKind="location"
             namePlaceholder="e.g. a desert base camp"
             busy={busy}
             onAdd={(name) => {
@@ -502,6 +551,7 @@ export function StudioTree({
         {placeFocus && adding !== "location" ? (
           <CandidatePicker
             key={`place-${placeFocus}`}
+            styleId={job.styleId}
             label={job.scenes.find((s) => s.id === placeFocus)?.placeName || placeFocus}
             candidates={job.locationCandidates[placeFocus] || []}
             imageSrc={(c) => locationStillUrl(job, c.fileName)}

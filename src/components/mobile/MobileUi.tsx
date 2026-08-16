@@ -174,18 +174,55 @@ export function MobilePrimaryButton({
   );
 }
 
+/** Same magenta AI chip as the desktop shot desk — draft this box, tap again for another take. */
+export function MobileAiButton({
+  onClick,
+  busy,
+}: {
+  onClick: () => void;
+  busy?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      title="Draft this box — tap again for a different take"
+      style={{
+        flex: "0 0 auto",
+        padding: "4px 8px",
+        borderRadius: "6px",
+        border: "1px solid var(--magenta)",
+        background: "transparent",
+        color: "var(--magenta)",
+        fontSize: "10px",
+        fontWeight: 700,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        opacity: busy ? 0.5 : 1,
+      }}
+    >
+      {busy ? "…" : "AI"}
+    </button>
+  );
+}
+
 export function MobileTextInput({
   value,
   onChange,
   placeholder,
   multiline,
   rows = 3,
+  onAi,
+  aiBusy,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   multiline?: boolean;
   rows?: number;
+  onAi?: () => void;
+  aiBusy?: boolean;
 }) {
   const shared = {
     value,
@@ -195,15 +232,24 @@ export function MobileTextInput({
     style: {
       ...mobileCard,
       width: "100%",
-      padding: "14px",
+      padding: onAi ? "14px 52px 14px 14px" : "14px",
       color: "var(--chrome)",
       fontSize: "15px",
       fontFamily: "inherit",
     } as React.CSSProperties,
   };
-  return multiline ? (
+  const field = multiline ? (
     <textarea {...shared} rows={rows} style={{ ...shared.style, resize: "vertical" }} />
   ) : (
     <input {...shared} type="text" />
+  );
+  if (!onAi) return field;
+  return (
+    <div style={{ position: "relative" }}>
+      {field}
+      <div style={{ position: "absolute", top: "8px", right: "8px" }}>
+        <MobileAiButton onClick={onAi} busy={aiBusy} />
+      </div>
+    </div>
   );
 }
