@@ -19,8 +19,8 @@ export function savedVoiceFilesOnStory(story: CrashStoryDoc): string[] {
 }
 
 /**
- * After Generate video finishes, burn leftover compiled-pack `01_05_NAME_slug.mp3`
- * rows so hydrate cannot glue them back. Keep files still on the story.
+ * On Open, burn leftover compiled-pack `01_05_NAME_slug.mp3` so hydrate
+ * cannot glue them back. Keep files still on the story.
  */
 export async function burnLeftoverPackAudio(opts: {
   styleId: ShowStyleId;

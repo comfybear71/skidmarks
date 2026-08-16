@@ -9,7 +9,7 @@ import {
   candidateLookPrompt,
   preferredCandidate,
 } from "@/lib/mobileJobReady";
-import { platePositionAssistHint } from "@/lib/mobileAssist";
+import { imageMotionAssistHint, platePositionAssistHint } from "@/lib/mobileAssist";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 import {
@@ -28,7 +28,7 @@ import {
   buildDefaultBeatMotion,
   stripLtxLipSyncLead,
 } from "@/lib/mobileImageMotion";
-import { imageMotionAssistHint } from "@/lib/mobileAssist";
+import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 
 /** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
 const PLATE_TILE_PX = 96;
@@ -1406,9 +1406,14 @@ function BeatLineEditor({
   beat: CrashStoryBeat;
   onSaved: (text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
 }) {
-  const [text, setText] = useState(beat.text);
+  const [text, setText] = useState(
+    isLeftoverPackVoiceFile(beat.voiceFile) ? "" : beat.text,
+  );
   const [voiceFile, setVoiceFile] = useState(
-    voiceFileBelongsToSpeaker(beat.voiceFile, beat.speaker) ? beat.voiceFile || "" : "",
+    voiceFileBelongsToSpeaker(beat.voiceFile, beat.speaker) &&
+      isMobileSavedVoiceFile(beat.voiceFile)
+      ? beat.voiceFile || ""
+      : "",
   );
   const [voiceName, setVoiceName] = useState(
     lineVoiceLabel({ speaker: beat.speaker, jobVoices, library: [] }),
@@ -1419,7 +1424,18 @@ function BeatLineEditor({
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
   const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
-  const playable = Boolean(voiceFile && voiceFileBelongsToSpeaker(voiceFile, beat.speaker));
+  const playable = Boolean(
+    voiceFile &&
+      isMobileSavedVoiceFile(voiceFile) &&
+      voiceFileBelongsToSpeaker(voiceFile, beat.speaker),
+  );
+  const savedTake = playable && !dirty;
+
+  useEffect(() => {
+    if (!isLeftoverPackVoiceFile(beat.voiceFile)) return;
+    setText("");
+    setVoiceFile("");
+  }, [beat.id, beat.voiceFile]);
 
   const defaultMotionBody = useMemo(
     () =>
@@ -1574,10 +1590,10 @@ function BeatLineEditor({
       <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
         <MobilePrimaryButton
           size="chip"
-          disabled={saving || (!dirty && Boolean(voiceFile))}
+          disabled={saving || savedTake}
           onClick={() => void save()}
         >
-          {saving ? "…" : voiceFile && !dirty ? "Saved" : "Save"}
+          {saving ? "…" : savedTake ? "Saved" : "Save"}
         </MobilePrimaryButton>
         <span
           style={{

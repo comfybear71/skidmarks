@@ -22,9 +22,22 @@ export function isMobileSavedVoiceFile(fileName?: string): boolean {
   return false;
 }
 
-/** Old compiled-episode `NN_NN_SPEAKER_slug.mp3` — park, then burn on completion. */
+/** Old compiled-episode `NN_NN_SPEAKER_slug.mp3` — park, then burn on open. */
 export function isLeftoverPackVoiceFile(fileName?: string): boolean {
   const n = String(fileName || "").trim();
   if (!n || isMobileSavedVoiceFile(n)) return false;
   return /^\d{2}_\d{2}_/.test(n);
+}
+
+export function storyHasLeftoverPackAudio(story: {
+  scenes?: { shots?: { beats?: { voiceFile?: string }[] }[] }[];
+}): boolean {
+  for (const sc of story.scenes || []) {
+    for (const sh of sc.shots || []) {
+      for (const b of sh.beats || []) {
+        if (isLeftoverPackVoiceFile(b.voiceFile)) return true;
+      }
+    }
+  }
+  return false;
 }
