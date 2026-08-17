@@ -21,7 +21,8 @@ body {
   max-width: min(96rem, 98vw);
 }
 
-/* /m stays phone-zoomed; Scratch is a PC bench — keep 1× so the wide deck fits. */
+/* /m stays phone-zoomed; Scratch is a PC bench — keep 1× so the wide deck fits.
+ * On a real PC, widen /m so the 3-col bible accordion can breathe. */
 @media (min-width: 700px) and (hover: hover) {
   html {
     zoom: 1.5;
@@ -29,6 +30,16 @@ body {
 
   html:has(.scratch-shell) {
     zoom: 1;
+  }
+
+  .mobile-shell:not(.scratch-shell) {
+    max-width: min(56rem, 94vw);
+  }
+}
+
+@media (min-width: 1100px) and (hover: hover) {
+  .mobile-shell:not(.scratch-shell) {
+    max-width: min(68rem, 96vw);
   }
 }
 
@@ -590,7 +601,7 @@ body {
   color: var(--acid);
 }
 
-/* Prompt bible — all sections visible on the PC deck */
+/* Prompt bible — 3-col accordion; titles only until one opens */
 .scratch-bible {
   display: flex;
   flex-direction: column;
@@ -639,29 +650,111 @@ body {
 
 .scratch-bible-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-  gap: 8px 10px;
+  grid-template-columns: 1fr;
+  gap: 6px;
   width: 100%;
+  align-items: start;
+}
+
+@media (min-width: 520px) {
+  .scratch-bible-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 780px) {
+  .scratch-bible-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .scratch-bible-section {
   min-width: 0;
-  padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+  overflow: hidden;
 }
 
-.scratch-bible-section-label {
+.scratch-bible-section.is-open {
+  border-color: color-mix(in srgb, var(--acid) 45%, var(--line));
+  grid-column: 1 / -1;
+}
+
+.scratch-bible-acc {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
   color: var(--chrome);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  margin-bottom: 6px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.scratch-bible-acc:hover:not(:disabled),
+.scratch-bible-acc:focus-visible {
+  color: var(--acid);
+  background: color-mix(in srgb, var(--acid) 10%, transparent);
+  outline: none;
+}
+
+.scratch-bible-section.is-open .scratch-bible-acc {
+  color: var(--acid);
+  border-bottom: 1px solid color-mix(in srgb, var(--acid) 28%, var(--line));
+}
+
+.scratch-bible-acc:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.scratch-bible-acc-mark {
+  flex: 0 0 auto;
+  width: 0.75em;
+  color: var(--chrome-dim);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.scratch-bible-acc:hover:not(:disabled) .scratch-bible-acc-mark,
+.scratch-bible-section.is-open .scratch-bible-acc-mark {
+  color: var(--acid);
+}
+
+.scratch-bible-acc-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.scratch-bible-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.scratch-bible-section.is-open .scratch-bible-panel {
+  grid-template-rows: 1fr;
+}
+
+.scratch-bible-panel-inner {
+  overflow: hidden;
+  min-height: 0;
+  padding: 0 10px;
+}
+
+.scratch-bible-section.is-open .scratch-bible-panel-inner {
+  padding: 8px 10px 10px;
 }
 
 .scratch-bible-section-hint {
@@ -670,6 +763,7 @@ body {
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
+  margin: 0 0 8px;
 }
 
 .scratch-bible-chips {
@@ -688,6 +782,7 @@ body {
   font-weight: 600;
   cursor: pointer;
   line-height: 1.2;
+  font-family: inherit;
 }
 
 .scratch-bible-chip:hover:not(:disabled) {

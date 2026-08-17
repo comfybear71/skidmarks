@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   SCRATCH_PROMPT_BIBLE,
   type ScratchBibleEntry,
@@ -9,8 +10,9 @@ import {
 export type ScratchBiblePickMode = "replace" | "append";
 
 /**
- * Dense PC chip bank for the Scratch prompt bible.
- * All sections stay visible — no collapse / off-screen menus.
+ * Prompt bible — six category titles in a 3-col accordion.
+ * Titles only by default. Click title → chips slide down.
+ * Pick a chip → insert + panel slides shut. One open at a time.
  */
 export function ScratchPromptBible({
   activeId,
@@ -25,6 +27,8 @@ export function ScratchPromptBible({
   onPick: (sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => void;
   disabled?: boolean;
 }) {
+  const [openId, setOpenId] = useState<ScratchBibleSectionId | null>(null);
+
   return (
     <div className="scratch-bible">
       <div className="scratch-bible-head">
@@ -50,32 +54,62 @@ export function ScratchPromptBible({
           </button>
         </div>
       </div>
-      <div className="scratch-bible-grid">
-        {SCRATCH_PROMPT_BIBLE.map((section) => (
-          <section key={section.id} className="scratch-bible-section" aria-label={section.label}>
-            <div className="scratch-bible-section-label">
-              {section.label}
-              <span className="scratch-bible-section-hint">{section.hint}</span>
-            </div>
-            <div className="scratch-bible-chips">
-              {section.entries.map((entry) => {
-                const on = activeId === entry.id;
-                return (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    className={`scratch-bible-chip${on ? " is-on" : ""}`}
-                    disabled={disabled}
-                    title={entry.template}
-                    onClick={() => onPick(section.id, entry)}
-                  >
-                    {entry.label}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+      <div className="scratch-bible-grid" role="list">
+        {SCRATCH_PROMPT_BIBLE.map((section) => {
+          const open = openId === section.id;
+          const panelId = `scratch-bible-panel-${section.id}`;
+          return (
+            <section
+              key={section.id}
+              className={`scratch-bible-section${open ? " is-open" : ""}`}
+              role="listitem"
+            >
+              <button
+                type="button"
+                className="scratch-bible-acc"
+                disabled={disabled}
+                aria-expanded={open}
+                aria-controls={panelId}
+                onClick={() => setOpenId(open ? null : section.id)}
+              >
+                <span className="scratch-bible-acc-mark" aria-hidden="true">
+                  {open ? "▾" : "▸"}
+                </span>
+                <span className="scratch-bible-acc-label">{section.label}</span>
+              </button>
+              <div
+                id={panelId}
+                className="scratch-bible-panel"
+                aria-hidden={!open}
+              >
+                <div className="scratch-bible-panel-inner">
+                  <p className="scratch-bible-section-hint">{section.hint}</p>
+                  <div className="scratch-bible-chips">
+                    {section.entries.map((entry) => {
+                      const on = activeId === entry.id;
+                      return (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          tabIndex={open ? 0 : -1}
+                          className={`scratch-bible-chip${on ? " is-on" : ""}`}
+                          disabled={disabled || !open}
+                          title={entry.template}
+                          onClick={() => {
+                            onPick(section.id, entry);
+                            setOpenId(null);
+                          }}
+                        >
+                          {entry.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );
