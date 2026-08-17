@@ -9,12 +9,7 @@ import {
 } from "@/components/mobile/MobileUi";
 import { CastVoiceRow } from "@/components/mobile/CastVoiceRow";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
-import {
-  MOBILE_DESK_EVENT,
-  deskLabel,
-  jobDeskId,
-  readDeskId,
-} from "@/lib/mobileDesk";
+import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId } from "@/lib/mobileJobResume";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc } from "@/lib/crashStoryTypes";
@@ -125,7 +120,6 @@ function ScratchLightbox({ src, onClose }: { src: string; onClose: () => void })
 }
 
 export default function ScratchPage() {
-  const [deskTick, setDeskTick] = useState(0);
   const [job, setJob] = useState<MobileGenJob | null>(null);
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [speaker, setSpeaker] = useState("");
@@ -187,21 +181,7 @@ export default function ScratchPage() {
   }, []);
 
   useEffect(() => {
-    setDeskTick((n) => n + 1);
-    const onDesk = () => {
-      setDeskTick((n) => n + 1);
-      setJob(null);
-      setStory(null);
-      setResumeError("");
-      setResuming(true);
-    };
-    window.addEventListener(MOBILE_DESK_EVENT, onDesk);
-    return () => window.removeEventListener(MOBILE_DESK_EVENT, onDesk);
-  }, []);
-
-  useEffect(() => {
-    const deskId = readDeskId(window.localStorage);
-    const id = readResumedJobId(window.location.search, window.localStorage, deskId);
+    const id = readResumedJobId(window.location.search, window.localStorage, DEFAULT_DESK_ID);
     if (!id) {
       setResuming(false);
       return;
@@ -214,10 +194,6 @@ export default function ScratchPage() {
         if (cancelled) return;
         if (!d.job) {
           setResumeError(d.error || "Couldn't open that episode. Don't tap Start directing.");
-          return;
-        }
-        if (jobDeskId(d.job) !== deskId) {
-          setResumeError(`That's ${deskLabel(jobDeskId(d.job))}'s episode. Switch desk to open it.`);
           return;
         }
         setJob(d.job);
@@ -237,7 +213,7 @@ export default function ScratchPage() {
     return () => {
       cancelled = true;
     };
-  }, [deskTick, loadStory]);
+  }, [loadStory]);
 
   useEffect(() => {
     if (!job?.id) return;
