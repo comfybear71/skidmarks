@@ -1,6 +1,6 @@
 import path from "path";
 import { NextResponse } from "next/server";
-import { compositeShotPlate } from "@/lib/mobilePlates";
+import { compositeShotPlatePreferSiray } from "@/lib/sirayScratchPlate";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import {
@@ -356,7 +356,7 @@ export async function POST(req: Request) {
       await writeMobileStory(nextStory, job.folderName);
       const liveScene = nextStory.scenes.find((sc) => sc.id === scene.id)!;
       const liveShot = liveScene.shots.find((sh) => sh.id === shotId)!;
-      const fileName = await compositeShotPlate(job.styleId, liveScene, liveShot, {
+      const fileName = await compositeShotPlatePreferSiray(job.styleId, liveScene, liveShot, {
         silentCast: [],
         styleRealism: job.styleRealism,
         job,
