@@ -57,7 +57,7 @@ body {
   gap: 8px;
   overflow-x: hidden;
   overflow-y: auto;
-  max-height: min(72dvh, 560px);
+  max-height: min(52dvh, 420px);
   align-self: stretch;
   padding: 0;
   touch-action: pan-y;
@@ -87,60 +87,32 @@ body {
 .scratch-pad-col .scratch-pad-still {
   width: 100%;
   aspect-ratio: 1;
-  min-height: 280px;
+  min-height: 220px;
   object-fit: cover;
   display: block;
 }
 
-/* Stage near the top — room for prompt + Save row below, not a floating void. */
+/* Stage tight under the title — prompt sits right under Draw, not the page bottom. */
 .scratch-viewport {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px 12px 16px;
-}
-
-.scratch-chip-row {
-  display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-}
-
-.scratch-chip {
-  padding: 8px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
-  color: var(--chrome);
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 1.2;
-  cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
-}
-
-.scratch-chip:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--acid) 55%, var(--line));
-}
-
-.scratch-chip[data-on="1"] {
-  border-color: var(--acid);
-  background: var(--acid);
-  color: #111;
-}
-
-.scratch-chip:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+  padding: 6px 12px 12px;
 }
 
 .scratch-group-label {
   color: var(--chrome-dim);
   font-size: 10px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.scratch-preset-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .scratch-clip-rail {
