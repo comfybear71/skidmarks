@@ -1,5 +1,6 @@
 import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileClipUnit, MobileGenJob, MobileShotUnit } from "./mobileGenJob";
+import { isCampaignShotId } from "./mobilePlateLtxCampaign";
 
 /** One experiment still — many positions, same card. Hidden on /m. */
 export const SCRATCH_SHOT_TITLE = "Scratch";
@@ -47,17 +48,26 @@ export function isScratchShotId(
   return false;
 }
 
-/** Episode strip — the scratch card lives on /scratch, not here. */
+/** Scratch + the 20-position campaign — not the episode desk on /m. */
+export function isOffEpisodeDeskShot(
+  job: Pick<MobileGenJob, "scratchPlate" | "plateLtxCampaign">,
+  shotId: string,
+  story?: CrashStoryDoc | null,
+): boolean {
+  return isScratchShotId(job, shotId, story) || isCampaignShotId(job.plateLtxCampaign, shotId, story);
+}
+
+/** Episode strip — scratch and campaign tests live on /scratch, not here. */
 export function episodeJobShots(
-  job: Pick<MobileGenJob, "shots" | "scratchPlate">,
+  job: Pick<MobileGenJob, "shots" | "scratchPlate" | "plateLtxCampaign">,
   story?: CrashStoryDoc | null,
 ): MobileShotUnit[] {
-  return job.shots.filter((s) => !isScratchShotId(job, s.shotId, story));
+  return job.shots.filter((s) => !isOffEpisodeDeskShot(job, s.shotId, story));
 }
 
 export function episodeQueuedClips(
-  job: Pick<MobileGenJob, "clips" | "scratchPlate">,
+  job: Pick<MobileGenJob, "clips" | "scratchPlate" | "plateLtxCampaign">,
   story?: CrashStoryDoc | null,
 ): MobileClipUnit[] {
-  return (job.clips || []).filter((c) => !isScratchShotId(job, c.shotId, story));
+  return (job.clips || []).filter((c) => !isOffEpisodeDeskShot(job, c.shotId, story));
 }

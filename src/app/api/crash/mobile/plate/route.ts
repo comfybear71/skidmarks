@@ -45,6 +45,9 @@ function patchShotFields(
  * Appends a beat for that speaker if they're not already in it.
  * POST { jobId, shotId, speaker?, action: "add-line" } — another spoken
  * take on the SAME still. Same face, new mp3, new clip thumb under the plate.
+ * POST { jobId, shotId, beatId, action: "remove-line" } — drop that spoken
+ * take from the plate. Audio/clip files stay in Blob (park). The thumb
+ * under the plate goes with it.
  * POST { jobId, shotId, action: "remove" } — take the shot out of the
  * strip entirely. Any plate/audio it made stays on disk/Blob, just
  * unlinked — same park-don't-delete rule as "drop". Returns the removed
@@ -69,12 +72,14 @@ export async function POST(req: Request) {
       action?: string;
       shot?: CrashStoryShot;
       takeId?: string;
+      beatId?: string;
     };
     const jobId = (body.jobId || "").trim();
     const shotId = (body.shotId || "").trim();
     const sceneIdIn = (body.sceneId || "").trim();
     const speakerIn = (body.speaker || "").trim();
     const takeIdIn = (body.takeId || "").trim();
+    const beatIdIn = (body.beatId || "").trim();
     const stagingIn = body.staging !== undefined ? String(body.staging) : undefined;
     const summaryIn = body.summary !== undefined ? String(body.summary) : undefined;
     const action = (body.action || "rebuild").trim().toLowerCase();
@@ -83,6 +88,7 @@ export async function POST(req: Request) {
     const add = action === "add";
     const addCast = action === "add-cast";
     const addLine = action === "add-line";
+    const removeLine = action === "remove-line";
     const remove = action === "remove";
     const clear = action === "clear";
     const restore = action === "restore";
@@ -97,7 +103,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Need sceneId and shot" }, { status: 400 });
     }
     if (pick && !takeIdIn) return NextResponse.json({ error: "Need takeId" }, { status: 400 });
-    if (!drop && !saveOnly && !add && !addCast && !addLine && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
+    if (removeLine && !beatIdIn) return NextResponse.json({ error: "Need beatId" }, { status: 400 });
+    if (!drop && !saveOnly && !add && !addCast && !addLine && !removeLine && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
       return NextResponse.json(
         { error: "Say who sits where — not two people stuck in the front." },
         { status: 400 },
@@ -231,6 +238,29 @@ export async function POST(req: Request) {
       };
       await writeMobileStory(withBeat, job.folderName);
       return NextResponse.json({ ok: true, job, beat });
+    }
+
+    if (removeLine) {
+      const beat = liveShot.beats.find((b) => b.id === beatIdIn);
+      if (!beat) {
+        return NextResponse.json({ error: "That line is not on this plate" }, { status: 404 });
+      }
+      const beats = liveShot.beats.filter((b) => b.id !== beatIdIn);
+      const withoutBeat: CrashStoryDoc = {
+        ...story,
+        scenes: story.scenes.map((sc) =>
+          sc.id === scene!.id
+            ? {
+                ...sc,
+                shots: sc.shots.map((sh) => (sh.id === shotId ? { ...sh, beats } : sh)),
+              }
+            : sc,
+        ),
+      };
+      await writeMobileStory(withoutBeat, job.folderName);
+      const clips = (job.clips || []).filter((c) => c.beatId !== beatIdIn);
+      const updated = await patchMobileGenJob(jobId, { clips, error: "" });
+      return NextResponse.json({ ok: true, job: updated, removedBeatId: beatIdIn });
     }
 
     if (addCast) {

@@ -15,6 +15,7 @@ assert.match(ASSIST_CONSENT_LOCK, /into it/i);
 assert.match(ASSIST_CONSENT_LOCK, /rape/i);
 assert.match(ASSIST_CONSENT_LOCK, /pinning/i);
 assert.match(ASSIST_CONSENT_LOCK, /holding someone down/i);
+assert.match(ASSIST_CONSENT_LOCK, /CRAZY BIG HOLE JO/);
 
 assert.match(ASSIST_CRITERIA_LOCK, /into it/i);
 assert.match(ASSIST_CRITERIA_LOCK, /rape/i);

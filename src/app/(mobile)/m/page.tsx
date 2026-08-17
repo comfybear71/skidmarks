@@ -75,15 +75,9 @@ export default function MobileHomePage() {
   // deliberately not here — it waits on Generate video, not a timer.
   // Stitch is parked (MOBILE_STITCH_MOVIES); LTX still runs.
   useEffect(() => {
-    const campaignWork =
-      job?.plateLtxCampaign?.phase === "plating" ||
-      job?.plateLtxCampaign?.phase === "voicing";
     const autoPhases = ["plates", "animate"];
-    const url = campaignWork
-      ? "/api/crash/mobile/campaign"
-      : job && autoPhases.includes(job.phase)
-        ? "/api/crash/mobile/step"
-        : null;
+    const url =
+      job && autoPhases.includes(job.phase) ? "/api/crash/mobile/step" : null;
     if (!job || !url) {
       stopPoll();
       return;
@@ -100,16 +94,13 @@ export default function MobileHomePage() {
       try {
         const data = await postJson<{ job: MobileGenJob }>(url, {
           jobId: job.id,
-          ...(url.endsWith("/campaign") ? { action: "step" } : {}),
         });
         setJob(data.job);
         if (data.job.error) setError(data.job.error);
         if (data.job.phase === "error") stopPoll();
       } catch (e) {
         setError(studioFetchError(e, "Step failed"));
-        // A long voice 504 used to stop the whole placement run. Keep
-        // plating/voicing; the next tick retries the same step.
-        if (!campaignWork) stopPoll();
+        stopPoll();
       } finally {
         inFlight = false;
       }
@@ -120,7 +111,7 @@ export default function MobileHomePage() {
     }, 1500);
     return stopPoll;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job?.phase, job?.id, job?.plateLtxCampaign?.phase]);
+  }, [job?.phase, job?.id]);
 
   useEffect(() => {
     setDesk(readDeskId(window.localStorage));
