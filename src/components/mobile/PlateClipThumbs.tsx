@@ -26,6 +26,7 @@ export function PlateClipThumbs({
     return stacked.map((file, n) => ({
       key: `${clip.beatId}-${n}-${file}`,
       file,
+      takeLabel: stacked.length > 1 ? `${n + 1}/${stacked.length}` : "",
       preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
     }));
   });
@@ -41,7 +42,12 @@ export function PlateClipThumbs({
       }}
     >
       {files.map((row) => (
-        <ClipPlayer key={row.key} src={mobileClipSrc(job, row.file)} preload={row.preload} />
+        <ClipPlayer
+          key={row.key}
+          src={mobileClipSrc(job, row.file)}
+          preload={row.preload}
+          takeLabel={row.takeLabel}
+        />
       ))}
     </div>
   );
@@ -58,7 +64,15 @@ const frame: CSSProperties = {
   overflow: "hidden",
 };
 
-function ClipPlayer({ src, preload }: { src: string; preload?: boolean }) {
+function ClipPlayer({
+  src,
+  preload,
+  takeLabel,
+}: {
+  src: string;
+  preload?: boolean;
+  takeLabel?: string;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -94,6 +108,25 @@ function ClipPlayer({ src, preload }: { src: string; preload?: boolean }) {
             background: "#000",
           }}
         />
+        {takeLabel ? (
+          <span
+            style={{
+              position: "absolute",
+              top: "4px",
+              left: "4px",
+              padding: "1px 5px",
+              borderRadius: "2px",
+              border: "1px solid var(--acid)",
+              background: "rgba(0,0,0,0.72)",
+              color: "var(--acid)",
+              fontSize: "10px",
+              fontWeight: 700,
+              lineHeight: 1.3,
+            }}
+          >
+            {takeLabel}
+          </span>
+        ) : null}
         <button
           type="button"
           aria-label="Enlarge clip"

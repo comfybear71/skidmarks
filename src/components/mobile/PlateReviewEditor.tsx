@@ -8,6 +8,7 @@ import {
   mobileCard,
 } from "./MobileUi";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "./PlateClipThumbs";
+import { stackedClipFiles } from "@/lib/mobilePlateClips";
 import { useMobileAssist } from "./useMobileAssist";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import {
@@ -546,11 +547,31 @@ export function PlateReviewEditor({
                 ) : null}
               </div>
               {!collapsed && underClips.length ? (
-                <PlateClipThumbs
-                  job={job}
-                  clips={underClips}
-                  preload={s.shotId === openShotId}
-                />
+                <div
+                  style={{
+                    width: `${PLATE_TILE_PX}px`,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      color: "var(--chrome-dim)",
+                      fontSize: "9px",
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      textAlign: "left",
+                    }}
+                  >
+                    Clips
+                  </div>
+                  <PlateClipThumbs
+                    job={job}
+                    clips={underClips}
+                    preload={s.shotId === openShotId}
+                  />
+                </div>
               ) : null}
             </div>
           );
@@ -1376,6 +1397,11 @@ function ShotLineEditor({
     jobSpeakers,
     beats: shot.beats,
   });
+  const underClips = clipsUnderPlate(
+    shot.id,
+    shot.beats.map((b) => b.id),
+    clips,
+  );
 
   return (
     <div style={{ ...mobileCard, padding: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -1388,6 +1414,25 @@ function ShotLineEditor({
           onPlateRebuilt(plateFile, staging, shot.summary, plateTakes)
         }
       />
+      {underClips.some((c) => stackedClipFiles(c).length) ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <div
+            style={{
+              color: "var(--chrome-dim)",
+              fontSize: "10px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            Clips under this plate — every Generate stacks here
+          </div>
+          <PlateClipThumbs
+            job={{ styleId, folderName }}
+            clips={underClips}
+            preload
+          />
+        </div>
+      ) : null}
       {speakingBeats.map((beat) => {
         const clip = clips.find((c) => c.beatId === beat.id);
         return (

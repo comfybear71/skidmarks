@@ -1152,7 +1152,7 @@ export function StudioTree({
           <div style={{ padding: "8px 0" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>
               {queued.length
-                ? `Animating… ${queued.filter((c) => c.clipStatus !== "pending").length}/${queued.length}`
+                ? `Animating… ${queued.filter((c) => c.clipStatus === "done" || c.clipStatus === "error").length}/${queued.length}`
                 : "Animating… no lines queued"}
             </ShimmerText>
             {job.error ? (

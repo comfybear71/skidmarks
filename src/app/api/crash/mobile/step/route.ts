@@ -16,8 +16,9 @@ import {
   phaseAfterErrorResume,
 } from "@/lib/mobilePipeline";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
-import { rememberClipTake } from "@/lib/mobilePlateClips";
+import { rememberClipTake, stackedClipFiles } from "@/lib/mobilePlateClips";
 import {
+  clipNeedsAnimate,
   clipQueueError,
   findBeatHome,
 } from "@/lib/mobileClipQueue";
@@ -103,7 +104,7 @@ export async function POST(req: Request) {
       const deskClips = live.clips.filter(
         (c) => !isOffEpisodeDeskShot(live, c.shotId, story),
       );
-      const pendingDesk = deskClips.some((c) => c.clipStatus === "pending");
+      const pendingDesk = deskClips.some((c) => clipNeedsAnimate(c));
       if (deskClips.some((c) => c.clipStatus === "done")) {
         const nextPhase = phaseAfterErrorResume(pendingDesk);
         job = (await patchMobileGenJob(jobId, { phase: nextPhase, error: "" }))!;
@@ -163,17 +164,20 @@ export async function POST(req: Request) {
 
       // Only LTX episode lines they Saved (Play). Keep scratch/campaign
       // clips on the job so the pad stack stays playable — do not wipe them.
+      // Also keep any row that already has mp4 takes, even if the voice
+      // file looks odd — otherwise the last Generate video vanishes.
       const clips = (live.clips || []).flatMap((c) => {
         const home = findBeatHome(story, c.beatId);
         const shotId = home?.shotId || c.shotId;
         if (isOffEpisodeDeskShot(live, shotId, story)) return [c];
-        if (!isMobileSavedVoiceFile(c.voiceFile)) return [];
+        const hasTakes = stackedClipFiles(c).length > 0;
+        if (!isMobileSavedVoiceFile(c.voiceFile) && !hasTakes) return [];
         const voiceFile = home?.voiceFile || c.voiceFile;
-        if (!isMobileSavedVoiceFile(voiceFile)) return [];
+        if (!isMobileSavedVoiceFile(voiceFile) && !hasTakes) return [];
         return [
           {
             ...c,
-            voiceFile,
+            voiceFile: isMobileSavedVoiceFile(voiceFile) ? voiceFile : c.voiceFile,
             line: (home?.text || "").trim() || c.line,
             shotId: home?.shotId || c.shotId,
             sceneId: home?.sceneId || c.sceneId,
@@ -229,6 +233,10 @@ export async function POST(req: Request) {
         const deskClips = live.clips.filter(
           (c) => !isOffEpisodeDeskShot(live, c.shotId, story),
         );
+        // Another invoke still owns a render — don't mark the phase done yet.
+        if (deskClips.some((c) => c.clipStatus === "running")) {
+          return NextResponse.json({ ok: true, job: live, advanced: false });
+        }
         const clips = live.clips.filter(
           (c) =>
             !(c.clipStatus === "pending" && isOffEpisodeDeskShot(live, c.shotId, story)),
@@ -264,6 +272,27 @@ export async function POST(req: Request) {
         }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
+
+      // Claim this beat before the long LTX wait so a parallel /step poll
+      // cannot start a second render and overwrite priorClipFiles.
+      const claimed = await patchMobileGenJob(jobId, {
+        clips: live.clips.map((c) =>
+          c.beatId === next.beatId
+            ? { ...c, clipStatus: "running" as const, error: "" }
+            : c,
+        ),
+      });
+      if (!claimed) {
+        return NextResponse.json({ ok: false, error: "Job vanished" }, { status: 404 });
+      }
+      const stillOurs = claimed.clips.find(
+        (c) => c.beatId === next.beatId && c.clipStatus === "running",
+      );
+      if (!stillOurs) {
+        return NextResponse.json({ ok: true, job: claimed, advanced: false });
+      }
+      job = claimed;
+
       const shot = job.shots.find((s) => s.shotId === next.shotId);
       story = story ?? (await readMobileStory(job.styleId, job.folderName));
       const scene = story.scenes.find((sc) => sc.id === next.sceneId);
@@ -373,7 +402,7 @@ export async function POST(req: Request) {
         job = (await patchMobileGenJob(jobId, {
           clips: job.clips.map((c) =>
             c.beatId === next.beatId
-              ? { ...c, speaker, line, voiceFile, imageMotion }
+              ? { ...c, speaker, line, voiceFile, imageMotion, clipStatus: "running" as const }
               : c,
           ),
         }))!;
@@ -399,16 +428,24 @@ export async function POST(req: Request) {
         } catch {
           /* best effort — clip still usable this request; stitch falls back to local disk */
         }
-        const clips = job.clips.map((c) =>
+        // Re-read so we stack onto whatever takes survived other Saves,
+        // not a stale in-memory job that forgot priorClipFiles.
+        const fresh = (await readMobileGenJob(jobId)) || job;
+        const clips = fresh.clips.map((c) =>
           c.beatId === next.beatId
-            ? { ...c, ...rememberClipTake(c, result.localMp4), clipStatus: "done" as const }
+            ? { ...c, ...rememberClipTake(c, result.localMp4), clipStatus: "done" as const, error: "" }
             : c,
         );
         job = (await patchMobileGenJob(jobId, { clips }))!;
       } catch (e) {
-        const clips = job.clips.map((c) =>
+        const fresh = (await readMobileGenJob(jobId)) || job;
+        const clips = fresh.clips.map((c) =>
           c.beatId === next.beatId
-            ? { ...c, clipStatus: "error" as const, error: e instanceof Error ? e.message : String(e) }
+            ? {
+                ...c,
+                clipStatus: "error" as const,
+                error: e instanceof Error ? e.message : String(e),
+              }
             : c,
         );
         job = (await patchMobileGenJob(jobId, { clips }))!;

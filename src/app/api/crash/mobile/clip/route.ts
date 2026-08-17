@@ -24,17 +24,21 @@ export async function GET(req: Request) {
   }
 
   // runLtxSmoke writes here (ltxOutDir) — not the plates "gen" dir, which
-  // holds still images, not clips.
+  // holds still images, not clips. Older takes may be parked in _cleared/
+  // when a beat was re-rendered locally.
   const localPath = path.join(CRASH_DIR, "ltx", fileName);
+  const clearedPath = path.join(CRASH_DIR, "ltx", "_cleared", fileName);
   const filePath = fs.existsSync(localPath)
     ? localPath
-    : await resolveMobileMedia({
-        styleId,
-        folderName,
-        kind: "mp4",
-        fileName,
-        destPath: localPath,
-      });
+    : fs.existsSync(clearedPath)
+      ? clearedPath
+      : await resolveMobileMedia({
+          styleId,
+          folderName,
+          kind: "mp4",
+          fileName,
+          destPath: localPath,
+        });
   if (filePath && fs.existsSync(filePath)) {
     return serveMediaFile(req, filePath, "video/mp4", {
       "Cache-Control": "private, max-age=120",
