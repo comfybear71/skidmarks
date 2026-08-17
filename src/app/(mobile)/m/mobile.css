@@ -16,17 +16,19 @@ body {
   margin: 0 auto;
 }
 
-/* Scratch is a test console — wider so pad + knobs sit in one view. */
+/* Scratch is a PC test console — wide command deck, bible chips on-screen. */
 .mobile-shell.scratch-shell {
-  max-width: 56rem;
+  max-width: min(96rem, 98vw);
 }
 
-/* PC at 100% zoom should match the old 150% browser zoom. Most /m chrome
- * is inline px, so html font-size would not move it — zoom the page. Phones
- * stay 1× (coarse pointer / narrow). */
+/* /m stays phone-zoomed; Scratch is a PC bench — keep 1× so the wide deck fits. */
 @media (min-width: 700px) and (hover: hover) {
   html {
     zoom: 1.5;
+  }
+
+  html:has(.scratch-shell) {
+    zoom: 1;
   }
 }
 
@@ -179,4 +181,349 @@ body {
 .scratch-clip-rail::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--acid) 55%, transparent);
   border-radius: 999px;
+}
+
+/* —— Scratch bench boilerplate (command center / run log) —— */
+.scratch-bench {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.scratch-bench-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.scratch-bench-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+
+@media (min-width: 900px) {
+  .scratch-bench-grid {
+    grid-template-columns: minmax(7rem, 10rem) minmax(0, 1fr) minmax(12rem, 16rem);
+    align-items: start;
+  }
+}
+
+.scratch-bench-col {
+  min-width: 0;
+}
+
+.scratch-bench-rail-label {
+  color: var(--chrome-dim);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.scratch-asset-dock,
+.scratch-control-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scratch-control-rail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scratch-chaos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scratch-chaos-label,
+.scratch-score-label {
+  color: var(--chrome-dim);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scratch-chaos-select {
+  width: 100%;
+  padding: 6px 28px 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--chrome);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.scratch-chaos-hint {
+  color: var(--chrome-dim);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.scratch-score {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scratch-score-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.scratch-score-chip {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scratch-score-chip.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+  background: color-mix(in srgb, var(--acid) 12%, transparent);
+}
+
+.scratch-bench-history {
+  margin-top: 4px;
+  min-width: 0;
+}
+
+.scratch-history-empty {
+  color: var(--chrome-dim);
+  font-size: 11px;
+  padding: 6px 2px;
+}
+
+.scratch-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--chrome-dim);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.scratch-history-clear {
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--chrome);
+  font-size: 11px;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.scratch-history-strip {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 8px;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.scratch-history-card {
+  flex: 0 0 auto;
+  width: 88px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--panel-2);
+  cursor: pointer;
+  text-align: left;
+  color: var(--chrome);
+}
+
+.scratch-history-card.is-selected {
+  border-color: var(--acid);
+}
+
+.scratch-history-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  background: var(--panel);
+}
+
+.scratch-history-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--chrome-dim);
+  font-size: 10px;
+}
+
+.scratch-history-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  line-height: 1.25;
+  color: var(--chrome-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scratch-canvas-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  color: var(--acid);
+}
+
+/* Prompt bible — all sections visible on the PC deck */
+.scratch-bible {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.scratch-bible-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scratch-bible-title {
+  color: var(--chrome);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.scratch-bible-modes {
+  display: flex;
+  gap: 4px;
+}
+
+.scratch-bible-mode {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scratch-bible-mode.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+  background: color-mix(in srgb, var(--acid) 12%, transparent);
+}
+
+.scratch-bible-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 8px 10px;
+  width: 100%;
+}
+
+.scratch-bible-section {
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+}
+
+.scratch-bible-section-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.scratch-bible-section-hint {
+  color: var(--chrome-dim);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.scratch-bible-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.scratch-bible-chip {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.scratch-bible-chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--acid) 55%, var(--line));
+}
+
+.scratch-bible-chip.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+.scratch-bible-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Console: prompt | campaign presets | (bible spans below on wide) */
+@media (min-width: 1100px) {
+  .scratch-console {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(14rem, 0.9fr);
+    gap: 12px;
+    align-items: start;
+  }
+
+  .scratch-rail {
+    max-height: min(48dvh, 480px);
+  }
+
+  .scratch-pad-col .scratch-pad-still {
+    max-height: min(48dvh, 480px);
+  }
 }
