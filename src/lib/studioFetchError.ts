@@ -17,6 +17,9 @@ export async function readApiJson<T extends { error?: string }>(
 ): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as T;
   if (res.ok) return data;
+  if (res.status === 401) {
+    throw new Error(data.error?.trim() || "Sign in");
+  }
   if (data.error?.trim()) throw new Error(data.error.trim());
   if (res.status === 504 || res.status === 408) {
     throw new Error(

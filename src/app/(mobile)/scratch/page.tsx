@@ -8,6 +8,7 @@ import {
   mobileCard,
 } from "@/components/mobile/MobileUi";
 import { DeskSwitcher } from "@/components/mobile/DeskSwitcher";
+import { StudioSessionChip } from "@/components/mobile/StudioSessionChip";
 import { CastVoiceRow } from "@/components/mobile/CastVoiceRow";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
 import {
@@ -250,6 +251,7 @@ export default function ScratchPage() {
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh", paddingBottom: "48px" }}>
       <DeskSwitcher onChange={() => setDeskTick((n) => n + 1)} />
+      <StudioSessionChip />
       <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", gap: "12px" }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: "18px", color: "var(--chrome)" }}>Scratch</div>

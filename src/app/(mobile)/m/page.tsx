@@ -10,6 +10,7 @@ import {
 } from "@/components/mobile/MobileUi";
 import { StudioTree } from "@/components/mobile/StudioTree";
 import { DeskSwitcher } from "@/components/mobile/DeskSwitcher";
+import { StudioSessionChip } from "@/components/mobile/StudioSessionChip";
 import { useMobileAssist } from "@/components/mobile/useMobileAssist";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
@@ -434,6 +435,7 @@ export default function MobileHomePage() {
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh" }}>
       <DeskSwitcher onChange={setDesk} />
+      <StudioSessionChip />
       {error ? (
         <div style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}
