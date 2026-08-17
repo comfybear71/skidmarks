@@ -677,7 +677,7 @@ body {
 }
 
 .scratch-bible-section.is-open {
-  border-color: color-mix(in srgb, var(--acid) 45%, var(--line));
+  border-color: color-mix(in srgb, #b48cff 55%, var(--line));
   grid-column: 1 / -1;
 }
 
@@ -702,16 +702,18 @@ body {
     background 0.15s ease;
 }
 
+/* Lighter purple rollover — not acid green */
 .scratch-bible-acc:hover:not(:disabled),
 .scratch-bible-acc:focus-visible {
-  color: var(--acid);
-  background: color-mix(in srgb, var(--acid) 10%, transparent);
+  color: #d4b8ff;
+  background: color-mix(in srgb, #9b6dff 22%, transparent);
   outline: none;
 }
 
 .scratch-bible-section.is-open .scratch-bible-acc {
-  color: var(--acid);
-  border-bottom: 1px solid color-mix(in srgb, var(--acid) 28%, var(--line));
+  color: #e2ccff;
+  background: color-mix(in srgb, #9b6dff 16%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, #9b6dff 40%, var(--line));
 }
 
 .scratch-bible-acc:disabled {
@@ -729,7 +731,7 @@ body {
 
 .scratch-bible-acc:hover:not(:disabled) .scratch-bible-acc-mark,
 .scratch-bible-section.is-open .scratch-bible-acc-mark {
-  color: var(--acid);
+  color: #d4b8ff;
 }
 
 .scratch-bible-acc-label {

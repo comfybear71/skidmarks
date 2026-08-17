@@ -940,177 +940,192 @@ function CastIntoPlatePopup({
         padding: "12px",
         marginBottom: "10px",
         maxHeight: "70vh",
-        overflowY: "auto",
-        WebkitOverflowScrolling: "touch",
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         gap: "10px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      {/* Cast strip stays pinned — bible/position scroll under it */}
+      <div style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div
+            style={{
+              flex: 1,
+              color: "var(--chrome-dim)",
+              fontSize: "10px",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+            }}
+          >
+            Who&apos;s in this plate
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              padding: "4px 8px",
+              border: "none",
+              background: "transparent",
+              color: "var(--chrome-dim)",
+              fontSize: "18px",
+              lineHeight: 1,
+              cursor: "pointer",
+            }}
+          >
+            ×
+          </button>
+        </div>
         <div
           style={{
-            flex: 1,
-            color: "var(--chrome-dim)",
-            fontSize: "10px",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
+            display: "flex",
+            gap: "10px",
+            overflowX: "auto",
+            padding: "2px 0 8px",
+            touchAction: "pan-x pan-y",
           }}
         >
-          Who&apos;s in this plate
+          {job.speakers.map((name) => {
+            const selected = picked === name;
+            const already = inShot.has(name.trim().toLowerCase());
+            const grey = castPopupFaceGrey(picked, name);
+            const face = speakerFaceUrl(job, name);
+            return (
+              <button
+                key={name}
+                type="button"
+                disabled={false}
+                onClick={() => {
+                  setPicked(name);
+                  setStaging(already ? shot?.staging?.trim() || "" : "");
+                  setError("");
+                }}
+                style={{
+                  flex: "0 0 auto",
+                  width: "72px",
+                  padding: 0,
+                  border: "none",
+                  background: "none",
+                  opacity: grey ? 0.32 : 1,
+                  filter: grey ? "grayscale(1)" : "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                <span
+                  style={{
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "10px",
+                    border: selected ? "2px solid var(--acid)" : "2px solid var(--line)",
+                    overflow: "hidden",
+                    display: "block",
+                    background: "var(--panel-2)",
+                  }}
+                >
+                  {face ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={face}
+                      alt=""
+                      style={{ width: "64px", height: "64px", objectFit: "cover", display: "block" }}
+                    />
+                  ) : (
+                    <span
+                      style={{
+                        width: "64px",
+                        height: "64px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--chrome-dim)",
+                        fontSize: "18px",
+                      }}
+                    >
+                      {name.slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                </span>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: selected ? "var(--acid)" : "var(--chrome)",
+                    maxWidth: "72px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {already && !selected ? `${name} · in` : name}
+                </span>
+              </button>
+            );
+          })}
         </div>
-        <button
-          type="button"
-          onClick={onCancel}
-          style={{
-            padding: "4px 8px",
-            border: "none",
-            background: "transparent",
-            color: "var(--chrome-dim)",
-            fontSize: "18px",
-            lineHeight: 1,
-            cursor: "pointer",
-          }}
-        >
-          ×
-        </button>
       </div>
+
       <div
         style={{
+          flex: "1 1 auto",
+          minHeight: 0,
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
           display: "flex",
+          flexDirection: "column",
           gap: "10px",
-          overflowX: "auto",
-          padding: "2px 0 8px",
-          touchAction: "pan-x pan-y",
         }}
       >
-        {job.speakers.map((name) => {
-          const selected = picked === name;
-          const already = inShot.has(name.trim().toLowerCase());
-          const grey = castPopupFaceGrey(picked, name);
-          const face = speakerFaceUrl(job, name);
-          return (
-            <button
-              key={name}
-              type="button"
-              disabled={false}
-              onClick={() => {
-                setPicked(name);
-                setStaging(already ? shot?.staging?.trim() || "" : "");
-                setError("");
+        {picked ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {fieldLabel(`Position ${picked}`)}
+            <ScratchPromptBible
+              activeId={bibleActiveId}
+              mode={bibleMode}
+              onModeChange={setBibleMode}
+              disabled={busy}
+              onPick={(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => {
+                const text = applyBibleTokens(entry.template, {
+                  name: picked,
+                  place: placeName || "this place",
+                  cast: [picked],
+                });
+                setBibleActiveId(entry.id);
+                if (bibleMode === "append" && staging.trim()) {
+                  setStaging(`${staging.trim()}\n\n${text}`);
+                } else {
+                  setStaging(text);
+                }
               }}
-              style={{
-                flex: "0 0 auto",
-                width: "72px",
-                padding: 0,
-                border: "none",
-                background: "none",
-                opacity: grey ? 0.32 : 1,
-                filter: grey ? "grayscale(1)" : "none",
-                cursor: "pointer",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "4px",
-              }}
+            />
+            <MobileTextInput
+              value={staging}
+              onChange={setStaging}
+              multiline
+              rows={3}
+              placeholder={`${picked} in ${placeName || "this room"} — sitting, lying down, against the wall…`}
+              onAi={() => void assist.runAssist()}
+              aiBusy={assist.aiBusy}
+            />
+            <MobilePrimaryButton
+              disabled={busy || assist.aiBusy || !staging.trim()}
+              onClick={() => void putIn()}
             >
-              <span
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  borderRadius: "10px",
-                  border: selected ? "2px solid var(--acid)" : "2px solid var(--line)",
-                  overflow: "hidden",
-                  display: "block",
-                  background: "var(--panel-2)",
-                }}
-              >
-                {face ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={face}
-                    alt=""
-                    style={{ width: "64px", height: "64px", objectFit: "cover", display: "block" }}
-                  />
-                ) : (
-                  <span
-                    style={{
-                      width: "64px",
-                      height: "64px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--chrome-dim)",
-                      fontSize: "18px",
-                    }}
-                  >
-                    {name.slice(0, 1).toUpperCase()}
-                  </span>
-                )}
-              </span>
-              <span
-                style={{
-                  fontSize: "11px",
-                  color: selected ? "var(--acid)" : "var(--chrome)",
-                  maxWidth: "72px",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {already && !selected ? `${name} · in` : name}
-              </span>
-            </button>
-          );
-        })}
+              {busy ? "Drawing…" : "Draw this picture"}
+            </MobilePrimaryButton>
+            {assist.aiError ? (
+              <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{assist.aiError}</div>
+            ) : null}
+          </div>
+        ) : (
+          <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>
+            Tap someone. The rest fade. Position them — that draws the still.
+          </div>
+        )}
+        {error ? <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</div> : null}
       </div>
-      {picked ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          {fieldLabel(`Position ${picked}`)}
-          <ScratchPromptBible
-            activeId={bibleActiveId}
-            mode={bibleMode}
-            onModeChange={setBibleMode}
-            disabled={busy}
-            onPick={(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => {
-              const text = applyBibleTokens(entry.template, {
-                name: picked,
-                place: placeName || "this place",
-                cast: [picked],
-              });
-              setBibleActiveId(entry.id);
-              if (bibleMode === "append" && staging.trim()) {
-                setStaging(`${staging.trim()}\n\n${text}`);
-              } else {
-                setStaging(text);
-              }
-            }}
-          />
-          <MobileTextInput
-            value={staging}
-            onChange={setStaging}
-            multiline
-            rows={3}
-            placeholder={`${picked} in ${placeName || "this room"} — sitting, lying down, against the wall…`}
-            onAi={() => void assist.runAssist()}
-            aiBusy={assist.aiBusy}
-          />
-          <MobilePrimaryButton
-            disabled={busy || assist.aiBusy || !staging.trim()}
-            onClick={() => void putIn()}
-          >
-            {busy ? "Drawing…" : "Draw this picture"}
-          </MobilePrimaryButton>
-          {assist.aiError ? (
-            <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{assist.aiError}</div>
-          ) : null}
-        </div>
-      ) : (
-        <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>
-          Tap someone. The rest fade. Position them — that draws the still.
-        </div>
-      )}
-      {error ? <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</div> : null}
     </div>
   );
 }
