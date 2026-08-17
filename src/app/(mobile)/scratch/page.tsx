@@ -414,10 +414,9 @@ export default function ScratchPage() {
 
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh", paddingBottom: "48px" }}>
-      <DeskSwitcher onChange={() => setDeskTick((n) => n + 1)} />
+      <DeskSwitcher label="Scratch" onChange={() => setDeskTick((n) => n + 1)} />
       <StudioSessionChip />
-      <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" }}>
-        <div style={{ fontWeight: 800, fontSize: "18px", color: "var(--chrome)" }}>Scratch</div>
+      <div style={{ padding: "8px 16px 0", display: "flex", justifyContent: "flex-end" }}>
         <a href={job ? `/m?job=${encodeURIComponent(job.id)}` : "/m"} style={{ color: "var(--acid)", fontSize: "13px", fontWeight: 700 }}>
           /m
         </a>
