@@ -93,11 +93,3 @@ export async function ownerFromRequest(req: Request): Promise<string | null> {
   const sess = await verifyStudioSession(token);
   return sess?.id || null;
 }
-
-/** Shared WORLD/CAST folders on disk are Stuie's. Guests must not fall
- * through to them after a Neon miss — that is how places bleed. */
-export async function mayReadHomeDiskShelf(): Promise<boolean> {
-  if (!studioUsersConfigured()) return true;
-  const owner = await boundStudioOwner();
-  return Boolean(owner && isHomeOwner(owner));
-}

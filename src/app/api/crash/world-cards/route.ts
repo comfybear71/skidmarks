@@ -7,8 +7,6 @@ import {
 import type { WorldPlaceTypeId } from "@/lib/worldPlaceTypes";
 import { useCloudStore } from "@/lib/cloudEnv";
 import { cloudWorldCardStatus } from "@/lib/cloudShelf";
-import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
-import { mayReadHomeDiskShelf } from "@/lib/studioOwner";
 
 export const runtime = "nodejs";
 
@@ -16,15 +14,6 @@ export async function GET() {
   try {
     if (useCloudStore()) {
       return NextResponse.json({ cards: await cloudWorldCardStatus() });
-    }
-    if (!(await mayReadHomeDiskShelf())) {
-      return NextResponse.json({
-        cards: SHOW_STYLE_PRESETS.map((p) => ({
-          id: p.id,
-          hasThumb: false,
-          thumbs: [],
-        })),
-      });
     }
     return NextResponse.json({ cards: listWorldCardStatus() });
   } catch (e) {

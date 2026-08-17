@@ -4,7 +4,6 @@ import {
   readWorldCardThumbByKey,
 } from "@/lib/worldCardThumbs";
 import { cloudShowAssetRedirect } from "@/lib/cloudShelf";
-import { mayReadHomeDiskShelf } from "@/lib/studioOwner";
 
 export const runtime = "nodejs";
 
@@ -21,9 +20,6 @@ export async function GET(req: Request) {
   if (thumbKey.startsWith("g:")) {
     const cloud = await cloudShowAssetRedirect(styleId, "world", thumbKey.slice(2));
     if (cloud) return cloud;
-  }
-  if (!(await mayReadHomeDiskShelf())) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const hit = readWorldCardThumbByKey(styleId, thumbKey);
   if (!hit) {

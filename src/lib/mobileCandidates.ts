@@ -3,6 +3,7 @@ import path from "path";
 import { buildFacePrompt, buildLocationPrompt, generateFaceImage } from "./imageGen";
 import { addFaceAttempt, faceFilePath, getCharacter, setAttemptStatus } from "./characters";
 import { saveUploadAsStyleCard } from "./styleCardThumbs";
+import { saveGenStillAsWorldCard } from "./worldCardThumbs";
 import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { uploadMobileMedia, resolveMobileMedia } from "./mobileMediaStore";
@@ -347,13 +348,11 @@ export async function generateLocationCandidates(
   return out;
 }
 
-/** Keep the still on this job. Do not copy it onto the series WORLD
- * gallery — that shelf is shared, has no delete, and is how one person's
- * Donga lands in someone else's tiles. Plates read the approved candidate. */
+/** Approve one location candidate: registers it as a real World card, returns the thumb key. */
 export async function approveLocationCandidate(
   styleId: ShowStyleId,
   folderName: string,
-  _placeName: string,
+  placeName: string,
   fileName: string,
 ): Promise<string> {
   await resolveMobileMedia({
@@ -363,5 +362,11 @@ export async function approveLocationCandidate(
     fileName,
     destPath: path.join(candidateGenDir(), fileName),
   });
-  return "";
+  const saved = saveGenStillAsWorldCard({
+    genFileName: fileName,
+    styleId,
+    prompt: `${placeName} — Location`,
+    placeType: "social_public",
+  });
+  return saved.thumbKey;
 }

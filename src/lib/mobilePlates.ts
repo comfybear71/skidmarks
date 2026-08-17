@@ -108,17 +108,20 @@ export async function resolvePlateBackground(
     ? approvedCandidateFileName(job.locationCandidates, scene.id)
     : null;
 
-  // This job's approved still first. worldThumbKey (g:place_…) is a copy
-  // that used to land in the shared WORLD gallery — missing on Vercel, and
-  // the wrong person's tiles when two accounts share a machine.
+  // Local galleries are written by the request that approved the pick, and on
+  // Vercel this phase runs on a different invocation with empty /tmp. The
+  // show shelf is only populated for series reuse — a first job's still is
+  // the approved candidate under the job id (same file the phone already
+  // shows). worldThumbKey (g:place_…) is a local-gallery copy that does
+  // not exist in Blob.
   const bgPath =
-    (locationFile ? await cacheJobPlateFile({ styleId, folders, fileName: locationFile }) : null) ||
     (scene.worldThumbKey.trim()
       ? resolveWorldCardThumbPath(styleId, scene.worldThumbKey)
       : null) ||
     (scene.worldThumbKey.trim()
       ? await cacheShelfAsset(styleId, "world", scene.worldThumbKey)
-      : null);
+      : null) ||
+    (locationFile ? await cacheJobPlateFile({ styleId, folders, fileName: locationFile }) : null);
   if (!bgPath) {
     if (!scene.worldThumbKey.trim() && !locationFile) {
       throw new Error(`Scene "${scene.title}" has no approved location yet`);
