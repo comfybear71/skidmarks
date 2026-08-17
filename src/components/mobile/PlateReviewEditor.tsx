@@ -10,6 +10,12 @@ import {
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "./PlateClipThumbs";
 import { stackedClipFiles } from "@/lib/mobilePlateClips";
 import { useMobileAssist } from "./useMobileAssist";
+import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
+import {
+  applyBibleTokens,
+  type ScratchBibleEntry,
+  type ScratchBibleSectionId,
+} from "@/lib/scratchBench";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import {
   approvedCandidateFileName,
@@ -720,6 +726,13 @@ export function PlateReviewEditor({
           clips={job.clips}
           loading={!story && !loadError}
           error={loadError}
+          placeName={
+            (() => {
+              const row = shots.find((s) => s.shotId === openShotId);
+              if (!row) return "this place";
+              return job.scenes.find((sc) => sc.id === row.sceneId)?.placeName || "this place";
+            })()
+          }
           placeSrc={
             shots.find((s) => s.shotId === openShotId)
               ? placeStillUrl(job, shots.find((s) => s.shotId === openShotId)!.sceneId)
@@ -844,6 +857,8 @@ function CastIntoPlatePopup({
   const [staging, setStaging] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
+  const [bibleActiveId, setBibleActiveId] = useState<string | null>(null);
   const inShot = new Set(
     speakersAlreadyInPlate({
       shotId: shot?.id || shotId,
@@ -1052,6 +1067,25 @@ function CastIntoPlatePopup({
       {picked ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {fieldLabel(`Position ${picked}`)}
+          <ScratchPromptBible
+            activeId={bibleActiveId}
+            mode={bibleMode}
+            onModeChange={setBibleMode}
+            disabled={busy}
+            onPick={(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => {
+              const text = applyBibleTokens(entry.template, {
+                name: picked,
+                place: placeName || "this place",
+                cast: [picked],
+              });
+              setBibleActiveId(entry.id);
+              if (bibleMode === "append" && staging.trim()) {
+                setStaging(`${staging.trim()}\n\n${text}`);
+              } else {
+                setStaging(text);
+              }
+            }}
+          />
           <MobileTextInput
             value={staging}
             onChange={setStaging}
@@ -1344,6 +1378,7 @@ function ShotLineEditor({
   clips,
   loading,
   error,
+  placeName,
   placeSrc,
   jobPlated,
   onBeatSaved,
@@ -1361,6 +1396,7 @@ function ShotLineEditor({
   clips: MobileClipUnit[];
   loading: boolean;
   error: string;
+  placeName?: string;
   placeSrc?: string;
   jobPlated?: boolean;
   onBeatSaved: (beatId: string, text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
@@ -1459,6 +1495,7 @@ function ShotLineEditor({
               jobSpeakers,
               beats: shot.beats,
             })}
+            placeName={placeName || "this place"}
             beat={beat}
             positionPrompt={shot.staging || ""}
             onPositionSaved={(staging, plate) =>
@@ -1556,6 +1593,7 @@ function BeatLineEditor({
   jobVoices,
   lookLock,
   shotSpeakers,
+  placeName,
   beat,
   positionPrompt,
   onPositionSaved,
@@ -1568,6 +1606,7 @@ function BeatLineEditor({
   jobVoices?: Record<string, JobSpeakerVoice>;
   lookLock: string;
   shotSpeakers: string[];
+  placeName?: string;
   beat: CrashStoryBeat;
   positionPrompt: string;
   onPositionSaved: (
@@ -1592,9 +1631,11 @@ function BeatLineEditor({
   const [redrawing, setRedrawing] = useState(false);
   const [error, setError] = useState("");
   const [ltxOpen, setLtxOpen] = useState(false);
-  const [positionOpen, setPositionOpen] = useState(false);
+  const [positionOpen, setPositionOpen] = useState(true);
   const [positionDraft, setPositionDraft] = useState<string | null>(null);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
+  const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
+  const [bibleActiveId, setBibleActiveId] = useState<string | null>(null);
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
   const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
   const positionAsLine = looksLikePlatePositionPrompt(text);
@@ -1887,8 +1928,27 @@ function BeatLineEditor({
       {positionOpen ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <p style={{ margin: 0, color: "var(--chrome-dim)", fontSize: "11px", lineHeight: 1.45 }}>
-            Still position — who sits, leans, holds what. Keep the words, then Redo still to draw again.
+            Still position — who sits, leans, holds what. Bible chips fill this box. Keep, then Redo still.
           </p>
+          <ScratchPromptBible
+            activeId={bibleActiveId}
+            mode={bibleMode}
+            onModeChange={setBibleMode}
+            disabled={saving || redrawing}
+            onPick={(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => {
+              const text = applyBibleTokens(entry.template, {
+                name: beat.speaker,
+                place: placeName || "this place",
+                cast: shotSpeakers.length ? shotSpeakers : [beat.speaker],
+              });
+              setBibleActiveId(entry.id);
+              if (bibleMode === "append" && positionBody.trim()) {
+                setPositionDraft(`${positionBody.trim()}\n\n${text}`);
+              } else {
+                setPositionDraft(text);
+              }
+            }}
+          />
           <MobileTextInput
             value={positionBody}
             onChange={(v) => setPositionDraft(v)}
