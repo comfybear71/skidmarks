@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type CastMember = { file: string; name: string; ar: number };
 
@@ -76,9 +76,17 @@ function buildFigureNode(
   return wrap;
 }
 
+const LINKS = [
+  { href: "https://aiglitch.app", label: "Every link · aiglitch.app", external: true },
+  { href: "/crash", label: "Crash Lab", external: false },
+  { href: "/m", label: "M", external: false },
+  { href: "/scratch", label: "Scratch", external: false },
+];
+
 export default function HomePage() {
   const paradeRef = useRef<HTMLDivElement>(null);
   const companyRef = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const reduceMotion = window.matchMedia(
@@ -164,23 +172,44 @@ export default function HomePage() {
       <div className="hm-vignette" />
 
       <header className="hm-header">
-        <span />
-        <nav>
-          <a href="https://aiglitch.app" target="_blank" rel="noopener noreferrer">
-            Every link · aiglitch.app
-          </a>
-        </nav>
+        <button
+          type="button"
+          className="hm-menu-btn"
+          aria-expanded={menuOpen}
+          aria-controls="hm-menu"
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          <span aria-hidden="true">💀</span>
+          <span className="hm-menu-btn-label">Menu</span>
+        </button>
       </header>
+
+      {menuOpen ? (
+        <div className="hm-menu-overlay" onClick={() => setMenuOpen(false)}>
+          <nav
+            id="hm-menu"
+            className="hm-menu-panel"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {LINKS.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                target={l.external ? "_blank" : undefined}
+                rel={l.external ? "noopener noreferrer" : undefined}
+                onClick={() => setMenuOpen(false)}
+              >
+                {l.label}
+              </a>
+            ))}
+          </nav>
+        </div>
+      ) : null}
 
       <div className="hm-centre">
         <h1 className="hm-mark">
           <small>A street nobody chose</small>Skidmarks
         </h1>
-        <p className="hm-line">
-          Thirty-eight people who never got out, going nowhere, forever, past
-          the same houses.{" "}
-          <b>Nobody&rsquo;s laughing at them harder than they laugh at themselves.</b>
-        </p>
       </div>
 
       <div
@@ -196,17 +225,6 @@ export default function HomePage() {
 
       <footer className="hm-footer">
         <span>© AIGLITCH — SKIDMARKS</span>
-        <div className="hm-footer-links">
-          <a href="/crash">Crash Lab</a>
-          <span>·</span>
-          <a href="/m">M</a>
-          <span>·</span>
-          <a href="/scratch">Scratch</a>
-          <span>·</span>
-          <a href="https://aiglitch.app" target="_blank" rel="noopener noreferrer">
-            aiglitch.app
-          </a>
-        </div>
       </footer>
     </div>
   );

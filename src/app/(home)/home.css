@@ -17,11 +17,23 @@
   color: var(--hm-bone);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  height: auto;
+  overflow: visible;
   position: relative;
   display: flex;
   flex-direction: column;
+}
+/* Locking to one non-scrolling viewport only works with a real, stable
+   100vh — mobile browsers resize that behind the address bar, which cut
+   the parade off below the fold with no way to scroll down to it. Only
+   apply the locked single-screen version above the phone/tablet range,
+   where 100vh is trustworthy. */
+@media (min-width: 861px) {
+  .hm-root {
+    height: 100vh;
+    overflow: hidden;
+  }
 }
 
 .hm-sky {
@@ -81,29 +93,78 @@
 
 .hm-header {
   position: relative;
-  z-index: 5;
+  z-index: 20;
   flex: 0 0 auto;
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  padding: 20px clamp(16px, 3.4vw, 40px) 0;
+  padding: 16px clamp(16px, 3.4vw, 40px) 0;
 }
-.hm-header nav a {
-  text-decoration: none;
-  color: var(--hm-ash);
+
+.hm-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(6, 6, 7, 0.65);
+  border: 1px solid rgba(139, 134, 128, 0.35);
+  color: var(--hm-bone);
   font-family: var(--hm-mono);
   font-size: 10.5px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  border: 1px solid rgba(139, 134, 128, 0.3);
-  padding: 7px 12px;
-  white-space: nowrap;
+  padding: 9px 14px;
+  min-height: 40px;
+  cursor: pointer;
   transition: color 200ms ease, border-color 200ms ease;
 }
-.hm-header nav a:hover,
-.hm-header nav a:focus-visible {
+.hm-menu-btn span:first-child {
+  font-size: 15px;
+  line-height: 1;
+}
+.hm-menu-btn:hover,
+.hm-menu-btn:focus-visible {
   color: var(--hm-sodium);
   border-color: var(--hm-sodium);
+  outline: none;
+}
+
+.hm-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(6, 6, 7, 0.72);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 16px clamp(16px, 3.4vw, 40px);
+}
+.hm-menu-panel {
+  margin-top: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--hm-dusk);
+  border: 1px solid rgba(139, 134, 128, 0.35);
+  min-width: 220px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+.hm-menu-panel a {
+  text-decoration: none;
+  color: var(--hm-bone);
+  font-family: var(--hm-mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(139, 134, 128, 0.18);
+  transition: color 160ms ease, background 160ms ease;
+}
+.hm-menu-panel a:last-child {
+  border-bottom: none;
+}
+.hm-menu-panel a:hover,
+.hm-menu-panel a:focus-visible {
+  color: var(--hm-sodium);
+  background: rgba(217, 164, 65, 0.08);
   outline: none;
 }
 
@@ -122,7 +183,7 @@
   margin: 0;
   font-weight: 800;
   font-style: italic;
-  font-size: clamp(30px, 5.6vw, 62px);
+  font-size: clamp(56px, 17vw, 108px);
   line-height: 0.88;
   letter-spacing: -0.01em;
   text-wrap: balance;
@@ -143,27 +204,16 @@
   color: var(--hm-ash);
   -webkit-text-stroke: 0;
   text-shadow: none;
-  margin-bottom: 10px;
+  margin-bottom: 0;
   transform: none;
-}
-.hm-line {
-  max-width: 46ch;
-  margin: 6px 0 0;
-  font-size: clamp(11.5px, 1.2vw, 13.5px);
-  line-height: 1.55;
-  color: var(--hm-ash);
-}
-.hm-line b {
-  color: var(--hm-bone);
-  font-weight: 600;
 }
 
 /* ---------- the company: bell-curve formation ---------- */
 .hm-company {
   position: relative;
   z-index: 3;
-  flex: 1 1 auto;
-  min-height: 40px;
+  flex: none;
+  height: clamp(240px, 46vh, 460px);
   overflow: hidden;
 }
 .hm-figure {
@@ -350,29 +400,6 @@
 .hm-footer a:hover {
   color: var(--hm-sodium);
 }
-.hm-footer-links {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-.hm-footer-links span {
-  opacity: 0.4;
-}
-
-@media (max-height: 640px) {
-  .hm-root {
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
-  }
-  .hm-company {
-    min-height: 220px;
-  }
-  .hm-street {
-    height: 150px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .hm-root *,
   .hm-root *::before,
