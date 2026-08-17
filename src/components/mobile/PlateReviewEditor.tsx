@@ -31,7 +31,6 @@ import {
   shotSpeakersOnCard,
   speakersAlreadyInPlate,
   castPopupFaceGrey,
-  voiceFileBelongsToSpeaker,
 } from "@/lib/mobilePlateLines";
 import { lineVoiceLabel, type JobSpeakerVoice } from "@/lib/mobileJobVoices";
 import { shownVoiceId } from "@/lib/mobileVoicePick";
@@ -1634,8 +1633,8 @@ function BeatLineEditor({
     isLeftoverPackVoiceFile(beat.voiceFile) ? "" : beat.text,
   );
   const [voiceFile, setVoiceFile] = useState(
-    voiceFileBelongsToSpeaker(beat.voiceFile, beat.speaker) &&
-      isMobileSavedVoiceFile(beat.voiceFile)
+    isMobileSavedVoiceFile(beat.voiceFile) &&
+      !isLeftoverPackVoiceFile(beat.voiceFile)
       ? beat.voiceFile || ""
       : "",
   );
@@ -1646,7 +1645,8 @@ function BeatLineEditor({
   const [redrawing, setRedrawing] = useState(false);
   const [error, setError] = useState("");
   const [ltxOpen, setLtxOpen] = useState(false);
-  const [positionOpen, setPositionOpen] = useState(true);
+  // Bible already ran on Draw — keep this shut unless they need Redo still.
+  const [positionOpen, setPositionOpen] = useState(false);
   const [positionDraft, setPositionDraft] = useState<string | null>(null);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
@@ -1654,11 +1654,9 @@ function BeatLineEditor({
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
   const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
   const positionAsLine = looksLikePlatePositionPrompt(text);
-  const playable = Boolean(
-    voiceFile &&
-      isMobileSavedVoiceFile(voiceFile) &&
-      voiceFileBelongsToSpeaker(voiceFile, beat.speaker),
-  );
+  // Stamped Save takes are playable even if the pack-name parser only sees
+  // the first token of "BIG SEXY" — don't hide Play after a good Save.
+  const playable = Boolean(voiceFile && isMobileSavedVoiceFile(voiceFile));
   const savedTake = playable && !dirty;
   const positionBody = positionDraft ?? positionPrompt;
   const positionDirty = positionDraft !== null && positionDraft.trim() !== (positionPrompt || "").trim();
@@ -1667,10 +1665,16 @@ function BeatLineEditor({
     setPositionDraft(null);
   }, [shotId, positionPrompt]);
 
+  // Sticky voice like Scratch — survive take switches / parent story rewrites.
   useEffect(() => {
-    if (!isLeftoverPackVoiceFile(beat.voiceFile)) return;
-    setText("");
-    setVoiceFile("");
+    const next = (beat.voiceFile || "").trim();
+    if (!next) return;
+    if (isLeftoverPackVoiceFile(next)) {
+      setText("");
+      setVoiceFile("");
+      return;
+    }
+    if (isMobileSavedVoiceFile(next)) setVoiceFile(next);
   }, [beat.id, beat.voiceFile]);
 
   const persistPosition = useCallback(
@@ -1853,13 +1857,17 @@ function BeatLineEditor({
         imageMotion?: string;
         job?: MobileGenJob;
       }>(res);
-      setVoiceFile(data.voiceFile);
+      const stamped = (data.voiceFile || "").trim();
+      if (!isMobileSavedVoiceFile(stamped)) {
+        throw new Error("Save didn't land a playable mp3 — try Save again");
+      }
+      setVoiceFile(stamped);
       let imageMotion = (data.imageMotion as string) || "";
       if (motionDirty) {
         imageMotion = await persistMotion(motionBody);
         setMotionDraft(null);
       }
-      onSaved(text, data.voiceFile, imageMotion, data.job);
+      onSaved(text, stamped, imageMotion, data.job);
     } catch (e) {
       setError(studioFetchError(e, "Save failed"));
     } finally {
@@ -1938,12 +1946,12 @@ function BeatLineEditor({
           textAlign: "left",
         }}
       >
-        {positionOpen ? "▾ Position prompt" : "▸ Position prompt"}
+        {positionOpen ? "▾ Position prompt (Redo still)" : "▸ Position prompt (Redo still)"}
       </button>
       {positionOpen ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <p style={{ margin: 0, color: "var(--chrome-dim)", fontSize: "11px", lineHeight: 1.45 }}>
-            Still position — who sits, leans, holds what. Bible chips fill this box. Keep, then Redo still.
+            Optional — bible already filled this on Draw. Open only to tweak, Keep, then Redo still.
           </p>
           <ScratchPromptBible
             activeId={bibleActiveId}

@@ -1,6 +1,6 @@
 import { voiceNamesMatch } from "./voiceNameMatch";
 import { joPhoneStagingExtra } from "./mobileImageMotion";
-import { isLeftoverPackVoiceFile } from "./mobileSavedVoice";
+import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
 
 export function leftoverHydrateBeat(shotId: string, beatId: string): boolean {
   if (!shotId || !beatId) return false;
@@ -69,7 +69,13 @@ export function plateLineBeats<T extends LineBeat>(opts: {
     .filter((b) => {
       if (!b.speaker.trim()) return false;
       if (leftoverHydrateBeat(opts.shotId, b.id)) return false;
-      if (!voiceFileBelongsToSpeaker(b.voiceFile, b.speaker)) return false;
+      // Stamped Saves stay on the card even if pack-name parse is noisy.
+      if (
+        !isMobileSavedVoiceFile(b.voiceFile) &&
+        !voiceFileBelongsToSpeaker(b.voiceFile, b.speaker)
+      ) {
+        return false;
+      }
       return speakerMentionedOnPlate(b.speaker, opts.jobSpeakers, words);
     })
     .map((b) =>
