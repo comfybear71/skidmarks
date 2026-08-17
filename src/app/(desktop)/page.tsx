@@ -23,13 +23,13 @@ export default function HomePage() {
               </Link>
               <Link
                 href="https://skidmarks.aiglitch.app/m"
-                className="rounded-sm border border-[var(--line)] bg-[var(--panel-2)] px-3 py-2 text-sm text-[var(--chrome)] transition hover:border-[var(--magenta)]"
+                className="rounded-sm border border-[#3b9eff] bg-[#3b9eff] px-3 py-2 text-sm font-semibold text-[var(--void)] transition hover:brightness-110"
               >
                 M
               </Link>
               <Link
                 href="https://skidmarks.aiglitch.app/scratch"
-                className="rounded-sm border border-[var(--line)] bg-[var(--panel-2)] px-3 py-2 text-sm text-[var(--chrome)] transition hover:border-[var(--magenta)]"
+                className="rounded-sm border border-[var(--magenta-hot)] bg-[var(--magenta-hot)] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-110"
               >
                 Scratch
               </Link>
