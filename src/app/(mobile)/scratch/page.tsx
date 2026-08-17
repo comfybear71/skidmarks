@@ -7,8 +7,6 @@ import {
   MobileTextInput,
   mobileCard,
 } from "@/components/mobile/MobileUi";
-import { DeskSwitcher } from "@/components/mobile/DeskSwitcher";
-import { StudioSessionChip } from "@/components/mobile/StudioSessionChip";
 import { CastVoiceRow } from "@/components/mobile/CastVoiceRow";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
 import {
@@ -107,17 +105,6 @@ const CROWD_POSE_LABELS: Record<string, string> = {
 };
 
 const SIDE_THUMB_PX = 72;
-
-const sideScroll: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px",
-  overflowY: "auto",
-  maxHeight: "min(70vw, 24rem)",
-  touchAction: "pan-y",
-  WebkitOverflowScrolling: "touch",
-  paddingRight: "2px",
-};
 
 const thumbBtn = (on: boolean): CSSProperties => ({
   flex: "0 0 auto",
@@ -414,12 +401,17 @@ export default function ScratchPage() {
 
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh", paddingBottom: "48px" }}>
-      <DeskSwitcher label="Scratch" onChange={() => setDeskTick((n) => n + 1)} />
-      <StudioSessionChip />
-      <div style={{ padding: "8px 16px 0", display: "flex", justifyContent: "flex-end" }}>
-        <a href={job ? `/m?job=${encodeURIComponent(job.id)}` : "/m"} style={{ color: "var(--acid)", fontSize: "13px", fontWeight: 700 }}>
-          /m
-        </a>
+      <div style={{ padding: "14px 16px 10px" }}>
+        <div
+          style={{
+            fontFamily: "var(--font-display), sans-serif",
+            fontSize: "22px",
+            letterSpacing: "0.04em",
+            color: "var(--chrome)",
+          }}
+        >
+          Scratch
+        </div>
       </div>
 
       {error ? (
@@ -438,82 +430,73 @@ export default function ScratchPage() {
         </div>
       ) : (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: "14px" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: `${SIDE_THUMB_PX + 8}px minmax(0, 1fr) ${SIDE_THUMB_PX + 8}px`,
-              gap: "10px",
-              alignItems: "start",
-            }}
-          >
-            <div>
-              <div style={sideScroll}>
-                {(
-                  [
-                    { title: "Female", names: castBySex.female },
-                    { title: "Male", names: castBySex.male },
-                  ] as const
-                ).map((group) =>
-                  group.names.length ? (
-                    <div key={group.title}>
-                      <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-                        {group.title}
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        {group.names.map((name) => {
-                          const src = faceUrl(job, name);
-                          const onPad = padCast.includes(name);
-                          const speaks = name === speaker;
-                          return (
-                            <button
-                              key={name}
-                              type="button"
-                              title={
-                                !onPad
-                                  ? `Add ${name} to pad`
-                                  : !speaks
-                                    ? "On pad — tap to make them speak (lip sync)"
-                                    : padCast.length === 1 && src
-                                      ? "Tap again to enlarge"
-                                      : "Speaking — tap again to pull off pad"
-                              }
-                              onClick={() => pickCast(name)}
-                              style={{
-                                ...thumbBtn(onPad),
-                                boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
-                              }}
-                            >
-                              {src ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={src}
-                                  alt=""
-                                  style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
-                                />
-                              ) : (
-                                <div
-                                  style={{
-                                    width: `${SIDE_THUMB_PX}px`,
-                                    height: `${SIDE_THUMB_PX}px`,
-                                    color: "var(--chrome-dim)",
-                                    fontSize: "10px",
-                                    overflow: "hidden",
-                                  }}
-                                >
-                                  {name}
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
+          <div className="scratch-stage">
+            <div className="scratch-rail">
+              {(
+                [
+                  { title: "Female", names: castBySex.female },
+                  { title: "Male", names: castBySex.male },
+                ] as const
+              ).map((group) =>
+                group.names.length ? (
+                  <div key={group.title}>
+                    <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
+                      {group.title}
                     </div>
-                  ) : null,
-                )}
-              </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {group.names.map((name) => {
+                        const src = faceUrl(job, name);
+                        const onPad = padCast.includes(name);
+                        const speaks = name === speaker;
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            title={
+                              !onPad
+                                ? `Add ${name} to pad`
+                                : !speaks
+                                  ? "On pad — tap to make them speak (lip sync)"
+                                  : padCast.length === 1 && src
+                                    ? "Tap again to enlarge"
+                                    : "Speaking — tap again to pull off pad"
+                            }
+                            onClick={() => pickCast(name)}
+                            style={{
+                              ...thumbBtn(onPad),
+                              boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
+                            }}
+                          >
+                            {src ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={src}
+                                alt=""
+                                style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: `${SIDE_THUMB_PX}px`,
+                                  height: `${SIDE_THUMB_PX}px`,
+                                  color: "var(--chrome-dim)",
+                                  fontSize: "10px",
+                                  overflow: "hidden",
+                                }}
+                              >
+                                {name}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null,
+              )}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
+            <div className="scratch-pad-col">
               <button
                 type="button"
                 disabled={!plateSrc}
@@ -551,60 +534,56 @@ export default function ScratchPage() {
                       padding: "12px",
                     }}
                   >
-                    Drop a place. Tap faces onto the pad. Then still → Save line → clip (lip sync).
+                    Faces left. Place right. Draw.
                   </div>
                 )}
               </button>
-              {job.folderName && stackClips.length ? (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                  <PlateClipThumbs job={job} clips={stackClips} preload />
-                </div>
-              ) : null}
             </div>
 
-            <div>
-              <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-                Drop
-              </div>
-              <div style={sideScroll}>
-                {job.scenes.map((sc) => {
-                  const src = placeUrl(job, sc.id);
-                  const on = sc.id === sceneId;
-                  return (
-                    <button
-                      key={sc.id}
-                      type="button"
-                      disabled={Boolean(busy)}
-                      title={on && src ? "Tap again to enlarge" : `Drop ${sc.placeName} on pad`}
-                      onClick={() => dropPlace(sc.id)}
-                      style={thumbBtn(on)}
-                    >
-                      {src ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={src}
-                          alt=""
-                          style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: `${SIDE_THUMB_PX}px`,
-                            height: `${SIDE_THUMB_PX}px`,
-                            color: "var(--chrome-dim)",
-                            fontSize: "10px",
-                            overflow: "hidden",
-                          }}
-                        >
-                          {sc.placeName}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="scratch-rail">
+              {job.scenes.map((sc) => {
+                const src = placeUrl(job, sc.id);
+                const on = sc.id === sceneId;
+                return (
+                  <button
+                    key={sc.id}
+                    type="button"
+                    disabled={Boolean(busy)}
+                    title={on && src ? "Tap again to enlarge" : `Drop ${sc.placeName} on pad`}
+                    onClick={() => dropPlace(sc.id)}
+                    style={thumbBtn(on)}
+                  >
+                    {src ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={src}
+                        alt=""
+                        style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: `${SIDE_THUMB_PX}px`,
+                          height: `${SIDE_THUMB_PX}px`,
+                          color: "var(--chrome-dim)",
+                          fontSize: "10px",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {sc.placeName}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          {job.folderName && stackClips.length ? (
+            <div className="scratch-clip-rail">
+              <PlateClipThumbs job={job} clips={stackClips} preload />
+            </div>
+          ) : null}
 
           <MobilePrimaryButton
             disabled={!padCast.length || !sceneId || Boolean(busy)}

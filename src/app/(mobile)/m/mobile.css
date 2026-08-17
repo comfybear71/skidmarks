@@ -32,3 +32,70 @@ body {
     background-position: -200% 0;
   }
 }
+
+/* Scratch stage — side rails match the pad height and scroll inside. */
+.scratch-stage {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 80px;
+  gap: 10px;
+  align-items: start;
+}
+
+.scratch-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  height: 0;
+  min-height: 100%;
+  padding: 2px 4px 2px 0;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--acid) 55%, transparent) transparent;
+}
+
+.scratch-rail::-webkit-scrollbar {
+  width: 3px;
+}
+
+.scratch-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scratch-rail::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--acid) 55%, transparent);
+  border-radius: 999px;
+}
+
+.scratch-pad-col {
+  min-width: 0;
+}
+
+.scratch-clip-rail {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 4px 10px;
+  margin: 0 -4px;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--acid) 55%, transparent) transparent;
+}
+
+.scratch-clip-rail::-webkit-scrollbar {
+  height: 3px;
+}
+
+.scratch-clip-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scratch-clip-rail::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--acid) 55%, transparent);
+  border-radius: 999px;
+}
