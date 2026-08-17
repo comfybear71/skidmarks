@@ -1,6 +1,7 @@
 /** Run: npx tsx scripts/check-studio-users.mjs
  * (Node type-stripping cannot follow extensionless TS imports in this file.) */
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import {
   HOME_OWNER_ID,
   findStudioUserByEmail,
@@ -53,6 +54,16 @@ assert.equal(jobBelongsToOwner({ ownerId: "mum" }, "mum"), true);
 assert.equal(jobBelongsToOwner({ ownerId: "stuie" }, "mum"), false);
 assert.equal(jobBelongsToOwner({ deskId: "mum" }, "mum"), true);
 assert.equal(jobBelongsToOwner({ ownerId: "mum" }, "stuie"), false);
+
+const candidatesSrc = fs.readFileSync(
+  new URL("../src/lib/mobileCandidates.ts", import.meta.url),
+  "utf8",
+);
+assert.equal(
+  candidatesSrc.includes("saveGenStillAsWorldCard"),
+  false,
+  "approving a place must not copy it onto the shared WORLD shelf",
+);
 
 if (prev == null) delete process.env.STUDIO_USERS;
 else process.env.STUDIO_USERS = prev;
