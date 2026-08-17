@@ -17,7 +17,15 @@
   color: var(--hm-bone);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* dvh tracks the real, current visible viewport. Plain vh on mobile is a
+     stale number from page load — as the address bar shows/hides on
+     scroll, vh doesn't move but the actual visible area does, so content
+     sized to it keeps almost-fitting/almost-overflowing and the page
+     wobbles between the two on every small scroll. dvh updates live, so
+     content sized against it fits exactly and never has to. Older
+     browsers without dvh just keep the vh line above. */
   min-height: 100vh;
+  min-height: 100dvh;
   height: auto;
   overflow: visible;
   position: relative;
@@ -25,13 +33,11 @@
   flex-direction: column;
 }
 /* Locking to one non-scrolling viewport only works with a real, stable
-   100vh — mobile browsers resize that behind the address bar, which cut
-   the parade off below the fold with no way to scroll down to it. Only
-   apply the locked single-screen version above the phone/tablet range,
-   where 100vh is trustworthy. */
+   height — only do it above the phone/tablet range. */
 @media (min-width: 861px) {
   .hm-root {
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
   }
 }
@@ -212,19 +218,9 @@
 .hm-company {
   position: relative;
   z-index: 3;
-  flex: none;
-  height: clamp(240px, 46vh, 460px);
+  flex: 1 1 auto;
+  min-height: 200px;
   overflow: hidden;
-}
-@media (min-width: 861px) {
-  /* Desktop's root is locked to a real 100vh — let this section fill
-     whatever's left over instead of a fixed vh guess, so the page always
-     reaches the bottom of the screen instead of leaving dead space. */
-  .hm-company {
-    height: auto;
-    flex: 1 1 auto;
-    min-height: 200px;
-  }
 }
 .hm-figure {
   position: absolute;
@@ -308,6 +304,7 @@
   z-index: 4;
   flex: 0 0 auto;
   height: clamp(120px, 20vh, 190px);
+  height: clamp(120px, 20dvh, 190px);
   overflow: hidden;
 }
 .hm-kerb {
