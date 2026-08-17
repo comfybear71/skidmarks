@@ -77,3 +77,5 @@ export {
   stagingCameraBlock,
 } from "./promptFormatter";
 export type { ScratchPromptFormatConfig } from "./promptFormatter";
+
+export { downloadScratchRunsCsv, scratchRunsToCsv } from "./csvExport";

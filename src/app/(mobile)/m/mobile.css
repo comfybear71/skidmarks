@@ -338,8 +338,11 @@ body {
   background: color-mix(in srgb, var(--acid) 12%, transparent);
 }
 
-.scratch-score-sub {
-  margin-top: 4px;
+.scratch-hotkey-hint {
+  color: var(--chrome-dim);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
 }
 
 .scratch-score-stress {
@@ -405,6 +408,12 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 4px;
+}
+
+.scratch-history-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
 .scratch-history-clear {

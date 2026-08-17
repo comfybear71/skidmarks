@@ -39,6 +39,7 @@ import {
   appendBenchRun,
   applyBibleTokens,
   clearBenchRuns,
+  downloadScratchRunsCsv,
   dropPercents,
   emptyBenchSession,
   generateScratchPrompt,
@@ -46,6 +47,7 @@ import {
   loadBenchSession,
   mergePositionIntoStaging,
   positionPromptLine,
+  saveBenchSession,
   setBenchChaos,
   setScratchDrag,
   readScratchDrag,
@@ -59,6 +61,7 @@ import {
   type ScratchPadPlacement,
   type ScratchScoreTag,
 } from "@/lib/scratchBench";
+import { useScratchPadHotkeys } from "@/hooks/useScratchPadHotkeys";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
@@ -659,6 +662,35 @@ export default function ScratchPage() {
 
   const playable = Boolean(beat?.voiceFile && isMobileSavedVoiceFile(beat.voiceFile));
 
+  useScratchPadHotkeys({
+    enabled: Boolean(job) && !resuming,
+    onDraw: () => {
+      if (busy || !job || !padCast.length || !sceneId) return;
+      void draw({
+        cast: padCast,
+        speaker: speaker || padCast[0],
+        staging: staging || undefined,
+      });
+    },
+    onGenerate: () => {
+      if (busy || !playable) return;
+      void makeClip();
+    },
+    onArchive: () => {
+      saveBenchSession(bench);
+    },
+    onClearPad: () => {
+      clearPad();
+    },
+    onExportCsv: () => {
+      if (!bench.runs.length) {
+        setError("No history to export yet");
+        return;
+      }
+      downloadScratchRunsCsv(bench.runs);
+    },
+  });
+
   return (
     <main className="mobile-shell scratch-shell" style={{ minHeight: "100dvh", paddingBottom: "16px" }}>
       <div style={{ padding: "12px 12px 0" }}>
@@ -691,6 +723,9 @@ export default function ScratchPage() {
               setBench((prev) => updateBenchRunTags(prev, runId, tags));
             }}
           />
+          <div className="scratch-hotkey-hint">
+            ⌘/Ctrl+Enter Draw · ⇧Enter Generate · S save log · E CSV · ⌫ clear pad
+          </div>
         </div>
       </div>
 
@@ -1098,6 +1133,13 @@ export default function ScratchPage() {
               onClear={() => {
                 setBench((prev) => clearBenchRuns(prev));
                 setSelectedRunId(null);
+              }}
+              onExportCsv={() => {
+                if (!bench.runs.length) {
+                  setError("No history to export yet");
+                  return;
+                }
+                downloadScratchRunsCsv(bench.runs);
               }}
             />
           </div>

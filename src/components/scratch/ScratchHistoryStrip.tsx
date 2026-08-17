@@ -20,11 +20,13 @@ export function ScratchHistoryStrip({
   selectedId,
   onSelect,
   onClear,
+  onExportCsv,
 }: {
   runs: ScratchBenchRun[];
   selectedId?: string | null;
   onSelect?: (run: ScratchBenchRun) => void;
   onClear?: () => void;
+  onExportCsv?: () => void;
 }) {
   if (!runs.length) {
     return (
@@ -38,11 +40,18 @@ export function ScratchHistoryStrip({
     <div className="scratch-history">
       <div className="scratch-history-head">
         <span>History ({runs.length})</span>
-        {onClear ? (
-          <button type="button" className="scratch-history-clear" onClick={onClear}>
-            Clear log
-          </button>
-        ) : null}
+        <div className="scratch-history-actions">
+          {onExportCsv ? (
+            <button type="button" className="scratch-history-clear" onClick={onExportCsv}>
+              Export CSV
+            </button>
+          ) : null}
+          {onClear ? (
+            <button type="button" className="scratch-history-clear" onClick={onClear}>
+              Clear log
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="scratch-history-strip">
         {runs.map((run) => {
@@ -76,17 +85,12 @@ export function ScratchHistoryStrip({
                 {SCRATCH_STRESS_TAGS.map((tag) => {
                   const on = run.tags.includes(tag);
                   return (
-                    <span
-                      key={tag}
-                      className={`scratch-history-badge${on ? " is-flag" : ""}`}
-                    >
+                    <span key={tag} className={`scratch-history-badge${on ? " is-flag" : ""}`}>
                       {STRESS_LABEL[tag] || tag}
                     </span>
                   );
                 })}
-                <span
-                  className={`scratch-history-verdict is-${verdict}`}
-                >
+                <span className={`scratch-history-verdict is-${verdict}`}>
                   {verdict === "open" ? (fails ? `${fails} bugs` : "—") : verdict}
                 </span>
               </span>
