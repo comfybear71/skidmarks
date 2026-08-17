@@ -222,38 +222,6 @@ export function PlateReviewEditor({
     }
   }
 
-  async function removeShot(shotId: string) {
-    setActionError("");
-    try {
-      const res = await fetch("/api/crash/mobile/plate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, shotId, action: "remove" }),
-      });
-      const data = (await res.json()) as {
-        error?: string;
-        job?: MobileGenJob;
-        removedShot?: CrashStoryShot;
-        sceneId?: string;
-      };
-      if (!res.ok) throw new Error(data.error || "Couldn't remove that card");
-      setStory((cur) => {
-        if (!cur) return cur;
-        return {
-          ...cur,
-          scenes: cur.scenes.map((sc) => ({ ...sc, shots: sc.shots.filter((sh) => sh.id !== shotId) })),
-        };
-      });
-      if (openShotId === shotId) setOpenShotId(null);
-      if (data.job) onJobChange?.(data.job);
-      if (data.removedShot && data.sceneId) {
-        setRemovedBuffer([{ sceneId: data.sceneId, shot: data.removedShot }]);
-      }
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Couldn't remove that card");
-    }
-  }
-
   async function clearAllShots() {
     setActionError("");
     setClearBusy(true);
@@ -574,33 +542,6 @@ export function PlateReviewEditor({
                     }}
                   >
                     ×
-                  </button>
-                ) : null}
-                {!collapsed ? (
-                  <button
-                    type="button"
-                    aria-label="Remove this shot"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void removeShot(s.shotId);
-                    }}
-                    style={{
-                      position: "absolute",
-                      bottom: "4px",
-                      right: "4px",
-                      width: "18px",
-                      height: "18px",
-                      padding: 0,
-                      borderRadius: "2px",
-                      border: "1px solid var(--acid)",
-                      background: "rgba(0,0,0,0.72)",
-                      color: "var(--acid)",
-                      fontSize: "12px",
-                      lineHeight: 1,
-                      cursor: "pointer",
-                    }}
-                  >
-                    −
                   </button>
                 ) : null}
               </div>
@@ -1474,10 +1415,18 @@ function ShotLineEditor({
               beats: shot.beats,
             })}
             beat={beat}
+            positionPrompt={shot.staging || ""}
+            onPositionSaved={(staging, plate) =>
+              onPlateRebuilt(
+                plate?.plateFile !== undefined ? plate.plateFile : shot.plateFile,
+                staging,
+                shot.summary,
+                plate?.plateTakes !== undefined ? plate.plateTakes : shot.plateTakes,
+              )
+            }
             onSaved={(text, voiceFile, imageMotion, nextJob) =>
               onBeatSaved(beat.id, text, voiceFile, imageMotion, nextJob)
             }
-            onRemoved={(nextJob) => onLineRemoved?.(beat.id, nextJob)}
           />
           </div>
         );
@@ -1563,8 +1512,9 @@ function BeatLineEditor({
   lookLock,
   shotSpeakers,
   beat,
+  positionPrompt,
+  onPositionSaved,
   onSaved,
-  onRemoved,
 }: {
   styleId: string;
   folderName: string;
@@ -1574,8 +1524,12 @@ function BeatLineEditor({
   lookLock: string;
   shotSpeakers: string[];
   beat: CrashStoryBeat;
+  positionPrompt: string;
+  onPositionSaved: (
+    staging: string,
+    plate?: { plateFile?: string; plateTakes?: PlateTake[] },
+  ) => void;
   onSaved: (text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
-  onRemoved?: (job?: MobileGenJob) => void;
 }) {
   const [text, setText] = useState(
     isLeftoverPackVoiceFile(beat.voiceFile) ? "" : beat.text,
@@ -1590,9 +1544,11 @@ function BeatLineEditor({
     lineVoiceLabel({ speaker: beat.speaker, jobVoices, library: [] }),
   );
   const [saving, setSaving] = useState(false);
-  const [removing, setRemoving] = useState(false);
+  const [redrawing, setRedrawing] = useState(false);
   const [error, setError] = useState("");
   const [ltxOpen, setLtxOpen] = useState(false);
+  const [positionOpen, setPositionOpen] = useState(false);
+  const [positionDraft, setPositionDraft] = useState<string | null>(null);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
   const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
@@ -1603,6 +1559,12 @@ function BeatLineEditor({
       voiceFileBelongsToSpeaker(voiceFile, beat.speaker),
   );
   const savedTake = playable && !dirty;
+  const positionBody = positionDraft ?? positionPrompt;
+  const positionDirty = positionDraft !== null && positionDraft.trim() !== (positionPrompt || "").trim();
+
+  useEffect(() => {
+    setPositionDraft(null);
+  }, [shotId, positionPrompt]);
 
   useEffect(() => {
     if (!isLeftoverPackVoiceFile(beat.voiceFile)) return;
@@ -1610,6 +1572,70 @@ function BeatLineEditor({
     setVoiceFile("");
   }, [beat.id, beat.voiceFile]);
 
+  const persistPosition = useCallback(
+    async (body: string): Promise<string> => {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, shotId, action: "save", staging: body }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; staging?: string };
+      if (!res.ok) throw new Error(data.error || "Couldn't keep position prompt");
+      const saved = (data.staging ?? body).trim();
+      onPositionSaved(saved);
+      return saved;
+    },
+    [jobId, onPositionSaved, shotId],
+  );
+
+  const redrawPosition = useCallback(
+    async (body: string) => {
+      const staging = body.trim();
+      if (!staging) throw new Error("Write a position prompt before redrawing");
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId,
+          shotId,
+          staging,
+          summary: staging,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        plateFile?: string;
+        plateTakes?: PlateTake[];
+        staging?: string;
+      };
+      if (!res.ok) throw new Error(data.error || "Couldn't redraw that still");
+      const saved = (data.staging ?? staging).trim();
+      onPositionSaved(saved, {
+        plateFile: data.plateFile,
+        plateTakes: data.plateTakes,
+      });
+      return saved;
+    },
+    [jobId, onPositionSaved, shotId],
+  );
+
+  const positionAssist = useMobileAssist(
+    "plate",
+    styleId,
+    () => positionBody,
+    (v) => {
+      setPositionDraft(v);
+      void persistPosition(v)
+        .then(() => setPositionDraft(null))
+        .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep position prompt"));
+    },
+    platePositionAssistHint({
+      people: shotSpeakers,
+      placeName: "",
+      placeLook: "",
+      looks: shotSpeakers.map((name) => ({ name, look: name === beat.speaker ? lookLock : "" })),
+    }),
+  );
   const defaultMotionBody = useMemo(
     () =>
       stripLtxLipSyncLead(
@@ -1736,24 +1762,6 @@ function BeatLineEditor({
     }
   }
 
-  async function removeLine() {
-    setRemoving(true);
-    setError("");
-    try {
-      const res = await fetch("/api/crash/mobile/plate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, shotId, beatId: beat.id, action: "remove-line" }),
-      });
-      const data = await readApiJson<{ error?: string; job?: MobileGenJob }>(res);
-      onRemoved?.(data.job);
-    } catch (e) {
-      setError(studioFetchError(e, "Couldn't remove that line"));
-    } finally {
-      setRemoving(false);
-    }
-  }
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1769,29 +1777,6 @@ function BeatLineEditor({
         ) : (
           <div style={{ fontSize: "12px", color: "var(--chrome-dim)", flex: 1 }}>No line yet</div>
         )}
-        {onRemoved ? (
-          <button
-            type="button"
-            aria-label="Remove this line"
-            disabled={removing || saving}
-            onClick={() => void removeLine()}
-            style={{
-              marginLeft: "auto",
-              width: "28px",
-              height: "28px",
-              padding: 0,
-              borderRadius: "2px",
-              border: "1px solid var(--line)",
-              background: "transparent",
-              color: "var(--chrome-dim)",
-              fontSize: "16px",
-              lineHeight: 1,
-              cursor: removing ? "default" : "pointer",
-            }}
-          >
-            {removing ? "…" : "−"}
-          </button>
-        ) : null}
       </div>
       <MobileTextInput
         value={text}
@@ -1833,6 +1818,73 @@ function BeatLineEditor({
         </span>
         {error ? <span style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</span> : null}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setPositionOpen((open) => !open)}
+        style={{
+          width: "100%",
+          padding: "8px 0",
+          border: 0,
+          background: "transparent",
+          color: "var(--chrome-dim)",
+          fontSize: "12px",
+          fontWeight: 700,
+          textAlign: "left",
+        }}
+      >
+        {positionOpen ? "▾ Position prompt" : "▸ Position prompt"}
+      </button>
+      {positionOpen ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <p style={{ margin: 0, color: "var(--chrome-dim)", fontSize: "11px", lineHeight: 1.45 }}>
+            Still position — who sits, leans, holds what. Keep the words, then Redo still to draw again.
+          </p>
+          <MobileTextInput
+            value={positionBody}
+            onChange={(v) => setPositionDraft(v)}
+            placeholder="Position, emotion, holding, wearing, who is where…"
+            multiline
+            rows={5}
+            onAi={() => void positionAssist.runAssist()}
+            aiBusy={positionAssist.aiBusy}
+          />
+          {positionAssist.aiError ? (
+            <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{positionAssist.aiError}</div>
+          ) : null}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            <MobilePrimaryButton
+              size="chip"
+              tone="ghost"
+              disabled={saving || redrawing || !positionDirty}
+              onClick={() => {
+                setSaving(true);
+                setError("");
+                void persistPosition(positionBody)
+                  .then(() => setPositionDraft(null))
+                  .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep position prompt"))
+                  .finally(() => setSaving(false));
+              }}
+            >
+              {saving ? "…" : "Keep position"}
+            </MobilePrimaryButton>
+            <MobilePrimaryButton
+              size="chip"
+              disabled={saving || redrawing || !positionBody.trim()}
+              onClick={() => {
+                setRedrawing(true);
+                setError("");
+                void redrawPosition(positionBody)
+                  .then(() => setPositionDraft(null))
+                  .catch((e) => setError(e instanceof Error ? e.message : "Couldn't redraw that still"))
+                  .finally(() => setRedrawing(false));
+              }}
+            >
+              {redrawing ? "Drawing…" : "Redo still"}
+            </MobilePrimaryButton>
+          </div>
+        </div>
+      ) : null}
 
       <button
         type="button"
