@@ -1,9 +1,14 @@
 /**
- * Scratch prompt bible — framing, motion, camera, genre blocks.
+ * Scratch /m prompt bible — position banks for still Draw.
+ * Append order that works: Zoom → Action → Wardrobe → Prop → Mood.
  * Structural descriptive language only. No moderation-bypass / attire euphemism bank.
  */
 
 export type ScratchBibleSectionId =
+  | "zoom"
+  | "action"
+  | "wardrobe"
+  | "prop"
   | "frame"
   | "motion"
   | "camera"
@@ -29,6 +34,232 @@ export type ScratchBibleSection = {
 };
 
 export const SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
+  {
+    id: "zoom",
+    label: "Zoom",
+    hint: "How tight the still is — tap first when Append stacking",
+    entries: [
+      {
+        id: "zoom-wide",
+        label: "Wide zoom-out",
+        template:
+          "Wide establishing shot of {{name}} at {{place}}. Full environment readable; {{name}} smaller in frame so the room and body both read clearly.",
+      },
+      {
+        id: "zoom-full",
+        label: "Full body",
+        template:
+          "Full-body shot of {{name}} at {{place}}. Head to feet visible, natural stance, clear silhouette against the place.",
+      },
+      {
+        id: "zoom-medium",
+        label: "Medium",
+        template:
+          "Medium shot of {{name}} at {{place}}. Waist-up, face and hands readable, room still visible behind them.",
+      },
+      {
+        id: "zoom-mcu",
+        label: "Medium close",
+        template:
+          "Medium close-up of {{name}} at {{place}}. Upper chest and face fill the frame; shallow depth of field.",
+      },
+      {
+        id: "zoom-tight",
+        label: "Tight face",
+        template:
+          "Tight close-up of {{name}} at {{place}}. Face dominates the frame from forehead to chin; eyes and mouth are primary.",
+      },
+    ],
+  },
+  {
+    id: "action",
+    label: "Action",
+    hint: "What the body is doing in the still",
+    entries: [
+      {
+        id: "action-sit",
+        label: "Sitting",
+        template:
+          "{{name}} is sitting at {{place}}, weight grounded, natural posture, hands free or resting.",
+      },
+      {
+        id: "action-stand",
+        label: "Standing",
+        template:
+          "{{name}} stands at {{place}}, balanced on both feet, shoulders relaxed, ready to speak.",
+      },
+      {
+        id: "action-lie",
+        label: "Lying down",
+        template:
+          "{{name}} is lying down at {{place}}, body stretched along the surface, head supported, looking toward camera or phone.",
+      },
+      {
+        id: "action-lean",
+        label: "Leaning",
+        template:
+          "{{name}} leans against a wall or furniture at {{place}}, one shoulder loaded, casual weight shift.",
+      },
+      {
+        id: "action-kneel",
+        label: "Kneeling",
+        template:
+          "{{name}} kneels at {{place}}, upright torso, knees on the floor, hands busy in front of them.",
+      },
+      {
+        id: "action-handstand",
+        label: "Handstand",
+        template:
+          "{{name}} is in a handstand at {{place}}, arms locked, legs up, face strained with effort, place still readable behind them.",
+      },
+      {
+        id: "action-bin",
+        label: "In a bin",
+        template:
+          "{{name}} is half-inside a rubbish bin at {{place}}, absurd and undignified, torso and arms clear, bin rim cutting the frame.",
+      },
+      {
+        id: "action-wash-hair",
+        label: "Washing hair",
+        template:
+          "{{name}} is washing their hair at {{place}}, wet hair, hands in scalp, water or sink context, eyes half-closed.",
+      },
+      {
+        id: "action-change",
+        label: "Changing clothes",
+        template:
+          "{{name}} is mid clothing-change at {{place}}, arms lifting or stepping into garments, natural awkward staging, not a fashion lineup.",
+      },
+      {
+        id: "action-smoke",
+        label: "Having a smoke",
+        template:
+          "{{name}} is having a smoke at {{place}}, cigarette or rollie at the lips or between fingers, exhale implied, casual stance.",
+      },
+      {
+        id: "action-beer",
+        label: "Having a beer",
+        template:
+          "{{name}} is having a beer at {{place}}, can or bottle in hand near the mouth or resting on a knee, relaxed.",
+      },
+      {
+        id: "action-text",
+        label: "Texting hard",
+        template:
+          "{{name}} is a keyboard warrior at {{place}}, phone in both hands, thumbs hammering keys, staring at the screen.",
+      },
+    ],
+  },
+  {
+    id: "wardrobe",
+    label: "Wardrobe",
+    hint: "What they're wearing — adult subjects only",
+    entries: [
+      {
+        id: "ward-everyday",
+        label: "Everyday clothes",
+        template:
+          "{{name}} wears ordinary everyday clothes at {{place}} — tee and jeans or similar, nothing fancy.",
+      },
+      {
+        id: "ward-messy",
+        label: "Messed-up clothes",
+        template:
+          "{{name}}'s clothes are messed up at {{place}} — wrinkled, half-tucked, slept-in look.",
+      },
+      {
+        id: "ward-towel",
+        label: "Towel only",
+        template:
+          "{{name}} is wrapped in a towel only at {{place}}, damp skin, just out of a wash.",
+      },
+      {
+        id: "ward-robe",
+        label: "Open robe",
+        template:
+          "{{name}} wears a loosely open robe at {{place}}, fabric slipping off one shoulder.",
+      },
+      {
+        id: "ward-partial",
+        label: "Partial nude",
+        template:
+          "Adult {{name}}, partial nudity at {{place}} — topless or underwear only, natural body, not a catalogue pose.",
+      },
+      {
+        id: "ward-nude",
+        label: "Nude",
+        template:
+          "Adult {{name}}, fully nude at {{place}}, natural proportions, unposed everyday body language, no text or watermarks.",
+      },
+      {
+        id: "ward-wet",
+        label: "Wet clothes",
+        template:
+          "{{name}} wears wet clinging clothes at {{place}}, fabric heavy with water, hair damp.",
+      },
+      {
+        id: "ward-blanket",
+        label: "Under a blanket",
+        template:
+          "{{name}} is under a blanket at {{place}}, shoulders and face out, cocooned, intimate and messy.",
+      },
+    ],
+  },
+  {
+    id: "prop",
+    label: "Prop",
+    hint: "What they're holding or using",
+    entries: [
+      {
+        id: "prop-phone",
+        label: "Phone",
+        template:
+          "{{name}} holds a phone at {{place}}, screen toward them, thumbs ready, phone is the clear hero prop.",
+      },
+      {
+        id: "prop-beer",
+        label: "Beer",
+        template:
+          "{{name}} holds a beer can or bottle at {{place}}, label unreadable, drink is the clear hero prop.",
+      },
+      {
+        id: "prop-smoke",
+        label: "Cigarette",
+        template:
+          "{{name}} holds a cigarette or rollie at {{place}}, thin smoke optional, fingers natural.",
+      },
+      {
+        id: "prop-mug",
+        label: "Mug / cup",
+        template:
+          "{{name}} holds a mug or cup at {{place}}, both hands or one hand wrapped around it.",
+      },
+      {
+        id: "prop-towel",
+        label: "Towel in hands",
+        template:
+          "{{name}} holds or wrings a towel at {{place}}, fabric bunched, damp.",
+      },
+      {
+        id: "prop-bag",
+        label: "Bag / backpack",
+        template:
+          "{{name}} holds or wears a bag at {{place}}, strap or handles clear, everyday mess.",
+      },
+      {
+        id: "prop-remote",
+        label: "Remote / controller",
+        template:
+          "{{name}} holds a TV remote or game controller at {{place}}, pointed or idle in the lap.",
+      },
+      {
+        id: "prop-nothing",
+        label: "Empty hands",
+        template:
+          "{{name}} has empty hands at {{place}}, no new props, gesture only.",
+      },
+    ],
+  },
   {
     id: "frame",
     label: "Frame",
