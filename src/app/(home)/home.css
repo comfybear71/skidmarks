@@ -216,6 +216,16 @@
   height: clamp(240px, 46vh, 460px);
   overflow: hidden;
 }
+@media (min-width: 861px) {
+  /* Desktop's root is locked to a real 100vh — let this section fill
+     whatever's left over instead of a fixed vh guess, so the page always
+     reaches the bottom of the screen instead of leaving dead space. */
+  .hm-company {
+    height: auto;
+    flex: 1 1 auto;
+    min-height: 200px;
+  }
+}
 .hm-figure {
   position: absolute;
   bottom: 4%;
