@@ -20,12 +20,6 @@ export function SiteNav() {
       >
         Crash Lab
       </Link>
-      <Link
-        href="/"
-        className="touch-manipulation rounded-sm border border-[var(--line)] px-3 py-2.5 text-[var(--chrome-dim)] hover:border-[var(--acid)] hover:text-[var(--acid)]"
-      >
-        Home
-      </Link>
     </nav>
   );
 }
