@@ -28,6 +28,22 @@ import {
   type ScratchPreset,
   type ScratchPresetGroup,
 } from "@/lib/scratchPresets";
+import {
+  ScratchChaosSelect,
+  ScratchHistoryStrip,
+  ScratchScoreToggles,
+} from "@/components/scratch";
+import {
+  appendBenchRun,
+  clearBenchRuns,
+  emptyBenchSession,
+  injectChaosStill,
+  loadBenchSession,
+  setBenchChaos,
+  updateBenchRunTags,
+  type ScratchBenchSession,
+  type ScratchScoreTag,
+} from "@/lib/scratchBench";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
@@ -156,6 +172,8 @@ export default function ScratchPage() {
   const [presets, setPresets] = useState<ScratchPreset[]>([]);
   const [editLabel, setEditLabel] = useState("");
   const [editGroup, setEditGroup] = useState<ScratchPresetGroup>("Mine");
+  const [bench, setBench] = useState<ScratchBenchSession>(() => emptyBenchSession());
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const drawSeq = useRef(0);
 
   const scratch = findScratchShot(story);
@@ -184,6 +202,10 @@ export default function ScratchPage() {
 
   useEffect(() => {
     setPresets(loadScratchPresets());
+  }, []);
+
+  useEffect(() => {
+    setBench(loadBenchSession());
   }, []);
 
   const loadStory = useCallback(
@@ -274,7 +296,8 @@ export default function ScratchPage() {
   }) {
     if (!job) return;
     const nextPose = opts?.poseId ?? poseId;
-    const nextStaging = opts?.staging ?? staging;
+    const rawStaging = opts?.staging ?? staging;
+    const nextStaging = injectChaosStill(rawStaging || "", bench.chaosId);
     const nextSpeaker = opts?.speaker ?? speaker;
     const nextCast = opts?.cast ?? (padCast.length ? padCast : nextSpeaker ? [nextSpeaker] : []);
     const nextScene = opts?.sceneId ?? sceneId;
@@ -310,8 +333,29 @@ export default function ScratchPage() {
       if (seq !== drawSeq.current) return;
       setJob(drawn.job);
       if (drawn.staging) setStaging(drawn.staging);
+      else if (nextStaging) setStaging(nextStaging);
       setPadCleared(false);
       await loadStory(drawn.job);
+      const plateFileName =
+        drawn.job.shots.map((s) => s.plateFile).filter((f): f is string => Boolean(f && f !== "__error__")).at(-1) ||
+        "";
+      const plateUrl = plateFileName
+        ? `/api/crash/gen/file?name=${encodeURIComponent(plateFileName)}`
+        : undefined;
+      let loggedId: string | null = null;
+      setBench((prev) => {
+        const next = appendBenchRun(prev, {
+          kind: "still",
+          backend: "unknown",
+          chaosId: prev.chaosId,
+          positionPrompt: nextStaging || undefined,
+          plateUrl,
+          tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
+        });
+        loggedId = next.runs[0]?.id || null;
+        return next;
+      });
+      setSelectedRunId(loggedId);
     } catch (e) {
       if (seq !== drawSeq.current) return;
       setError(e instanceof Error ? e.message : "Couldn't draw");
@@ -470,6 +514,26 @@ export default function ScratchPage() {
         beatId: beat.id,
       });
       if (data.job) setJob(data.job);
+      const clipFile =
+        data.job?.clips?.filter((c) => c.beatId === beat.id && c.clipFile).at(-1)?.clipFile || "";
+      const clipUrl = clipFile
+        ? `/api/crash/gen/file?name=${encodeURIComponent(clipFile)}`
+        : undefined;
+      let loggedId: string | null = null;
+      setBench((prev) => {
+        const next = appendBenchRun(prev, {
+          kind: "clip",
+          backend: "unknown",
+          chaosId: prev.chaosId,
+          positionPrompt: staging || undefined,
+          plateUrl: plateSrc || undefined,
+          clipUrl,
+          tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
+        });
+        loggedId = next.runs[0]?.id || null;
+        return next;
+      });
+      setSelectedRunId(loggedId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't send the clip");
     } finally {
@@ -491,6 +555,26 @@ export default function ScratchPage() {
           }}
         >
           Scratch
+        </div>
+        <div className="scratch-bench-toolbar" style={{ marginTop: "8px" }}>
+          <ScratchChaosSelect
+            value={bench.chaosId}
+            disabled={Boolean(busy)}
+            onChange={(id) => setBench((prev) => setBenchChaos(prev, id))}
+          />
+          <ScratchScoreToggles
+            tags={
+              (selectedRunId
+                ? bench.runs.find((r) => r.id === selectedRunId)?.tags
+                : bench.runs[0]?.tags) || []
+            }
+            disabled={!bench.runs.length || Boolean(busy)}
+            onChange={(tags) => {
+              const runId = selectedRunId || bench.runs[0]?.id;
+              if (!runId) return;
+              setBench((prev) => updateBenchRunTags(prev, runId, tags));
+            }}
+          />
         </div>
       </div>
 
@@ -824,6 +908,22 @@ export default function ScratchPage() {
                 </MobilePrimaryButton>
               </div>
             </div>
+
+            {benchReady ? (
+              <ScratchHistoryStrip
+                runs={bench.runs}
+                selectedId={selectedRunId}
+                onSelect={(run) => {
+                  setSelectedRunId(run.id);
+                  if (run.positionPrompt) setStaging(run.positionPrompt);
+                  if (run.plateUrl) setLightbox(run.plateUrl);
+                }}
+                onClear={() => {
+                  setBench((prev) => clearBenchRuns(prev));
+                  setSelectedRunId(null);
+                }}
+              />
+            ) : null}
           </div>
         </>
       )}
