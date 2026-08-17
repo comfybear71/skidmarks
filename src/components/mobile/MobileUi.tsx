@@ -228,30 +228,50 @@ export function MobileTextInput({
   onAi?: () => void;
   aiBusy?: boolean;
 }) {
+  const fieldStyle: CSSProperties = onAi
+    ? {
+        width: "100%",
+        padding: "14px 14px 8px",
+        color: "var(--chrome)",
+        fontSize: "15px",
+        fontFamily: "inherit",
+        background: "transparent",
+        border: "none",
+        outline: "none",
+        boxShadow: "none",
+        resize: multiline ? "vertical" : "none",
+      }
+    : {
+        ...mobileCard,
+        width: "100%",
+        padding: "14px",
+        color: "var(--chrome)",
+        fontSize: "15px",
+        fontFamily: "inherit",
+      };
   const shared = {
     value,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onChange(e.target.value),
     placeholder,
-    style: {
-      ...mobileCard,
-      width: "100%",
-      padding: onAi ? "14px 52px 14px 14px" : "14px",
-      color: "var(--chrome)",
-      fontSize: "15px",
-      fontFamily: "inherit",
-    } as React.CSSProperties,
+    style: fieldStyle,
   };
   const field = multiline ? (
-    <textarea {...shared} rows={rows} style={{ ...shared.style, resize: "vertical" }} />
+    <textarea {...shared} rows={rows} />
   ) : (
     <input {...shared} type="text" />
   );
   if (!onAi) return field;
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ ...mobileCard, overflow: "hidden" }}>
       {field}
-      <div style={{ position: "absolute", top: "8px", right: "8px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          padding: "0 10px 10px",
+        }}
+      >
         <MobileAiButton onClick={onAi} busy={aiBusy} />
       </div>
     </div>

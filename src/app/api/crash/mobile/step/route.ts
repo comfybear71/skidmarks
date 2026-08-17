@@ -21,7 +21,8 @@ import {
   findBeatHome,
 } from "@/lib/mobileClipQueue";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
-import { isScratchShotId } from "@/lib/mobileScratch";
+import { isOffEpisodeDeskShot } from "@/lib/mobileScratch";
+import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import { allCastApproved, allLocationsApproved, candidateLookPrompt } from "@/lib/mobileJobReady";
 import {
   imageMotionNamesLeftovers,
@@ -89,14 +90,29 @@ export async function POST(req: Request) {
     // to pick up whatever is still pending, or straight to stitch if none
     // is. Otherwise leave the job in error — nothing actually changed.
     if (job.phase === "error") {
-      if (job.clips.some((c) => c.clipStatus === "done")) {
-        const nextPhase = phaseAfterErrorResume(
-          job.clips.some((c) => c.clipStatus === "pending"),
-        );
+      const live = job;
+      let story: CrashStoryDoc | null = null;
+      if (live.folderName) {
+        try {
+          story = await readMobileStory(live.styleId, live.folderName);
+        } catch {
+          story = null;
+        }
+      }
+      const deskClips = live.clips.filter(
+        (c) => !isOffEpisodeDeskShot(live, c.shotId, story),
+      );
+      const pendingDesk = deskClips.some((c) => c.clipStatus === "pending");
+      if (deskClips.some((c) => c.clipStatus === "done")) {
+        const nextPhase = phaseAfterErrorResume(pendingDesk);
         job = (await patchMobileGenJob(jobId, { phase: nextPhase, error: "" }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
-      job = (await patchMobileGenJob(jobId, { phase: "review", error: "" }))!;
+      const clips = live.clips.filter(
+        (c) =>
+          !(c.clipStatus === "pending" && isOffEpisodeDeskShot(live, c.shotId, story)),
+      );
+      job = (await patchMobileGenJob(jobId, { clips, phase: "review", error: "" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
@@ -144,15 +160,15 @@ export async function POST(req: Request) {
       await hydrateMobilePackOnDisk(live.styleId, live.folderName);
       const story = await readMobileStory(live.styleId, live.folderName);
 
-      // Only LTX lines they Saved (Play). Do not voice the rest of the
-      // campaign and dump 40 clips on one Generate tap.
+      // Only LTX episode lines they Saved (Play). Keep scratch/campaign
+      // clips on the job so the pad stack stays playable — do not wipe them.
       const clips = (live.clips || []).flatMap((c) => {
-        if (!isMobileSavedVoiceFile(c.voiceFile)) return [];
         const home = findBeatHome(story, c.beatId);
+        const shotId = home?.shotId || c.shotId;
+        if (isOffEpisodeDeskShot(live, shotId, story)) return [c];
+        if (!isMobileSavedVoiceFile(c.voiceFile)) return [];
         const voiceFile = home?.voiceFile || c.voiceFile;
         if (!isMobileSavedVoiceFile(voiceFile)) return [];
-        const shotId = home?.shotId || c.shotId;
-        if (isScratchShotId(live, shotId, story)) return [];
         return [
           {
             ...c,
@@ -167,12 +183,19 @@ export async function POST(req: Request) {
           },
         ];
       });
-      const pending = clips.filter((c) => c.clipStatus === "pending");
+      const pending = clips.filter(
+        (c) =>
+          c.clipStatus === "pending" &&
+          !isOffEpisodeDeskShot(live, c.shotId, story),
+      );
       if (!pending.length) {
+        const episodeClips = clips.filter(
+          (c) => !isOffEpisodeDeskShot(live, c.shotId, story),
+        );
         job = (await patchMobileGenJob(jobId, {
           clips,
           phase: "review",
-          error: clips.length
+          error: episodeClips.length
             ? "Those lines already have clips — nothing new to send. Save the line again to re-queue."
             : "No Saved mp3s to send. Save the spoken line on the plate first — Play appears next to the name when the mp3 is ready.",
         }))!;
@@ -188,23 +211,34 @@ export async function POST(req: Request) {
     }
 
     if (job.phase === "animate") {
-      const next = job.clips.find((c) => c.clipStatus === "pending");
-      if (!next) {
-        const failed = clipQueueError(job.clips);
-        if (failed) {
-          job = (await patchMobileGenJob(jobId, { phase: "error", error: failed }))!;
-          return NextResponse.json({ ok: true, job, advanced: true });
+      const live = job;
+      let story: CrashStoryDoc | null = null;
+      if (live.folderName) {
+        try {
+          story = await readMobileStory(live.styleId, live.folderName);
+        } catch {
+          story = null;
         }
-        if (!job.clips.length) {
-          job = (await patchMobileGenJob(jobId, {
-            phase: "error",
-            error:
-              "Animating with 0 lines — the saved mp3 never got queued. Save the line on the plate, then Generate video again.",
-          }))!;
+      }
+      const next = live.clips.find(
+        (c) =>
+          c.clipStatus === "pending" && !isOffEpisodeDeskShot(live, c.shotId, story),
+      );
+      if (!next) {
+        const deskClips = live.clips.filter(
+          (c) => !isOffEpisodeDeskShot(live, c.shotId, story),
+        );
+        const clips = live.clips.filter(
+          (c) =>
+            !(c.clipStatus === "pending" && isOffEpisodeDeskShot(live, c.shotId, story)),
+        );
+        const failed = clipQueueError(deskClips);
+        if (failed) {
+          job = (await patchMobileGenJob(jobId, { clips, phase: "error", error: failed }))!;
           return NextResponse.json({ ok: true, job, advanced: true });
         }
         try {
-          const doneStory = await readMobileStory(job.styleId, job.folderName);
+          const doneStory = story || (await readMobileStory(job.styleId, job.folderName));
           await burnLeftoverPackAudio({
             styleId: job.styleId,
             folderName: job.folderName,
@@ -214,8 +248,10 @@ export async function POST(req: Request) {
           /* completion still returns — leftover burn is best effort */
         }
         job = (await patchMobileGenJob(jobId, {
+          clips,
           phase: phaseAfterAnimateQueue(false),
-          ...(job.plateLtxCampaign?.phase === "animating"
+          error: "",
+          ...(job.plateLtxCampaign
             ? {
                 plateLtxCampaign: {
                   ...job.plateLtxCampaign,
@@ -228,7 +264,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, job, advanced: true });
       }
       const shot = job.shots.find((s) => s.shotId === next.shotId);
-      const story = await readMobileStory(job.styleId, job.folderName);
+      story = story ?? (await readMobileStory(job.styleId, job.folderName));
       const scene = story.scenes.find((sc) => sc.id === next.sceneId);
       const storyShot = scene?.shots.find((sh) => sh.id === next.shotId);
       const beat = storyShot?.beats.find((b) => b.id === next.beatId);

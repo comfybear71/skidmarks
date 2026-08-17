@@ -8,6 +8,7 @@ import {
   mobileCard,
 } from "@/components/mobile/MobileUi";
 import { DeskSwitcher } from "@/components/mobile/DeskSwitcher";
+import { StudioSessionChip } from "@/components/mobile/StudioSessionChip";
 import { CastVoiceRow } from "@/components/mobile/CastVoiceRow";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
 import {
@@ -22,7 +23,7 @@ import type { CrashStoryBeat, CrashStoryDoc } from "@/lib/crashStoryTypes";
 import { approvedCandidateFileName, preferredCandidate } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { plateLtxCampaignScenarios } from "@/lib/mobilePlateLtxCampaign";
-import { findScratchShot } from "@/lib/mobileScratch";
+import { findScratchShot, scratchPadClips } from "@/lib/mobileScratch";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
@@ -145,6 +146,10 @@ export default function ScratchPage() {
         job?.clips || [],
       )
     : [];
+  const padStack = job
+    ? scratchPadClips(job, story).filter((c) => !underClips.some((u) => u.beatId === c.beatId))
+    : [];
+  const stackClips = [...underClips.filter((c) => c.clipFile), ...padStack];
   const poses = useMemo(() => plateLtxCampaignScenarios(), []);
   const poseById = useMemo(() => new Map(poses.map((p) => [p.id, p])), [poses]);
 
@@ -330,11 +335,13 @@ export default function ScratchPage() {
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh", paddingBottom: "48px" }}>
       <DeskSwitcher onChange={() => setDeskTick((n) => n + 1)} />
+      <StudioSessionChip />
       <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", gap: "12px" }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: "18px", color: "var(--chrome)" }}>Scratch</div>
           <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
-            Pad learns frame + position. Cast gets the extreme knobs. Place just drops on.
+            Pad learns frame + position. Cast gets the extreme knobs. Place just drops on. Clips stack
+            here. Episode desk stays on /m.
           </div>
         </div>
         <a href={job ? `/m?job=${encodeURIComponent(job.id)}` : "/m"} style={{ color: "var(--acid)", fontSize: "13px", fontWeight: 700 }}>
@@ -436,7 +443,11 @@ export default function ScratchPage() {
                   </div>
                 )}
               </button>
-              {job.folderName ? <PlateClipThumbs job={job} clips={underClips} preload /> : null}
+              {job.folderName && stackClips.length ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                  <PlateClipThumbs job={job} clips={stackClips} preload />
+                </div>
+              ) : null}
             </div>
 
             <div>

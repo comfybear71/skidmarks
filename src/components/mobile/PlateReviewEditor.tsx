@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  MobileAiButton,
   MobileAudioPlayer,
   MobilePrimaryButton,
   MobileTextInput,
@@ -37,7 +36,6 @@ import {
   stripLtxLipSyncLead,
 } from "@/lib/mobileImageMotion";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
-import { CampaignTestScoreRow } from "./PlateLtxCampaignCard";
 import { episodeJobShots } from "@/lib/mobileScratch";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
@@ -78,19 +76,6 @@ function fieldLabel(text: string) {
     </div>
   );
 }
-
-const shotFieldStyle = {
-  width: "100%",
-  minWidth: 0,
-  padding: "8px",
-  borderRadius: "2px",
-  border: "1px solid var(--line)",
-  background: "var(--panel-2)",
-  color: "var(--chrome)",
-  fontSize: "13px",
-  fontFamily: "inherit",
-  resize: "vertical" as const,
-};
 
 /** One removed shot, kept around just long enough to put back. */
 type RemovedShot = { sceneId: string; shot: CrashStoryShot };
@@ -470,12 +455,7 @@ export function PlateReviewEditor({
             : placeSrc;
           const addingCast = castPickerShotId === s.shotId;
           const storyShot = displayShot(s.shotId);
-          const beatIds =
-            storyShot?.beats.map((b) => b.id) ||
-            job.plateLtxCampaign?.tests
-              ?.filter((t) => t.shotId === s.shotId)
-              .map((t) => t.beatId) ||
-            [];
+          const beatIds = storyShot?.beats.map((b) => b.id) || [];
           const underClips = clipsUnderPlate(s.shotId, beatIds, job.clips);
           return (
             <div
@@ -774,8 +754,6 @@ export function PlateReviewEditor({
           }
           shot={displayShot(openShotId)}
           clips={job.clips}
-          campaign={job.plateLtxCampaign}
-          onJobChange={onJobChange}
           loading={!story && !loadError}
           error={loadError}
           placeSrc={
@@ -819,6 +797,23 @@ export function PlateReviewEditor({
                   shots: sc.shots.map((sh) =>
                     sh.id === openShotId && !sh.beats.some((b) => b.id === beat.id)
                       ? { ...sh, beats: [...sh.beats, beat] }
+                      : sh,
+                  ),
+                })),
+              };
+            });
+          }}
+          onLineRemoved={(beatId, nextJob) => {
+            if (nextJob) onJobChange?.(nextJob);
+            setStory((cur) => {
+              if (!cur || !openShotId) return cur;
+              return {
+                ...cur,
+                scenes: cur.scenes.map((sc) => ({
+                  ...sc,
+                  shots: sc.shots.map((sh) =>
+                    sh.id === openShotId
+                      ? { ...sh, beats: sh.beats.filter((b) => b.id !== beatId) }
                       : sh,
                   ),
                 })),
@@ -1092,17 +1087,15 @@ function CastIntoPlatePopup({
       </div>
       {picked ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            {fieldLabel(`Position ${picked}`)}
-            <div style={{ flex: 1 }} />
-            <MobileAiButton onClick={() => void assist.runAssist()} busy={assist.aiBusy} />
-          </div>
-          <textarea
+          {fieldLabel(`Position ${picked}`)}
+          <MobileTextInput
             value={staging}
-            onChange={(e) => setStaging(e.target.value)}
+            onChange={setStaging}
+            multiline
             rows={3}
             placeholder={`${picked} in ${placeName || "this room"} — sitting, lying down, against the wall…`}
-            style={shotFieldStyle}
+            onAi={() => void assist.runAssist()}
+            aiBusy={assist.aiBusy}
           />
           <MobilePrimaryButton
             disabled={busy || assist.aiBusy || !staging.trim()}
@@ -1337,8 +1330,6 @@ function ShotLineEditor({
   lookForSpeaker,
   shot,
   clips,
-  campaign,
-  onJobChange,
   loading,
   error,
   placeSrc,
@@ -1346,6 +1337,7 @@ function ShotLineEditor({
   onBeatSaved,
   onPlateRebuilt,
   onLineAdded,
+  onLineRemoved,
 }: {
   styleId: string;
   folderName: string;
@@ -1355,14 +1347,13 @@ function ShotLineEditor({
   lookForSpeaker: (name: string) => string;
   shot: CrashStoryShot | null;
   clips: MobileClipUnit[];
-  campaign?: MobileGenJob["plateLtxCampaign"];
-  onJobChange?: (job: MobileGenJob) => void;
   loading: boolean;
   error: string;
   placeSrc?: string;
   jobPlated?: boolean;
   onBeatSaved: (beatId: string, text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
   onLineAdded?: (beat: CrashStoryBeat) => void;
+  onLineRemoved?: (beatId: string, job?: MobileGenJob) => void;
   onPlateRebuilt: (
     plateFile: string | undefined,
     staging: string,
@@ -1405,7 +1396,6 @@ function ShotLineEditor({
         onPicked={(plateFile, staging) => onPlateRebuilt(plateFile, staging, shot.summary)}
       />
       {speakingBeats.map((beat) => {
-        const test = campaign?.tests?.find((t) => t.beatId === beat.id);
         const clip = clips.find((c) => c.beatId === beat.id);
         return (
           <div key={beat.id}>
@@ -1414,19 +1404,12 @@ function ShotLineEditor({
                 {clip.error}
               </div>
             ) : null}
-            {test && onJobChange ? (
-              <CampaignTestScoreRow
-                jobId={jobId}
-                test={test}
-                saved={campaign?.scores?.[test.id]}
-                onJobChange={onJobChange}
-              />
-            ) : null}
             <BeatLineEditor
             key={beat.id}
             styleId={styleId}
             folderName={folderName}
             jobId={jobId}
+            shotId={shot.id}
             jobVoices={jobVoices}
             lookLock={lookForSpeaker(beat.speaker)}
             shotSpeakers={shotSpeakersOnCard({
@@ -1442,6 +1425,7 @@ function ShotLineEditor({
             onSaved={(text, voiceFile, imageMotion, nextJob) =>
               onBeatSaved(beat.id, text, voiceFile, imageMotion, nextJob)
             }
+            onRemoved={(nextJob) => onLineRemoved?.(beat.id, nextJob)}
           />
           </div>
         );
@@ -1522,20 +1506,24 @@ function BeatLineEditor({
   styleId,
   folderName,
   jobId,
+  shotId,
   jobVoices,
   lookLock,
   shotSpeakers,
   beat,
   onSaved,
+  onRemoved,
 }: {
   styleId: string;
   folderName: string;
   jobId: string;
+  shotId: string;
   jobVoices?: Record<string, JobSpeakerVoice>;
   lookLock: string;
   shotSpeakers: string[];
   beat: CrashStoryBeat;
   onSaved: (text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
+  onRemoved?: (job?: MobileGenJob) => void;
 }) {
   const [text, setText] = useState(
     isLeftoverPackVoiceFile(beat.voiceFile) ? "" : beat.text,
@@ -1550,6 +1538,7 @@ function BeatLineEditor({
     lineVoiceLabel({ speaker: beat.speaker, jobVoices, library: [] }),
   );
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState("");
   const [ltxOpen, setLtxOpen] = useState(false);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
@@ -1695,6 +1684,24 @@ function BeatLineEditor({
     }
   }
 
+  async function removeLine() {
+    setRemoving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, shotId, beatId: beat.id, action: "remove-line" }),
+      });
+      const data = await readApiJson<{ error?: string; job?: MobileGenJob }>(res);
+      onRemoved?.(data.job);
+    } catch (e) {
+      setError(studioFetchError(e, "Couldn't remove that line"));
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1708,8 +1715,31 @@ function BeatLineEditor({
             )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(voiceFile)}`}
           />
         ) : (
-          <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>No line yet</div>
+          <div style={{ fontSize: "12px", color: "var(--chrome-dim)", flex: 1 }}>No line yet</div>
         )}
+        {onRemoved ? (
+          <button
+            type="button"
+            aria-label="Remove this line"
+            disabled={removing || saving}
+            onClick={() => void removeLine()}
+            style={{
+              marginLeft: "auto",
+              width: "28px",
+              height: "28px",
+              padding: 0,
+              borderRadius: "2px",
+              border: "1px solid var(--line)",
+              background: "transparent",
+              color: "var(--chrome-dim)",
+              fontSize: "16px",
+              lineHeight: 1,
+              cursor: removing ? "default" : "pointer",
+            }}
+          >
+            {removing ? "…" : "−"}
+          </button>
+        ) : null}
       </div>
       <MobileTextInput
         value={text}

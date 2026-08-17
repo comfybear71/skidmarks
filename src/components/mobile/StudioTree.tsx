@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  MobileAiButton,
   MobilePrimaryButton,
   MobileTextInput,
   ShimmerText,
@@ -14,7 +13,6 @@ import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
-import { StoryFeed } from "./StoryFeed";
 import {
   allCastApproved,
   allLocationsApproved,
@@ -598,32 +596,15 @@ function CandidatePicker({
           >
             {promptLabel}
           </div>
-          <div style={{ position: "relative" }}>
-            <textarea
-              value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder={promptPlaceholder}
-              rows={2}
-              style={{
-                width: "100%",
-                minWidth: 0,
-                padding: "10px 10px 36px 10px",
-                borderRadius: "8px",
-                border: "1px solid var(--line)",
-                background: "var(--panel-2)",
-                color: "var(--chrome)",
-                fontSize: "13px",
-                fontFamily: "inherit",
-                resize: "vertical",
-              }}
-            />
-            <div style={{ position: "absolute", left: "8px", bottom: "8px" }}>
-              <MobileAiButton
-                onClick={() => void promptAssist.runAssist()}
-                busy={promptAssist.aiBusy}
-              />
-            </div>
-          </div>
+          <MobileTextInput
+            value={customPrompt}
+            onChange={setCustomPrompt}
+            placeholder={promptPlaceholder}
+            multiline
+            rows={2}
+            onAi={() => void promptAssist.runAssist()}
+            aiBusy={promptAssist.aiBusy}
+          />
           <div
             style={{
               display: "flex",
@@ -1179,14 +1160,12 @@ export function StudioTree({
                 {job.error}
               </div>
             ) : null}
-            <StoryFeed job={job} onClipUploaded={onJobChange} />
           </div>
         ) : null}
 
         {platesOpen && MOBILE_STITCH_MOVIES && job.phase === "stitch" ? (
           <div style={{ padding: "8px 0" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Stitching…</ShimmerText>
-            <StoryFeed job={job} onClipUploaded={onJobChange} />
           </div>
         ) : null}
 
@@ -1206,7 +1185,6 @@ export function StudioTree({
             <div style={{ color: "var(--magenta-hot)", fontSize: "13px", marginBottom: "10px" }}>
               {job.error || "Something went wrong"}
             </div>
-            {platesOpen ? <StoryFeed job={job} onClipUploaded={onJobChange} /> : null}
             <MobilePrimaryButton onClick={onRetryError}>Check again</MobilePrimaryButton>
           </div>
         ) : null}

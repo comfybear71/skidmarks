@@ -1,4 +1,5 @@
 import { motionStyleLock, onlyTheseInFrame } from "./mobileImageMotion";
+import type { CrashStoryDoc } from "./crashStoryTypes";
 import type { ShowStyleId } from "./showStylePresets";
 
 /**
@@ -344,6 +345,30 @@ if (SCENARIOS.length !== PLATE_LTX_CAMPAIGN_COUNT) {
 
 export function plateLtxCampaignScenarios(): { id: string; label: string }[] {
   return SCENARIOS.map((s) => ({ id: s.id, label: s.label }));
+}
+
+export function isCampaignShotTitle(title?: string): boolean {
+  const t = (title || "").trim().toLowerCase();
+  if (!t) return false;
+  return SCENARIOS.some((s) => s.label.toLowerCase() === t);
+}
+
+/** Position-test plates from the 20-shot campaign — not the episode desk. */
+export function isCampaignShotId(
+  campaign: PlateLtxCampaign | undefined,
+  shotId: string,
+  story?: CrashStoryDoc | null,
+): boolean {
+  const id = (shotId || "").trim();
+  if (!id) return false;
+  if (campaign?.shotIds?.includes(id)) return true;
+  if (campaign?.tests?.some((t) => t.shotId === id)) return true;
+  if (!story) return false;
+  for (const sc of story.scenes) {
+    const sh = sc.shots.find((s) => s.id === id);
+    if (sh && isCampaignShotTitle(sh.title)) return true;
+  }
+  return false;
 }
 
 export function campaignIndexForId(id: string): number {
