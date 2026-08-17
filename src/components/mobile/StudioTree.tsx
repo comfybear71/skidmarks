@@ -1129,7 +1129,9 @@ export function StudioTree({
               {queued.length === 1 ? "line queued" : "lines queued"}
               {queued.length === 0 && plated.length
                 ? " — Save the spoken line (Play appears) before Generate video"
-                : ""}
+                : queued.length
+                  ? ` — Generate sends ${queued.filter((c) => c.clipStatus === "pending").length || queued.length} Saved mp3${queued.length === 1 ? "" : "s"} only`
+                  : ""}
             </div>
             {job.error ? (
               <div style={{ color: "var(--magenta-hot)", fontSize: "13px", marginBottom: "10px" }}>
@@ -1146,7 +1148,7 @@ export function StudioTree({
             ) : null}
             {plated.length || busy ? (
               <MobilePrimaryButton disabled={busy || !plated.length} onClick={onGenerateVideo}>
-                {busy ? "Casting voices…" : "Generate video"}
+                {busy ? "Sending…" : "Generate video"}
               </MobilePrimaryButton>
             ) : null}
           </div>

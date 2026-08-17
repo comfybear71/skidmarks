@@ -1,10 +1,9 @@
 import path from "path";
 import { NextResponse } from "next/server";
 import { assignReusedVoice } from "@/lib/mobileVoiceReuse";
-import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
+import { hydrateMobilePackOnDisk, readMobileStory } from "@/lib/mobileStoryStore";
 import { uploadMobileMedia, resolveMobileMedia } from "@/lib/mobileMediaStore";
 import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
-import { synthesizeStoryBeat } from "@/lib/crashStorySpeak";
 import { resolveMobileBeatAudio } from "@/lib/resolveMobileBeatAudio";
 import { burnLeftoverPackAudio, savedVoiceFilesOnStory } from "@/lib/burnLeftoverPackAudio";
 import { runLtxSmoke } from "@/lib/ltxSmoke";
@@ -17,7 +16,11 @@ import {
   phaseAfterErrorResume,
 } from "@/lib/mobilePipeline";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
-import { mergeClipsFromStory, clipQueueError, queueableStoryBeats } from "@/lib/mobileClipQueue";
+import {
+  clipQueueError,
+  findBeatHome,
+} from "@/lib/mobileClipQueue";
+import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { allCastApproved, allLocationsApproved, candidateLookPrompt } from "@/lib/mobileJobReady";
 import {
   imageMotionNamesLeftovers,
@@ -137,110 +140,46 @@ export async function POST(req: Request) {
       }
       if (!job.folderName) throw new Error("Job has no folder — screenplay phase incomplete");
       await hydrateMobilePackOnDisk(job.styleId, job.folderName);
-      let voicedStory = await readMobileStory(job.styleId, job.folderName);
-      const voiceRun: { quotaExceeded: boolean; lines: { ok: boolean; detail?: string }[] } = {
-        quotaExceeded: false,
-        lines: [],
-      };
-      for (const w of queueableStoryBeats(voicedStory, job)) {
-        const have = await resolveMobileBeatAudio({
-          styleId: job.styleId,
-          folderName: job.folderName,
-          beatId: w.beatId,
-          voiceFile: w.voiceFile,
-        });
-        if (have) {
-          try {
-            await uploadMobileMedia({
-              styleId: job.styleId,
-              folderName: job.folderName,
-              kind: "audio",
-              localPath: have,
-            });
-          } catch {
-            /* already in Blob or local */
-          }
-          continue;
-        }
-        if (!w.line.trim()) continue;
-        try {
-          const result = await synthesizeStoryBeat({
-            styleId: job.styleId,
-            beatId: w.beatId,
-            speaker: w.speaker,
-            text: w.line,
-          });
-          const localPath = await resolveMobileBeatAudio({
-            styleId: job.styleId,
-            folderName: job.folderName,
-            beatId: w.beatId,
-            voiceFile: result.voiceFile,
-          });
-          if (localPath) {
-            // Animate runs on a later, separate invocation and trusts the
-            // story's voiceFile alone — if this upload silently failed, the
-            // story below would still point Generate at an mp3 that exists
-            // nowhere it can reach. Retry once for a blip, then leave the
-            // OLD (still-resolvable) story/voiceFile in place and record a
-            // real failure instead of a phantom queueable beat.
-            try {
-              await uploadMobileMedia({
-                styleId: job.styleId,
-                folderName: job.folderName,
-                kind: "audio",
-                localPath,
-              });
-            } catch {
-              await uploadMobileMedia({
-                styleId: job.styleId,
-                folderName: job.folderName,
-                kind: "audio",
-                localPath,
-              });
-            }
-          }
-          voicedStory = result.story;
-          await writeMobileStory(voicedStory, job.folderName);
-          voiceRun.lines.push({ ok: true });
-        } catch (e) {
-          const detail = e instanceof Error ? e.message : String(e);
-          if (/quota/i.test(detail)) voiceRun.quotaExceeded = true;
-          voiceRun.lines.push({ ok: false, detail });
-        }
-      }
+      const story = await readMobileStory(job.styleId, job.folderName);
 
-      const wanted = queueableStoryBeats(voicedStory, job);
-      const voicedBeats = wanted.filter((w) => w.line.trim() && w.voiceFile.trim()).length;
-      if (!voicedBeats && wanted.some((w) => w.line.trim())) {
-        const why =
-          (voiceRun.quotaExceeded ? "ElevenLabs quota exceeded. " : "") +
-          (voiceRun.lines.find((l) => !l.ok)?.detail ||
-            "no dialogue lines were synthesised");
-        job = (await patchMobileGenJob(jobId, {
-          phase: "error",
-          error: `Voices produced no audio — ${why}`,
-        }))!;
-        return NextResponse.json({ ok: true, job, advanced: true });
-      }
-
-      job = (await patchMobileGenJob(jobId, {
-        clips: mergeClipsFromStory(job, voicedStory).map((c) =>
-          c.clipStatus === "error" ? { ...c, clipStatus: "pending" as const, error: "" } : c,
-        ),
-      }))!;
-      const pending = job.clips.filter((c) => c.clipStatus === "pending");
+      // Only LTX lines they Saved (Play). Do not voice the rest of the
+      // campaign and dump 40 clips on one Generate tap.
+      const clips = (job.clips || []).flatMap((c) => {
+        if (!isMobileSavedVoiceFile(c.voiceFile)) return [];
+        const home = findBeatHome(story, c.beatId);
+        const voiceFile = home?.voiceFile || c.voiceFile;
+        if (!isMobileSavedVoiceFile(voiceFile)) return [];
+        return [
+          {
+            ...c,
+            voiceFile,
+            line: (home?.text || "").trim() || c.line,
+            shotId: home?.shotId || c.shotId,
+            sceneId: home?.sceneId || c.sceneId,
+            speaker: home?.speaker || c.speaker,
+            ...(c.clipStatus === "error"
+              ? { clipStatus: "pending" as const, error: "" }
+              : {}),
+          },
+        ];
+      });
+      const pending = clips.filter((c) => c.clipStatus === "pending");
       if (!pending.length) {
-        const saved = mergeClipsFromStory(job, voicedStory).length;
         job = (await patchMobileGenJob(jobId, {
+          clips,
           phase: "review",
-          error: saved
-            ? "Those lines already have clips — nothing new to send. Save the line again to re-queue, or open LTX Image motion and Keep it first."
-            : "No lines to send to LTX. Save the spoken line on the plate first — Play appears next to the name when the mp3 is ready.",
+          error: clips.length
+            ? "Those lines already have clips — nothing new to send. Save the line again to re-queue."
+            : "No Saved mp3s to send. Save the spoken line on the plate first — Play appears next to the name when the mp3 is ready.",
         }))!;
         return NextResponse.json({ ok: true, job, advanced: false });
       }
 
-      job = (await patchMobileGenJob(jobId, { phase: "animate", error: "" }))!;
+      job = (await patchMobileGenJob(jobId, {
+        clips,
+        phase: "animate",
+        error: "",
+      }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
