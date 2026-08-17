@@ -20,11 +20,20 @@ import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc } from "@/lib/crashStoryTypes";
 import { approvedCandidateFileName, preferredCandidate } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
-import { plateLtxCampaignScenarios } from "@/lib/mobilePlateLtxCampaign";
 import { findScratchShot, scratchPadClips } from "@/lib/mobileScratch";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { speakerWantedSex } from "@/lib/crashVoicePrompt";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
+import {
+  SCRATCH_PRESET_GROUPS,
+  applyScratchPresetTemplate,
+  deleteScratchPreset,
+  loadScratchPresets,
+  newScratchPresetId,
+  saveScratchPresetFromPrompt,
+  type ScratchPreset,
+  type ScratchPresetGroup,
+} from "@/lib/scratchPresets";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
@@ -88,23 +97,33 @@ function splitSpeakersBySex(job: MobileGenJob): { female: string[]; male: string
   return { female, male };
 }
 
-/** Scratch stress-test knobs — frame, body, holding, wearing, weather, crowd. */
-const POSE_GROUPS: { title: string; ids: string[] }[] = [
-  { title: "Frame", ids: ["mcu-phone", "wide-full", "tight-face", "over-shoulder", "walk-in"] },
-  { title: "Body", ids: ["sitting", "standing", "running", "sprawl", "dance", "leaning", "steps", "crouch", "handstand"] },
-  { title: "Holding", ids: ["beer-cig", "pie"] },
-  { title: "Wearing", ids: ["clothes-dress", "clothes-underwear"] },
-  { title: "Weather / edge", ids: ["raining", "wash-hair"] },
-  { title: "Crowd / multi", ids: ["crowd-two-shot", "crowd-surround", "crowd-pile"] },
-];
+const SIDE_THUMB_PX = 72;
 
-const CROWD_POSE_LABELS: Record<string, string> = {
-  "crowd-two-shot": "Two-shot",
-  "crowd-surround": "Surround",
-  "crowd-pile": "Pile / tangle",
+const selectStyle: CSSProperties = {
+  ...mobileCard,
+  width: "100%",
+  padding: "12px 14px",
+  color: "var(--chrome)",
+  fontSize: "14px",
+  fontFamily: "inherit",
+  appearance: "none",
+  backgroundImage:
+    "linear-gradient(45deg, transparent 50%, var(--chrome-dim) 50%), linear-gradient(135deg, var(--chrome-dim) 50%, transparent 50%)",
+  backgroundPosition: "calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px)",
+  backgroundSize: "6px 6px, 6px 6px",
+  backgroundRepeat: "no-repeat",
 };
 
-const SIDE_THUMB_PX = 72;
+const ghostBtn: CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: "4px",
+  border: "1px solid var(--line)",
+  background: "transparent",
+  color: "var(--chrome)",
+  fontSize: "12px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
 
 const thumbBtn = (on: boolean): CSSProperties => ({
   flex: "0 0 auto",
@@ -155,6 +174,10 @@ export default function ScratchPage() {
   const [resuming, setResuming] = useState(true);
   const [resumeError, setResumeError] = useState("");
   const [lightbox, setLightbox] = useState("");
+  const [padCleared, setPadCleared] = useState(false);
+  const [presets, setPresets] = useState<ScratchPreset[]>([]);
+  const [editLabel, setEditLabel] = useState("");
+  const [editGroup, setEditGroup] = useState<ScratchPresetGroup>("Mine");
   const drawSeq = useRef(0);
 
   const scratch = findScratchShot(story);
@@ -164,7 +187,7 @@ export default function ScratchPage() {
     scratch?.shot.beats[0];
   const plateFile = job?.shots.find((s) => s.shotId === scratch?.shot.id)?.plateFile || scratch?.shot.plateFile || "";
   const plateSrc =
-    plateFile && plateFile !== "__error__"
+    !padCleared && plateFile && plateFile !== "__error__"
       ? `/api/crash/gen/file?name=${encodeURIComponent(plateFile)}`
       : "";
   const underClips = scratch
@@ -178,15 +201,13 @@ export default function ScratchPage() {
     ? scratchPadClips(job, story).filter((c) => !underClips.some((u) => u.beatId === c.beatId))
     : [];
   const stackClips = [...underClips.filter((c) => c.clipFile), ...padStack];
-  const poses = useMemo(() => plateLtxCampaignScenarios(), []);
-  const poseById = useMemo(() => {
-    const map = new Map(poses.map((p) => [p.id, p]));
-    for (const [id, label] of Object.entries(CROWD_POSE_LABELS)) {
-      map.set(id, { id, label });
-    }
-    return map;
-  }, [poses]);
   const castBySex = useMemo(() => (job ? splitSpeakersBySex(job) : { female: [], male: [] }), [job]);
+  const placeName = job?.scenes.find((s) => s.id === sceneId)?.placeName || "this place";
+  const activePreset = presets.find((p) => p.id === poseId) || null;
+
+  useEffect(() => {
+    setPresets(loadScratchPresets());
+  }, []);
 
   const loadStory = useCallback(async (next: MobileGenJob) => {
     if (!next.folderName) {
@@ -316,6 +337,7 @@ export default function ScratchPage() {
       if (seq !== drawSeq.current) return;
       setJob(drawn.job);
       if (drawn.staging) setStaging(drawn.staging);
+      setPadCleared(false);
       await loadStory(drawn.job);
     } catch (e) {
       if (seq !== drawSeq.current) return;
@@ -363,6 +385,61 @@ export default function ScratchPage() {
       poseId,
       staging: staging || undefined,
     });
+  }
+
+  function clearPrompt() {
+    setStaging("");
+  }
+
+  function clearPad() {
+    setPadCleared(true);
+    setPadCast([]);
+    setSpeaker("");
+    setStaging("");
+    setPoseId("");
+    setError("");
+  }
+
+  function fillFromPreset(preset: ScratchPreset) {
+    const who = speaker || padCast[0] || "Character";
+    const text = applyScratchPresetTemplate(preset.template, {
+      name: who,
+      place: placeName,
+      cast: padCast.length ? padCast : [who],
+    });
+    setPoseId(preset.id);
+    setStaging(text);
+    setEditLabel(preset.label);
+    setEditGroup(preset.group);
+  }
+
+  function onPresetSelect(group: ScratchPresetGroup, id: string) {
+    if (!id) return;
+    const preset = presets.find((p) => p.id === id);
+    if (!preset) return;
+    fillFromPreset(preset);
+  }
+
+  function saveCurrentPreset(asNew: boolean) {
+    const template = staging.trim();
+    if (!template) {
+      setError("Write a prompt before saving a preset");
+      return;
+    }
+    const label = (editLabel || activePreset?.label || "Custom").trim() || "Custom";
+    const group = editGroup || activePreset?.group || "Mine";
+    const id = asNew ? newScratchPresetId() : activePreset?.id || newScratchPresetId();
+    const next = saveScratchPresetFromPrompt({ id, group, label, template });
+    setPresets(next);
+    setPoseId(id);
+    setEditLabel(label);
+    setEditGroup(group);
+  }
+
+  function removeCurrentPreset() {
+    if (!activePreset || activePreset.builtin) return;
+    setPresets(deleteScratchPreset(activePreset.id));
+    setPoseId("");
   }
 
   async function saveLine() {
@@ -591,16 +668,25 @@ export default function ScratchPage() {
               </div>
             ) : null}
 
-            <MobilePrimaryButton
-              disabled={!padCast.length || !sceneId || Boolean(busy)}
-              onClick={() => void draw({ cast: padCast, speaker: speaker || padCast[0] })}
-            >
-              {busy === "draw"
-                ? "Drawing…"
-                : padCast.length > 1
-                  ? `Draw ${padCast.length} on pad`
-                  : "Draw this picture"}
-            </MobilePrimaryButton>
+            <div style={{ display: "flex", gap: "8px", alignItems: "stretch" }}>
+              <div style={{ flex: 1 }}>
+                <MobilePrimaryButton
+                  disabled={!padCast.length || !sceneId || Boolean(busy)}
+                  onClick={() =>
+                    void draw({
+                      cast: padCast,
+                      speaker: speaker || padCast[0],
+                      staging: staging || undefined,
+                    })
+                  }
+                >
+                  {busy === "draw" ? "Drawing…" : "Draw"}
+                </MobilePrimaryButton>
+              </div>
+              <button type="button" style={ghostBtn} onClick={clearPad} disabled={Boolean(busy)}>
+                Clear pad
+              </button>
+            </div>
           </div>
 
           <div style={{ padding: "0 16px 28px", display: "flex", flexDirection: "column", gap: "18px" }}>
@@ -611,74 +697,133 @@ export default function ScratchPage() {
               </div>
             ) : null}
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-              {POSE_GROUPS.map((group) => (
-                <div key={group.title}>
-                  <div className="scratch-group-label">{group.title}</div>
-                  <div className="scratch-chip-row">
-                    {group.ids.map((id) => {
-                      const p = poseById.get(id);
-                      if (!p) return null;
-                      const on = id === poseId;
-                      const crowd = id.startsWith("crowd-");
-                      const needCrowd = crowd && padCast.length < 2;
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          className="scratch-chip"
-                          data-on={on ? "1" : "0"}
-                          disabled={!padCast.length || !sceneId || needCrowd}
-                          onClick={() => {
-                            setPoseId(id);
-                            void draw({
-                              poseId: id,
-                              staging: "",
-                              speaker: speaker || padCast[0],
-                              cast: padCast,
-                              sceneId,
-                            });
-                          }}
-                        >
-                          {p.label.replace(/^\d+\s+/, "")}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+            <div>
+              <div className="scratch-group-label">Prompt</div>
+              <MobileTextInput
+                value={staging}
+                onChange={setStaging}
+                placeholder="Position, emotion, holding, wearing, who is where…"
+                multiline
+                rows={5}
+              />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px" }}>
+                <button type="button" style={ghostBtn} onClick={clearPrompt}>
+                  Clear prompt
+                </button>
+                <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(false)} disabled={!staging.trim()}>
+                  {activePreset?.builtin ? "Save override" : "Save preset"}
+                </button>
+                <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(true)} disabled={!staging.trim()}>
+                  Save as new
+                </button>
+                {activePreset && !activePreset.builtin ? (
+                  <button type="button" style={ghostBtn} onClick={removeCurrentPreset}>
+                    Delete preset
+                  </button>
+                ) : null}
+              </div>
             </div>
 
-          <MobileTextInput
-            value={staging}
-            onChange={setStaging}
-            placeholder="Custom — emotion, holding, wearing, pile, who is where…"
-            multiline
-            rows={3}
-          />
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div className="scratch-group-label">Presets</div>
+              {SCRATCH_PRESET_GROUPS.map((group) => {
+                const rows = presets.filter((p) => p.group === group);
+                if (!rows.length) return null;
+                const selectedInGroup = rows.some((p) => p.id === poseId) ? poseId : "";
+                return (
+                  <label key={group} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span className="scratch-group-label" style={{ marginBottom: 0 }}>
+                      {group}
+                    </span>
+                    <select
+                      value={selectedInGroup}
+                      onChange={(e) => onPresetSelect(group, e.target.value)}
+                      style={selectStyle}
+                    >
+                      <option value="">Choose…</option>
+                      {rows.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                          {p.builtin ? "" : " ★"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              })}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <span className="scratch-group-label" style={{ marginBottom: 0 }}>
+                    Preset name
+                  </span>
+                  <input
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    placeholder="Label"
+                    style={{ ...selectStyle, backgroundImage: "none" }}
+                  />
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <span className="scratch-group-label" style={{ marginBottom: 0 }}>
+                    Save under
+                  </span>
+                  <select
+                    value={editGroup}
+                    onChange={(e) => setEditGroup(e.target.value as ScratchPresetGroup)}
+                    style={selectStyle}
+                  >
+                    {SCRATCH_PRESET_GROUPS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
 
-          {speaker ? <CastVoiceRow jobId={job.id} styleId={job.styleId} name={speaker} /> : null}
-
-          <MobileTextInput
-            value={line}
-            onChange={setLine}
-            placeholder="What they say — lip-sync test line. Not the still position."
-            multiline
-            rows={3}
-          />
-          {playable && beat?.voiceFile && job.folderName ? (
-            <MobileAudioPlayer
-              src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(
-                job.folderName,
-              )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(beat.voiceFile)}`}
+            <MobileTextInput
+              value={line}
+              onChange={setLine}
+              placeholder="What they say — lip-sync test line. Not the still position."
+              multiline
+              rows={3}
             />
-          ) : null}
-          <MobilePrimaryButton disabled={!line.trim() || !beat || Boolean(busy)} onClick={() => void saveLine()}>
-            {busy === "voice" ? "Saving…" : "Save line"}
-          </MobilePrimaryButton>
-          <MobilePrimaryButton disabled={!playable || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
-            {busy === "clip" ? "Sending…" : "Generate lip-sync clip"}
-          </MobilePrimaryButton>
+            {playable && beat?.voiceFile && job.folderName ? (
+              <MobileAudioPlayer
+                src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(
+                  job.folderName,
+                )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(beat.voiceFile)}`}
+              />
+            ) : null}
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "nowrap",
+                minWidth: 0,
+              }}
+            >
+              <div style={{ flex: "0 0 auto" }}>
+                <MobilePrimaryButton disabled={!line.trim() || !beat || Boolean(busy)} onClick={() => void saveLine()}>
+                  {busy === "voice" ? "Saving…" : "Save"}
+                </MobilePrimaryButton>
+              </div>
+              {speaker ? (
+                <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex" }}>
+                  <CastVoiceRow jobId={job.id} styleId={job.styleId} name={speaker} />
+                </div>
+              ) : (
+                <div style={{ flex: "1 1 auto" }} />
+              )}
+              <div style={{ flex: "0 0 auto" }}>
+                <MobilePrimaryButton disabled={!playable || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
+                  {busy === "clip" ? "Sending…" : "Generate"}
+                </MobilePrimaryButton>
+              </div>
+            </div>
           </div>
         </>
       )}
