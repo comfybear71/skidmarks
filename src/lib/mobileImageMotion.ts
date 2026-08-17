@@ -170,6 +170,32 @@ function inFrameNames(speaker: string, shotSpeakers?: string[]): string[] {
   return [...new Set(names)];
 }
 
+/**
+ * CAST face prompts are long bios ("loves a beer, barrack for Collingwood…").
+ * Dumping that into default Image motion makes LTX reinvent the person and
+ * drop the start plate. Gold wants a short visual lock only.
+ */
+export function shortLtxLookLock(lookLock: string, maxChars = 120): string {
+  const raw = clean(lookLock);
+  if (!raw) return "";
+  const drop =
+    /\b(loves?|love[sd]?|barrack|barracks|fan of|supports?|not a cartoon|not a photo|not photographic|not photorealistic|3d model|a 3d|personality|vibe|energy)\b/i;
+  const parts = raw
+    .split(/[,;]+/)
+    .map((p) => clean(p))
+    .filter(Boolean)
+    .filter((p) => !drop.test(p));
+  const picked = (parts.length ? parts : raw.split(/[,;]+/).map(clean).filter(Boolean)).slice(
+    0,
+    4,
+  );
+  let out = clean(picked.join(", "));
+  if (out.length > maxChars) {
+    out = clean(out.slice(0, maxChars).replace(/[,;\s]+[^,;]*$/, ""));
+  }
+  return out;
+}
+
 /** Speaking beat — the mandatory shape from the standard. */
 export function buildSpeakingMotion(opts: {
   styleId: ShowStyleId;
@@ -180,7 +206,7 @@ export function buildSpeakingMotion(opts: {
   shotSpeakers?: string[];
 }): string {
   const name = clean(opts.speaker) || "The character";
-  const look = clean(opts.lookLock || "");
+  const look = shortLtxLookLock(opts.lookLock || "");
   const who = look ? `${name}, ${look}` : name;
   return clean(
     [
@@ -204,7 +230,7 @@ export function buildHoldMotion(opts: {
   shotSpeakers?: string[];
 }): string {
   const name = clean(opts.speaker) || "The character";
-  const look = clean(opts.lookLock || "");
+  const look = shortLtxLookLock(opts.lookLock || "");
   const who = look ? `${name}, ${look}` : name;
   return clean(
     [
