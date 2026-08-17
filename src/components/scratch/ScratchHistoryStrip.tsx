@@ -1,7 +1,19 @@
 "use client";
 
-import { scoreSummary } from "@/lib/scratchBench/scorecard";
-import type { ScratchBenchRun } from "@/lib/scratchBench/types";
+import {
+  SCRATCH_STRESS_TAGS,
+  runVerdict,
+  scoreSummary,
+  stressFailCount,
+} from "@/lib/scratchBench/scorecard";
+import type { ScratchBenchRun, ScratchScoreTag } from "@/lib/scratchBench/types";
+
+const STRESS_LABEL: Partial<Record<ScratchScoreTag, string>> = {
+  eye: "Eye",
+  fingers: "Fingers",
+  melt: "Melt",
+  ghost: "Ghost",
+};
 
 export function ScratchHistoryStrip({
   runs,
@@ -18,7 +30,6 @@ export function ScratchHistoryStrip({
     return (
       <div className="scratch-history-empty">
         Run history empty — Draw / Generate will log here.
-        {onClear ? null : null}
       </div>
     );
   }
@@ -37,6 +48,8 @@ export function ScratchHistoryStrip({
         {runs.map((run) => {
           const thumb = run.plateUrl || run.clipUrl;
           const selected = selectedId === run.id;
+          const verdict = runVerdict(run.tags);
+          const fails = stressFailCount(run.tags);
           return (
             <button
               key={run.id}
@@ -54,7 +67,28 @@ export function ScratchHistoryStrip({
               <span className="scratch-history-meta">
                 {run.kind}
                 {run.chaosId !== "none" ? ` · ${run.chaosId}` : ""}
-                {run.tags.length ? ` · ${scoreSummary(run.tags)}` : ""}
+                {run.environment ? ` · ${run.environment}` : ""}
+              </span>
+              {run.dialogue ? (
+                <span className="scratch-history-dialogue">“{run.dialogue}”</span>
+              ) : null}
+              <span className="scratch-history-badges">
+                {SCRATCH_STRESS_TAGS.map((tag) => {
+                  const on = run.tags.includes(tag);
+                  return (
+                    <span
+                      key={tag}
+                      className={`scratch-history-badge${on ? " is-flag" : ""}`}
+                    >
+                      {STRESS_LABEL[tag] || tag}
+                    </span>
+                  );
+                })}
+                <span
+                  className={`scratch-history-verdict is-${verdict}`}
+                >
+                  {verdict === "open" ? (fails ? `${fails} bugs` : "—") : verdict}
+                </span>
               </span>
             </button>
           );

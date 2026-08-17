@@ -14,7 +14,11 @@ export type ScratchScoreTag =
   | "face"
   | "place"
   | "speech"
-  | "chaos";
+  | "chaos"
+  | "eye"
+  | "fingers"
+  | "melt"
+  | "ghost";
 
 export type ScratchChaosId =
   | "none"
