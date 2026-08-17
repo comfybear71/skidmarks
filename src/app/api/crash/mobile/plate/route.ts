@@ -1,6 +1,6 @@
 import path from "path";
 import { NextResponse } from "next/server";
-import { compositeShotPlate } from "@/lib/mobilePlates";
+import { compositeShotPlatePreferSiray } from "@/lib/sirayScratchPlate";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
@@ -428,7 +428,7 @@ export async function POST(req: Request) {
 
     // Only people already on THIS shot. Feeding the rest of the job as
     // silent extras is how a Jo-solo test kept drawing the old crowd.
-    const fileName = await compositeShotPlate(job.styleId, scene, shot, {
+    const fileName = await compositeShotPlatePreferSiray(job.styleId, scene, shot, {
       silentCast: [],
       styleRealism: job.styleRealism,
       job,
