@@ -21,6 +21,7 @@ import {
   findBeatHome,
 } from "@/lib/mobileClipQueue";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
+import { isScratchShotId } from "@/lib/mobileScratch";
 import { allCastApproved, allLocationsApproved, candidateLookPrompt } from "@/lib/mobileJobReady";
 import {
   imageMotionNamesLeftovers,
@@ -134,21 +135,24 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, job, advanced: false });
       }
 
+      const live = job;
       const takenVoices = new Set<string>();
-      for (const speaker of job.speakers) {
-        await assignReusedVoice(job.styleId, speaker, takenVoices);
+      for (const speaker of live.speakers) {
+        await assignReusedVoice(live.styleId, speaker, takenVoices);
       }
-      if (!job.folderName) throw new Error("Job has no folder — screenplay phase incomplete");
-      await hydrateMobilePackOnDisk(job.styleId, job.folderName);
-      const story = await readMobileStory(job.styleId, job.folderName);
+      if (!live.folderName) throw new Error("Job has no folder — screenplay phase incomplete");
+      await hydrateMobilePackOnDisk(live.styleId, live.folderName);
+      const story = await readMobileStory(live.styleId, live.folderName);
 
       // Only LTX lines they Saved (Play). Do not voice the rest of the
       // campaign and dump 40 clips on one Generate tap.
-      const clips = (job.clips || []).flatMap((c) => {
+      const clips = (live.clips || []).flatMap((c) => {
         if (!isMobileSavedVoiceFile(c.voiceFile)) return [];
         const home = findBeatHome(story, c.beatId);
         const voiceFile = home?.voiceFile || c.voiceFile;
         if (!isMobileSavedVoiceFile(voiceFile)) return [];
+        const shotId = home?.shotId || c.shotId;
+        if (isScratchShotId(live, shotId, story)) return [];
         return [
           {
             ...c,

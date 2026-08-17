@@ -8,6 +8,8 @@ import type { ShowStyleId } from "./showStylePresets";
 import type { ScriptCharacterData } from "./types";
 import { jobVoiceForSpeaker, withJobSpeakerVoice } from "./mobileJobVoices";
 import type { PlateLtxCampaign } from "./mobilePlateLtxCampaign";
+import type { ScratchPlateRef } from "./mobileScratch";
+import { DEFAULT_DESK_ID, normalizeDeskId } from "./mobileDesk";
 
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
 
@@ -133,6 +135,13 @@ export type MobileGenJob = {
    * Numbered T01–T40 with optional 1–5 scores. Older jobs omit this.
    */
   plateLtxCampaign?: PlateLtxCampaign;
+  /**
+   * Whose phone this job belongs to. Untagged jobs are Stuie's so the
+   * live pack does not vanish when Mum opens /m on the same iPad.
+   */
+  deskId?: string;
+  /** One experiment still — many positions. Lives on /m/scratch, hidden on /m. */
+  scratchPlate?: ScratchPlateRef;
   finalVideoFile: string;
   error: string;
   createdAt: string;
@@ -155,6 +164,7 @@ export async function createMobileGenJob(opts: {
   targetDurationSec: number;
   secondsPerShot: number;
   styleRealism?: number;
+  deskId?: string;
 }): Promise<MobileGenJob> {
   const now = new Date().toISOString();
   const job: MobileGenJob = {
@@ -164,6 +174,7 @@ export async function createMobileGenJob(opts: {
     // job id here — a set folderName used to mean "pack exists" and would
     // write a story against it. Cast faces live under mobileMediaFolder.
     folderName: "",
+    deskId: normalizeDeskId(opts.deskId || DEFAULT_DESK_ID),
     prompt: opts.prompt,
     targetDurationSec: opts.targetDurationSec,
     secondsPerShot: opts.secondsPerShot,
@@ -197,6 +208,30 @@ export async function readMobileGenJob(id: string): Promise<MobileGenJob | null>
   } catch {
     return null;
   }
+}
+
+/** Jobs on this desk only. Untagged rows count as Stuie. */
+export async function listMobileGenJobs(deskId: string): Promise<MobileGenJob[]> {
+  const want = normalizeDeskId(deskId);
+  const belongs = (job: MobileGenJob) => normalizeDeskId(job.deskId || DEFAULT_DESK_ID) === want;
+  if (useCloudStore()) {
+    const { listMobileJobRowsByDesk } = await import("./neonStore");
+    const rows = await listMobileJobRowsByDesk<MobileGenJob>(want);
+    return rows.filter(belongs);
+  }
+  const dir = jobsDir();
+  if (!fs.existsSync(dir)) return [];
+  const out: MobileGenJob[] = [];
+  for (const name of fs.readdirSync(dir)) {
+    if (!name.endsWith(".json")) continue;
+    try {
+      const job = JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")) as MobileGenJob;
+      if (job?.id && belongs(job)) out.push(job);
+    } catch {
+      /* skip junk */
+    }
+  }
+  return out.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
 }
 
 export async function writeMobileGenJob(job: MobileGenJob): Promise<void> {

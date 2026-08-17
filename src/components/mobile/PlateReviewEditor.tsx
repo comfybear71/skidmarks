@@ -7,8 +7,8 @@ import {
   MobilePrimaryButton,
   MobileTextInput,
   mobileCard,
-  mobileMediaFrame,
 } from "./MobileUi";
+import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "./PlateClipThumbs";
 import { useMobileAssist } from "./useMobileAssist";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import {
@@ -38,35 +38,8 @@ import {
 } from "@/lib/mobileImageMotion";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { CampaignTestScoreRow } from "./PlateLtxCampaignCard";
+import { episodeJobShots } from "@/lib/mobileScratch";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
-
-/** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
-const PLATE_TILE_PX = 96;
-
-function mobileClipSrc(job: { styleId: string; folderName: string }, clipFile: string): string {
-  const fileName = clipFile.split(/[\\/]/).pop() || clipFile;
-  return `/api/crash/mobile/clip?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(job.folderName)}&fileName=${encodeURIComponent(fileName)}`;
-}
-
-/** Every plate keeps its own clip(s). Match by beat first so short+long
- * both sit under the still they were shot on, even if shotId drifted. */
-function clipsUnderPlate(
-  shotId: string,
-  beatIds: string[],
-  clips: MobileClipUnit[],
-): MobileClipUnit[] {
-  const want = new Set(beatIds.filter(Boolean));
-  const seen = new Set<string>();
-  const out: MobileClipUnit[] = [];
-  for (const clip of clips) {
-    if (seen.has(clip.beatId)) continue;
-    if (clip.shotId === shotId || want.has(clip.beatId)) {
-      seen.add(clip.beatId);
-      out.push(clip);
-    }
-  }
-  return out;
-}
 
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
   const file =
@@ -162,7 +135,7 @@ export function PlateReviewEditor({
   const [undoBusy, setUndoBusy] = useState(false);
   const [actionError, setActionError] = useState("");
 
-  const shots = job.shots;
+  const shots = episodeJobShots(job, story);
   const shotIdsKey = shots.map((s) => s.shotId).join("\0");
 
   useEffect(() => {
@@ -649,49 +622,13 @@ export function PlateReviewEditor({
                   </button>
                 ) : null}
               </div>
-              {!collapsed
-                ? underClips.map((clip) =>
-                    clip.clipFile ? (
-                      <video
-                        key={clip.beatId}
-                        src={mobileClipSrc(job, clip.clipFile)}
-                        controls
-                        playsInline
-                        preload={s.shotId === openShotId ? "metadata" : "none"}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                          width: `${PLATE_TILE_PX}px`,
-                          aspectRatio: "16 / 9",
-                          objectFit: "cover",
-                          borderRadius: "2px",
-                          border: "1px solid var(--line)",
-                          background: "var(--void)",
-                          display: "block",
-                        }}
-                      />
-                    ) : (
-                      <div
-                        key={clip.beatId}
-                        style={{
-                          width: `${PLATE_TILE_PX}px`,
-                          aspectRatio: "16 / 9",
-                          borderRadius: "2px",
-                          border: "1px dashed var(--line)",
-                          background: "var(--void)",
-                          color: "var(--chrome-dim)",
-                          fontSize: "9px",
-                          letterSpacing: "0.06em",
-                          textTransform: "uppercase",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        {clip.clipStatus === "error" ? "Fail" : "Clip"}
-                      </div>
-                    ),
-                  )
-                : null}
+              {!collapsed && underClips.length ? (
+                <PlateClipThumbs
+                  job={job}
+                  clips={underClips}
+                  preload={s.shotId === openShotId}
+                />
+              ) : null}
             </div>
           );
         })}
@@ -866,6 +803,22 @@ export function PlateReviewEditor({
                           ...(summary !== undefined ? { summary } : {}),
                           ...(plateTakes !== undefined ? { plateTakes } : {}),
                         }
+                      : sh,
+                  ),
+                })),
+              };
+            });
+          }}
+          onLineAdded={(beat) => {
+            setStory((cur) => {
+              if (!cur || !openShotId) return cur;
+              return {
+                ...cur,
+                scenes: cur.scenes.map((sc) => ({
+                  ...sc,
+                  shots: sc.shots.map((sh) =>
+                    sh.id === openShotId && !sh.beats.some((b) => b.id === beat.id)
+                      ? { ...sh, beats: [...sh.beats, beat] }
                       : sh,
                   ),
                 })),
@@ -1392,6 +1345,7 @@ function ShotLineEditor({
   jobPlated,
   onBeatSaved,
   onPlateRebuilt,
+  onLineAdded,
 }: {
   styleId: string;
   folderName: string;
@@ -1408,6 +1362,7 @@ function ShotLineEditor({
   placeSrc?: string;
   jobPlated?: boolean;
   onBeatSaved: (beatId: string, text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
+  onLineAdded?: (beat: CrashStoryBeat) => void;
   onPlateRebuilt: (
     plateFile: string | undefined,
     staging: string,
@@ -1449,71 +1404,16 @@ function ShotLineEditor({
         jobPlated={jobPlated}
         onPicked={(plateFile, staging) => onPlateRebuilt(plateFile, staging, shot.summary)}
       />
-      {(() => {
-        const beatIds = shot.beats.map((b) => b.id);
-        const under = clipsUnderPlate(shot.id, beatIds, clips);
-        const slots = speakingBeats.map((beat) => ({
-          beatId: beat.id,
-          clip: under.find((c) => c.beatId === beat.id),
-          test: campaign?.tests?.find((t) => t.beatId === beat.id),
-        }));
-        for (const clip of under) {
-          if (slots.some((s) => s.beatId === clip.beatId)) continue;
-          slots.push({
-            beatId: clip.beatId,
-            clip,
-            test: campaign?.tests?.find((t) => t.beatId === clip.beatId),
-          });
-        }
-        return slots.map((slot) => {
-          const clip = slot.clip;
-          const test = slot.test;
-          return (
-          <div key={slot.beatId}>
-            <div
-              style={{
-                fontSize: "10px",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: "var(--chrome-dim)",
-                marginBottom: "6px",
-              }}
-            >
-              {clip?.clipStatus === "error"
-                ? "Clip failed"
-                : test
-                  ? `${test.id} · ${test.band}`
-                  : "Clip"}
-            </div>
+      {speakingBeats.map((beat) => {
+        const test = campaign?.tests?.find((t) => t.beatId === beat.id);
+        const clip = clips.find((c) => c.beatId === beat.id);
+        return (
+          <div key={beat.id}>
             {clip?.clipStatus === "error" && clip.error ? (
               <div style={{ fontSize: "12px", color: "var(--magenta-hot)", marginBottom: "6px" }}>
                 {clip.error}
               </div>
             ) : null}
-            {clip?.clipFile ? (
-              <video
-                src={mobileClipSrc({ styleId, folderName }, clip.clipFile)}
-                controls
-                playsInline
-                preload="metadata"
-                style={{ ...mobileMediaFrame, width: "100%" }}
-              />
-            ) : (
-              <div
-                style={{
-                  ...mobileMediaFrame,
-                  width: "100%",
-                  minHeight: "120px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--chrome-dim)",
-                  fontSize: "12px",
-                }}
-              >
-                {clip?.clipStatus === "pending" ? "Clip coming…" : "No clip yet"}
-              </div>
-            )}
             {test && onJobChange ? (
               <CampaignTestScoreRow
                 jobId={jobId}
@@ -1522,13 +1422,7 @@ function ShotLineEditor({
                 onJobChange={onJobChange}
               />
             ) : null}
-          </div>
-          );
-        });
-      })()}
-      {speakingBeats.length ? (
-        speakingBeats.map((beat) => (
-          <BeatLineEditor
+            <BeatLineEditor
             key={beat.id}
             styleId={styleId}
             folderName={folderName}
@@ -1549,12 +1443,77 @@ function ShotLineEditor({
               onBeatSaved(beat.id, text, voiceFile, imageMotion, nextJob)
             }
           />
-        ))
-      ) : (
+          </div>
+        );
+      })}
+      {!speakingBeats.length ? (
         <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
           Tap + above the picture — pick someone, position them, that draws the still.
         </div>
+      ) : (
+        <AnotherLineButton
+          jobId={jobId}
+          shotId={shot.id}
+          speaker={speakingBeats[0]?.speaker || ""}
+          onAdded={(beat) => onLineAdded?.(beat)}
+        />
       )}
+    </div>
+  );
+}
+
+function AnotherLineButton({
+  jobId,
+  shotId,
+  speaker,
+  onAdded,
+}: {
+  jobId: string;
+  shotId: string;
+  speaker: string;
+  onAdded?: (beat: CrashStoryBeat) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function add() {
+    if (!speaker.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, shotId, speaker, action: "add-line" }),
+      });
+      const data = await readApiJson<{ error?: string; beat?: CrashStoryBeat }>(res);
+      if (data.beat) onAdded?.(data.beat);
+    } catch (e) {
+      setError(studioFetchError(e, "Couldn't add a line"));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={busy || !speaker.trim()}
+        onClick={() => void add()}
+        style={{
+          padding: "8px 10px",
+          borderRadius: "2px",
+          border: "1px dashed var(--line)",
+          background: "transparent",
+          color: "var(--chrome-dim)",
+          fontSize: "12px",
+          fontWeight: 600,
+        }}
+      >
+        {busy ? "Adding…" : "+ another line"}
+      </button>
+      {error ? (
+        <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>{error}</div>
+      ) : null}
     </div>
   );
 }

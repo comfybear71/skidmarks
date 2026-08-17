@@ -473,3 +473,16 @@ export async function readMobileJobRow<T>(id: string): Promise<T | null> {
     return (rows[0]?.data as T) ?? null;
   }, null);
 }
+
+/** Desk isolation — untagged jobs are Stuie's live pack, not Mum's. */
+export async function listMobileJobRowsByDesk<T>(deskId: string): Promise<T[]> {
+  return safeQuery(async (sql) => {
+    const rows = await sql`
+      SELECT data FROM mobile_jobs
+      WHERE COALESCE(data->>'deskId', 'stuie') = ${deskId}
+      ORDER BY updated_at DESC
+      LIMIT 40
+    `;
+    return rows.map((r) => r.data as T);
+  }, []);
+}

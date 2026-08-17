@@ -346,10 +346,20 @@ export function plateLtxCampaignScenarios(): { id: string; label: string }[] {
   return SCENARIOS.map((s) => ({ id: s.id, label: s.label }));
 }
 
+export function campaignIndexForId(id: string): number {
+  const i = SCENARIOS.findIndex((s) => s.id === id);
+  if (i < 0) throw new Error(`Unknown pose ${id}`);
+  return i;
+}
+
 export function campaignStaging(index: number, name: string, place: string): string {
   const row = SCENARIOS[index];
   if (!row) throw new Error(`No campaign ${index}`);
   return row.staging(name.trim(), place.trim() || "this place");
+}
+
+export function campaignStagingForId(id: string, name: string, place: string): string {
+  return campaignStaging(campaignIndexForId(id), name, place);
 }
 
 export function campaignShotTitle(index: number): string {
@@ -420,6 +430,20 @@ export function campaignImageMotion(opts: {
       motionStyleLock(opts.styleId),
     ].join(" "),
   );
+}
+
+export function campaignImageMotionForId(opts: {
+  id: string;
+  styleId: ShowStyleId;
+  speaker: string;
+  line: string;
+}): string {
+  return campaignImageMotion({
+    index: campaignIndexForId(opts.id),
+    styleId: opts.styleId,
+    speaker: opts.speaker,
+    line: opts.line,
+  });
 }
 
 function oneLine(text: string): string {

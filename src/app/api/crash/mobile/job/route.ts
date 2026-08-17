@@ -17,6 +17,7 @@ export async function POST(req: Request) {
       targetDurationSec?: number;
       secondsPerShot?: number;
       styleRealism?: number;
+      deskId?: string;
     };
     const prompt = (body.prompt || "").trim();
     if (!prompt) {
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
       targetDurationSec,
       secondsPerShot,
       styleRealism,
+      deskId: body.deskId,
     });
     return NextResponse.json({ ok: true, job });
   } catch (e) {
