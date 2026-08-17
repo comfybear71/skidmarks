@@ -9,13 +9,12 @@ import {
   mobileCardSelected,
 } from "@/components/mobile/MobileUi";
 import { StudioTree } from "@/components/mobile/StudioTree";
-import { DeskSwitcher } from "@/components/mobile/DeskSwitcher";
 import { StudioSessionChip } from "@/components/mobile/StudioSessionChip";
 import { useMobileAssist } from "@/components/mobile/useMobileAssist";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
-import { MOBILE_DESK_EVENT, deskLabel, jobDeskId, readDeskId } from "@/lib/mobileDesk";
+import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId } from "@/lib/mobileJobResume";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
@@ -47,7 +46,6 @@ export default function MobileHomePage() {
   const [characterIds, setCharacterIds] = useState<Record<string, string>>({});
   const [resuming, setResuming] = useState(true);
   const [resumeError, setResumeError] = useState("");
-  const [desk, setDesk] = useState("stuie");
   const pollRef = useRef<number | null>(null);
 
   const stopPoll = useCallback(() => {
@@ -114,20 +112,7 @@ export default function MobileHomePage() {
   }, [job?.phase, job?.id]);
 
   useEffect(() => {
-    setDesk(readDeskId(window.localStorage));
-    const onDesk = () => {
-      setDesk(readDeskId(window.localStorage));
-      setJob(null);
-      setResumeError("");
-      setResuming(true);
-    };
-    window.addEventListener(MOBILE_DESK_EVENT, onDesk);
-    return () => window.removeEventListener(MOBILE_DESK_EVENT, onDesk);
-  }, []);
-
-  useEffect(() => {
-    const deskId = readDeskId(window.localStorage);
-    const id = readResumedJobId(window.location.search, window.localStorage, deskId);
+    const id = readResumedJobId(window.location.search, window.localStorage, DEFAULT_DESK_ID);
     if (!id) {
       setResuming(false);
       return;
@@ -145,11 +130,6 @@ export default function MobileHomePage() {
           setResumeError(d.error || `Couldn't open ${id}. The episode is still there — don't tap Start directing.`);
           return;
         }
-        if (jobDeskId(d.job) !== deskId) {
-          setJob(null);
-          setResumeError(`That's ${deskLabel(jobDeskId(d.job))}'s episode. Switch desk to open it.`);
-          return;
-        }
         setJob(d.job);
       })
       .catch(() => {
@@ -163,7 +143,7 @@ export default function MobileHomePage() {
     return () => {
       cancelled = true;
     };
-  }, [desk]);
+  }, []);
 
   useEffect(() => {
     if (!job?.id) return;
@@ -224,7 +204,7 @@ export default function MobileHomePage() {
         prompt,
         styleId,
         styleRealism,
-        deskId: readDeskId(window.localStorage),
+        deskId: DEFAULT_DESK_ID,
       });
       setJob(created);
     } catch (e) {
@@ -425,7 +405,6 @@ export default function MobileHomePage() {
 
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh" }}>
-      <DeskSwitcher onChange={setDesk} />
       <StudioSessionChip />
       {error ? (
         <div style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
