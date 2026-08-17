@@ -81,14 +81,14 @@ const SIDE_THUMB_PX = 96;
 const selectStyle: CSSProperties = {
   ...mobileCard,
   width: "100%",
-  padding: "8px 10px",
+  padding: "6px 28px 6px 8px",
   color: "var(--chrome)",
-  fontSize: "13px",
+  fontSize: "12px",
   fontFamily: "inherit",
   appearance: "none",
   backgroundImage:
     "linear-gradient(45deg, transparent 50%, var(--chrome-dim) 50%), linear-gradient(135deg, var(--chrome-dim) 50%, transparent 50%)",
-  backgroundPosition: "calc(100% - 16px) calc(50% - 2px), calc(100% - 11px) calc(50% - 2px)",
+  backgroundPosition: "calc(100% - 14px) calc(50% - 2px), calc(100% - 9px) calc(50% - 2px)",
   backgroundSize: "5px 5px, 5px 5px",
   backgroundRepeat: "no-repeat",
 };
@@ -480,7 +480,7 @@ export default function ScratchPage() {
   const playable = Boolean(beat?.voiceFile && isMobileSavedVoiceFile(beat.voiceFile));
 
   return (
-    <main className="mobile-shell" style={{ minHeight: "100dvh", paddingBottom: "24px" }}>
+    <main className="mobile-shell scratch-shell" style={{ minHeight: "100dvh", paddingBottom: "16px" }}>
       <div style={{ padding: "12px 12px 0" }}>
         <div
           style={{
@@ -671,45 +671,67 @@ export default function ScratchPage() {
               </div>
             ) : null}
 
-            <div>
-              <div className="scratch-group-label">Prompt</div>
-              <MobileTextInput
-                value={staging}
-                onChange={setStaging}
-                placeholder="Position, emotion, holding, wearing, who is where…"
-                multiline
-                rows={3}
-              />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
-                <button type="button" style={ghostBtn} onClick={clearPrompt}>
-                  Clear prompt
-                </button>
-                <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(false)} disabled={!staging.trim()}>
-                  {activePreset?.builtin ? "Save override" : "Save preset"}
-                </button>
-                <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(true)} disabled={!staging.trim()}>
-                  Save as new
-                </button>
-                {activePreset && !activePreset.builtin ? (
-                  <button type="button" style={ghostBtn} onClick={removeCurrentPreset}>
-                    Delete preset
+            <div className="scratch-console">
+              <div>
+                <div className="scratch-group-label">Prompt</div>
+                <MobileTextInput
+                  value={staging}
+                  onChange={setStaging}
+                  placeholder="Position, emotion, holding, wearing, who is where…"
+                  multiline
+                  rows={5}
+                />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                  <button type="button" style={ghostBtn} onClick={clearPrompt}>
+                    Clear prompt
                   </button>
-                ) : null}
+                  <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(false)} disabled={!staging.trim()}>
+                    {activePreset?.builtin ? "Save override" : "Save preset"}
+                  </button>
+                  <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(true)} disabled={!staging.trim()}>
+                    Save as new
+                  </button>
+                  {activePreset && !activePreset.builtin ? (
+                    <button type="button" style={ghostBtn} onClick={removeCurrentPreset}>
+                      Delete preset
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            </div>
 
-            <div className="scratch-preset-stack">
-              {SCRATCH_PRESET_GROUPS.filter((g) => g !== "Mine").map((group) => {
-                const rows = presets.filter((p) => p.group === group);
-                if (!rows.length) return null;
-                const selectedInGroup = rows.some((p) => p.id === poseId) ? poseId : "";
-                return (
-                  <label key={group} style={{ display: "block" }}>
-                    <span className="scratch-group-label" style={{ display: "block" }}>
-                      {group}
-                    </span>
+              <div className="scratch-preset-stack">
+                {SCRATCH_PRESET_GROUPS.filter((g) => g !== "Mine").map((group) => {
+                  const rows = presets.filter((p) => p.group === group);
+                  if (!rows.length) return null;
+                  const selectedInGroup = rows.some((p) => p.id === poseId) ? poseId : "";
+                  return (
+                    <label key={group} className="scratch-preset-row">
+                      <span className="scratch-group-label">{group}</span>
+                      <select
+                        value={selectedInGroup}
+                        disabled={Boolean(busy) || !padCast.length || !sceneId}
+                        onChange={(e) => {
+                          const preset = presets.find((p) => p.id === e.target.value);
+                          if (preset) pickPreset(preset);
+                        }}
+                        style={selectStyle}
+                      >
+                        <option value="">Choose…</option>
+                        {rows.map((p) => (
+                          <option key={p.id} value={p.id} disabled={p.id.startsWith("crowd-") && padCast.length < 2}>
+                            {p.label}
+                            {p.builtin ? "" : " ★"}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                })}
+                {presets.some((p) => p.group === "Mine") ? (
+                  <label className="scratch-preset-row">
+                    <span className="scratch-group-label">Mine</span>
                     <select
-                      value={selectedInGroup}
+                      value={presets.some((p) => p.group === "Mine" && p.id === poseId) ? poseId : ""}
                       disabled={Boolean(busy) || !padCast.length || !sceneId}
                       onChange={(e) => {
                         const preset = presets.find((p) => p.id === e.target.value);
@@ -718,69 +740,45 @@ export default function ScratchPage() {
                       style={selectStyle}
                     >
                       <option value="">Choose…</option>
-                      {rows.map((p) => (
-                        <option key={p.id} value={p.id} disabled={p.id.startsWith("crowd-") && padCast.length < 2}>
-                          {p.label}
-                          {p.builtin ? "" : " ★"}
+                      {presets
+                        .filter((p) => p.group === "Mine")
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label} ★
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                ) : null}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px", marginTop: "2px" }}>
+                  <label style={{ display: "block" }}>
+                    <span className="scratch-group-label" style={{ display: "block" }}>
+                      Name
+                    </span>
+                    <input
+                      value={editLabel}
+                      onChange={(e) => setEditLabel(e.target.value)}
+                      placeholder="Label"
+                      style={{ ...selectStyle, backgroundImage: "none", paddingRight: "8px" }}
+                    />
+                  </label>
+                  <label style={{ display: "block" }}>
+                    <span className="scratch-group-label" style={{ display: "block" }}>
+                      Save under
+                    </span>
+                    <select
+                      value={editGroup}
+                      onChange={(e) => setEditGroup(e.target.value as ScratchPresetGroup)}
+                      style={selectStyle}
+                    >
+                      {SCRATCH_PRESET_GROUPS.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
                         </option>
                       ))}
                     </select>
                   </label>
-                );
-              })}
-              {presets.some((p) => p.group === "Mine") ? (
-                <label style={{ display: "block" }}>
-                  <span className="scratch-group-label" style={{ display: "block" }}>
-                    Mine
-                  </span>
-                  <select
-                    value={presets.some((p) => p.group === "Mine" && p.id === poseId) ? poseId : ""}
-                    disabled={Boolean(busy) || !padCast.length || !sceneId}
-                    onChange={(e) => {
-                      const preset = presets.find((p) => p.id === e.target.value);
-                      if (preset) pickPreset(preset);
-                    }}
-                    style={selectStyle}
-                  >
-                    <option value="">Choose…</option>
-                    {presets
-                      .filter((p) => p.group === "Mine")
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label} ★
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              ) : null}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-                <label style={{ display: "block" }}>
-                  <span className="scratch-group-label" style={{ display: "block" }}>
-                    Preset name
-                  </span>
-                  <input
-                    value={editLabel}
-                    onChange={(e) => setEditLabel(e.target.value)}
-                    placeholder="Label"
-                    style={{ ...selectStyle, backgroundImage: "none" }}
-                  />
-                </label>
-                <label style={{ display: "block" }}>
-                  <span className="scratch-group-label" style={{ display: "block" }}>
-                    Save under
-                  </span>
-                  <select
-                    value={editGroup}
-                    onChange={(e) => setEditGroup(e.target.value as ScratchPresetGroup)}
-                    style={selectStyle}
-                  >
-                    {SCRATCH_PRESET_GROUPS.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                </div>
               </div>
             </div>
 

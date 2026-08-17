@@ -16,6 +16,11 @@ body {
   margin: 0 auto;
 }
 
+/* Scratch is a test console — wider so pad + knobs sit in one view. */
+.mobile-shell.scratch-shell {
+  max-width: 56rem;
+}
+
 /* PC at 100% zoom should match the old 150% browser zoom. Most /m chrome
  * is inline px, so html font-size would not move it — zoom the page. Phones
  * stay 1× (coarse pointer / narrow). */
@@ -87,18 +92,20 @@ body {
 .scratch-pad-col .scratch-pad-still {
   width: 100%;
   aspect-ratio: 1;
-  min-height: 220px;
+  min-height: 180px;
+  max-height: min(42dvh, 360px);
   object-fit: cover;
   display: block;
+  margin: 0 auto;
 }
 
-/* Stage tight under the title — prompt sits right under Draw, not the page bottom. */
+/* Stage tight under the title — prompt + knobs share the console under Draw. */
 .scratch-viewport {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 6px 12px 12px;
+  gap: 6px;
+  padding: 4px 10px 10px;
 }
 
 .scratch-group-label {
@@ -106,13 +113,45 @@ body {
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .scratch-preset-stack {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+
+/* Label beside the select — denser than stacked headings. */
+.scratch-preset-row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
   gap: 6px;
+  align-items: center;
+}
+
+.scratch-preset-row .scratch-group-label {
+  margin: 0;
+}
+
+/* Prompt left, knobs right — same screen as the pad. */
+.scratch-console {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (min-width: 640px) {
+  .scratch-console {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(12rem, 0.85fr);
+    gap: 10px;
+    align-items: start;
+  }
+
+  .scratch-rail {
+    max-height: min(42dvh, 360px);
+  }
 }
 
 .scratch-clip-rail {
