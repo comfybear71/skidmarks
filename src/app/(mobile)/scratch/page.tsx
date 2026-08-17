@@ -278,88 +278,110 @@ export default function ScratchPage() {
         </div>
       ) : (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: "14px" }}>
-          <div>
-            <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-              Who
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "56px minmax(0, 1fr) 56px",
+              gap: "10px",
+              alignItems: "start",
+            }}
+          >
+            <div>
+              <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
+                Who
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {job.speakers.map((name) => {
+                  const src = faceUrl(job, name);
+                  const on = name === speaker;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => setSpeaker(name)}
+                      style={{
+                        flex: "0 0 auto",
+                        padding: "2px",
+                        border: on ? "2px solid var(--acid)" : "2px solid var(--line)",
+                        borderRadius: "2px",
+                        background: "var(--panel-2)",
+                      }}
+                    >
+                      {src ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={src} alt="" style={{ width: "48px", height: "48px", objectFit: "cover", display: "block" }} />
+                      ) : (
+                        <div style={{ width: "48px", height: "48px", color: "var(--chrome-dim)", fontSize: "9px", overflow: "hidden" }}>{name}</div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div style={{ display: "flex", gap: "8px", overflowX: "auto", touchAction: "pan-x pan-y" }}>
-              {job.speakers.map((name) => {
-                const src = faceUrl(job, name);
-                const on = name === speaker;
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setSpeaker(name)}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
+              <div style={{ ...mobileCard, padding: "2px", lineHeight: 0, width: "100%" }}>
+                {plateFile && plateFile !== "__error__" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/crash/gen/file?name=${encodeURIComponent(plateFile)}`}
+                    alt=""
+                    style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }}
+                  />
+                ) : (
+                  <div
                     style={{
-                      flex: "0 0 auto",
-                      padding: "2px",
-                      border: on ? "2px solid var(--acid)" : "2px solid var(--line)",
-                      borderRadius: "2px",
-                      background: "var(--panel-2)",
+                      width: "100%",
+                      aspectRatio: "1",
+                      minHeight: `${PLATE_TILE_PX * 2.5}px`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--chrome-dim)",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      padding: "12px",
                     }}
                   >
-                    {src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={src} alt="" style={{ width: "56px", height: "56px", objectFit: "cover", display: "block" }} />
-                    ) : (
-                      <div style={{ width: "56px", height: "56px", color: "var(--chrome-dim)", fontSize: "10px" }}>{name}</div>
-                    )}
-                  </button>
-                );
-              })}
+                    Pick who and where, then Draw
+                  </div>
+                )}
+              </div>
+              {job.folderName ? <PlateClipThumbs job={job} clips={underClips} preload /> : null}
             </div>
-          </div>
 
-          <div>
-            <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-              Where
+            <div>
+              <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
+                Where
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {job.scenes.map((sc) => {
+                  const src = placeUrl(job, sc.id);
+                  const on = sc.id === sceneId;
+                  return (
+                    <button
+                      key={sc.id}
+                      type="button"
+                      onClick={() => setSceneId(sc.id)}
+                      style={{
+                        flex: "0 0 auto",
+                        padding: "2px",
+                        border: on ? "2px solid var(--acid)" : "2px solid var(--line)",
+                        borderRadius: "2px",
+                        background: "var(--panel-2)",
+                      }}
+                    >
+                      {src ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={src} alt="" style={{ width: "48px", height: "48px", objectFit: "cover", display: "block" }} />
+                      ) : (
+                        <div style={{ width: "48px", height: "48px", color: "var(--chrome-dim)", fontSize: "9px", overflow: "hidden" }}>{sc.placeName}</div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div style={{ display: "flex", gap: "8px", overflowX: "auto", touchAction: "pan-x pan-y" }}>
-              {job.scenes.map((sc) => {
-                const src = placeUrl(job, sc.id);
-                const on = sc.id === sceneId;
-                return (
-                  <button
-                    key={sc.id}
-                    type="button"
-                    onClick={() => setSceneId(sc.id)}
-                    style={{
-                      flex: "0 0 auto",
-                      padding: "2px",
-                      border: on ? "2px solid var(--acid)" : "2px solid var(--line)",
-                      borderRadius: "2px",
-                      background: "var(--panel-2)",
-                    }}
-                  >
-                    {src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={src} alt="" style={{ width: "56px", height: "56px", objectFit: "cover", display: "block" }} />
-                    ) : (
-                      <div style={{ width: "56px", height: "56px", color: "var(--chrome-dim)", fontSize: "10px" }}>{sc.placeName}</div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
-            <div style={{ ...mobileCard, padding: "2px", lineHeight: 0 }}>
-              {plateFile && plateFile !== "__error__" ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/crash/gen/file?name=${encodeURIComponent(plateFile)}`}
-                  alt=""
-                  style={{ width: `${PLATE_TILE_PX * 2}px`, height: `${PLATE_TILE_PX * 2}px`, objectFit: "cover", display: "block" }}
-                />
-              ) : (
-                <div style={{ width: `${PLATE_TILE_PX * 2}px`, height: `${PLATE_TILE_PX * 2}px`, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--chrome-dim)", fontSize: "12px" }}>
-                  Pick who and where, then Draw
-                </div>
-              )}
-            </div>
-            {job.folderName ? <PlateClipThumbs job={job} clips={underClips} preload /> : null}
           </div>
 
           <MobilePrimaryButton disabled={!speaker || !sceneId || Boolean(busy)} onClick={() => void draw()}>
