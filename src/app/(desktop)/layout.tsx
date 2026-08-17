@@ -26,9 +26,9 @@ export async function generateMetadata(): Promise<Metadata> {
   await connection();
   const isLive = runningOnVercel();
   return {
-    title: isLive ? "Skidmarks Studio · Vercel" : "Skidmarks Studio · localhost",
+    title: isLive ? "Skidmarks Studio" : "Skidmarks Studio · localhost",
     description: isLive
-      ? "Crash Lab — cast, story, plates, LTX. Live on Vercel."
+      ? "Crash Lab — cast, story, plates, LTX."
       : "Crash Lab — cast, story, plates, LTX. Local PC + Comfy Cloud.",
   };
 }
@@ -55,7 +55,7 @@ export default async function RootLayout({
                 />
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.28em] text-[var(--magenta-hot)]">
-                    {isLive ? "Studio · Vercel" : "Studio · localhost only"}
+                    {isLive ? "Studio" : "Studio · localhost only"}
                   </p>
                   <h1 className="display text-2xl text-[var(--chrome)] md:text-3xl">
                     Skidmarks
