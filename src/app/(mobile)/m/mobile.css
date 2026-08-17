@@ -972,6 +972,40 @@ body {
   color: var(--chrome);
 }
 
+/* Animate progress — rectangles darken as each line finishes */
+.m-animate-meter {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  width: 100%;
+  max-width: 22rem;
+}
+
+.m-animate-meter-cell {
+  flex: 1 1 0;
+  min-width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+.m-animate-meter-cell.is-run {
+  background: color-mix(in srgb, var(--acid) 35%, var(--panel));
+  border-color: color-mix(in srgb, var(--acid) 55%, var(--line));
+}
+
+.m-animate-meter-cell.is-done {
+  background: color-mix(in srgb, var(--acid) 72%, #1a2a10);
+  border-color: var(--acid);
+}
+
+.m-animate-meter-cell.is-error {
+  background: color-mix(in srgb, var(--magenta-hot) 55%, var(--panel));
+  border-color: var(--magenta-hot);
+}
+
 /* Console: prompt | campaign presets | (bible spans below on wide) */
 @media (min-width: 1100px) {
   .scratch-console {

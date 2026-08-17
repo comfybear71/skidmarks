@@ -166,7 +166,9 @@ export async function POST(req: Request) {
       // clips on the job so the pad stack stays playable — do not wipe them.
       // Also keep any row that already has mp4 takes, even if the voice
       // file looks odd — otherwise the last Generate video vanishes.
-      const clips = (live.clips || []).flatMap((c) => {
+      // Generate again with nothing pending → re-queue Saved lines so a new
+      // plate take (or another take under the same line) can stack.
+      let clips = (live.clips || []).flatMap((c) => {
         const home = findBeatHome(story, c.beatId);
         const shotId = home?.shotId || c.shotId;
         if (isOffEpisodeDeskShot(live, shotId, story)) return [c];
@@ -188,11 +190,27 @@ export async function POST(req: Request) {
           },
         ];
       });
-      const pending = clips.filter(
+      let pending = clips.filter(
         (c) =>
           c.clipStatus === "pending" &&
           !isOffEpisodeDeskShot(live, c.shotId, story),
       );
+      if (!pending.length) {
+        const requeued = clips.map((c) => {
+          if (isOffEpisodeDeskShot(live, c.shotId, story)) return c;
+          if (!isMobileSavedVoiceFile(c.voiceFile)) return c;
+          if (c.clipStatus === "pending" || c.clipStatus === "running") return c;
+          return { ...c, clipStatus: "pending" as const, error: "" };
+        });
+        pending = requeued.filter(
+          (c) =>
+            c.clipStatus === "pending" &&
+            !isOffEpisodeDeskShot(live, c.shotId, story),
+        );
+        if (pending.length) {
+          clips = requeued;
+        }
+      }
       if (!pending.length) {
         const episodeClips = clips.filter(
           (c) => !isOffEpisodeDeskShot(live, c.shotId, story),
@@ -201,7 +219,7 @@ export async function POST(req: Request) {
           clips,
           phase: "review",
           error: episodeClips.length
-            ? "Those lines already have clips — nothing new to send. Save the line again to re-queue."
+            ? "No Saved mp3s ready to send. Save the spoken line on the plate first — Play appears when the mp3 is ready."
             : "No Saved mp3s to send. Save the spoken line on the plate first — Play appears next to the name when the mp3 is ready.",
         }))!;
         return NextResponse.json({ ok: true, job, advanced: false });

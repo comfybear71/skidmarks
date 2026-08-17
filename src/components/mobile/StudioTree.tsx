@@ -1124,7 +1124,7 @@ export function StudioTree({
               {queued.length === 0 && plated.length
                 ? " — Save the spoken line (Play appears) before Generate video"
                 : queued.length
-                  ? ` — Generate sends ${queued.filter((c) => c.clipStatus === "pending").length || queued.length} Saved mp3${queued.length === 1 ? "" : "s"} only`
+                  ? ` — Generate sends Saved mp3s (stacks under the plate; tap again to render again)`
                   : ""}
             </div>
             {job.error ? (
@@ -1155,6 +1155,31 @@ export function StudioTree({
                 ? `Animating… ${queued.filter((c) => c.clipStatus === "done" || c.clipStatus === "error").length}/${queued.length}`
                 : "Animating… no lines queued"}
             </ShimmerText>
+            {queued.length ? (
+              <div
+                className="m-animate-meter"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={queued.length}
+                aria-valuenow={
+                  queued.filter((c) => c.clipStatus === "done" || c.clipStatus === "error").length
+                }
+                aria-label="Animate progress"
+              >
+                {queued.map((c) => {
+                  const done = c.clipStatus === "done";
+                  const err = c.clipStatus === "error";
+                  const run = c.clipStatus === "running";
+                  return (
+                    <span
+                      key={c.beatId}
+                      className={`m-animate-meter-cell${done ? " is-done" : ""}${err ? " is-error" : ""}${run ? " is-run" : ""}`}
+                      title={`${c.speaker || "line"} · ${c.clipStatus}`}
+                    />
+                  );
+                })}
+              </div>
+            ) : null}
             {job.error ? (
               <div style={{ color: "var(--magenta-hot)", fontSize: "13px", margin: "8px 0" }}>
                 {job.error}
