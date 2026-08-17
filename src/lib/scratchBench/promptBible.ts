@@ -419,8 +419,92 @@ export const SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
   {
     id: "atmosphere",
     label: "Atmosphere & Vision",
-    hint: "Light, surreal, dystopian",
+    hint: "Mood light first, then FX",
     entries: [
+      {
+        id: "atm-lighten",
+        label: "Lighten",
+        template:
+          "Lifted exposure on {{name}} at {{place}}. Soft fill opens the shadows; face and room stay readable, no harsh contrast.",
+      },
+      {
+        id: "atm-bright",
+        label: "Bright",
+        template:
+          "Bright high-key light on {{name}} at {{place}}. Clean whites, open midtones, cheerful clarity without blowing out the face.",
+      },
+      {
+        id: "atm-sunny",
+        label: "Sunny",
+        template:
+          "Hard sunny daylight on {{name}} at {{place}}. Warm sun from a clear sky, crisp shadows on the ground, summer heat in the air.",
+      },
+      {
+        id: "atm-sunset",
+        label: "Sunset",
+        template:
+          "Warm sunset grade on {{name}} at {{place}}. Low orange sun, long soft shadows, golden rim light on hair and shoulders.",
+      },
+      {
+        id: "atm-sunrise",
+        label: "Sunrise",
+        template:
+          "Cool-to-warm sunrise light on {{name}} at {{place}}. Soft pink and pale gold wash, gentle shadows, early-morning quiet.",
+      },
+      {
+        id: "atm-twilight",
+        label: "Twilight",
+        template:
+          "Blue-hour twilight on {{name}} at {{place}}. Deep azure sky, soft purple shadows, faces lit by residual dusk and window glow.",
+      },
+      {
+        id: "atm-eerie",
+        label: "Eerie",
+        template:
+          "Eerie unsettled light on {{name}} at {{place}}. Sickly cool key, wrong-direction shadows, quiet dread without jump-scare FX.",
+      },
+      {
+        id: "atm-gloomy",
+        label: "Gloomy",
+        template:
+          "Gloomy overcast light on {{name}} at {{place}}. Flat grey skylight, muted colours, heavy mood, no hard sun.",
+      },
+      {
+        id: "atm-radiant",
+        label: "Radiant",
+        template:
+          "Radiant bloom around {{name}} at {{place}}. Soft luminous wrap, gentle halo on edges, warm hopeful glow without losing face detail.",
+      },
+      {
+        id: "atm-golden",
+        label: "Golden hour",
+        template:
+          "Golden-hour wrap on {{name}} at {{place}}. Honey side-light, long warm shadows, skin and fabric catch amber highlights.",
+      },
+      {
+        id: "atm-moon",
+        label: "Moonlight",
+        template:
+          "Cool moonlight on {{name}} at {{place}}. Soft silver key from above, deep blue shadows, night quiet without neon.",
+      },
+      {
+        id: "atm-overcast",
+        label: "Overcast",
+        template:
+          "Soft overcast daylight on {{name}} at {{place}}. Even sky fill, almost no hard shadow, muted honest colour.",
+      },
+      {
+        id: "atm-candle",
+        label: "Candlelit",
+        template:
+          "Candlelit warmth on {{name}} at {{place}}. Small flickering key near the face, falloff into dark corners, intimate room light.",
+      },
+      {
+        id: "atm-storm",
+        label: "Storm light",
+        template:
+          "Storm light on {{name}} at {{place}}. Cold green-grey sky, sudden bright flashes, wet air and restless contrast.",
+      },
       {
         id: "atm-glow",
         label: "Volumetric glow",
