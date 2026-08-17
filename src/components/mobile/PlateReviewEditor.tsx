@@ -38,6 +38,7 @@ import {
 } from "@/lib/mobileImageMotion";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { CampaignTestScoreRow } from "./PlateLtxCampaignCard";
+import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
 /** Shot tiles were 72px — same as CAST thumbs — and too small to read on a phone. */
 const PLATE_TILE_PX = 96;
@@ -1715,8 +1716,12 @@ function BeatLineEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId, beatId: beat.id, text }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't generate voice");
+      const data = await readApiJson<{
+        error?: string;
+        voiceFile: string;
+        imageMotion?: string;
+        job?: MobileGenJob;
+      }>(res);
       setVoiceFile(data.voiceFile);
       let imageMotion = (data.imageMotion as string) || "";
       if (motionDirty) {
@@ -1725,7 +1730,7 @@ function BeatLineEditor({
       }
       onSaved(text, data.voiceFile, imageMotion, data.job);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      setError(studioFetchError(e, "Save failed"));
     } finally {
       setSaving(false);
     }

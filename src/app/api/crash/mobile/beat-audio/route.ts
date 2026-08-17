@@ -22,7 +22,7 @@ import {
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * GET — stream one beat's synthesized line, so the "building the story" feed

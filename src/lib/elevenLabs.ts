@@ -220,22 +220,31 @@ export async function listLibraryVoices(): Promise<ElevenVoiceSummary[]> {
     .filter((v) => v.voiceId);
 }
 
-/**
- * Speak a line with a locked library voice_id → mp3 buffer.
- * Eleven v3 — supports audio tags: [whispers] [shouts] [laughs] [sighs] etc.
- */
-export async function synthesizeSpeech(opts: {
-  voiceId: string;
-  text: string;
-}): Promise<Buffer> {
-  const text = opts.text.trim();
-  if (!text) throw new Error("Nothing to speak — fill TEXT / spoken words first");
-  if (!opts.voiceId.trim()) {
-    throw new Error("No locked voice_id — Keep a voice in Character Lab / Scene kit first");
-  }
+/** Eleven v3 hard-caps a request around 5k. Split so a duration-push
+ * letter actually speaks instead of silently truncating or 504-ing Save. */
+const ELEVEN_SPEAK_MAX = 5000;
+const ELEVEN_SPEAK_CHUNK = 2400;
 
+function splitSpeakChunks(text: string): string[] {
+  const t = text.trim();
+  if (t.length <= ELEVEN_SPEAK_CHUNK) return [t];
+  const chunks: string[] = [];
+  let rest = t;
+  while (rest.length > ELEVEN_SPEAK_CHUNK) {
+    const window = rest.slice(0, ELEVEN_SPEAK_CHUNK);
+    let cut = window.lastIndexOf(". ");
+    if (cut < ELEVEN_SPEAK_CHUNK * 0.4) cut = window.lastIndexOf(" ");
+    if (cut < 1) cut = ELEVEN_SPEAK_CHUNK;
+    chunks.push(rest.slice(0, cut + 1).trim());
+    rest = rest.slice(cut + 1).trim();
+  }
+  if (rest) chunks.push(rest);
+  return chunks.filter(Boolean);
+}
+
+async function synthesizeSpeechChunk(voiceId: string, text: string): Promise<Buffer> {
   const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(opts.voiceId.trim())}`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`,
     {
       method: "POST",
       headers: {
@@ -244,8 +253,7 @@ export async function synthesizeSpeech(opts: {
         Accept: "audio/mpeg",
       },
       body: JSON.stringify({
-        text: text.slice(0, 5000),
-        // v3 = audio tags; speaker_boost helps keep locked clones from drifting
+        text: text.slice(0, ELEVEN_SPEAK_MAX),
         model_id: "eleven_v3",
         voice_settings: {
           stability: 0.45,
@@ -268,6 +276,28 @@ export async function synthesizeSpeech(opts: {
   }
 
   return Buffer.from(await res.arrayBuffer());
+}
+
+/**
+ * Speak a line with a locked library voice_id → mp3 buffer.
+ * Eleven v3 — supports audio tags: [whispers] [shouts] [laughs] [sighs] etc.
+ */
+export async function synthesizeSpeech(opts: {
+  voiceId: string;
+  text: string;
+}): Promise<Buffer> {
+  const text = opts.text.trim();
+  if (!text) throw new Error("Nothing to speak — fill TEXT / spoken words first");
+  if (!opts.voiceId.trim()) {
+    throw new Error("No locked voice_id — Keep a voice in Character Lab / Scene kit first");
+  }
+  const voiceId = opts.voiceId.trim();
+  const chunks = splitSpeakChunks(text);
+  const parts: Buffer[] = [];
+  for (const chunk of chunks) {
+    parts.push(await synthesizeSpeechChunk(voiceId, chunk));
+  }
+  return parts.length === 1 ? parts[0]! : Buffer.concat(parts);
 }
 
 /** Text → sound effect mp3 (ElevenLabs sound-generation). */
