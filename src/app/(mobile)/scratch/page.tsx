@@ -524,9 +524,6 @@ export default function ScratchPage() {
           <div className="scratch-viewport">
             <div className="scratch-stage">
               <div className="scratch-rail">
-                <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-                  Who
-                </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {job.speakers.map((name) => {
                     const src = faceUrl(job, name);
