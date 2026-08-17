@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Black_Ops_One, DM_Sans } from "next/font/google";
-import { SiteNav } from "@/components/SiteNav";
 import { runningOnVercel } from "@/lib/cloudEnv";
 import "../globals.css";
 
@@ -62,7 +61,6 @@ export default async function RootLayout({
                   </h1>
                 </div>
               </Link>
-              <SiteNav />
             </div>
           </header>
           <main className="mx-auto max-w-6xl px-5 py-8">{children}</main>
