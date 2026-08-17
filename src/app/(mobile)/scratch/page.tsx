@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   MobileAudioPlayer,
   MobilePrimaryButton,
@@ -9,21 +9,25 @@ import {
 } from "@/components/mobile/MobileUi";
 import { CastVoiceRow } from "@/components/mobile/CastVoiceRow";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
-import {
-  MOBILE_DESK_EVENT,
-  deskLabel,
-  jobDeskId,
-  readDeskId,
-} from "@/lib/mobileDesk";
+import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId } from "@/lib/mobileJobResume";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc } from "@/lib/crashStoryTypes";
 import { approvedCandidateFileName, preferredCandidate } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
-import { plateLtxCampaignScenarios } from "@/lib/mobilePlateLtxCampaign";
 import { findScratchShot, scratchPadClips } from "@/lib/mobileScratch";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
+import {
+  SCRATCH_PRESET_GROUPS,
+  applyScratchPresetTemplate,
+  deleteScratchPreset,
+  loadScratchPresets,
+  newScratchPresetId,
+  saveScratchPresetFromPrompt,
+  type ScratchPreset,
+  type ScratchPresetGroup,
+} from "@/lib/scratchPresets";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
@@ -72,23 +76,33 @@ function pickDefaultPlace(job: MobileGenJob): string {
   );
 }
 
-/** Scratch stress-test knobs — frame, body, holding, wearing, weather, crowd. */
-const POSE_GROUPS: { title: string; ids: string[] }[] = [
-  { title: "Frame", ids: ["mcu-phone", "wide-full", "tight-face", "over-shoulder", "walk-in"] },
-  { title: "Body", ids: ["sitting", "standing", "running", "sprawl", "dance", "leaning", "steps", "crouch", "handstand"] },
-  { title: "Holding", ids: ["beer-cig", "pie"] },
-  { title: "Wearing", ids: ["clothes-dress", "clothes-underwear"] },
-  { title: "Weather / edge", ids: ["raining", "wash-hair"] },
-  { title: "Crowd / multi", ids: ["crowd-two-shot", "crowd-surround", "crowd-pile"] },
-];
+const SIDE_THUMB_PX = 72;
 
-const CROWD_POSE_LABELS: Record<string, string> = {
-  "crowd-two-shot": "Two-shot",
-  "crowd-surround": "Surround",
-  "crowd-pile": "Pile / tangle",
+const selectStyle: CSSProperties = {
+  ...mobileCard,
+  width: "100%",
+  padding: "12px 14px",
+  color: "var(--chrome)",
+  fontSize: "14px",
+  fontFamily: "inherit",
+  appearance: "none",
+  backgroundImage:
+    "linear-gradient(45deg, transparent 50%, var(--chrome-dim) 50%), linear-gradient(135deg, var(--chrome-dim) 50%, transparent 50%)",
+  backgroundPosition: "calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px)",
+  backgroundSize: "6px 6px, 6px 6px",
+  backgroundRepeat: "no-repeat",
 };
 
-const SIDE_THUMB_PX = 72;
+const ghostBtn: CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: "4px",
+  border: "1px solid var(--line)",
+  background: "transparent",
+  color: "var(--chrome)",
+  fontSize: "12px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
 
 const thumbBtn = (on: boolean): CSSProperties => ({
   flex: "0 0 auto",
@@ -125,7 +139,6 @@ function ScratchLightbox({ src, onClose }: { src: string; onClose: () => void })
 }
 
 export default function ScratchPage() {
-  const [deskTick, setDeskTick] = useState(0);
   const [job, setJob] = useState<MobileGenJob | null>(null);
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [speaker, setSpeaker] = useState("");
@@ -139,6 +152,11 @@ export default function ScratchPage() {
   const [resuming, setResuming] = useState(true);
   const [resumeError, setResumeError] = useState("");
   const [lightbox, setLightbox] = useState("");
+  const [padCleared, setPadCleared] = useState(false);
+  const [presets, setPresets] = useState<ScratchPreset[]>([]);
+  const [editLabel, setEditLabel] = useState("");
+  const [editGroup, setEditGroup] = useState<ScratchPresetGroup>("Mine");
+  const drawSeq = useRef(0);
 
   const scratch = findScratchShot(story);
   const beat: CrashStoryBeat | undefined =
@@ -147,7 +165,7 @@ export default function ScratchPage() {
     scratch?.shot.beats[0];
   const plateFile = job?.shots.find((s) => s.shotId === scratch?.shot.id)?.plateFile || scratch?.shot.plateFile || "";
   const plateSrc =
-    plateFile && plateFile !== "__error__"
+    !padCleared && plateFile && plateFile !== "__error__"
       ? `/api/crash/gen/file?name=${encodeURIComponent(plateFile)}`
       : "";
   const underClips = scratch
@@ -161,47 +179,45 @@ export default function ScratchPage() {
     ? scratchPadClips(job, story).filter((c) => !underClips.some((u) => u.beatId === c.beatId))
     : [];
   const stackClips = [...underClips.filter((c) => c.clipFile), ...padStack];
-  const poses = useMemo(() => plateLtxCampaignScenarios(), []);
-  const poseById = useMemo(() => {
-    const map = new Map(poses.map((p) => [p.id, p]));
-    for (const [id, label] of Object.entries(CROWD_POSE_LABELS)) {
-      map.set(id, { id, label });
-    }
-    return map;
-  }, [poses]);
-
-  const loadStory = useCallback(async (next: MobileGenJob) => {
-    if (!next.folderName) {
-      setStory(null);
-      return;
-    }
-    const res = await fetch(
-      `/api/crash/story?styleId=${encodeURIComponent(next.styleId)}&folderName=${encodeURIComponent(next.folderName)}`,
-    );
-    const data = (await res.json().catch(() => ({}))) as { story?: CrashStoryDoc };
-    setStory(data.story || null);
-    const found = findScratchShot(data.story || null);
-    if (found?.shot.staging) setStaging(found.shot.staging);
-    const first = found?.shot.beats.find((b) => b.speaker.trim());
-    if (first?.text) setLine(first.text);
-  }, []);
+  const placeName = job?.scenes.find((s) => s.id === sceneId)?.placeName || "this place";
+  const activePreset = presets.find((p) => p.id === poseId) || null;
 
   useEffect(() => {
-    setDeskTick((n) => n + 1);
-    const onDesk = () => {
-      setDeskTick((n) => n + 1);
-      setJob(null);
-      setStory(null);
-      setResumeError("");
-      setResuming(true);
-    };
-    window.addEventListener(MOBILE_DESK_EVENT, onDesk);
-    return () => window.removeEventListener(MOBILE_DESK_EVENT, onDesk);
+    setPresets(loadScratchPresets());
   }, []);
 
+  const loadStory = useCallback(
+    async (
+      next: MobileGenJob,
+      opts?: { preferSpeaker?: string; keepLine?: string; keepStaging?: boolean },
+    ) => {
+      if (!next.folderName) {
+        setStory(null);
+        return;
+      }
+      const res = await fetch(
+        `/api/crash/story?styleId=${encodeURIComponent(next.styleId)}&folderName=${encodeURIComponent(next.folderName)}`,
+      );
+      const data = (await res.json().catch(() => ({}))) as { story?: CrashStoryDoc };
+      setStory(data.story || null);
+      const found = findScratchShot(data.story || null);
+      if (!opts?.keepStaging && found?.shot.staging) setStaging(found.shot.staging);
+      if (opts?.keepLine != null) {
+        setLine(opts.keepLine);
+        return;
+      }
+      const prefer = (opts?.preferSpeaker || "").trim().toLowerCase();
+      const match =
+        (prefer
+          ? found?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === prefer)
+          : undefined) || found?.shot.beats.find((b) => b.speaker.trim());
+      if (match?.text) setLine(match.text);
+    },
+    [],
+  );
+
   useEffect(() => {
-    const deskId = readDeskId(window.localStorage);
-    const id = readResumedJobId(window.location.search, window.localStorage, deskId);
+    const id = readResumedJobId(window.location.search, window.localStorage, DEFAULT_DESK_ID);
     if (!id) {
       setResuming(false);
       return;
@@ -214,10 +230,6 @@ export default function ScratchPage() {
         if (cancelled) return;
         if (!d.job) {
           setResumeError(d.error || "Couldn't open that episode. Don't tap Start directing.");
-          return;
-        }
-        if (jobDeskId(d.job) !== deskId) {
-          setResumeError(`That's ${deskLabel(jobDeskId(d.job))}'s episode. Switch desk to open it.`);
           return;
         }
         setJob(d.job);
@@ -237,7 +249,7 @@ export default function ScratchPage() {
     return () => {
       cancelled = true;
     };
-  }, [deskTick, loadStory]);
+  }, [loadStory]);
 
   useEffect(() => {
     if (!job?.id) return;
@@ -267,6 +279,7 @@ export default function ScratchPage() {
     const nextCast = opts?.cast ?? (padCast.length ? padCast : nextSpeaker ? [nextSpeaker] : []);
     const nextScene = opts?.sceneId ?? sceneId;
     if (!nextSpeaker || !nextScene || !nextCast.length) return;
+    const seq = ++drawSeq.current;
     setBusy("draw");
     setError("");
     try {
@@ -281,6 +294,7 @@ export default function ScratchPage() {
           poseId: nextPose,
         },
       );
+      if (seq !== drawSeq.current) return;
       setJob(ensured.job);
       const drawn = await postJson<{ job: MobileGenJob; staging?: string }>(
         "/api/crash/mobile/scratch",
@@ -293,13 +307,16 @@ export default function ScratchPage() {
           staging: nextStaging || undefined,
         },
       );
+      if (seq !== drawSeq.current) return;
       setJob(drawn.job);
       if (drawn.staging) setStaging(drawn.staging);
+      setPadCleared(false);
       await loadStory(drawn.job);
     } catch (e) {
+      if (seq !== drawSeq.current) return;
       setError(e instanceof Error ? e.message : "Couldn't draw");
     } finally {
-      setBusy("");
+      if (seq === drawSeq.current) setBusy("");
     }
   }
 
@@ -308,11 +325,15 @@ export default function ScratchPage() {
     if (!onPad) {
       setPadCast([...padCast, name]);
       setSpeaker(name);
+      const beatLine = scratch?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === name.trim().toLowerCase())?.text;
+      if (beatLine) setLine(beatLine);
       return;
     }
     if (name !== speaker) {
       // Already on the still — this mouth gets the lip-sync line.
       setSpeaker(name);
+      const beatLine = scratch?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === name.trim().toLowerCase())?.text;
+      if (beatLine != null) setLine(beatLine);
       return;
     }
     if (padCast.length === 1) {
@@ -343,18 +364,81 @@ export default function ScratchPage() {
     });
   }
 
+  function clearPrompt() {
+    setStaging("");
+  }
+
+  function clearPad() {
+    setPadCleared(true);
+    setPadCast([]);
+    setSpeaker("");
+    setStaging("");
+    setPoseId("");
+    setError("");
+  }
+
+  function fillFromPreset(preset: ScratchPreset) {
+    const who = speaker || padCast[0] || "Character";
+    const text = applyScratchPresetTemplate(preset.template, {
+      name: who,
+      place: placeName,
+      cast: padCast.length ? padCast : [who],
+    });
+    setPoseId(preset.id);
+    setStaging(text);
+    setEditLabel(preset.label);
+    setEditGroup(preset.group);
+  }
+
+  function onPresetSelect(group: ScratchPresetGroup, id: string) {
+    if (!id) return;
+    const preset = presets.find((p) => p.id === id);
+    if (!preset) return;
+    fillFromPreset(preset);
+  }
+
+  function saveCurrentPreset(asNew: boolean) {
+    const template = staging.trim();
+    if (!template) {
+      setError("Write a prompt before saving a preset");
+      return;
+    }
+    const label = (editLabel || activePreset?.label || "Custom").trim() || "Custom";
+    const group = editGroup || activePreset?.group || "Mine";
+    const id = asNew ? newScratchPresetId() : activePreset?.id || newScratchPresetId();
+    const next = saveScratchPresetFromPrompt({ id, group, label, template });
+    setPresets(next);
+    setPoseId(id);
+    setEditLabel(label);
+    setEditGroup(group);
+  }
+
+  function removeCurrentPreset() {
+    if (!activePreset || activePreset.builtin) return;
+    setPresets(deleteScratchPreset(activePreset.id));
+    setPoseId("");
+  }
+
   async function saveLine() {
     if (!job || !beat) return;
+    const text = line.trim();
+    if (!text) return;
     setBusy("voice");
     setError("");
     try {
       const data = await postJson<{ job?: MobileGenJob }>("/api/crash/mobile/beat-audio", {
         jobId: job.id,
         beatId: beat.id,
-        text: line,
+        text,
       });
       if (data.job) setJob(data.job);
-      await loadStory(data.job || job);
+      // Keep the words just Saved — loadStory used to snap back to the first
+      // beat on the scratch card and the box looked like Save did nothing.
+      await loadStory(data.job || job, {
+        preferSpeaker: beat.speaker || speaker,
+        keepLine: text,
+        keepStaging: true,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save the line");
     } finally {
@@ -384,7 +468,7 @@ export default function ScratchPage() {
 
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh", paddingBottom: "48px" }}>
-      <div style={{ padding: "14px 16px 10px" }}>
+      <div style={{ padding: "28px 16px 0" }}>
         <div
           style={{
             fontFamily: "var(--font-display), sans-serif",
@@ -398,49 +482,130 @@ export default function ScratchPage() {
       </div>
 
       {error ? (
-        <div style={{ margin: "0 16px 12px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
+        <div style={{ margin: "12px 16px 0", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}
         </div>
       ) : null}
 
       {resuming ? (
-        <div style={{ padding: "24px 16px", color: "var(--chrome-dim)" }}>Opening…</div>
+        <div style={{ padding: "48px 16px", color: "var(--chrome-dim)" }}>Opening…</div>
       ) : resumeError && !job ? (
-        <div style={{ padding: "24px 16px", color: "var(--magenta-hot)", fontWeight: 600 }}>{resumeError}</div>
+        <div style={{ padding: "48px 16px", color: "var(--magenta-hot)", fontWeight: 600 }}>{resumeError}</div>
       ) : !job ? (
-        <div style={{ padding: "24px 16px", color: "var(--chrome-dim)", fontSize: "14px" }}>
+        <div style={{ padding: "48px 16px", color: "var(--chrome-dim)", fontSize: "14px" }}>
           Open /m, pick a face and a place, then come back here. Don&apos;t tap Start directing on an episode that already exists.
         </div>
       ) : (
-        <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: "14px" }}>
-          <div className="scratch-stage">
-            <div className="scratch-rail">
-              <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-                Who
+        <>
+          <div className="scratch-viewport">
+            <div className="scratch-stage">
+              <div className="scratch-rail">
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {job.speakers.map((name) => {
+                    const src = faceUrl(job, name);
+                    const onPad = padCast.includes(name);
+                    const speaks = name === speaker;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        title={
+                          !onPad
+                            ? `Add ${name} to pad`
+                            : !speaks
+                              ? "On pad — tap to make them speak (lip sync)"
+                              : padCast.length === 1 && src
+                                ? "Tap again to enlarge"
+                                : "Speaking — tap again to pull off pad"
+                        }
+                        onClick={() => pickCast(name)}
+                        style={{
+                          ...thumbBtn(onPad),
+                          boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
+                        }}
+                      >
+                        {src ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={src}
+                            alt=""
+                            style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: `${SIDE_THUMB_PX}px`,
+                              height: `${SIDE_THUMB_PX}px`,
+                              color: "var(--chrome-dim)",
+                              fontSize: "10px",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {name}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {job.speakers.map((name) => {
-                  const src = faceUrl(job, name);
-                  const onPad = padCast.includes(name);
-                  const speaks = name === speaker;
+
+              <div className="scratch-pad-col">
+                <button
+                  type="button"
+                  disabled={!plateSrc}
+                  onClick={() => plateSrc && setLightbox(plateSrc)}
+                  title={plateSrc ? "Tap to enlarge" : undefined}
+                  style={{
+                    ...mobileCard,
+                    padding: "2px",
+                    lineHeight: 0,
+                    width: "100%",
+                    border: "none",
+                    cursor: plateSrc ? "zoom-in" : "default",
+                    background: "var(--panel)",
+                  }}
+                >
+                  {plateSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={plateSrc}
+                      alt=""
+                      style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        aspectRatio: "1",
+                        minHeight: `${PLATE_TILE_PX * 2.5}px`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--chrome-dim)",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        padding: "12px",
+                      }}
+                    >
+                      Faces left. Place right. Draw.
+                    </div>
+                  )}
+                </button>
+              </div>
+
+              <div className="scratch-rail">
+                {job.scenes.map((sc) => {
+                  const src = placeUrl(job, sc.id);
+                  const on = sc.id === sceneId;
                   return (
                     <button
-                      key={name}
+                      key={sc.id}
                       type="button"
-                      title={
-                        !onPad
-                          ? `Add ${name} to pad`
-                          : !speaks
-                            ? "On pad — tap to make them speak (lip sync)"
-                            : padCast.length === 1 && src
-                              ? "Tap again to enlarge"
-                              : "Speaking — tap again to pull off pad"
-                      }
-                      onClick={() => pickCast(name)}
-                      style={{
-                        ...thumbBtn(onPad),
-                        boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
-                      }}
+                      disabled={Boolean(busy)}
+                      title={on && src ? "Tap again to enlarge" : `Drop ${sc.placeName} on pad`}
+                      onClick={() => dropPlace(sc.id)}
+                      style={thumbBtn(on)}
                     >
                       {src ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -459,7 +624,7 @@ export default function ScratchPage() {
                             overflow: "hidden",
                           }}
                         >
-                          {name}
+                          {sc.placeName}
                         </div>
                       )}
                     </button>
@@ -468,191 +633,170 @@ export default function ScratchPage() {
               </div>
             </div>
 
-            <div className="scratch-pad-col">
-              <button
-                type="button"
-                disabled={!plateSrc}
-                onClick={() => plateSrc && setLightbox(plateSrc)}
-                title={plateSrc ? "Tap to enlarge" : undefined}
-                style={{
-                  ...mobileCard,
-                  padding: "2px",
-                  lineHeight: 0,
-                  width: "100%",
-                  border: "none",
-                  cursor: plateSrc ? "zoom-in" : "default",
-                  background: "var(--panel)",
-                }}
-              >
-                {plateSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={plateSrc}
-                    alt=""
-                    style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "100%",
-                      aspectRatio: "1",
-                      minHeight: `${PLATE_TILE_PX * 2.5}px`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--chrome-dim)",
-                      fontSize: "12px",
-                      textAlign: "center",
-                      padding: "12px",
-                    }}
-                  >
-                    Faces left. Place right. Draw.
-                  </div>
-                )}
+            {job.folderName && stackClips.length ? (
+              <div className="scratch-clip-rail">
+                <PlateClipThumbs job={job} clips={stackClips} preload />
+              </div>
+            ) : null}
+
+            <div style={{ display: "flex", gap: "8px", alignItems: "stretch" }}>
+              <div style={{ flex: 1 }}>
+                <MobilePrimaryButton
+                  disabled={!padCast.length || !sceneId || Boolean(busy)}
+                  onClick={() =>
+                    void draw({
+                      cast: padCast,
+                      speaker: speaker || padCast[0],
+                      staging: staging || undefined,
+                    })
+                  }
+                >
+                  {busy === "draw" ? "Drawing…" : "Draw"}
+                </MobilePrimaryButton>
+              </div>
+              <button type="button" style={ghostBtn} onClick={clearPad} disabled={Boolean(busy)}>
+                Clear pad
               </button>
             </div>
+          </div>
 
-            <div className="scratch-rail">
-              {job.scenes.map((sc) => {
-                const src = placeUrl(job, sc.id);
-                const on = sc.id === sceneId;
-                return (
-                  <button
-                    key={sc.id}
-                    type="button"
-                    disabled={Boolean(busy)}
-                    title={on && src ? "Tap again to enlarge" : `Drop ${sc.placeName} on pad`}
-                    onClick={() => dropPlace(sc.id)}
-                    style={thumbBtn(on)}
-                  >
-                    {src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={src}
-                        alt=""
-                        style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: `${SIDE_THUMB_PX}px`,
-                          height: `${SIDE_THUMB_PX}px`,
-                          color: "var(--chrome-dim)",
-                          fontSize: "10px",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {sc.placeName}
-                      </div>
-                    )}
+          <div style={{ padding: "0 16px 28px", display: "flex", flexDirection: "column", gap: "18px" }}>
+            {padCast.length > 1 ? (
+              <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
+                On pad: {padCast.join(" · ")}. Speaks:{" "}
+                <span style={{ color: "var(--acid)" }}>{speaker || padCast[0]}</span>
+              </div>
+            ) : null}
+
+            <div>
+              <div className="scratch-group-label">Prompt</div>
+              <MobileTextInput
+                value={staging}
+                onChange={setStaging}
+                placeholder="Position, emotion, holding, wearing, who is where…"
+                multiline
+                rows={5}
+              />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px" }}>
+                <button type="button" style={ghostBtn} onClick={clearPrompt}>
+                  Clear prompt
+                </button>
+                <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(false)} disabled={!staging.trim()}>
+                  {activePreset?.builtin ? "Save override" : "Save preset"}
+                </button>
+                <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(true)} disabled={!staging.trim()}>
+                  Save as new
+                </button>
+                {activePreset && !activePreset.builtin ? (
+                  <button type="button" style={ghostBtn} onClick={removeCurrentPreset}>
+                    Delete preset
                   </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div className="scratch-group-label">Presets</div>
+              {SCRATCH_PRESET_GROUPS.map((group) => {
+                const rows = presets.filter((p) => p.group === group);
+                if (!rows.length) return null;
+                const selectedInGroup = rows.some((p) => p.id === poseId) ? poseId : "";
+                return (
+                  <label key={group} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span className="scratch-group-label" style={{ marginBottom: 0 }}>
+                      {group}
+                    </span>
+                    <select
+                      value={selectedInGroup}
+                      onChange={(e) => onPresetSelect(group, e.target.value)}
+                      style={selectStyle}
+                    >
+                      <option value="">Choose…</option>
+                      {rows.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                          {p.builtin ? "" : " ★"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 );
               })}
-            </div>
-          </div>
-
-          {job.folderName && stackClips.length ? (
-            <div className="scratch-clip-rail">
-              <PlateClipThumbs job={job} clips={stackClips} preload />
-            </div>
-          ) : null}
-
-          <MobilePrimaryButton
-            disabled={!padCast.length || !sceneId || Boolean(busy)}
-            onClick={() => void draw({ cast: padCast, speaker: speaker || padCast[0] })}
-          >
-            {busy === "draw"
-              ? "Drawing…"
-              : padCast.length > 1
-                ? `Draw ${padCast.length} on pad`
-                : "Draw this picture"}
-          </MobilePrimaryButton>
-
-          {padCast.length > 1 ? (
-            <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
-              On pad: {padCast.join(" · ")}. Speaks: <span style={{ color: "var(--acid)" }}>{speaker || padCast[0]}</span>
-              {" "}— Save line + Generate clip tests that mouth.
-            </div>
-          ) : null}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {POSE_GROUPS.map((group) => (
-              <div key={group.title}>
-                <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-                  {group.title}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {group.ids.map((id) => {
-                    const p = poseById.get(id);
-                    if (!p) return null;
-                    const on = id === poseId;
-                    const crowd = id.startsWith("crowd-");
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        disabled={Boolean(busy) || !padCast.length || !sceneId || (crowd && padCast.length < 2)}
-                        onClick={() => {
-                          setPoseId(id);
-                          void draw({
-                            poseId: id,
-                            staging: "",
-                            speaker: speaker || padCast[0],
-                            cast: padCast,
-                            sceneId,
-                          });
-                        }}
-                        style={{
-                          padding: "6px 8px",
-                          borderRadius: "2px",
-                          border: on ? "1px solid var(--acid)" : "1px solid var(--line)",
-                          background: on ? "var(--acid)" : "var(--panel-2)",
-                          color: on ? "#111" : "var(--chrome)",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          opacity: crowd && padCast.length < 2 ? 0.45 : 1,
-                        }}
-                      >
-                        {p.label.replace(/^\d+\s+/, "")}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <span className="scratch-group-label" style={{ marginBottom: 0 }}>
+                    Preset name
+                  </span>
+                  <input
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    placeholder="Label"
+                    style={{ ...selectStyle, backgroundImage: "none" }}
+                  />
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <span className="scratch-group-label" style={{ marginBottom: 0 }}>
+                    Save under
+                  </span>
+                  <select
+                    value={editGroup}
+                    onChange={(e) => setEditGroup(e.target.value as ScratchPresetGroup)}
+                    style={selectStyle}
+                  >
+                    {SCRATCH_PRESET_GROUPS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
-            ))}
-          </div>
+            </div>
 
-          <MobileTextInput
-            value={staging}
-            onChange={setStaging}
-            placeholder="Custom — emotion, holding, wearing, pile, who is where…"
-            multiline
-            rows={3}
-          />
-
-          {speaker ? <CastVoiceRow jobId={job.id} styleId={job.styleId} name={speaker} /> : null}
-
-          <MobileTextInput
-            value={line}
-            onChange={setLine}
-            placeholder="What they say — lip-sync test line. Not the still position."
-            multiline
-            rows={3}
-          />
-          {playable && beat?.voiceFile && job.folderName ? (
-            <MobileAudioPlayer
-              src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(
-                job.folderName,
-              )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(beat.voiceFile)}`}
+            <MobileTextInput
+              value={line}
+              onChange={setLine}
+              placeholder="What they say — lip-sync test line. Not the still position."
+              multiline
+              rows={3}
             />
-          ) : null}
-          <MobilePrimaryButton disabled={!line.trim() || !beat || Boolean(busy)} onClick={() => void saveLine()}>
-            {busy === "voice" ? "Saving…" : "Save line"}
-          </MobilePrimaryButton>
-          <MobilePrimaryButton disabled={!playable || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
-            {busy === "clip" ? "Sending…" : "Generate lip-sync clip"}
-          </MobilePrimaryButton>
-        </div>
+            {playable && beat?.voiceFile && job.folderName ? (
+              <MobileAudioPlayer
+                src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(
+                  job.folderName,
+                )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(beat.voiceFile)}`}
+              />
+            ) : null}
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "nowrap",
+                minWidth: 0,
+              }}
+            >
+              <div style={{ flex: "0 0 auto" }}>
+                <MobilePrimaryButton disabled={!line.trim() || !beat || Boolean(busy)} onClick={() => void saveLine()}>
+                  {busy === "voice" ? "Saving…" : "Save"}
+                </MobilePrimaryButton>
+              </div>
+              {speaker ? (
+                <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex" }}>
+                  <CastVoiceRow jobId={job.id} styleId={job.styleId} name={speaker} />
+                </div>
+              ) : (
+                <div style={{ flex: "1 1 auto" }} />
+              )}
+              <div style={{ flex: "0 0 auto" }}>
+                <MobilePrimaryButton disabled={!playable || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
+                  {busy === "clip" ? "Sending…" : "Generate"}
+                </MobilePrimaryButton>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {lightbox ? <ScratchLightbox src={lightbox} onClose={() => setLightbox("")} /> : null}
