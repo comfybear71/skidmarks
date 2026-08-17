@@ -150,11 +150,16 @@ export function MobilePrimaryButton({
       onClick={onClick}
       disabled={disabled}
       style={{
-        width: chip ? "auto" : "100%",
-        flex: chip ? "0 0 auto" : undefined,
-        padding: chip ? "6px 10px" : "10px 12px",
+        width: "auto",
+        maxWidth: "100%",
+        flex: "0 0 auto",
+        alignSelf: "flex-start",
+        minHeight: 0,
+        height: "auto",
+        lineHeight: 1.2,
+        padding: chip ? "4px 8px" : "6px 10px",
         borderRadius: "2px",
-        fontSize: chip ? "11px" : "13px",
+        fontSize: chip ? "11px" : "12px",
         fontWeight: 600,
         letterSpacing: chip ? "0.06em" : undefined,
         textTransform: chip ? "uppercase" : undefined,
@@ -162,12 +167,9 @@ export function MobilePrimaryButton({
         appearance: "none",
         WebkitAppearance: "none",
         backgroundImage: "none",
-        background: disabled
-          ? "var(--panel-2)"
-          : accent
-            ? "var(--acid)"
-            : "transparent",
-        color: disabled ? "var(--chrome-dim)" : accent ? "var(--void)" : "var(--chrome)",
+        background: "transparent",
+        color: disabled ? "var(--chrome-dim)" : accent ? "var(--acid)" : "var(--chrome)",
+        opacity: disabled ? 0.55 : 1,
         boxShadow: "none",
         touchAction: "manipulation",
         whiteSpace: "nowrap",
