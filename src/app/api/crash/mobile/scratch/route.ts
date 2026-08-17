@@ -10,23 +10,22 @@ import {
   type MobileGenJob,
 } from "@/lib/mobileGenJob";
 import { importPastedStory } from "@/lib/mobilePasteScript";
-import { defaultSoloStaging } from "@/lib/mobileImageMotion";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
-import { newId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
 import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
-import {
-  campaignImageMotionForId,
-  campaignStagingForId,
-} from "@/lib/mobilePlateLtxCampaign";
+import { campaignImageMotionForId } from "@/lib/mobilePlateLtxCampaign";
 import {
   SCRATCH_SHOT_TITLE,
   findScratchShot,
+  normalizeScratchCast,
+  scratchBeatsForCast,
+  scratchStagingForCast,
   type ScratchPlateRef,
 } from "@/lib/mobileScratch";
 import { runScratchLtxClip } from "@/lib/mobileScratchClip";
 import { deskLabel, jobDeskId } from "@/lib/mobileDesk";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
+import { newId } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -37,22 +36,38 @@ function emptyBookend() {
 
 function scratchShotShape(opts: {
   speaker: string;
+  cast?: string[];
   placeName: string;
   poseId?: string;
+  staging?: string;
 }): CrashStoryShot {
-  const speaker = opts.speaker.trim();
-  const staging = opts.poseId
-    ? campaignStagingForId(opts.poseId, speaker, opts.placeName)
-    : defaultSoloStaging(speaker);
+  const cast = normalizeScratchCast(opts.speaker, opts.cast);
+  const speaker = (opts.speaker || cast[0] || "").trim();
+  const staging = scratchStagingForCast({
+    cast,
+    speaker,
+    placeName: opts.placeName,
+    poseId: opts.poseId,
+    staging: opts.staging,
+  });
   return {
     id: newId("shot"),
     title: SCRATCH_SHOT_TITLE,
-    summary: `${speaker} on the scratch plate. One still, many positions.`,
+    summary:
+      cast.length > 1
+        ? `${cast.join(", ")} on the scratch plate — multi lip-sync / pile test.`
+        : `${speaker} on the scratch plate. One still, many positions.`,
     staging,
     plateFile: "",
-    beats: [{ id: newId("beat"), speaker, text: "" }],
+    beats: scratchBeatsForCast(cast),
     sfx: [],
   };
+}
+
+function parseCastBody(body: { speaker?: string; cast?: unknown }, fallbackSpeaker = ""): string[] {
+  const speaker = (body.speaker || fallbackSpeaker || "").trim();
+  const raw = Array.isArray(body.cast) ? body.cast.map((n) => String(n || "").trim()).filter(Boolean) : [];
+  return normalizeScratchCast(speaker, raw.length ? raw : speaker ? [speaker] : []);
 }
 
 function withScratchShot(
@@ -130,10 +145,11 @@ async function persistScratch(
 }
 
 /**
- * POST { action: "ensure", jobId, speaker, sceneId, poseId? }
+ * POST { action: "ensure", jobId, speaker, cast?, sceneId, poseId? }
  *   — one Scratch shot on this job. Mints a scratch pack if the episode
  *     was never locked. Never wipes an existing pack's story.
- * POST { action: "preset", jobId, poseId, staging? }
+ *   — `cast` = everyone on the still (multi lip-sync / pile). Speaker speaks.
+ * POST { action: "preset", jobId, poseId, staging?, cast?, speaker? }
  *   — rebuild that same still with a position preset (or typed staging).
  * POST { action: "clip", jobId, beatId? }
  *   — LTX this scratch plate's Saved mp3. Does not queue the episode.
@@ -144,6 +160,7 @@ export async function POST(req: Request) {
       action?: string;
       jobId?: string;
       speaker?: string;
+      cast?: string[];
       sceneId?: string;
       poseId?: string;
       staging?: string;
@@ -157,28 +174,32 @@ export async function POST(req: Request) {
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
     if (action === "ensure") {
+      const cast = parseCastBody(body, job.scratchPlate?.speaker || "");
       const speaker =
-        (body.speaker || job.scratchPlate?.speaker || "").trim() ||
+        (body.speaker || job.scratchPlate?.speaker || cast[0] || "").trim() ||
         job.speakers.find((n) => approvedCandidateFileName(job!.castCandidates, n)) ||
         "";
       const sceneId =
         (body.sceneId || job.scratchPlate?.sceneId || "").trim() ||
         job.scenes.find((s) => approvedCandidateFileName(job!.locationCandidates, s.id))?.id ||
         "";
-      if (!speaker) {
+      const onPad = normalizeScratchCast(speaker, cast.length ? cast : speaker ? [speaker] : []);
+      if (!speaker || !onPad.length) {
         return NextResponse.json({ error: "Pick a character first — tap a face." }, { status: 400 });
       }
       if (!sceneId) {
         return NextResponse.json({ error: "Pick a place first — tap a location." }, { status: 400 });
       }
-      if (!job.speakers.some((s) => s.trim().toLowerCase() === speaker.toLowerCase())) {
-        return NextResponse.json({ error: "That character is not on this desk" }, { status: 400 });
+      for (const name of onPad) {
+        if (!job.speakers.some((s) => s.trim().toLowerCase() === name.toLowerCase())) {
+          return NextResponse.json({ error: `${name} is not on this desk` }, { status: 400 });
+        }
+        if (!approvedCandidateFileName(job.castCandidates, name)) {
+          return NextResponse.json({ error: `Approve ${name}'s face first` }, { status: 400 });
+        }
       }
       if (!job.scenes.some((s) => s.id === sceneId)) {
         return NextResponse.json({ error: "That place is not on this desk" }, { status: 400 });
-      }
-      if (!approvedCandidateFileName(job.castCandidates, speaker)) {
-        return NextResponse.json({ error: "Approve that face first" }, { status: 400 });
       }
       if (!approvedCandidateFileName(job.locationCandidates, sceneId) && !job.scenes.find((s) => s.id === sceneId)?.worldThumbKey) {
         return NextResponse.json({ error: "Approve the location still first" }, { status: 400 });
@@ -186,9 +207,16 @@ export async function POST(req: Request) {
 
       const poseId = (body.poseId || job.scratchPlate?.poseId || "mcu-phone").trim();
       const placeName = job.scenes.find((s) => s.id === sceneId)?.placeName || "this place";
+      const scratchRef: ScratchPlateRef = {
+        shotId: "",
+        sceneId,
+        speaker,
+        cast: onPad,
+        poseId,
+      };
 
       if (!jobHasEpisodePack(job)) {
-        const shot = scratchShotShape({ speaker, placeName, poseId });
+        const shot = scratchShotShape({ speaker, cast: onPad, placeName, poseId });
         const jobScene = job.scenes.find((s) => s.id === sceneId)!;
         const story: CrashStoryDoc = {
           styleId: job.styleId,
@@ -212,13 +240,14 @@ export async function POST(req: Request) {
           title: `${story.campaignLabel} ${job.id.slice(-6)}`,
           story,
         });
+        scratchRef.shotId = shot.id;
         job = (await patchMobileGenJob(jobId, {
           folderName,
-          scratchPlate: { shotId: shot.id, sceneId, speaker, poseId },
+          scratchPlate: scratchRef,
           shots: [{ shotId: shot.id, sceneId, plateFile: "" }],
           error: "",
         }))!;
-        return NextResponse.json({ ok: true, job, shotId: shot.id, sceneId, speaker, poseId });
+        return NextResponse.json({ ok: true, job, shotId: shot.id, sceneId, speaker, cast: onPad, poseId });
       }
 
       await hydrateMobilePackOnDisk(job.styleId, job.folderName);
@@ -228,32 +257,32 @@ export async function POST(req: Request) {
       story = scenePack.story;
       let shot = found?.shot;
       if (!shot) {
-        shot = scratchShotShape({ speaker, placeName: scenePack.placeName, poseId });
+        shot = scratchShotShape({ speaker, cast: onPad, placeName: scenePack.placeName, poseId });
       } else {
-        const beats =
-          shot.beats.some((b) => b.speaker.trim().toLowerCase() === speaker.toLowerCase())
-            ? shot.beats
-            : [{ id: newId("beat"), speaker, text: "" }, ...shot.beats.filter((b) => b.speaker.trim())];
         shot = {
           ...shot,
           title: SCRATCH_SHOT_TITLE,
-          beats,
-          staging: shot.staging?.trim() || defaultSoloStaging(speaker),
+          beats: scratchBeatsForCast(onPad, shot.beats),
+          staging:
+            shot.staging?.trim() ||
+            scratchStagingForCast({
+              cast: onPad,
+              speaker,
+              placeName: scenePack.placeName,
+              poseId,
+            }),
         };
       }
       story = withScratchShot(story, sceneId, shot);
-      job = await persistScratch(job, story, {
-        shotId: shot.id,
-        sceneId,
-        speaker,
-        poseId: job.scratchPlate?.poseId || poseId,
-      });
+      scratchRef.shotId = shot.id;
+      job = await persistScratch(job, story, scratchRef);
       return NextResponse.json({
         ok: true,
         job,
         shotId: shot.id,
         sceneId,
         speaker,
+        cast: onPad,
         poseId: job.scratchPlate?.poseId || poseId,
       });
     }
@@ -274,11 +303,27 @@ export async function POST(req: Request) {
     if (action === "preset") {
       const poseId = (body.poseId || "").trim();
       const placeName = scene.placeName || "this place";
-      const speaker = job.scratchPlate.speaker || shot.beats[0]?.speaker || "";
-      const staging =
-        (body.staging || "").trim() ||
-        (poseId ? campaignStagingForId(poseId, speaker, placeName) : "") ||
-        (shot.staging || "").trim();
+      const speaker =
+        (body.speaker || job.scratchPlate.speaker || shot.beats[0]?.speaker || "").trim();
+      const cast = parseCastBody(
+        body,
+        speaker || job.scratchPlate.speaker || "",
+      );
+      const onPad = normalizeScratchCast(
+        speaker,
+        cast.length
+          ? cast
+          : job.scratchPlate.cast?.length
+            ? job.scratchPlate.cast
+            : shot.beats.map((b) => b.speaker).filter(Boolean),
+      );
+      const staging = scratchStagingForCast({
+        cast: onPad,
+        speaker,
+        placeName,
+        poseId: poseId || job.scratchPlate.poseId,
+        staging: body.staging,
+      });
       if (!staging) {
         return NextResponse.json({ error: "Pick a position preset" }, { status: 400 });
       }
@@ -291,8 +336,8 @@ export async function POST(req: Request) {
               ? {
                   ...sh,
                   staging,
-                  beats: sh.beats.map((b) => {
-                    if (!poseId || !b.text.trim()) return b;
+                  beats: scratchBeatsForCast(onPad, sh.beats).map((b) => {
+                    if (!poseId || !b.text.trim() || onPad.length > 1) return b;
                     return {
                       ...b,
                       imageMotion: campaignImageMotionForId({
@@ -344,9 +389,14 @@ export async function POST(req: Request) {
       const updated = await patchMobileGenJob(jobId, {
         shots,
         error: "",
-        scratchPlate: { ...job.scratchPlate, poseId: poseId || job.scratchPlate.poseId },
+        scratchPlate: {
+          ...job.scratchPlate,
+          speaker,
+          cast: onPad,
+          poseId: poseId || job.scratchPlate.poseId,
+        },
       });
-      return NextResponse.json({ ok: true, job: updated, plateFile: fileName, staging, poseId });
+      return NextResponse.json({ ok: true, job: updated, plateFile: fileName, staging, poseId, cast: onPad });
     }
 
     if (action === "clip") {

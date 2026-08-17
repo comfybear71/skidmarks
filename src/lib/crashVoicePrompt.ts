@@ -119,6 +119,24 @@ export function defaultCrashVoicePrompt(
   return `Australian male voice. ${who}. Dry delivery, not American, not announcer.`;
 }
 
+/** Male/female only — for recycled library voices and cast shelves. */
+export function speakerWantedSex(
+  name: string,
+  appearanceHint?: string,
+): "female" | "male" {
+  const hint = (appearanceHint || "").trim();
+  if (hint) {
+    const h = hint.toLowerCase();
+    const female = /\bfemale\b|\bwoman\b|\blady\b|\bgirl\b|\bshe\b|\bher\b/.test(h);
+    const male = /\bmale\b|\bman\b|\bboy\b|\bhe\b|\bhis\b|\bbeard\b/.test(h);
+    if (female && !male) return "female";
+    if (male && !female) return "male";
+    if (/\bfemale\b/.test(h) && !/\bmale\b/.test(h)) return "female";
+    if (/\bmale\b/.test(h) && !/\bfemale\b/.test(h)) return "male";
+  }
+  return /\bfemale voice\b/i.test(defaultCrashVoicePrompt(name)) ? "female" : "male";
+}
+
 export function matchPresetCharacter(
   presetCast: PresetCharacter[],
   name?: string,
