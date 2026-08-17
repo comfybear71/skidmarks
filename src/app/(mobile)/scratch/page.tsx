@@ -196,6 +196,8 @@ export default function ScratchPage() {
   const [bibleActiveId, setBibleActiveId] = useState<string | null>(null);
   const [placements, setPlacements] = useState<ScratchPadPlacement[]>([]);
   const [padDragOver, setPadDragOver] = useState(false);
+  /** Last successful Save — unlocks Generate even if story GET lags. */
+  const [savedTake, setSavedTake] = useState<{ beatId: string; voiceFile: string } | null>(null);
   const padSurfaceRef = useRef<HTMLDivElement | null>(null);
   const drawSeq = useRef(0);
 
@@ -204,6 +206,10 @@ export default function ScratchPage() {
     scratch?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === speaker.trim().toLowerCase()) ||
     scratch?.shot.beats.find((b) => b.speaker.trim()) ||
     scratch?.shot.beats[0];
+  const effectiveVoiceFile =
+    (savedTake && beat && savedTake.beatId === beat.id ? savedTake.voiceFile : "") ||
+    beat?.voiceFile ||
+    "";
   const plateFile = job?.shots.find((s) => s.shotId === scratch?.shot.id)?.plateFile || scratch?.shot.plateFile || "";
   const plateSrc =
     !padCleared && plateFile && plateFile !== "__error__"
@@ -395,6 +401,7 @@ export default function ScratchPage() {
     if (!onPad) {
       setPadCast([...padCast, name]);
       setSpeaker(name);
+      setSavedTake(null);
       const beatLine = scratch?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === name.trim().toLowerCase())?.text;
       if (beatLine) setLine(beatLine);
       return;
@@ -402,6 +409,7 @@ export default function ScratchPage() {
     if (name !== speaker) {
       // Already on the still — this mouth gets the lip-sync line.
       setSpeaker(name);
+      setSavedTake(null);
       const beatLine = scratch?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === name.trim().toLowerCase())?.text;
       if (beatLine != null) setLine(beatLine);
       return;
@@ -461,6 +469,7 @@ export default function ScratchPage() {
     setPoseId("");
     setPlacements([]);
     setBibleActiveId(null);
+    setSavedTake(null);
     setError("");
   }
 
@@ -593,7 +602,14 @@ export default function ScratchPage() {
   }
 
   async function saveLine() {
-    if (!job || !beat) return;
+    if (!job || !beat) {
+      setError(
+        !beat
+          ? "No Scratch line yet — Draw a still with a face on the pad first, then Save."
+          : "Episode not open",
+      );
+      return;
+    }
     const text = line.trim();
     if (!text) return;
     setBusy("voice");
@@ -609,48 +625,53 @@ export default function ScratchPage() {
       );
       if (data.job) setJob(data.job);
       const savedVoice = (data.voiceFile || "").trim();
-      if (savedVoice) {
-        // Apply immediately — loadStory keepLine used to return before the
-        // client saw the new mp3, so Generate stayed grey after a good Save.
-        setStory((cur) => {
-          if (!cur) return cur;
-          return {
-            ...cur,
-            scenes: cur.scenes.map((sc) => ({
-              ...sc,
-              shots: sc.shots.map((sh) => ({
-                ...sh,
-                beats: sh.beats.map((b) =>
-                  b.id === beat.id ? { ...b, text, voiceFile: savedVoice } : b,
-                ),
-              })),
-            })),
-          };
-        });
+      if (!savedVoice) {
+        setError("Save finished but no mp3 came back — tap Save again.");
+        return;
       }
+      if (!isMobileSavedVoiceFile(savedVoice)) {
+        setError(
+          `Got an old leftover voice file (${savedVoice}) — Draw again, then Save the spoken line.`,
+        );
+        return;
+      }
+      setSavedTake({ beatId: beat.id, voiceFile: savedVoice });
+      setStory((cur) => {
+        if (!cur) return cur;
+        return {
+          ...cur,
+          scenes: cur.scenes.map((sc) => ({
+            ...sc,
+            shots: sc.shots.map((sh) => ({
+              ...sh,
+              beats: sh.beats.map((b) =>
+                b.id === beat.id ? { ...b, text, voiceFile: savedVoice } : b,
+              ),
+            })),
+          })),
+        };
+      });
       await loadStory(data.job || job, {
         preferSpeaker: beat.speaker || speaker,
         keepLine: text,
         keepStaging: true,
       });
-      // Re-apply voice after loadStory — cloud story GET can briefly lag the write.
-      if (savedVoice) {
-        setStory((cur) => {
-          if (!cur) return cur;
-          return {
-            ...cur,
-            scenes: cur.scenes.map((sc) => ({
-              ...sc,
-              shots: sc.shots.map((sh) => ({
-                ...sh,
-                beats: sh.beats.map((b) =>
-                  b.id === beat.id ? { ...b, text, voiceFile: savedVoice } : b,
-                ),
-              })),
+      setSavedTake({ beatId: beat.id, voiceFile: savedVoice });
+      setStory((cur) => {
+        if (!cur) return cur;
+        return {
+          ...cur,
+          scenes: cur.scenes.map((sc) => ({
+            ...sc,
+            shots: sc.shots.map((sh) => ({
+              ...sh,
+              beats: sh.beats.map((b) =>
+                b.id === beat.id ? { ...b, text, voiceFile: savedVoice } : b,
+              ),
             })),
-          };
-        });
-      }
+          })),
+        };
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save the line");
     } finally {
@@ -699,7 +720,7 @@ export default function ScratchPage() {
     }
   }
 
-  const playable = Boolean(beat?.voiceFile && isMobileSavedVoiceFile(beat.voiceFile));
+  const playable = Boolean(effectiveVoiceFile && isMobileSavedVoiceFile(effectiveVoiceFile));
   const clipPlayable = Boolean(
     beat &&
       job?.clips?.some(
@@ -1119,12 +1140,20 @@ export default function ScratchPage() {
               multiline
               rows={2}
             />
-            {playable && beat?.voiceFile && job.folderName ? (
+            {canGenerate && effectiveVoiceFile && beat && job.folderName ? (
               <MobileAudioPlayer
                 src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(
                   job.folderName,
-                )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(beat.voiceFile)}`}
+                )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(effectiveVoiceFile)}`}
               />
+            ) : line.trim() && beat ? (
+              <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
+                Save the spoken line to unlock Generate. The Play beside the voice dropdown is only a library sample — not your line.
+              </div>
+            ) : line.trim() && !beat ? (
+              <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>
+                No Scratch beat yet — Draw with a face on the pad, then Save the line.
+              </div>
             ) : null}
 
             <div
@@ -1149,7 +1178,7 @@ export default function ScratchPage() {
                 <div style={{ flex: "1 1 auto" }} />
               )}
               <div style={{ flex: "0 0 auto" }}>
-                <MobilePrimaryButton disabled={!playable || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
+                <MobilePrimaryButton disabled={!canGenerate || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
                   {busy === "clip" ? "Sending…" : "Generate"}
                 </MobilePrimaryButton>
               </div>
