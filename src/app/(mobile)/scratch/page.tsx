@@ -209,21 +209,35 @@ export default function ScratchPage() {
     setPresets(loadScratchPresets());
   }, []);
 
-  const loadStory = useCallback(async (next: MobileGenJob) => {
-    if (!next.folderName) {
-      setStory(null);
-      return;
-    }
-    const res = await fetch(
-      `/api/crash/story?styleId=${encodeURIComponent(next.styleId)}&folderName=${encodeURIComponent(next.folderName)}`,
-    );
-    const data = (await res.json().catch(() => ({}))) as { story?: CrashStoryDoc };
-    setStory(data.story || null);
-    const found = findScratchShot(data.story || null);
-    if (found?.shot.staging) setStaging(found.shot.staging);
-    const first = found?.shot.beats.find((b) => b.speaker.trim());
-    if (first?.text) setLine(first.text);
-  }, []);
+  const loadStory = useCallback(
+    async (
+      next: MobileGenJob,
+      opts?: { preferSpeaker?: string; keepLine?: string; keepStaging?: boolean },
+    ) => {
+      if (!next.folderName) {
+        setStory(null);
+        return;
+      }
+      const res = await fetch(
+        `/api/crash/story?styleId=${encodeURIComponent(next.styleId)}&folderName=${encodeURIComponent(next.folderName)}`,
+      );
+      const data = (await res.json().catch(() => ({}))) as { story?: CrashStoryDoc };
+      setStory(data.story || null);
+      const found = findScratchShot(data.story || null);
+      if (!opts?.keepStaging && found?.shot.staging) setStaging(found.shot.staging);
+      if (opts?.keepLine != null) {
+        setLine(opts.keepLine);
+        return;
+      }
+      const prefer = (opts?.preferSpeaker || "").trim().toLowerCase();
+      const match =
+        (prefer
+          ? found?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === prefer)
+          : undefined) || found?.shot.beats.find((b) => b.speaker.trim());
+      if (match?.text) setLine(match.text);
+    },
+    [],
+  );
 
   useEffect(() => {
     setDeskTick((n) => n + 1);
@@ -352,11 +366,15 @@ export default function ScratchPage() {
     if (!onPad) {
       setPadCast([...padCast, name]);
       setSpeaker(name);
+      const beatLine = scratch?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === name.trim().toLowerCase())?.text;
+      if (beatLine) setLine(beatLine);
       return;
     }
     if (name !== speaker) {
       // Already on the still — this mouth gets the lip-sync line.
       setSpeaker(name);
+      const beatLine = scratch?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === name.trim().toLowerCase())?.text;
+      if (beatLine != null) setLine(beatLine);
       return;
     }
     if (padCast.length === 1) {
@@ -444,16 +462,24 @@ export default function ScratchPage() {
 
   async function saveLine() {
     if (!job || !beat) return;
+    const text = line.trim();
+    if (!text) return;
     setBusy("voice");
     setError("");
     try {
       const data = await postJson<{ job?: MobileGenJob }>("/api/crash/mobile/beat-audio", {
         jobId: job.id,
         beatId: beat.id,
-        text: line,
+        text,
       });
       if (data.job) setJob(data.job);
-      await loadStory(data.job || job);
+      // Keep the words just Saved — loadStory used to snap back to the first
+      // beat on the scratch card and the box looked like Save did nothing.
+      await loadStory(data.job || job, {
+        preferSpeaker: beat.speaker || speaker,
+        keepLine: text,
+        keepStaging: true,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save the line");
     } finally {
