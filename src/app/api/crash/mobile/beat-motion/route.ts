@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
-import { readMobileGenJob } from "@/lib/mobileGenJob";
+import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { stripLtxLipSyncLead } from "@/lib/mobileImageMotion";
+import { upsertPendingClip } from "@/lib/mobileClipQueue";
+import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 
 export const runtime = "nodejs";
 
 /**
  * POST { jobId, beatId, imageMotion } — keep the editable LTX Image motion
  * body on this beat. Lip-sync lead is prepended at send, not stored twice.
+ * If the line already has a Saved mp3 + clip, re-queue so Generate video
+ * runs again with the new motion (same as Save line).
  */
 export async function POST(req: Request) {
   try {
@@ -28,6 +32,7 @@ export async function POST(req: Request) {
 
     const story = await readMobileStory(job.styleId, job.folderName);
     let found = false;
+    let beatVoice = "";
     const next = {
       ...story,
       scenes: story.scenes.map((sc) => ({
@@ -37,6 +42,7 @@ export async function POST(req: Request) {
           beats: sh.beats.map((b) => {
             if (b.id !== beatId) return b;
             found = true;
+            beatVoice = (b.voiceFile || "").trim();
             return { ...b, imageMotion };
           }),
         })),
@@ -46,7 +52,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "That line isn't on this pack" }, { status: 404 });
     }
     await writeMobileStory(next, job.folderName);
-    return NextResponse.json({ ok: true, imageMotion });
+
+    // Better motion after a done clip — put this beat back on pending so
+    // Generate video sends it. Skip if there is no Saved mp3 yet.
+    let updated = job;
+    if (isMobileSavedVoiceFile(beatVoice)) {
+      const clips = upsertPendingClip(job, next, beatId);
+      const patched = await patchMobileGenJob(jobId, {
+        clips,
+        phase: job.phase === "animate" ? "review" : job.phase,
+        error: "",
+      });
+      if (patched) updated = patched;
+    }
+
+    return NextResponse.json({ ok: true, imageMotion, job: updated });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },

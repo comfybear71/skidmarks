@@ -1670,10 +1670,14 @@ function BeatLineEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId, beatId: beat.id, imageMotion: body }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        imageMotion?: string;
+        job?: MobileGenJob;
+      };
       if (!res.ok) throw new Error(data.error || "Couldn't keep Image motion");
       const saved = stripLtxLipSyncLead((data.imageMotion as string) || body);
-      onSaved(text, voiceFile, saved);
+      onSaved(text, voiceFile, saved, data.job);
       return saved;
     },
     [beat.id, jobId, onSaved, text, voiceFile],
