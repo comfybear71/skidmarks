@@ -25,6 +25,7 @@ import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { plateLtxCampaignScenarios } from "@/lib/mobilePlateLtxCampaign";
 import { findScratchShot, scratchPadClips } from "@/lib/mobileScratch";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
+import { speakerWantedSex } from "@/lib/crashVoicePrompt";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -72,6 +73,21 @@ function pickDefaultPlace(job: MobileGenJob): string {
     job.scenes[0]?.id ||
     ""
   );
+}
+
+function rosterHint(job: MobileGenJob, name: string): string {
+  const row = job.roster.find((r) => r.name.trim().toLowerCase() === name.trim().toLowerCase());
+  return `${row?.appearance || ""} ${row?.description || ""}`.trim();
+}
+
+function splitSpeakersBySex(job: MobileGenJob): { female: string[]; male: string[] } {
+  const female: string[] = [];
+  const male: string[] = [];
+  for (const name of job.speakers) {
+    if (speakerWantedSex(name, rosterHint(job, name)) === "female") female.push(name);
+    else male.push(name);
+  }
+  return { female, male };
 }
 
 /** Scratch stress-test knobs — frame, body, holding, wearing, weather. */
@@ -152,6 +168,7 @@ export default function ScratchPage() {
   const stackClips = [...underClips.filter((c) => c.clipFile), ...padStack];
   const poses = useMemo(() => plateLtxCampaignScenarios(), []);
   const poseById = useMemo(() => new Map(poses.map((p) => [p.id, p])), [poses]);
+  const castBySex = useMemo(() => (job ? splitSpeakersBySex(job) : { female: [], male: [] }), [job]);
 
   const loadStory = useCallback(async (next: MobileGenJob) => {
     if (!next.folderName) {
@@ -374,31 +391,42 @@ export default function ScratchPage() {
             }}
           >
             <div>
-              <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-                Who
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {job.speakers.map((name) => {
-                  const src = faceUrl(job, name);
-                  const on = name === speaker;
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      title={on && src ? "Tap again to enlarge" : name}
-                      onClick={() => pickCast(name)}
-                      style={thumbBtn(on)}
-                    >
-                      {src ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={src} alt="" style={{ width: "56px", height: "56px", objectFit: "cover", display: "block" }} />
-                      ) : (
-                        <div style={{ width: "56px", height: "56px", color: "var(--chrome-dim)", fontSize: "9px", overflow: "hidden" }}>{name}</div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+              {(
+                [
+                  { title: "Female", names: castBySex.female },
+                  { title: "Male", names: castBySex.male },
+                ] as const
+              ).map((group) =>
+                group.names.length ? (
+                  <div key={group.title} style={{ marginBottom: group.title === "Female" && castBySex.male.length ? "12px" : 0 }}>
+                    <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
+                      {group.title}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {group.names.map((name) => {
+                        const src = faceUrl(job, name);
+                        const on = name === speaker;
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            title={on && src ? "Tap again to enlarge" : name}
+                            onClick={() => pickCast(name)}
+                            style={thumbBtn(on)}
+                          >
+                            {src ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={src} alt="" style={{ width: "56px", height: "56px", objectFit: "cover", display: "block" }} />
+                            ) : (
+                              <div style={{ width: "56px", height: "56px", color: "var(--chrome-dim)", fontSize: "9px", overflow: "hidden" }}>{name}</div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null,
+              )}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>

@@ -3,7 +3,7 @@ import {
   SHOW_STYLE_PRESETS,
   type ShowStyleId,
 } from "./showStylePresets";
-import { defaultCrashVoicePrompt } from "./crashVoicePrompt";
+import { speakerWantedSex } from "./crashVoicePrompt";
 import {
   pickLibraryVoiceFromPool,
   type PickableVoice,
@@ -23,10 +23,8 @@ export function pickLibraryVoiceId(
   speaker: string,
   library: PickableVoice[],
   taken: Iterable<string> = [],
+  appearanceHint?: string,
 ): string {
-  const wanted = /\bfemale voice\b/i.test(defaultCrashVoicePrompt(speaker))
-    ? "female"
-    : "male";
   return pickLibraryVoiceFromPool({
     speaker,
     library,
@@ -35,7 +33,7 @@ export function pickLibraryVoiceId(
     otherLabels: SHOW_STYLE_PRESETS.filter((p) => p.id !== styleId).map(
       (p) => p.label,
     ),
-    wantedSex: wanted,
+    wantedSex: speakerWantedSex(speaker, appearanceHint),
   });
 }
 
