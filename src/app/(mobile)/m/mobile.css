@@ -16,17 +16,19 @@ body {
   margin: 0 auto;
 }
 
-/* Scratch is a test console — wider so pad + knobs sit in one view. */
+/* Scratch is a PC test console — wide command deck, bible chips on-screen. */
 .mobile-shell.scratch-shell {
-  max-width: 56rem;
+  max-width: min(96rem, 98vw);
 }
 
-/* PC at 100% zoom should match the old 150% browser zoom. Most /m chrome
- * is inline px, so html font-size would not move it — zoom the page. Phones
- * stay 1× (coarse pointer / narrow). */
+/* /m stays phone-zoomed; Scratch is a PC bench — keep 1× so the wide deck fits. */
 @media (min-width: 700px) and (hover: hover) {
   html {
     zoom: 1.5;
+  }
+
+  html:has(.scratch-shell) {
+    zoom: 1;
   }
 }
 
@@ -392,4 +394,136 @@ body {
   height: 100%;
   pointer-events: none;
   color: var(--acid);
+}
+
+/* Prompt bible — all sections visible on the PC deck */
+.scratch-bible {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.scratch-bible-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scratch-bible-title {
+  color: var(--chrome);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.scratch-bible-modes {
+  display: flex;
+  gap: 4px;
+}
+
+.scratch-bible-mode {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scratch-bible-mode.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+  background: color-mix(in srgb, var(--acid) 12%, transparent);
+}
+
+.scratch-bible-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 8px 10px;
+  width: 100%;
+}
+
+.scratch-bible-section {
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+}
+
+.scratch-bible-section-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.scratch-bible-section-hint {
+  color: var(--chrome-dim);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.scratch-bible-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.scratch-bible-chip {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.scratch-bible-chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--acid) 55%, var(--line));
+}
+
+.scratch-bible-chip.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+.scratch-bible-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Console: prompt | campaign presets | (bible spans below on wide) */
+@media (min-width: 1100px) {
+  .scratch-console {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(14rem, 0.9fr);
+    gap: 12px;
+    align-items: start;
+  }
+
+  .scratch-rail {
+    max-height: min(48dvh, 480px);
+  }
+
+  .scratch-pad-col .scratch-pad-still {
+    max-height: min(48dvh, 480px);
+  }
 }

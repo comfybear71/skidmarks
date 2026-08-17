@@ -31,10 +31,13 @@ import {
 import {
   ScratchChaosSelect,
   ScratchHistoryStrip,
+  ScratchPromptBible,
   ScratchScoreToggles,
+  type ScratchBiblePickMode,
 } from "@/components/scratch";
 import {
   appendBenchRun,
+  applyBibleTokens,
   clearBenchRuns,
   emptyBenchSession,
   injectChaosStill,
@@ -42,6 +45,8 @@ import {
   setBenchChaos,
   updateBenchRunTags,
   type ScratchBenchSession,
+  type ScratchBibleEntry,
+  type ScratchBibleSectionId,
   type ScratchScoreTag,
 } from "@/lib/scratchBench";
 
@@ -174,6 +179,8 @@ export default function ScratchPage() {
   const [editGroup, setEditGroup] = useState<ScratchPresetGroup>("Mine");
   const [bench, setBench] = useState<ScratchBenchSession>(() => emptyBenchSession());
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
+  const [bibleActiveId, setBibleActiveId] = useState<string | null>(null);
   const drawSeq = useRef(0);
 
   const scratch = findScratchShot(story);
@@ -410,6 +417,7 @@ export default function ScratchPage() {
 
   function clearPrompt() {
     setStaging("");
+    setBibleActiveId(null);
   }
 
   function clearPad() {
@@ -432,6 +440,23 @@ export default function ScratchPage() {
     setStaging(text);
     setEditLabel(preset.label);
     setEditGroup(preset.group);
+    setBibleActiveId(null);
+  }
+
+  function pickBibleEntry(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) {
+    const who = speaker || padCast[0] || "Character";
+    const text = applyBibleTokens(entry.template, {
+      name: who,
+      place: placeName,
+      cast: padCast.length ? padCast : [who],
+    });
+    setBibleActiveId(entry.id);
+    setPoseId("");
+    if (bibleMode === "append" && staging.trim()) {
+      setStaging(`${staging.trim()}\n\n${text}`);
+    } else {
+      setStaging(text);
+    }
   }
 
   function pickPreset(preset: ScratchPreset) {
@@ -866,6 +891,14 @@ export default function ScratchPage() {
               </div>
             </div>
 
+            <ScratchPromptBible
+              activeId={bibleActiveId}
+              mode={bibleMode}
+              onModeChange={setBibleMode}
+              onPick={pickBibleEntry}
+              disabled={Boolean(busy) || !padCast.length}
+            />
+
             <MobileTextInput
               value={line}
               onChange={setLine}
@@ -909,21 +942,19 @@ export default function ScratchPage() {
               </div>
             </div>
 
-            {benchReady ? (
-              <ScratchHistoryStrip
-                runs={bench.runs}
-                selectedId={selectedRunId}
-                onSelect={(run) => {
-                  setSelectedRunId(run.id);
-                  if (run.positionPrompt) setStaging(run.positionPrompt);
-                  if (run.plateUrl) setLightbox(run.plateUrl);
-                }}
-                onClear={() => {
-                  setBench((prev) => clearBenchRuns(prev));
-                  setSelectedRunId(null);
-                }}
-              />
-            ) : null}
+            <ScratchHistoryStrip
+              runs={bench.runs}
+              selectedId={selectedRunId}
+              onSelect={(run) => {
+                setSelectedRunId(run.id);
+                if (run.positionPrompt) setStaging(run.positionPrompt);
+                if (run.plateUrl) setLightbox(run.plateUrl);
+              }}
+              onClear={() => {
+                setBench((prev) => clearBenchRuns(prev));
+                setSelectedRunId(null);
+              }}
+            />
           </div>
         </>
       )}

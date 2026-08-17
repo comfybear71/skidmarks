@@ -35,3 +35,15 @@ export type { ScratchScoreOption } from "./scorecard";
 
 export { SCRATCH_STRESS_WORDS, findStressHits, stressHitCount } from "./dictionary";
 export type { ScratchDictHit } from "./dictionary";
+
+export {
+  SCRATCH_BIBLE_DEFAULT_STYLE,
+  SCRATCH_PROMPT_BIBLE,
+  applyBibleTokens,
+  composeBibleBlocks,
+} from "./promptBible";
+export type {
+  ScratchBibleEntry,
+  ScratchBibleSection,
+  ScratchBibleSectionId,
+} from "./promptBible";
