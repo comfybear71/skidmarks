@@ -1,26 +1,16 @@
 "use client";
 
-import { useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { MobileClipUnit } from "@/lib/mobileGenJob";
-import { mobileClipSrc } from "@/lib/mobilePlateClips";
+import { mobileClipSrc, stackedClipFiles } from "@/lib/mobilePlateClips";
 
-export { clipsUnderPlate, mobileClipSrc } from "@/lib/mobilePlateClips";
-export const PLATE_TILE_PX = 96;
-
-const box: CSSProperties = {
-  width: `${PLATE_TILE_PX}px`,
-  aspectRatio: "16 / 9",
-  borderRadius: "2px",
-  background: "var(--void)",
-  display: "block",
-  position: "relative",
-  overflow: "hidden",
-  flex: "0 0 auto",
-};
+export { clipsUnderPlate, mobileClipSrc, stackedClipFiles } from "@/lib/mobilePlateClips";
+/** Match the still and the mp4 — controls need this width on a phone. */
+export const PLATE_TILE_PX = 160;
 
 /**
- * /m strip: square plate, then unlabeled 16:9 thumbs stacked under it.
- * Done clip = play button. Empty = dashed box. No CLIP text.
+ * /m strip: square plate, then 16:9 players stacked under it — same width.
+ * Every Generate take stays. Empty pending slots stay hidden.
  */
 export function PlateClipThumbs({
   job,
@@ -31,96 +21,137 @@ export function PlateClipThumbs({
   clips: MobileClipUnit[];
   preload?: boolean;
 }) {
-  if (!clips.length) return null;
+  const files = clips.flatMap((clip, i) => {
+    const stacked = stackedClipFiles(clip);
+    return stacked.map((file, n) => ({
+      key: `${clip.beatId}-${n}-${file}`,
+      file,
+      preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
+    }));
+  });
+  if (!files.length) return null;
   return (
-    <>
-      {clips.map((clip) =>
-        clip.clipFile ? (
-          <ClipThumb
-            key={clip.beatId}
-            src={mobileClipSrc(job, clip.clipFile)}
-            preload={preload}
-          />
-        ) : (
-          <div
-            key={clip.beatId}
-            style={{ ...box, border: "1px dashed var(--line)" }}
-          />
-        ),
-      )}
-    </>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "6px",
+        width: `${PLATE_TILE_PX}px`,
+        flex: "0 0 auto",
+      }}
+    >
+      {files.map((row) => (
+        <ClipPlayer key={row.key} src={mobileClipSrc(job, row.file)} preload={row.preload} />
+      ))}
+    </div>
   );
 }
 
-function ClipThumb({ src, preload }: { src: string; preload?: boolean }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  const [playing, setPlaying] = useState(false);
+const frame: CSSProperties = {
+  width: `${PLATE_TILE_PX}px`,
+  aspectRatio: "16 / 9",
+  borderRadius: "2px",
+  border: "1px solid var(--acid)",
+  background: "var(--void)",
+  display: "block",
+  position: "relative",
+  overflow: "hidden",
+};
 
-  function toggle(e: MouseEvent) {
-    e.stopPropagation();
+function ClipPlayer({ src, preload }: { src: string; preload?: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const el = ref.current;
-    if (!el) return;
-    if (el.paused) void el.play();
-    else el.pause();
-  }
+    if (el) el.pause();
+  }, [open]);
 
   return (
-    <button
-      type="button"
-      onClick={toggle}
-      aria-label={playing ? "Pause clip" : "Play clip"}
-      style={{
-        ...box,
-        border: "1px solid var(--line)",
-        padding: 0,
-        cursor: "pointer",
-      }}
-    >
-      <video
-        ref={ref}
-        src={src}
-        playsInline
-        preload={preload ? "metadata" : "none"}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          display: "block",
-          pointerEvents: "none",
-        }}
-      />
-      {playing ? null : (
-        <span
+    <>
+      <div style={frame}>
+        <video
+          ref={ref}
+          src={src}
+          controls
+          playsInline
+          preload={preload ? "metadata" : "none"}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            display: "block",
+            background: "#000",
+          }}
+        />
+        <button
+          type="button"
+          aria-label="Enlarge clip"
+          onClick={() => setOpen(true)}
           style={{
             position: "absolute",
+            top: "4px",
+            right: "4px",
+            width: "22px",
+            height: "22px",
+            padding: 0,
+            borderRadius: "2px",
+            border: "1px solid var(--acid)",
+            background: "rgba(0,0,0,0.72)",
+            color: "var(--acid)",
+            fontSize: "12px",
+            lineHeight: 1,
+            cursor: "zoom-in",
+          }}
+        >
+          ⤢
+        </button>
+      </div>
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Full screen clip"
+          onClick={() => setOpen(false)}
+          style={{
+            position: "fixed",
             inset: 0,
+            zIndex: 70,
+            background: "rgba(0,0,0,0.94)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            pointerEvents: "none",
+            padding: "12px",
+            cursor: "zoom-out",
           }}
         >
-          <span
+          <video
+            src={src}
+            controls
+            autoPlay
+            playsInline
+            onClick={(e) => e.stopPropagation()}
             style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "999px",
-              background: "rgba(20,20,24,0.78)",
-              color: "#fff",
-              fontSize: "11px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              paddingLeft: "2px",
+              width: "100%",
+              maxHeight: "100%",
+              objectFit: "contain",
+              background: "#000",
             }}
-          >
-            ▶
+          />
+          <span style={{ position: "absolute", top: "16px", right: "18px", color: "var(--chrome)", fontSize: "24px" }}>
+            ✕
           </span>
-        </span>
-      )}
-    </button>
+        </div>
+      ) : null}
+    </>
   );
 }

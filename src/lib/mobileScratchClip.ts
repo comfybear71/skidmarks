@@ -2,6 +2,7 @@ import path from "path";
 import { resolveGenOrPackPlate } from "./crashActivePack";
 import { resolveMobileBeatAudio } from "./resolveMobileBeatAudio";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
+import { rememberClipTake } from "./mobilePlateClips";
 import { runLtxSmoke } from "./ltxSmoke";
 import { resolveComfyUrl, probeComfyUrl } from "./comfyClient";
 import { candidateLookPrompt } from "./mobileJobReady";
@@ -186,7 +187,9 @@ export async function runScratchLtxClip(opts: {
       /* clip still usable this request */
     }
     const next = job.clips.map((c) =>
-      c.beatId === beatId ? { ...c, clipFile: result.localMp4, clipStatus: "done" as const } : c,
+      c.beatId === beatId
+        ? { ...c, ...rememberClipTake(c, result.localMp4), clipStatus: "done" as const }
+        : c,
     );
     job = (await patchMobileGenJob(jobId, { clips: next }))!;
   } catch (e) {

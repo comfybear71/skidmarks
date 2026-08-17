@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { clipsUnderPlate } from "../src/lib/mobilePlateClips.ts";
+import { clipsUnderPlate, rememberClipTake, stackedClipFiles } from "../src/lib/mobilePlateClips.ts";
 import { episodeJobShots, isOffEpisodeDeskShot, isScratchShotTitle, scratchPadClips } from "../src/lib/mobileScratch.ts";
 import { isCampaignShotId, isCampaignShotTitle } from "../src/lib/mobilePlateLtxCampaign.ts";
 import { jobDeskId, normalizeDeskId } from "../src/lib/mobileDesk.ts";
@@ -25,6 +25,16 @@ const clips = [
   { beatId: "b3", shotId: "ep1", sceneId: "sc1", clipFile: "", clipStatus: "pending", error: "" },
 ];
 assert.equal(clipsUnderPlate("ep1", ["b1", "b2", "b3"], clips).length, 3);
+
+assert.deepEqual(stackedClipFiles({ clipFile: "b.mp4", priorClipFiles: ["a.mp4"] }), ["a.mp4", "b.mp4"]);
+assert.deepEqual(
+  rememberClipTake({ clipFile: "a.mp4", priorClipFiles: [] }, "b.mp4"),
+  { priorClipFiles: ["a.mp4"], clipFile: "b.mp4" },
+);
+assert.deepEqual(
+  rememberClipTake({ clipFile: "b.mp4", priorClipFiles: ["a.mp4"] }, "c.mp4"),
+  { priorClipFiles: ["a.mp4", "b.mp4"], clipFile: "c.mp4" },
+);
 
 assert.equal(normalizeDeskId("Mum"), "mum");
 assert.equal(jobDeskId({}), "stuie");

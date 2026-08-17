@@ -71,6 +71,8 @@ export type MobileClipUnit = {
   shotId: string;
   sceneId: string;
   clipFile: string;
+  /** Earlier LTX takes for this line — Generate again must stack, not replace. */
+  priorClipFiles?: string[];
   clipStatus: "pending" | "done" | "error";
   error: string;
   speaker?: string;
