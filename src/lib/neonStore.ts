@@ -474,6 +474,16 @@ export async function readMobileJobRow<T>(id: string): Promise<T | null> {
   }, null);
 }
 
+/** Drop the mobile job document. Does not delete Blob / Crash Lab media. */
+export async function deleteMobileJobRow(id: string): Promise<boolean> {
+  return safeQuery(async (sql) => {
+    const rows = await sql`
+      DELETE FROM mobile_jobs WHERE id = ${id} RETURNING id
+    `;
+    return rows.length > 0;
+  }, false);
+}
+
 /** Desk isolation — untagged jobs are Stuie's live pack, not Mum's. */
 export async function listMobileJobRowsByDesk<T>(deskId: string): Promise<T[]> {
   return safeQuery(async (sql) => {

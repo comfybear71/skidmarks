@@ -11,7 +11,7 @@ import { CastVoiceRow } from "@/components/mobile/CastVoiceRow";
 import { PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
 import { OpenEpisodePicker } from "@/components/mobile/OpenEpisodePicker";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
-import { readResumedJobId, writeResumedJobId } from "@/lib/mobileJobResume";
+import { readResumedJobId, writeResumedJobId, clearResumedJobId } from "@/lib/mobileJobResume";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc } from "@/lib/crashStoryTypes";
 import { approvedCandidateFileName, preferredCandidate, candidateLookPrompt } from "@/lib/mobileJobReady";
@@ -398,6 +398,31 @@ export default function ScratchPage() {
       }
     },
     [applyOpenedJob],
+  );
+
+  const afterEpisodeDeleted = useCallback(
+    (jobId: string) => {
+      try {
+        clearResumedJobId(window.localStorage, jobId, DEFAULT_DESK_ID);
+      } catch {
+        /* private mode */
+      }
+      if (job?.id !== jobId) return;
+      setJob(null);
+      setStory(null);
+      setSavedTake(null);
+      setMotionDraft(null);
+      motionEditBeatId.current = null;
+      setPadCleared(false);
+      setPlacements([]);
+      setError("");
+      setResumeError("");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("job");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+      setPickerOpen(true);
+    },
+    [job?.id],
   );
 
   async function draw(opts?: {
@@ -908,6 +933,7 @@ export default function ScratchPage() {
             onNew={() => {
               window.location.href = "/m";
             }}
+            onDeleted={afterEpisodeDeleted}
           />
         </div>
         <div className="scratch-bench-toolbar" style={{ marginTop: "8px" }}>

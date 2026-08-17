@@ -16,7 +16,7 @@ import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
-import { readResumedJobId, writeResumedJobId } from "@/lib/mobileJobResume";
+import { readResumedJobId, writeResumedJobId, clearResumedJobId } from "@/lib/mobileJobResume";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -262,6 +262,18 @@ export default function MobileHomePage() {
     window.history.replaceState({}, "", `${url.pathname}${url.search}`);
   }, [stopPoll]);
 
+  const afterEpisodeDeleted = useCallback(
+    (jobId: string) => {
+      try {
+        clearResumedJobId(window.localStorage, jobId, DEFAULT_DESK_ID);
+      } catch {
+        /* private mode */
+      }
+      if (job?.id === jobId) beginNewEpisode();
+    },
+    [job?.id, beginNewEpisode],
+  );
+
   const genCandidates = useCallback(
     async (kind: "cast" | "location", target: string, customPrompt?: string) => {
       if (!job) return;
@@ -472,6 +484,7 @@ export default function MobileHomePage() {
             onOpenChange={setPickerOpen}
             onOpen={(id) => void openEpisode(id)}
             onNew={beginNewEpisode}
+            onDeleted={afterEpisodeDeleted}
           />
         </div>
       ) : null}
