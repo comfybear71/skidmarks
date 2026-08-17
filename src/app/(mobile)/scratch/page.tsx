@@ -13,10 +13,15 @@ import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId } from "@/lib/mobileJobResume";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc } from "@/lib/crashStoryTypes";
-import { approvedCandidateFileName, preferredCandidate } from "@/lib/mobileJobReady";
+import { approvedCandidateFileName, preferredCandidate, candidateLookPrompt } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { findScratchShot, scratchPadClips } from "@/lib/mobileScratch";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
+import {
+  buildDefaultBeatMotion,
+  LTX_LIP_SYNC_LEAD,
+  stripLtxLipSyncLead,
+} from "@/lib/mobileImageMotion";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   SCRATCH_PRESET_GROUPS,
@@ -198,6 +203,10 @@ export default function ScratchPage() {
   const [padDragOver, setPadDragOver] = useState(false);
   /** Last successful Save — unlocks Generate even if story GET lags. */
   const [savedTake, setSavedTake] = useState<{ beatId: string; voiceFile: string } | null>(null);
+  const [ltxOpen, setLtxOpen] = useState(true);
+  const [motionDraft, setMotionDraft] = useState<string | null>(null);
+  /** Which beat the draft belongs to — ignore draft after mouth / beat switch. */
+  const motionEditBeatId = useRef<string | null>(null);
   const padSurfaceRef = useRef<HTMLDivElement | null>(null);
   const drawSeq = useRef(0);
 
@@ -228,6 +237,28 @@ export default function ScratchPage() {
   const stackClips = [...underClips.filter((c) => c.clipFile), ...padStack];
   const placeName = job?.scenes.find((s) => s.id === sceneId)?.placeName || "this place";
   const activePreset = presets.find((p) => p.id === poseId) || null;
+  const lookLock =
+    (job && speaker
+      ? candidateLookPrompt(job.castCandidates, speaker) ||
+        job.roster.find((c) => c.name.trim().toLowerCase() === speaker.trim().toLowerCase())?.appearance
+      : "") || "";
+  const defaultMotionBody =
+    job && speaker && line.trim()
+      ? stripLtxLipSyncLead(
+          buildDefaultBeatMotion({
+            styleId: job.styleId,
+            speaker,
+            line: line.trim(),
+            lookLock,
+            shotSpeakers: padCast.length ? padCast : [speaker],
+          }),
+        )
+      : "";
+  const storedMotion = stripLtxLipSyncLead(beat?.imageMotion || "");
+  const activeMotionDraft =
+    beat && motionEditBeatId.current === beat.id ? motionDraft : null;
+  const motionBody = activeMotionDraft ?? (storedMotion || defaultMotionBody);
+  const motionDirty = activeMotionDraft !== null;
 
   useEffect(() => {
     setPresets(loadScratchPresets());
@@ -601,6 +632,41 @@ export default function ScratchPage() {
     setPoseId("");
   }
 
+  async function persistMotion(body?: string): Promise<string> {
+    if (!job || !beat) {
+      throw new Error("No Scratch line yet — Draw a still first");
+    }
+    const next = (body ?? motionBody).trim();
+    if (!next) throw new Error("LTX Image motion is empty");
+    if (stripLtxLipSyncLead(beat.imageMotion || "") === next) {
+      motionEditBeatId.current = null;
+      setMotionDraft(null);
+      return next;
+    }
+    const data = await postJson<{ imageMotion?: string; job?: MobileGenJob }>(
+      "/api/crash/mobile/beat-motion",
+      { jobId: job.id, beatId: beat.id, imageMotion: next },
+    );
+    if (data.job) setJob(data.job);
+    const saved = stripLtxLipSyncLead(data.imageMotion || next);
+    setStory((cur) => {
+      if (!cur) return cur;
+      return {
+        ...cur,
+        scenes: cur.scenes.map((sc) => ({
+          ...sc,
+          shots: sc.shots.map((sh) => ({
+            ...sh,
+            beats: sh.beats.map((b) => (b.id === beat.id ? { ...b, imageMotion: saved } : b)),
+          })),
+        })),
+      };
+    });
+    motionEditBeatId.current = null;
+    setMotionDraft(null);
+    return saved;
+  }
+
   async function saveLine() {
     if (!job || !beat) {
       setError(
@@ -672,6 +738,11 @@ export default function ScratchPage() {
           })),
         };
       });
+      // Lock the LTX box onto this beat so Generate uses what's on screen
+      // (mouth/head + NAME says), not a stale leftover motion string.
+      if (motionBody.trim()) {
+        await persistMotion(motionBody);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save the line");
     } finally {
@@ -684,6 +755,9 @@ export default function ScratchPage() {
     setBusy("clip");
     setError("");
     try {
+      if (motionBody.trim()) {
+        await persistMotion(motionBody);
+      }
       const data = await postJson<{ job?: MobileGenJob }>("/api/crash/mobile/scratch", {
         action: "clip",
         jobId: job.id,
@@ -1182,6 +1256,54 @@ export default function ScratchPage() {
                   {busy === "clip" ? "Sending…" : "Generate"}
                 </MobilePrimaryButton>
               </div>
+            </div>
+
+            <div className="scratch-ltx-motion">
+              <button
+                type="button"
+                onClick={() => setLtxOpen((open) => !open)}
+                className="scratch-ltx-motion-toggle"
+              >
+                {ltxOpen ? "▾ LTX Image motion" : "▸ LTX Image motion"}
+              </button>
+              {ltxOpen ? (
+                <div className="scratch-ltx-motion-body">
+                  <p className="scratch-ltx-motion-lead">{LTX_LIP_SYNC_LEAD}</p>
+                  <MobileTextInput
+                    value={motionBody}
+                    onChange={(v) => {
+                      motionEditBeatId.current = beat?.id || null;
+                      setMotionDraft(v);
+                    }}
+                    placeholder='Mouth + head + NAME says: "line" — this is the LTX clip prompt.'
+                    multiline
+                    rows={8}
+                  />
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                    <MobilePrimaryButton
+                      size="chip"
+                      tone="ghost"
+                      disabled={!beat || !motionBody.trim() || Boolean(busy)}
+                      onClick={() => {
+                        setBusy("motion");
+                        setError("");
+                        void persistMotion(motionBody)
+                          .catch((e) =>
+                            setError(e instanceof Error ? e.message : "Couldn't keep Image motion"),
+                          )
+                          .finally(() => setBusy(""));
+                      }}
+                    >
+                      {busy === "motion" ? "Keeping…" : "Keep Image motion"}
+                    </MobilePrimaryButton>
+                    {motionDirty ? (
+                      <span style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
+                        Unsaved — Keep or Generate will write it
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <ScratchHistoryStrip

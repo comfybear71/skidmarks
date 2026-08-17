@@ -410,6 +410,39 @@ body {
   margin-bottom: 4px;
 }
 
+.scratch-ltx-motion {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.scratch-ltx-motion-toggle {
+  width: 100%;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--chrome-dim);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.scratch-ltx-motion-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scratch-ltx-motion-lead {
+  margin: 0;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .scratch-history-actions {
   display: flex;
   gap: 6px;
