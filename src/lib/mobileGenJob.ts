@@ -246,6 +246,27 @@ export async function writeMobileGenJob(job: MobileGenJob): Promise<void> {
   fs.writeFileSync(jobPath(job.id), JSON.stringify(job, null, 2));
 }
 
+/**
+ * Remove an episode from Your episodes. Drops the job document only —
+ * faces/plates in Blob and any Crash Lab pack stay (no media wipe).
+ */
+export async function deleteMobileGenJob(id: string): Promise<boolean> {
+  const clean = id.trim();
+  if (!clean) return false;
+  if (useCloudStore()) {
+    const { deleteMobileJobRow } = await import("./neonStore");
+    return deleteMobileJobRow(clean);
+  }
+  const p = jobPath(clean);
+  if (!fs.existsSync(p)) return false;
+  try {
+    fs.unlinkSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function patchMobileGenJob(
   id: string,
   patch: Partial<MobileGenJob>,

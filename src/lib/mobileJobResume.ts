@@ -37,3 +37,25 @@ export function writeResumedJobId(
   // Keep the old unscoped key for Stuie bookmarks only.
   if (desk === DEFAULT_DESK_ID) storage.setItem(MOBILE_LAST_JOB_KEY, id);
 }
+
+/** Drop the resume pointer when that episode was deleted from the list. */
+export function clearResumedJobId(
+  storage: {
+    getItem(key: string): string | null;
+    removeItem(key: string): void;
+  },
+  jobId: string,
+  deskId: string,
+): void {
+  const id = jobId.trim();
+  if (!id) return;
+  const desk = normalizeDeskId(deskId);
+  const deskKey = lastJobKeyForDesk(desk);
+  if ((storage.getItem(deskKey) || "").trim() === id) storage.removeItem(deskKey);
+  if (
+    desk === DEFAULT_DESK_ID &&
+    (storage.getItem(MOBILE_LAST_JOB_KEY) || "").trim() === id
+  ) {
+    storage.removeItem(MOBILE_LAST_JOB_KEY);
+  }
+}

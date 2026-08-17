@@ -19,6 +19,7 @@ export function OpenEpisodePicker({
   activeJobId,
   onOpen,
   onNew,
+  onDeleted,
   open: openProp,
   onOpenChange,
   title = "Your episodes",
@@ -28,6 +29,8 @@ export function OpenEpisodePicker({
   onOpen: (jobId: string) => void;
   /** Optional — New episode without wiping the old one. */
   onNew?: () => void;
+  /** Fired after a successful delete (so the desk can clear if it was open). */
+  onDeleted?: (jobId: string) => void;
   /** Controlled open (toolbar). Omit for always-visible list. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -47,6 +50,8 @@ export function OpenEpisodePicker({
   const [jobs, setJobs] = useState<MobileEpisodeListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,6 +82,28 @@ export function OpenEpisodePicker({
       cancelled = true;
     };
   }, [open, load]);
+
+  const deleteEpisode = useCallback(
+    async (jobId: string) => {
+      setDeletingId(jobId);
+      setError("");
+      try {
+        const res = await fetch(`/api/crash/mobile/job/${encodeURIComponent(jobId)}`, {
+          method: "DELETE",
+        });
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) throw new Error(data.error || "Couldn't delete episode");
+        setJobs((prev) => prev.filter((j) => j.id !== jobId));
+        setConfirmId(null);
+        onDeleted?.(jobId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't delete episode");
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [onDeleted],
+  );
 
   return (
     <div className="open-episode-picker">
@@ -120,12 +147,15 @@ export function OpenEpisodePicker({
               const cast = (job.speakers || []).slice(0, 4).join(", ");
               const more = (job.speakers || []).length > 4 ? "…" : "";
               const when = episodeUpdatedLabel(job.updatedAt);
+              const confirming = confirmId === job.id;
+              const deleting = deletingId === job.id;
               return (
-                <li key={job.id}>
+                <li key={job.id} className="open-episode-picker-item">
                   <button
                     type="button"
                     className={`open-episode-picker-row${active ? " is-active" : ""}`}
                     onClick={() => {
+                      setConfirmId(null);
                       onOpen(job.id);
                       setOpen(false);
                     }}
@@ -142,6 +172,45 @@ export function OpenEpisodePicker({
                     </span>
                     {active ? <span className="open-episode-picker-active">Open</span> : null}
                   </button>
+                  {confirming ? (
+                    <div className="open-episode-picker-delete-confirm">
+                      <button
+                        type="button"
+                        className="open-episode-picker-delete-go"
+                        disabled={deleting}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void deleteEpisode(job.id);
+                        }}
+                      >
+                        {deleting ? "…" : "Delete"}
+                      </button>
+                      <button
+                        type="button"
+                        className="open-episode-picker-delete-cancel"
+                        disabled={deleting}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmId(null);
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="open-episode-picker-delete"
+                      aria-label={`Delete ${episodeListTitle(job)}`}
+                      disabled={Boolean(deletingId)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmId(job.id);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
                 </li>
               );
             })}
