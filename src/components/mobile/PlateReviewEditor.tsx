@@ -222,38 +222,6 @@ export function PlateReviewEditor({
     }
   }
 
-  async function removeShot(shotId: string) {
-    setActionError("");
-    try {
-      const res = await fetch("/api/crash/mobile/plate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, shotId, action: "remove" }),
-      });
-      const data = (await res.json()) as {
-        error?: string;
-        job?: MobileGenJob;
-        removedShot?: CrashStoryShot;
-        sceneId?: string;
-      };
-      if (!res.ok) throw new Error(data.error || "Couldn't remove that card");
-      setStory((cur) => {
-        if (!cur) return cur;
-        return {
-          ...cur,
-          scenes: cur.scenes.map((sc) => ({ ...sc, shots: sc.shots.filter((sh) => sh.id !== shotId) })),
-        };
-      });
-      if (openShotId === shotId) setOpenShotId(null);
-      if (data.job) onJobChange?.(data.job);
-      if (data.removedShot && data.sceneId) {
-        setRemovedBuffer([{ sceneId: data.sceneId, shot: data.removedShot }]);
-      }
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Couldn't remove that card");
-    }
-  }
-
   async function clearAllShots() {
     setActionError("");
     setClearBusy(true);
@@ -574,33 +542,6 @@ export function PlateReviewEditor({
                     }}
                   >
                     ×
-                  </button>
-                ) : null}
-                {!collapsed ? (
-                  <button
-                    type="button"
-                    aria-label="Remove this shot"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void removeShot(s.shotId);
-                    }}
-                    style={{
-                      position: "absolute",
-                      bottom: "4px",
-                      right: "4px",
-                      width: "18px",
-                      height: "18px",
-                      padding: 0,
-                      borderRadius: "2px",
-                      border: "1px solid var(--acid)",
-                      background: "rgba(0,0,0,0.72)",
-                      color: "var(--acid)",
-                      fontSize: "12px",
-                      lineHeight: 1,
-                      cursor: "pointer",
-                    }}
-                  >
-                    −
                   </button>
                 ) : null}
               </div>
