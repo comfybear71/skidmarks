@@ -62,3 +62,11 @@ export type {
   ScratchDragPayload,
   ScratchPadPlacement,
 } from "./padDrop";
+
+export {
+  formatPositioningBlock,
+  generateScratchPrompt,
+  stagingActionBody,
+  stagingCameraBlock,
+} from "./promptFormatter";
+export type { ScratchPromptFormatConfig } from "./promptFormatter";

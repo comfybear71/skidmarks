@@ -41,6 +41,7 @@ import {
   clearBenchRuns,
   dropPercents,
   emptyBenchSession,
+  generateScratchPrompt,
   injectChaosStill,
   loadBenchSession,
   mergePositionIntoStaging,
@@ -48,6 +49,8 @@ import {
   setBenchChaos,
   setScratchDrag,
   readScratchDrag,
+  stagingActionBody,
+  stagingCameraBlock,
   updateBenchRunTags,
   upsertPlacement,
   type ScratchBenchSession,
@@ -368,6 +371,9 @@ export default function ScratchPage() {
           positionPrompt: nextStaging || undefined,
           plateUrl,
           tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
+          placements: placements.length ? placements : undefined,
+          environment: placeName || undefined,
+          dialogue: line.trim() || undefined,
         });
         loggedId = next.runs[0]?.id || null;
         return next;
@@ -429,6 +435,19 @@ export default function ScratchPage() {
   function clearPrompt() {
     setStaging("");
     setBibleActiveId(null);
+  }
+
+  function compilePrompt() {
+    const composed = generateScratchPrompt({
+      placements,
+      environment: placeName,
+      camera: stagingCameraBlock(staging),
+      actionBody: stagingActionBody(staging),
+      dialogue: line,
+    });
+    setStaging(composed);
+    setBibleActiveId(null);
+    setPoseId("");
   }
 
   function clearPad() {
@@ -623,6 +642,9 @@ export default function ScratchPage() {
           plateUrl: plateSrc || undefined,
           clipUrl,
           tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
+          placements: placements.length ? placements : undefined,
+          environment: placeName || undefined,
+          dialogue: line.trim() || undefined,
         });
         loggedId = next.runs[0]?.id || null;
         return next;
@@ -898,6 +920,9 @@ export default function ScratchPage() {
                   rows={5}
                 />
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                  <button type="button" style={ghostBtn} onClick={compilePrompt}>
+                    Compile layout
+                  </button>
                   <button type="button" style={ghostBtn} onClick={clearPrompt}>
                     Clear prompt
                   </button>
