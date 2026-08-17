@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { clipsUnderPlate } from "../src/lib/mobilePlateClips.ts";
-import { episodeJobShots, isOffEpisodeDeskShot, isScratchShotTitle } from "../src/lib/mobileScratch.ts";
+import { episodeJobShots, isOffEpisodeDeskShot, isScratchShotTitle, scratchPadClips } from "../src/lib/mobileScratch.ts";
 import { isCampaignShotId, isCampaignShotTitle } from "../src/lib/mobilePlateLtxCampaign.ts";
 import { jobDeskId, normalizeDeskId } from "../src/lib/mobileDesk.ts";
 
@@ -45,6 +45,19 @@ assert.equal(isOffEpisodeDeskShot(campaignJob, "t01"), true);
 assert.deepEqual(
   episodeJobShots(campaignJob).map((s) => s.shotId),
   ["ep1"],
+);
+
+const stacked = {
+  ...campaignJob,
+  clips: [
+    { beatId: "b-ep", shotId: "ep1", clipFile: "ep.mp4", clipStatus: "done" },
+    { beatId: "b-t", shotId: "t01", clipFile: "t.mp4", clipStatus: "done" },
+    { beatId: "b-wait", shotId: "t01", clipFile: "", clipStatus: "pending" },
+  ],
+};
+assert.deepEqual(
+  scratchPadClips(stacked).map((c) => c.beatId),
+  ["b-t"],
 );
 
 console.log("check-mobile-scratch: ok");

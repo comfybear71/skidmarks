@@ -71,3 +71,20 @@ export function episodeQueuedClips(
 ): MobileClipUnit[] {
   return (job.clips || []).filter((c) => !isOffEpisodeDeskShot(job, c.shotId, story));
 }
+
+/** Playable clips collected on the scratch pad — scratch + campaign tests.
+ * Episode desk clips stay on /m under their plates. */
+export function scratchPadClips(
+  job: Pick<MobileGenJob, "clips" | "scratchPlate" | "plateLtxCampaign">,
+  story?: CrashStoryDoc | null,
+): MobileClipUnit[] {
+  const seen = new Set<string>();
+  const out: MobileClipUnit[] = [];
+  for (const clip of job.clips || []) {
+    if (!clip.clipFile || seen.has(clip.beatId)) continue;
+    if (!isOffEpisodeDeskShot(job, clip.shotId, story)) continue;
+    seen.add(clip.beatId);
+    out.push(clip);
+  }
+  return out;
+}

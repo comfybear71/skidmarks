@@ -23,7 +23,7 @@ import type { CrashStoryBeat, CrashStoryDoc } from "@/lib/crashStoryTypes";
 import { approvedCandidateFileName, preferredCandidate } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { plateLtxCampaignScenarios } from "@/lib/mobilePlateLtxCampaign";
-import { findScratchShot } from "@/lib/mobileScratch";
+import { findScratchShot, scratchPadClips } from "@/lib/mobileScratch";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
@@ -98,6 +98,12 @@ export default function ScratchPage() {
         job?.clips || [],
       )
     : [];
+  const padStack = job
+    ? scratchPadClips(job, story).filter(
+        (c) => !underClips.some((u) => u.beatId === c.beatId),
+      )
+    : [];
+  const stackClips = [...underClips.filter((c) => c.clipFile), ...padStack];
   const poses = useMemo(() => plateLtxCampaignScenarios(), []);
 
   const loadStory = useCallback(async (next: MobileGenJob) => {
@@ -256,7 +262,7 @@ export default function ScratchPage() {
         <div>
           <div style={{ fontWeight: 800, fontSize: "18px", color: "var(--chrome)" }}>Scratch</div>
           <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
-            One still. Knobs for position. Voice. Then a clip. Episode desk stays on /m.
+            One still. Knobs for position. Voice. Then a clip — they stack here. Episode desk stays on /m.
           </div>
         </div>
         <a href={job ? `/m?job=${encodeURIComponent(job.id)}` : "/m"} style={{ color: "var(--acid)", fontSize: "13px", fontWeight: 700 }}>
@@ -361,7 +367,18 @@ export default function ScratchPage() {
                 </div>
               )}
             </div>
-            {job.folderName ? <PlateClipThumbs job={job} clips={underClips} preload /> : null}
+            {job.folderName && stackClips.length ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "4px",
+                  maxWidth: `${PLATE_TILE_PX * 2}px`,
+                }}
+              >
+                <PlateClipThumbs job={job} clips={stackClips} preload />
+              </div>
+            ) : null}
           </div>
 
           <MobilePrimaryButton disabled={!speaker || !sceneId || Boolean(busy)} onClick={() => void draw()}>

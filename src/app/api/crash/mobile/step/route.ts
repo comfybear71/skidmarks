@@ -90,16 +90,17 @@ export async function POST(req: Request) {
     // to pick up whatever is still pending, or straight to stitch if none
     // is. Otherwise leave the job in error — nothing actually changed.
     if (job.phase === "error") {
+      const live = job;
       let story: CrashStoryDoc | null = null;
-      if (job.folderName) {
+      if (live.folderName) {
         try {
-          story = await readMobileStory(job.styleId, job.folderName);
+          story = await readMobileStory(live.styleId, live.folderName);
         } catch {
           story = null;
         }
       }
-      const deskClips = job.clips.filter(
-        (c) => !isOffEpisodeDeskShot(job, c.shotId, story),
+      const deskClips = live.clips.filter(
+        (c) => !isOffEpisodeDeskShot(live, c.shotId, story),
       );
       const pendingDesk = deskClips.some((c) => c.clipStatus === "pending");
       if (deskClips.some((c) => c.clipStatus === "done")) {
@@ -107,9 +108,9 @@ export async function POST(req: Request) {
         job = (await patchMobileGenJob(jobId, { phase: nextPhase, error: "" }))!;
         return NextResponse.json({ ok: true, job, advanced: true });
       }
-      const clips = job.clips.filter(
+      const clips = live.clips.filter(
         (c) =>
-          !(c.clipStatus === "pending" && isOffEpisodeDeskShot(job, c.shotId, story)),
+          !(c.clipStatus === "pending" && isOffEpisodeDeskShot(live, c.shotId, story)),
       );
       job = (await patchMobileGenJob(jobId, { clips, phase: "review", error: "" }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
@@ -159,15 +160,15 @@ export async function POST(req: Request) {
       await hydrateMobilePackOnDisk(live.styleId, live.folderName);
       const story = await readMobileStory(live.styleId, live.folderName);
 
-      // Only LTX lines they Saved (Play). Do not voice the rest of the
-      // campaign and dump 40 clips on one Generate tap.
+      // Only LTX episode lines they Saved (Play). Keep scratch/campaign
+      // clips on the job so the pad stack stays playable — do not wipe them.
       const clips = (live.clips || []).flatMap((c) => {
-        if (!isMobileSavedVoiceFile(c.voiceFile)) return [];
         const home = findBeatHome(story, c.beatId);
+        const shotId = home?.shotId || c.shotId;
+        if (isOffEpisodeDeskShot(live, shotId, story)) return [c];
+        if (!isMobileSavedVoiceFile(c.voiceFile)) return [];
         const voiceFile = home?.voiceFile || c.voiceFile;
         if (!isMobileSavedVoiceFile(voiceFile)) return [];
-        const shotId = home?.shotId || c.shotId;
-        if (isOffEpisodeDeskShot(live, shotId, story)) return [];
         return [
           {
             ...c,
@@ -182,12 +183,19 @@ export async function POST(req: Request) {
           },
         ];
       });
-      const pending = clips.filter((c) => c.clipStatus === "pending");
+      const pending = clips.filter(
+        (c) =>
+          c.clipStatus === "pending" &&
+          !isOffEpisodeDeskShot(live, c.shotId, story),
+      );
       if (!pending.length) {
+        const episodeClips = clips.filter(
+          (c) => !isOffEpisodeDeskShot(live, c.shotId, story),
+        );
         job = (await patchMobileGenJob(jobId, {
           clips,
           phase: "review",
-          error: clips.length
+          error: episodeClips.length
             ? "Those lines already have clips — nothing new to send. Save the line again to re-queue."
             : "No Saved mp3s to send. Save the spoken line on the plate first — Play appears next to the name when the mp3 is ready.",
         }))!;
@@ -203,25 +211,26 @@ export async function POST(req: Request) {
     }
 
     if (job.phase === "animate") {
+      const live = job;
       let story: CrashStoryDoc | null = null;
-      if (job.folderName) {
+      if (live.folderName) {
         try {
-          story = await readMobileStory(job.styleId, job.folderName);
+          story = await readMobileStory(live.styleId, live.folderName);
         } catch {
           story = null;
         }
       }
-      const next = job.clips.find(
+      const next = live.clips.find(
         (c) =>
-          c.clipStatus === "pending" && !isOffEpisodeDeskShot(job, c.shotId, story),
+          c.clipStatus === "pending" && !isOffEpisodeDeskShot(live, c.shotId, story),
       );
       if (!next) {
-        const deskClips = job.clips.filter(
-          (c) => !isOffEpisodeDeskShot(job, c.shotId, story),
+        const deskClips = live.clips.filter(
+          (c) => !isOffEpisodeDeskShot(live, c.shotId, story),
         );
-        const clips = job.clips.filter(
+        const clips = live.clips.filter(
           (c) =>
-            !(c.clipStatus === "pending" && isOffEpisodeDeskShot(job, c.shotId, story)),
+            !(c.clipStatus === "pending" && isOffEpisodeDeskShot(live, c.shotId, story)),
         );
         const failed = clipQueueError(deskClips);
         if (failed) {
