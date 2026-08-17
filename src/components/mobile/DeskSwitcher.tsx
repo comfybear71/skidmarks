@@ -15,7 +15,14 @@ import {
  * Whose phone. Mum and Stuie were sharing one last-job cookie.
  * Not a password login — a desk switch so her plates stay off his pack.
  */
-export function DeskSwitcher({ onChange }: { onChange?: (deskId: string) => void }) {
+export function DeskSwitcher({
+  onChange,
+  label = "Desk",
+}: {
+  onChange?: (deskId: string) => void;
+  /** Row label — Scratch page uses "Scratch" instead of "Desk". */
+  label?: string;
+}) {
   const [desk, setDesk] = useState("stuie");
   const [desks, setDesks] = useState(BUILTIN_DESKS.map((d) => d.id));
   const [adding, setAdding] = useState(false);
@@ -53,7 +60,7 @@ export function DeskSwitcher({ onChange }: { onChange?: (deskId: string) => void
           marginRight: "4px",
         }}
       >
-        Desk
+        {label}
       </div>
       {desks.map((id) => {
         const on = id === desk;
