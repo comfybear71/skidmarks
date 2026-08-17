@@ -1,15 +1,23 @@
+import path from "path";
 import type { MobileClipUnit } from "./mobileGenJob";
 
 export function mobileClipSrc(
   job: { styleId: string; folderName: string },
   clipFile: string,
 ): string {
-  const fileName = clipFile.split(/[\\/]/).pop() || clipFile;
+  const fileName = path.basename(clipFile.split(/[\\/]/).pop() || clipFile);
   return (
     `/api/crash/mobile/clip?styleId=${encodeURIComponent(job.styleId)}` +
     `&folderName=${encodeURIComponent(job.folderName)}` +
     `&fileName=${encodeURIComponent(fileName)}`
   );
+}
+
+/** Always the mp4 basename — never a /tmp absolute path (those die across Vercel invokes). */
+export function clipFileBasename(clipFile: string): string {
+  const raw = (clipFile || "").trim();
+  if (!raw) return "";
+  return path.basename(raw.split(/[\\/]/).pop() || raw);
 }
 
 /** Playable mp4s for one clip row — older takes first, newest last. */
@@ -19,7 +27,7 @@ export function stackedClipFiles(
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of [...(clip.priorClipFiles || []), clip.clipFile || ""]) {
-    const file = raw.trim();
+    const file = clipFileBasename(raw);
     if (!file || seen.has(file)) continue;
     seen.add(file);
     out.push(file);
@@ -32,8 +40,8 @@ export function rememberClipTake(
   clip: Pick<MobileClipUnit, "clipFile" | "priorClipFiles">,
   nextFile: string,
 ): { clipFile: string; priorClipFiles: string[] } {
-  const next = (nextFile || "").trim();
-  const old = (clip.clipFile || "").trim();
+  const next = clipFileBasename(nextFile);
+  const old = clipFileBasename(clip.clipFile || "");
   const kept = stackedClipFiles(clip).filter((f) => f !== next);
   return {
     priorClipFiles: kept,

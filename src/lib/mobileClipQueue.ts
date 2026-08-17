@@ -1,6 +1,7 @@
 import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import type { MobileClipUnit, MobileGenJob } from "./mobileGenJob";
+import { stackedClipFiles } from "./mobilePlateClips";
 import { isLeftoverPackVoiceFile } from "./mobileSavedVoice";
 import { voiceNamesMatch } from "./voiceNameMatch";
 
@@ -147,6 +148,13 @@ export function mergeClipsFromStory(
   }
   for (const prev of job.clips) {
     if (seen.has(prev.beatId)) continue;
+    // Finished takes must survive even if the beat fell out of the
+    // queueable set (speaker rename, leftover hydrate, etc.). Wiping
+    // them made the previous Generate video disappear on the next Save.
+    if (prev.clipStatus === "done" || stackedClipFiles(prev).length > 0) {
+      next.push(prev);
+      continue;
+    }
     if (prev.clipStatus !== "pending") continue;
     if (!(prev.voiceFile || "").trim()) continue;
     if (isLeftoverPackVoiceFile(prev.voiceFile)) continue;

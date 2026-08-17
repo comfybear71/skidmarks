@@ -16,7 +16,7 @@ import {
   phaseAfterErrorResume,
 } from "@/lib/mobilePipeline";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
-import { rememberClipTake } from "@/lib/mobilePlateClips";
+import { rememberClipTake, stackedClipFiles } from "@/lib/mobilePlateClips";
 import {
   clipQueueError,
   findBeatHome,
@@ -163,17 +163,20 @@ export async function POST(req: Request) {
 
       // Only LTX episode lines they Saved (Play). Keep scratch/campaign
       // clips on the job so the pad stack stays playable — do not wipe them.
+      // Also keep any row that already has mp4 takes, even if the voice
+      // file looks odd — otherwise the last Generate video vanishes.
       const clips = (live.clips || []).flatMap((c) => {
         const home = findBeatHome(story, c.beatId);
         const shotId = home?.shotId || c.shotId;
         if (isOffEpisodeDeskShot(live, shotId, story)) return [c];
-        if (!isMobileSavedVoiceFile(c.voiceFile)) return [];
+        const hasTakes = stackedClipFiles(c).length > 0;
+        if (!isMobileSavedVoiceFile(c.voiceFile) && !hasTakes) return [];
         const voiceFile = home?.voiceFile || c.voiceFile;
-        if (!isMobileSavedVoiceFile(voiceFile)) return [];
+        if (!isMobileSavedVoiceFile(voiceFile) && !hasTakes) return [];
         return [
           {
             ...c,
-            voiceFile,
+            voiceFile: isMobileSavedVoiceFile(voiceFile) ? voiceFile : c.voiceFile,
             line: (home?.text || "").trim() || c.line,
             shotId: home?.shotId || c.shotId,
             sceneId: home?.sceneId || c.sceneId,
