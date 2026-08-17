@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   MobileAudioPlayer,
   MobilePrimaryButton,
@@ -74,6 +74,49 @@ function pickDefaultPlace(job: MobileGenJob): string {
   );
 }
 
+/** Scratch stress-test knobs — frame, body, holding, wearing, weather. */
+const POSE_GROUPS: { title: string; ids: string[] }[] = [
+  { title: "Frame", ids: ["mcu-phone", "wide-full", "tight-face", "over-shoulder", "walk-in"] },
+  { title: "Body", ids: ["sitting", "standing", "running", "sprawl", "dance", "leaning", "steps", "crouch", "handstand"] },
+  { title: "Holding", ids: ["beer-cig", "pie"] },
+  { title: "Wearing", ids: ["clothes-dress", "clothes-underwear"] },
+  { title: "Weather / edge", ids: ["raining", "wash-hair"] },
+];
+
+const thumbBtn = (on: boolean): CSSProperties => ({
+  flex: "0 0 auto",
+  padding: "2px",
+  border: on ? "2px solid var(--acid)" : "2px solid var(--line)",
+  borderRadius: "2px",
+  background: "var(--panel-2)",
+  cursor: "pointer",
+});
+
+function ScratchLightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      role="dialog"
+      aria-label="Enlarge still"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 80,
+        background: "rgba(0,0,0,0.94)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "12px",
+        cursor: "zoom-out",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+      <span style={{ position: "absolute", top: "16px", right: "18px", color: "var(--chrome)", fontSize: "24px" }}>✕</span>
+    </div>
+  );
+}
+
 export default function ScratchPage() {
   const [deskTick, setDeskTick] = useState(0);
   const [job, setJob] = useState<MobileGenJob | null>(null);
@@ -87,10 +130,15 @@ export default function ScratchPage() {
   const [error, setError] = useState("");
   const [resuming, setResuming] = useState(true);
   const [resumeError, setResumeError] = useState("");
+  const [lightbox, setLightbox] = useState("");
 
   const scratch = findScratchShot(story);
   const beat: CrashStoryBeat | undefined = scratch?.shot.beats.find((b) => b.speaker.trim()) || scratch?.shot.beats[0];
   const plateFile = job?.shots.find((s) => s.shotId === scratch?.shot.id)?.plateFile || scratch?.shot.plateFile || "";
+  const plateSrc =
+    plateFile && plateFile !== "__error__"
+      ? `/api/crash/gen/file?name=${encodeURIComponent(plateFile)}`
+      : "";
   const underClips = scratch
     ? clipsUnderPlate(
         scratch.shot.id,
@@ -99,12 +147,11 @@ export default function ScratchPage() {
       )
     : [];
   const padStack = job
-    ? scratchPadClips(job, story).filter(
-        (c) => !underClips.some((u) => u.beatId === c.beatId),
-      )
+    ? scratchPadClips(job, story).filter((c) => !underClips.some((u) => u.beatId === c.beatId))
     : [];
   const stackClips = [...underClips.filter((c) => c.clipFile), ...padStack];
   const poses = useMemo(() => plateLtxCampaignScenarios(), []);
+  const poseById = useMemo(() => new Map(poses.map((p) => [p.id, p])), [poses]);
 
   const loadStory = useCallback(async (next: MobileGenJob) => {
     if (!next.folderName) {
@@ -186,14 +233,24 @@ export default function ScratchPage() {
     }
   }, [job?.id]);
 
-  async function draw(nextPose = poseId, nextStaging = staging) {
+  async function draw(opts?: {
+    poseId?: string;
+    staging?: string;
+    speaker?: string;
+    sceneId?: string;
+  }) {
     if (!job) return;
+    const nextPose = opts?.poseId ?? poseId;
+    const nextStaging = opts?.staging ?? staging;
+    const nextSpeaker = opts?.speaker ?? speaker;
+    const nextScene = opts?.sceneId ?? sceneId;
+    if (!nextSpeaker || !nextScene) return;
     setBusy("draw");
     setError("");
     try {
       const ensured = await postJson<{ job: MobileGenJob; shotId?: string }>(
         "/api/crash/mobile/scratch",
-        { action: "ensure", jobId: job.id, speaker, sceneId, poseId: nextPose },
+        { action: "ensure", jobId: job.id, speaker: nextSpeaker, sceneId: nextScene, poseId: nextPose },
       );
       setJob(ensured.job);
       const drawn = await postJson<{ job: MobileGenJob; staging?: string }>(
@@ -213,6 +270,27 @@ export default function ScratchPage() {
     } finally {
       setBusy("");
     }
+  }
+
+  function pickCast(name: string) {
+    const src = job ? faceUrl(job, name) : "";
+    if (name === speaker && src) {
+      setLightbox(src);
+      return;
+    }
+    setSpeaker(name);
+  }
+
+  function dropPlace(id: string) {
+    if (!job) return;
+    const src = placeUrl(job, id);
+    if (id === sceneId && src) {
+      setLightbox(src);
+      return;
+    }
+    setSceneId(id);
+    // Place is backdrop — drop it straight onto the pad and redraw.
+    void draw({ sceneId: id, speaker, poseId, staging: staging || undefined });
   }
 
   async function saveLine() {
@@ -262,7 +340,8 @@ export default function ScratchPage() {
         <div>
           <div style={{ fontWeight: 800, fontSize: "18px", color: "var(--chrome)" }}>Scratch</div>
           <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
-            One still. Knobs for position. Voice. Then a clip — they stack here. Episode desk stays on /m.
+            Pad learns frame + position. Cast gets the extreme knobs. Place just drops on. Clips stack
+            here. Episode desk stays on /m.
           </div>
         </div>
         <a href={job ? `/m?job=${encodeURIComponent(job.id)}` : "/m"} style={{ color: "var(--acid)", fontSize: "13px", fontWeight: 700 }}>
@@ -286,134 +365,168 @@ export default function ScratchPage() {
         </div>
       ) : (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: "14px" }}>
-          <div>
-            <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-              Who
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "64px minmax(0, 1fr) 44px",
+              gap: "10px",
+              alignItems: "start",
+            }}
+          >
+            <div>
+              <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
+                Who
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {job.speakers.map((name) => {
+                  const src = faceUrl(job, name);
+                  const on = name === speaker;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      title={on && src ? "Tap again to enlarge" : name}
+                      onClick={() => pickCast(name)}
+                      style={thumbBtn(on)}
+                    >
+                      {src ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={src} alt="" style={{ width: "56px", height: "56px", objectFit: "cover", display: "block" }} />
+                      ) : (
+                        <div style={{ width: "56px", height: "56px", color: "var(--chrome-dim)", fontSize: "9px", overflow: "hidden" }}>{name}</div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div style={{ display: "flex", gap: "8px", overflowX: "auto", touchAction: "pan-x pan-y" }}>
-              {job.speakers.map((name) => {
-                const src = faceUrl(job, name);
-                const on = name === speaker;
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setSpeaker(name)}
-                    style={{
-                      flex: "0 0 auto",
-                      padding: "2px",
-                      border: on ? "2px solid var(--acid)" : "2px solid var(--line)",
-                      borderRadius: "2px",
-                      background: "var(--panel-2)",
-                    }}
-                  >
-                    {src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={src} alt="" style={{ width: "56px", height: "56px", objectFit: "cover", display: "block" }} />
-                    ) : (
-                      <div style={{ width: "56px", height: "56px", color: "var(--chrome-dim)", fontSize: "10px" }}>{name}</div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
-          <div>
-            <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-              Where
-            </div>
-            <div style={{ display: "flex", gap: "8px", overflowX: "auto", touchAction: "pan-x pan-y" }}>
-              {job.scenes.map((sc) => {
-                const src = placeUrl(job, sc.id);
-                const on = sc.id === sceneId;
-                return (
-                  <button
-                    key={sc.id}
-                    type="button"
-                    onClick={() => setSceneId(sc.id)}
-                    style={{
-                      flex: "0 0 auto",
-                      padding: "2px",
-                      border: on ? "2px solid var(--acid)" : "2px solid var(--line)",
-                      borderRadius: "2px",
-                      background: "var(--panel-2)",
-                    }}
-                  >
-                    {src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={src} alt="" style={{ width: "56px", height: "56px", objectFit: "cover", display: "block" }} />
-                    ) : (
-                      <div style={{ width: "56px", height: "56px", color: "var(--chrome-dim)", fontSize: "10px" }}>{sc.placeName}</div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
-            <div style={{ ...mobileCard, padding: "2px", lineHeight: 0 }}>
-              {plateFile && plateFile !== "__error__" ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/crash/gen/file?name=${encodeURIComponent(plateFile)}`}
-                  alt=""
-                  style={{ width: `${PLATE_TILE_PX * 2}px`, height: `${PLATE_TILE_PX * 2}px`, objectFit: "cover", display: "block" }}
-                />
-              ) : (
-                <div style={{ width: `${PLATE_TILE_PX * 2}px`, height: `${PLATE_TILE_PX * 2}px`, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--chrome-dim)", fontSize: "12px" }}>
-                  Pick who and where, then Draw
-                </div>
-              )}
-            </div>
-            {job.folderName && stackClips.length ? (
-              <div
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
+              <button
+                type="button"
+                disabled={!plateSrc}
+                onClick={() => plateSrc && setLightbox(plateSrc)}
+                title={plateSrc ? "Tap to enlarge" : undefined}
                 style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "4px",
-                  maxWidth: `${PLATE_TILE_PX * 2}px`,
+                  ...mobileCard,
+                  padding: "2px",
+                  lineHeight: 0,
+                  width: "100%",
+                  border: "none",
+                  cursor: plateSrc ? "zoom-in" : "default",
+                  background: "var(--panel)",
                 }}
               >
-                <PlateClipThumbs job={job} clips={stackClips} preload />
+                {plateSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={plateSrc}
+                    alt=""
+                    style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      aspectRatio: "1",
+                      minHeight: `${PLATE_TILE_PX * 2.5}px`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--chrome-dim)",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      padding: "12px",
+                    }}
+                  >
+                    Drop a place. Pick who. Then hammer the position presets.
+                  </div>
+                )}
+              </button>
+              {job.folderName && stackClips.length ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                  <PlateClipThumbs job={job} clips={stackClips} preload />
+                </div>
+              ) : null}
+            </div>
+
+            <div>
+              <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
+                Drop
               </div>
-            ) : null}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {job.scenes.map((sc) => {
+                  const src = placeUrl(job, sc.id);
+                  const on = sc.id === sceneId;
+                  return (
+                    <button
+                      key={sc.id}
+                      type="button"
+                      disabled={Boolean(busy)}
+                      title={on && src ? "Tap again to enlarge" : `Drop ${sc.placeName} on pad`}
+                      onClick={() => dropPlace(sc.id)}
+                      style={thumbBtn(on)}
+                    >
+                      {src ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={src} alt="" style={{ width: "36px", height: "36px", objectFit: "cover", display: "block" }} />
+                      ) : (
+                        <div style={{ width: "36px", height: "36px", color: "var(--chrome-dim)", fontSize: "8px", overflow: "hidden" }}>{sc.placeName}</div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           <MobilePrimaryButton disabled={!speaker || !sceneId || Boolean(busy)} onClick={() => void draw()}>
             {busy === "draw" ? "Drawing…" : "Draw this picture"}
           </MobilePrimaryButton>
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-            {poses.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                disabled={Boolean(busy)}
-                onClick={() => {
-                  setPoseId(p.id);
-                  void draw(p.id, "");
-                }}
-                style={{
-                  padding: "6px 8px",
-                  borderRadius: "2px",
-                  border: p.id === poseId ? "1px solid var(--acid)" : "1px solid var(--line)",
-                  background: p.id === poseId ? "var(--acid)" : "var(--panel-2)",
-                  color: p.id === poseId ? "#111" : "var(--chrome)",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                }}
-              >
-                {p.label.replace(/^\d+\s+/, "")}
-              </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {POSE_GROUPS.map((group) => (
+              <div key={group.title}>
+                <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
+                  {group.title}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {group.ids.map((id) => {
+                    const p = poseById.get(id);
+                    if (!p) return null;
+                    const on = id === poseId;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        disabled={Boolean(busy) || !speaker || !sceneId}
+                        onClick={() => {
+                          setPoseId(id);
+                          void draw({ poseId: id, staging: "", speaker, sceneId });
+                        }}
+                        style={{
+                          padding: "6px 8px",
+                          borderRadius: "2px",
+                          border: on ? "1px solid var(--acid)" : "1px solid var(--line)",
+                          background: on ? "var(--acid)" : "var(--panel-2)",
+                          color: on ? "#111" : "var(--chrome)",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {p.label.replace(/^\d+\s+/, "")}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             ))}
           </div>
 
           <MobileTextInput
             value={staging}
             onChange={setStaging}
-            placeholder="Position — sitting, on the roof, behind, facing…"
+            placeholder="Custom — emotion, holding, wearing, where they are in frame…"
             multiline
             rows={3}
           />
@@ -442,6 +555,8 @@ export default function ScratchPage() {
           </MobilePrimaryButton>
         </div>
       )}
+
+      {lightbox ? <ScratchLightbox src={lightbox} onClose={() => setLightbox("")} /> : null}
     </main>
   );
 }
