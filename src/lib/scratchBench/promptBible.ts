@@ -136,6 +136,12 @@ export const SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
           "{{name}} stands at {{place}}, balanced on both feet, shoulders relaxed, ready to speak.",
       },
       {
+        id: "pose-face-cam",
+        label: "Facing camera",
+        template:
+          "{{name}} faces the camera at {{place}}, eyes toward lens, head square to frame, mouth clearly readable for speech.",
+      },
+      {
         id: "pose-lie",
         label: "Lying down",
         template:
