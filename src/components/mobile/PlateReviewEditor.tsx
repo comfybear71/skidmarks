@@ -8,7 +8,6 @@ import {
   mobileCard,
 } from "./MobileUi";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "./PlateClipThumbs";
-import { stackedClipFiles } from "@/lib/mobilePlateClips";
 import { useMobileAssist } from "./useMobileAssist";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
 import {
@@ -1447,11 +1446,6 @@ function ShotLineEditor({
     jobSpeakers,
     beats: shot.beats,
   });
-  const underClips = clipsUnderPlate(
-    shot.id,
-    shot.beats.map((b) => b.id),
-    clips,
-  );
 
   return (
     <div style={{ ...mobileCard, padding: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -1464,25 +1458,6 @@ function ShotLineEditor({
           onPlateRebuilt(plateFile, staging, shot.summary, plateTakes)
         }
       />
-      {underClips.some((c) => stackedClipFiles(c).length) ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <div
-            style={{
-              color: "var(--chrome-dim)",
-              fontSize: "10px",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-            }}
-          >
-            Clips under this plate — every Generate stacks here
-          </div>
-          <PlateClipThumbs
-            job={{ styleId, folderName }}
-            clips={underClips}
-            preload
-          />
-        </div>
-      ) : null}
       {speakingBeats.map((beat) => {
         const clip = clips.find((c) => c.beatId === beat.id);
         return (
