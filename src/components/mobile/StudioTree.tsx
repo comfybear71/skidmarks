@@ -14,7 +14,6 @@ import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
-import { StoryFeed } from "./StoryFeed";
 import {
   allCastApproved,
   allLocationsApproved,
@@ -1179,14 +1178,12 @@ export function StudioTree({
                 {job.error}
               </div>
             ) : null}
-            <StoryFeed job={job} onClipUploaded={onJobChange} />
           </div>
         ) : null}
 
         {platesOpen && MOBILE_STITCH_MOVIES && job.phase === "stitch" ? (
           <div style={{ padding: "8px 0" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Stitching…</ShimmerText>
-            <StoryFeed job={job} onClipUploaded={onJobChange} />
           </div>
         ) : null}
 
@@ -1206,7 +1203,6 @@ export function StudioTree({
             <div style={{ color: "var(--magenta-hot)", fontSize: "13px", marginBottom: "10px" }}>
               {job.error || "Something went wrong"}
             </div>
-            {platesOpen ? <StoryFeed job={job} onClipUploaded={onJobChange} /> : null}
             <MobilePrimaryButton onClick={onRetryError}>Check again</MobilePrimaryButton>
           </div>
         ) : null}
