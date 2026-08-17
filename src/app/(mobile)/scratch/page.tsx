@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   MobileAudioPlayer,
   MobilePrimaryButton,
@@ -22,7 +22,6 @@ import { approvedCandidateFileName, preferredCandidate } from "@/lib/mobileJobRe
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { findScratchShot, scratchPadClips } from "@/lib/mobileScratch";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
-import { speakerWantedSex } from "@/lib/crashVoicePrompt";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   SCRATCH_PRESET_GROUPS,
@@ -80,21 +79,6 @@ function pickDefaultPlace(job: MobileGenJob): string {
     job.scenes[0]?.id ||
     ""
   );
-}
-
-function rosterHint(job: MobileGenJob, name: string): string {
-  const row = job.roster.find((r) => r.name.trim().toLowerCase() === name.trim().toLowerCase());
-  return `${row?.appearance || ""} ${row?.description || ""}`.trim();
-}
-
-function splitSpeakersBySex(job: MobileGenJob): { female: string[]; male: string[] } {
-  const female: string[] = [];
-  const male: string[] = [];
-  for (const name of job.speakers) {
-    if (speakerWantedSex(name, rosterHint(job, name)) === "female") female.push(name);
-    else male.push(name);
-  }
-  return { female, male };
 }
 
 const SIDE_THUMB_PX = 72;
@@ -201,7 +185,6 @@ export default function ScratchPage() {
     ? scratchPadClips(job, story).filter((c) => !underClips.some((u) => u.beatId === c.beatId))
     : [];
   const stackClips = [...underClips.filter((c) => c.clipFile), ...padStack];
-  const castBySex = useMemo(() => (job ? splitSpeakersBySex(job) : { female: [], male: [] }), [job]);
   const placeName = job?.scenes.find((s) => s.id === sceneId)?.placeName || "this place";
   const activePreset = presets.find((p) => p.id === poseId) || null;
 
@@ -541,68 +524,57 @@ export default function ScratchPage() {
           <div className="scratch-viewport">
             <div className="scratch-stage">
               <div className="scratch-rail">
-                {(
-                  [
-                    { title: "Female", names: castBySex.female },
-                    { title: "Male", names: castBySex.male },
-                  ] as const
-                ).map((group) =>
-                  group.names.length ? (
-                    <div key={group.title}>
-                      <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-                        {group.title}
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        {group.names.map((name) => {
-                          const src = faceUrl(job, name);
-                          const onPad = padCast.includes(name);
-                          const speaks = name === speaker;
-                          return (
-                            <button
-                              key={name}
-                              type="button"
-                              title={
-                                !onPad
-                                  ? `Add ${name} to pad`
-                                  : !speaks
-                                    ? "On pad — tap to make them speak (lip sync)"
-                                    : padCast.length === 1 && src
-                                      ? "Tap again to enlarge"
-                                      : "Speaking — tap again to pull off pad"
-                              }
-                              onClick={() => pickCast(name)}
-                              style={{
-                                ...thumbBtn(onPad),
-                                boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
-                              }}
-                            >
-                              {src ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={src}
-                                  alt=""
-                                  style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
-                                />
-                              ) : (
-                                <div
-                                  style={{
-                                    width: `${SIDE_THUMB_PX}px`,
-                                    height: `${SIDE_THUMB_PX}px`,
-                                    color: "var(--chrome-dim)",
-                                    fontSize: "10px",
-                                    overflow: "hidden",
-                                  }}
-                                >
-                                  {name}
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null,
-                )}
+                <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
+                  Who
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {job.speakers.map((name) => {
+                    const src = faceUrl(job, name);
+                    const onPad = padCast.includes(name);
+                    const speaks = name === speaker;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        title={
+                          !onPad
+                            ? `Add ${name} to pad`
+                            : !speaks
+                              ? "On pad — tap to make them speak (lip sync)"
+                              : padCast.length === 1 && src
+                                ? "Tap again to enlarge"
+                                : "Speaking — tap again to pull off pad"
+                        }
+                        onClick={() => pickCast(name)}
+                        style={{
+                          ...thumbBtn(onPad),
+                          boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
+                        }}
+                      >
+                        {src ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={src}
+                            alt=""
+                            style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: `${SIDE_THUMB_PX}px`,
+                              height: `${SIDE_THUMB_PX}px`,
+                              color: "var(--chrome-dim)",
+                              fontSize: "10px",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {name}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="scratch-pad-col">
