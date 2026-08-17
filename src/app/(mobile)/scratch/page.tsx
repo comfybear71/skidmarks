@@ -7,7 +7,7 @@ import {
   MobileTextInput,
   mobileCard,
 } from "@/components/mobile/MobileUi";
-import { StudioIdentityBar } from "@/components/mobile/StudioIdentityBar";
+import { DeskSwitcher } from "@/components/mobile/DeskSwitcher";
 import { CastVoiceRow } from "@/components/mobile/CastVoiceRow";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
 import {
@@ -75,8 +75,6 @@ function pickDefaultPlace(job: MobileGenJob): string {
 
 export default function ScratchPage() {
   const [deskTick, setDeskTick] = useState(0);
-  const [sessionReady, setSessionReady] = useState(false);
-  const [sessionGated, setSessionGated] = useState(false);
   const [job, setJob] = useState<MobileGenJob | null>(null);
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [speaker, setSpeaker] = useState("");
@@ -131,7 +129,6 @@ export default function ScratchPage() {
   }, []);
 
   useEffect(() => {
-    if (!sessionReady) return;
     const deskId = readDeskId(window.localStorage);
     const id = readResumedJobId(window.location.search, window.localStorage, deskId);
     if (!id) {
@@ -148,7 +145,7 @@ export default function ScratchPage() {
           setResumeError(d.error || "Couldn't open that episode. Don't tap Start directing.");
           return;
         }
-        if (!sessionGated && jobDeskId(d.job) !== deskId) {
+        if (jobDeskId(d.job) !== deskId) {
           setResumeError(`That's ${deskLabel(jobDeskId(d.job))}'s episode. Switch desk to open it.`);
           return;
         }
@@ -166,7 +163,7 @@ export default function ScratchPage() {
     return () => {
       cancelled = true;
     };
-  }, [deskTick, loadStory, sessionReady, sessionGated]);
+  }, [deskTick, loadStory]);
 
   useEffect(() => {
     if (!job?.id) return;
@@ -252,13 +249,7 @@ export default function ScratchPage() {
 
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh", paddingBottom: "48px" }}>
-      <StudioIdentityBar
-        onReady={(info) => {
-          setSessionGated(info.gated);
-          setSessionReady(true);
-          setDeskTick((n) => n + 1);
-        }}
-      />
+      <DeskSwitcher onChange={() => setDeskTick((n) => n + 1)} />
       <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", gap: "12px" }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: "18px", color: "var(--chrome)" }}>Scratch</div>

@@ -10,11 +10,6 @@ import { jobVoiceForSpeaker, withJobSpeakerVoice } from "./mobileJobVoices";
 import type { PlateLtxCampaign } from "./mobilePlateLtxCampaign";
 import type { ScratchPlateRef } from "./mobileScratch";
 import { DEFAULT_DESK_ID, normalizeDeskId } from "./mobileDesk";
-import {
-  boundStudioOwner,
-  jobBelongsToOwner,
-} from "./studioOwner";
-import { studioUsersConfigured } from "./studioUsers";
 
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
 
@@ -145,11 +140,6 @@ export type MobileGenJob = {
    * live pack does not vanish when Mum opens /m on the same iPad.
    */
   deskId?: string;
-  /**
-   * Signed-in person (STUDIO_USERS slug). Stronger than deskId — Neon/Blob
-   * isolation uses this. Untagged jobs stay the home owner's.
-   */
-  ownerId?: string;
   /** One experiment still — many positions. Lives on /m/scratch, hidden on /m. */
   scratchPlate?: ScratchPlateRef;
   finalVideoFile: string;
@@ -177,13 +167,6 @@ export async function createMobileGenJob(opts: {
   deskId?: string;
 }): Promise<MobileGenJob> {
   const now = new Date().toISOString();
-  const owner = await boundStudioOwner();
-  if (studioUsersConfigured() && !owner) {
-    throw new Error("Sign in");
-  }
-  const deskId = studioUsersConfigured()
-    ? normalizeDeskId(owner || DEFAULT_DESK_ID)
-    : normalizeDeskId(opts.deskId || DEFAULT_DESK_ID);
   const job: MobileGenJob = {
     id: sortableId("mgen"),
     styleId: opts.styleId,
@@ -191,8 +174,7 @@ export async function createMobileGenJob(opts: {
     // job id here — a set folderName used to mean "pack exists" and would
     // write a story against it. Cast faces live under mobileMediaFolder.
     folderName: "",
-    deskId,
-    ownerId: owner || undefined,
+    deskId: normalizeDeskId(opts.deskId || DEFAULT_DESK_ID),
     prompt: opts.prompt,
     targetDurationSec: opts.targetDurationSec,
     secondsPerShot: opts.secondsPerShot,
@@ -216,38 +198,20 @@ export async function createMobileGenJob(opts: {
 }
 
 export async function readMobileGenJob(id: string): Promise<MobileGenJob | null> {
-  let job: MobileGenJob | null = null;
   if (useCloudStore()) {
-    job = await readMobileJobRow<MobileGenJob>(id);
-  } else {
-    const p = jobPath(id);
-    if (!fs.existsSync(p)) return null;
-    try {
-      job = JSON.parse(fs.readFileSync(p, "utf8")) as MobileGenJob;
-    } catch {
-      return null;
-    }
+    return readMobileJobRow<MobileGenJob>(id);
   }
-  if (!job) return null;
-  if (!studioUsersConfigured()) return job;
-  const owner = await boundStudioOwner();
-  if (!owner || !jobBelongsToOwner(job, owner)) return null;
-  return job;
+  const p = jobPath(id);
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf8")) as MobileGenJob;
+  } catch {
+    return null;
+  }
 }
 
-/** Jobs on this desk / signed-in person only. Untagged rows count as Stuie. */
+/** Jobs on this desk only. Untagged rows count as Stuie. */
 export async function listMobileGenJobs(deskId: string): Promise<MobileGenJob[]> {
-  if (studioUsersConfigured()) {
-    const owner = await boundStudioOwner();
-    if (!owner) return [];
-    const belongs = (job: MobileGenJob) => jobBelongsToOwner(job, owner);
-    if (useCloudStore()) {
-      const { listMobileJobRowsForOwner } = await import("./neonStore");
-      const rows = await listMobileJobRowsForOwner<MobileGenJob>(owner);
-      return rows.filter(belongs).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
-    }
-    return listLocalJobs(belongs);
-  }
   const want = normalizeDeskId(deskId);
   const belongs = (job: MobileGenJob) => normalizeDeskId(job.deskId || DEFAULT_DESK_ID) === want;
   if (useCloudStore()) {
@@ -255,10 +219,6 @@ export async function listMobileGenJobs(deskId: string): Promise<MobileGenJob[]>
     const rows = await listMobileJobRowsByDesk<MobileGenJob>(want);
     return rows.filter(belongs);
   }
-  return listLocalJobs(belongs);
-}
-
-function listLocalJobs(belongs: (job: MobileGenJob) => boolean): MobileGenJob[] {
   const dir = jobsDir();
   if (!fs.existsSync(dir)) return [];
   const out: MobileGenJob[] = [];
@@ -276,13 +236,6 @@ function listLocalJobs(belongs: (job: MobileGenJob) => boolean): MobileGenJob[] 
 
 export async function writeMobileGenJob(job: MobileGenJob): Promise<void> {
   job.updatedAt = new Date().toISOString();
-  if (studioUsersConfigured()) {
-    const owner = await boundStudioOwner();
-    if (!owner) return;
-    if (job.ownerId && !jobBelongsToOwner(job, owner)) return;
-    job.ownerId = owner;
-    job.deskId = normalizeDeskId(owner);
-  }
   if (useCloudStore()) {
     await saveMobileJobRow(job.id, job);
     return;

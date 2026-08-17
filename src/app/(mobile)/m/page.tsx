@@ -9,7 +9,7 @@ import {
   mobileCardSelected,
 } from "@/components/mobile/MobileUi";
 import { StudioTree } from "@/components/mobile/StudioTree";
-import { StudioIdentityBar } from "@/components/mobile/StudioIdentityBar";
+import { DeskSwitcher } from "@/components/mobile/DeskSwitcher";
 import { useMobileAssist } from "@/components/mobile/useMobileAssist";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
@@ -47,8 +47,6 @@ export default function MobileHomePage() {
   const [resuming, setResuming] = useState(true);
   const [resumeError, setResumeError] = useState("");
   const [desk, setDesk] = useState("stuie");
-  const [sessionReady, setSessionReady] = useState(false);
-  const [sessionGated, setSessionGated] = useState(false);
   const pollRef = useRef<number | null>(null);
 
   const stopPoll = useCallback(() => {
@@ -136,8 +134,7 @@ export default function MobileHomePage() {
   }, []);
 
   useEffect(() => {
-    if (!sessionReady) return;
-    const deskId = desk;
+    const deskId = readDeskId(window.localStorage);
     const id = readResumedJobId(window.location.search, window.localStorage, deskId);
     if (!id) {
       setResuming(false);
@@ -156,7 +153,7 @@ export default function MobileHomePage() {
           setResumeError(d.error || `Couldn't open ${id}. The episode is still there — don't tap Start directing.`);
           return;
         }
-        if (!sessionGated && jobDeskId(d.job) !== deskId) {
+        if (jobDeskId(d.job) !== deskId) {
           setJob(null);
           setResumeError(`That's ${deskLabel(jobDeskId(d.job))}'s episode. Switch desk to open it.`);
           return;
@@ -174,7 +171,7 @@ export default function MobileHomePage() {
     return () => {
       cancelled = true;
     };
-  }, [desk, sessionReady, sessionGated]);
+  }, [desk]);
 
   useEffect(() => {
     if (!job?.id) return;
@@ -436,13 +433,7 @@ export default function MobileHomePage() {
 
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh" }}>
-      <StudioIdentityBar
-        onReady={(info) => {
-          setDesk(info.deskId);
-          setSessionGated(info.gated);
-          setSessionReady(true);
-        }}
-      />
+      <DeskSwitcher onChange={setDesk} />
       {error ? (
         <div style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}

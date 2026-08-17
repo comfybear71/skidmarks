@@ -21,8 +21,7 @@ import {
   putBlobFile,
   type BlobFileKind,
 } from "./blobStore";
-import { findNeonFile, upsertNeonFile } from "./neonStore";
-import { boundStudioOwner, ownedEpisodeRowId } from "./studioOwner";
+import { episodeRowId, findNeonFile, upsertNeonFile } from "./neonStore";
 import type { ShowStyleId } from "./showStylePresets";
 
 export async function uploadMobileMedia(opts: {
@@ -33,17 +32,15 @@ export async function uploadMobileMedia(opts: {
 }): Promise<void> {
   if (!useCloudStore()) return;
   if (!fs.existsSync(opts.localPath)) return;
-  const owner = await boundStudioOwner();
-  if (!owner) return;
   const fileName = path.basename(opts.localPath);
   const body = fs.readFileSync(opts.localPath);
   const put = await putBlobFile({
-    pathname: blobPathname(opts.styleId, opts.folderName, opts.kind, fileName, owner),
+    pathname: blobPathname(opts.styleId, opts.folderName, opts.kind, fileName),
     body,
     contentType: blobContentType(opts.kind, fileName),
   });
   await upsertNeonFile({
-    episodeId: ownedEpisodeRowId(opts.styleId, opts.folderName, owner),
+    episodeId: episodeRowId(opts.styleId, opts.folderName),
     kind: opts.kind,
     blobUrl: put.url,
     filename: fileName,
@@ -66,7 +63,7 @@ export async function resolveMobileMedia(opts: {
   if (fs.existsSync(opts.destPath)) return opts.destPath;
   if (!useCloudStore()) return null;
   const payload = await getBlobPayload(
-    blobPathname(opts.styleId, opts.folderName, opts.kind, opts.fileName, await boundStudioOwner()),
+    blobPathname(opts.styleId, opts.folderName, opts.kind, opts.fileName),
   );
   if (!payload) return null;
   const buf = Buffer.from(await new Response(payload.stream).arrayBuffer());
