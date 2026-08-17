@@ -90,14 +90,21 @@ function splitSpeakersBySex(job: MobileGenJob): { female: string[]; male: string
   return { female, male };
 }
 
-/** Scratch stress-test knobs — frame, body, holding, wearing, weather. */
+/** Scratch stress-test knobs — frame, body, holding, wearing, weather, crowd. */
 const POSE_GROUPS: { title: string; ids: string[] }[] = [
   { title: "Frame", ids: ["mcu-phone", "wide-full", "tight-face", "over-shoulder", "walk-in"] },
   { title: "Body", ids: ["sitting", "standing", "running", "sprawl", "dance", "leaning", "steps", "crouch", "handstand"] },
   { title: "Holding", ids: ["beer-cig", "pie"] },
   { title: "Wearing", ids: ["clothes-dress", "clothes-underwear"] },
   { title: "Weather / edge", ids: ["raining", "wash-hair"] },
+  { title: "Crowd / multi", ids: ["crowd-two-shot", "crowd-surround", "crowd-pile"] },
 ];
+
+const CROWD_POSE_LABELS: Record<string, string> = {
+  "crowd-two-shot": "Two-shot",
+  "crowd-surround": "Surround",
+  "crowd-pile": "Pile / tangle",
+};
 
 const thumbBtn = (on: boolean): CSSProperties => ({
   flex: "0 0 auto",
@@ -138,6 +145,7 @@ export default function ScratchPage() {
   const [job, setJob] = useState<MobileGenJob | null>(null);
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [speaker, setSpeaker] = useState("");
+  const [padCast, setPadCast] = useState<string[]>([]);
   const [sceneId, setSceneId] = useState("");
   const [poseId, setPoseId] = useState("mcu-phone");
   const [staging, setStaging] = useState("");
@@ -149,7 +157,10 @@ export default function ScratchPage() {
   const [lightbox, setLightbox] = useState("");
 
   const scratch = findScratchShot(story);
-  const beat: CrashStoryBeat | undefined = scratch?.shot.beats.find((b) => b.speaker.trim()) || scratch?.shot.beats[0];
+  const beat: CrashStoryBeat | undefined =
+    scratch?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === speaker.trim().toLowerCase()) ||
+    scratch?.shot.beats.find((b) => b.speaker.trim()) ||
+    scratch?.shot.beats[0];
   const plateFile = job?.shots.find((s) => s.shotId === scratch?.shot.id)?.plateFile || scratch?.shot.plateFile || "";
   const plateSrc =
     plateFile && plateFile !== "__error__"
@@ -167,7 +178,13 @@ export default function ScratchPage() {
     : [];
   const stackClips = [...underClips.filter((c) => c.clipFile), ...padStack];
   const poses = useMemo(() => plateLtxCampaignScenarios(), []);
-  const poseById = useMemo(() => new Map(poses.map((p) => [p.id, p])), [poses]);
+  const poseById = useMemo(() => {
+    const map = new Map(poses.map((p) => [p.id, p]));
+    for (const [id, label] of Object.entries(CROWD_POSE_LABELS)) {
+      map.set(id, { id, label });
+    }
+    return map;
+  }, [poses]);
   const castBySex = useMemo(() => (job ? splitSpeakersBySex(job) : { female: [], male: [] }), [job]);
 
   const loadStory = useCallback(async (next: MobileGenJob) => {
@@ -221,7 +238,10 @@ export default function ScratchPage() {
           return;
         }
         setJob(d.job);
-        setSpeaker(pickDefaultSpeaker(d.job));
+        const who = pickDefaultSpeaker(d.job);
+        const fromScratch = d.job.scratchPlate?.cast?.filter(Boolean) || [];
+        setSpeaker(d.job.scratchPlate?.speaker || who);
+        setPadCast(fromScratch.length ? fromScratch : who ? [who] : []);
         setSceneId(pickDefaultPlace(d.job));
         await loadStory(d.job);
       })
@@ -254,20 +274,29 @@ export default function ScratchPage() {
     poseId?: string;
     staging?: string;
     speaker?: string;
+    cast?: string[];
     sceneId?: string;
   }) {
     if (!job) return;
     const nextPose = opts?.poseId ?? poseId;
     const nextStaging = opts?.staging ?? staging;
     const nextSpeaker = opts?.speaker ?? speaker;
+    const nextCast = opts?.cast ?? (padCast.length ? padCast : nextSpeaker ? [nextSpeaker] : []);
     const nextScene = opts?.sceneId ?? sceneId;
-    if (!nextSpeaker || !nextScene) return;
+    if (!nextSpeaker || !nextScene || !nextCast.length) return;
     setBusy("draw");
     setError("");
     try {
       const ensured = await postJson<{ job: MobileGenJob; shotId?: string }>(
         "/api/crash/mobile/scratch",
-        { action: "ensure", jobId: job.id, speaker: nextSpeaker, sceneId: nextScene, poseId: nextPose },
+        {
+          action: "ensure",
+          jobId: job.id,
+          speaker: nextSpeaker,
+          cast: nextCast,
+          sceneId: nextScene,
+          poseId: nextPose,
+        },
       );
       setJob(ensured.job);
       const drawn = await postJson<{ job: MobileGenJob; staging?: string }>(
@@ -275,6 +304,8 @@ export default function ScratchPage() {
         {
           action: "preset",
           jobId: job.id,
+          speaker: nextSpeaker,
+          cast: nextCast,
           poseId: nextPose,
           staging: nextStaging || undefined,
         },
@@ -290,12 +321,25 @@ export default function ScratchPage() {
   }
 
   function pickCast(name: string) {
-    const src = job ? faceUrl(job, name) : "";
-    if (name === speaker && src) {
-      setLightbox(src);
+    const onPad = padCast.some((n) => n === name);
+    if (!onPad) {
+      setPadCast([...padCast, name]);
+      setSpeaker(name);
       return;
     }
-    setSpeaker(name);
+    if (name !== speaker) {
+      // Already on the still — this mouth gets the lip-sync line.
+      setSpeaker(name);
+      return;
+    }
+    if (padCast.length === 1) {
+      const src = job ? faceUrl(job, name) : "";
+      if (src) setLightbox(src);
+      return;
+    }
+    const next = padCast.filter((n) => n !== name);
+    setPadCast(next);
+    setSpeaker(next[0] || "");
   }
 
   function dropPlace(id: string) {
@@ -307,7 +351,13 @@ export default function ScratchPage() {
     }
     setSceneId(id);
     // Place is backdrop — drop it straight onto the pad and redraw.
-    void draw({ sceneId: id, speaker, poseId, staging: staging || undefined });
+    void draw({
+      sceneId: id,
+      speaker,
+      cast: padCast.length ? padCast : speaker ? [speaker] : [],
+      poseId,
+      staging: staging || undefined,
+    });
   }
 
   async function saveLine() {
@@ -357,8 +407,8 @@ export default function ScratchPage() {
         <div>
           <div style={{ fontWeight: 800, fontSize: "18px", color: "var(--chrome)" }}>Scratch</div>
           <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
-            Pad learns frame + position. Cast gets the extreme knobs. Place just drops on. Clips stack
-            here. Episode desk stays on /m.
+            Still → line → lip-sync clip. Tap faces onto the pad (pile OK). Tap another on-pad face to
+            switch who speaks. Clips stack here. Episode desk stays on /m.
           </div>
         </div>
         <a href={job ? `/m?job=${encodeURIComponent(job.id)}` : "/m"} style={{ color: "var(--acid)", fontSize: "13px", fontWeight: 700 }}>
@@ -405,14 +455,26 @@ export default function ScratchPage() {
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                       {group.names.map((name) => {
                         const src = faceUrl(job, name);
-                        const on = name === speaker;
+                        const onPad = padCast.includes(name);
+                        const speaks = name === speaker;
                         return (
                           <button
                             key={name}
                             type="button"
-                            title={on && src ? "Tap again to enlarge" : name}
+                            title={
+                              !onPad
+                                ? `Add ${name} to pad`
+                                : !speaks
+                                  ? "On pad — tap to make them speak (lip sync)"
+                                  : padCast.length === 1 && src
+                                    ? "Tap again to enlarge"
+                                    : "Speaking — tap again to pull off pad"
+                            }
                             onClick={() => pickCast(name)}
-                            style={thumbBtn(on)}
+                            style={{
+                              ...thumbBtn(onPad),
+                              boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
+                            }}
                           >
                             {src ? (
                               // eslint-disable-next-line @next/next/no-img-element
@@ -467,7 +529,7 @@ export default function ScratchPage() {
                       padding: "12px",
                     }}
                   >
-                    Drop a place. Pick who. Then hammer the position presets.
+                    Drop a place. Tap faces onto the pad. Then still → Save line → clip (lip sync).
                   </div>
                 )}
               </button>
@@ -508,9 +570,23 @@ export default function ScratchPage() {
             </div>
           </div>
 
-          <MobilePrimaryButton disabled={!speaker || !sceneId || Boolean(busy)} onClick={() => void draw()}>
-            {busy === "draw" ? "Drawing…" : "Draw this picture"}
+          <MobilePrimaryButton
+            disabled={!padCast.length || !sceneId || Boolean(busy)}
+            onClick={() => void draw({ cast: padCast, speaker: speaker || padCast[0] })}
+          >
+            {busy === "draw"
+              ? "Drawing…"
+              : padCast.length > 1
+                ? `Draw ${padCast.length} on pad`
+                : "Draw this picture"}
           </MobilePrimaryButton>
+
+          {padCast.length > 1 ? (
+            <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
+              On pad: {padCast.join(" · ")}. Speaks: <span style={{ color: "var(--acid)" }}>{speaker || padCast[0]}</span>
+              {" "}— Save line + Generate clip tests that mouth.
+            </div>
+          ) : null}
 
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {POSE_GROUPS.map((group) => (
@@ -523,14 +599,21 @@ export default function ScratchPage() {
                     const p = poseById.get(id);
                     if (!p) return null;
                     const on = id === poseId;
+                    const crowd = id.startsWith("crowd-");
                     return (
                       <button
                         key={id}
                         type="button"
-                        disabled={Boolean(busy) || !speaker || !sceneId}
+                        disabled={Boolean(busy) || !padCast.length || !sceneId || (crowd && padCast.length < 2)}
                         onClick={() => {
                           setPoseId(id);
-                          void draw({ poseId: id, staging: "", speaker, sceneId });
+                          void draw({
+                            poseId: id,
+                            staging: "",
+                            speaker: speaker || padCast[0],
+                            cast: padCast,
+                            sceneId,
+                          });
                         }}
                         style={{
                           padding: "6px 8px",
@@ -540,6 +623,7 @@ export default function ScratchPage() {
                           color: on ? "#111" : "var(--chrome)",
                           fontSize: "11px",
                           fontWeight: 700,
+                          opacity: crowd && padCast.length < 2 ? 0.45 : 1,
                         }}
                       >
                         {p.label.replace(/^\d+\s+/, "")}
@@ -554,7 +638,7 @@ export default function ScratchPage() {
           <MobileTextInput
             value={staging}
             onChange={setStaging}
-            placeholder="Custom — emotion, holding, wearing, where they are in frame…"
+            placeholder="Custom — emotion, holding, wearing, pile, who is where…"
             multiline
             rows={3}
           />
@@ -564,7 +648,7 @@ export default function ScratchPage() {
           <MobileTextInput
             value={line}
             onChange={setLine}
-            placeholder="What they say — not the still position."
+            placeholder="What they say — lip-sync test line. Not the still position."
             multiline
             rows={3}
           />
@@ -579,7 +663,7 @@ export default function ScratchPage() {
             {busy === "voice" ? "Saving…" : "Save line"}
           </MobilePrimaryButton>
           <MobilePrimaryButton disabled={!playable || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
-            {busy === "clip" ? "Sending…" : "Generate this clip"}
+            {busy === "clip" ? "Sending…" : "Generate lip-sync clip"}
           </MobilePrimaryButton>
         </div>
       )}

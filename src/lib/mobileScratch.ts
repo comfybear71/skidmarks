@@ -1,14 +1,18 @@
-import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
+import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileClipUnit, MobileGenJob, MobileShotUnit } from "./mobileGenJob";
-import { isCampaignShotId } from "./mobilePlateLtxCampaign";
-
+import { isCampaignShotId, campaignStagingForId } from "./mobilePlateLtxCampaign";
+import { newId } from "./types";
+import { defaultSoloStaging } from "./mobileImageMotion";
 /** One experiment still — many positions, same card. Hidden on /m. */
 export const SCRATCH_SHOT_TITLE = "Scratch";
 
 export type ScratchPlateRef = {
   shotId: string;
   sceneId: string;
+  /** Who speaks the saved line / lip-sync clip. */
   speaker: string;
+  /** Everyone on the still — speaker first when present. */
+  cast?: string[];
   poseId?: string;
 };
 
@@ -87,4 +91,96 @@ export function scratchPadClips(
     out.push(clip);
   }
   return out;
+}
+
+export function normalizeScratchCast(speaker: string, cast?: string[]): string[] {
+  const primary = speaker.trim();
+  const rest = (cast || []).map((n) => n.trim()).filter(Boolean);
+  const ordered = primary
+    ? [primary, ...rest.filter((n) => n.toLowerCase() !== primary.toLowerCase())]
+    : rest;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const name of ordered) {
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+/** Solo = campaign / default. Crowd = everyone locked in frame for lip-sync + pile tests. */
+export function scratchStagingForCast(opts: {
+  cast: string[];
+  speaker: string;
+  placeName: string;
+  poseId?: string;
+  staging?: string;
+}): string {
+  const cast = normalizeScratchCast(opts.speaker, opts.cast);
+  const custom = (opts.staging || "").trim();
+  if (custom) return custom;
+  const place = (opts.placeName || "this place").trim() || "this place";
+  const speaker = (opts.speaker || cast[0] || "").trim();
+  if (cast.length <= 1) {
+    if (opts.poseId) return campaignStagingForId(opts.poseId, speaker, place);
+    return defaultSoloStaging(speaker);
+  }
+  const names = cast.join(", ");
+  const also = cast.filter((n) => n.toLowerCase() !== speaker.toLowerCase()).join(" and ");
+  if (opts.poseId === "crowd-pile") {
+    return [
+      `${names} piled together at ${place}.`,
+      `Only ${names} in frame, no one else appears.`,
+      `${speaker} is prominent in the pile.`,
+      `${also} are pressed in close with them — tangled bodies, using each other and the place.`,
+      `Same faces as the face cards. Do not invent extras or a sixth body.`,
+    ].join(" ");
+  }
+  if (opts.poseId === "crowd-two-shot") {
+    return [
+      `${names} in a tight two-shot at ${place}.`,
+      `Only ${names} in frame, no one else appears.`,
+      `${speaker} is nearest the camera, speaking.`,
+      `${also} stay in frame beside them, reacting.`,
+      `Same faces as the face cards. Do not invent extras.`,
+    ].join(" ");
+  }
+  if (opts.poseId === "crowd-surround") {
+    return [
+      `${names} crowded around each other at ${place}.`,
+      `Only ${names} in frame, no one else appears.`,
+      `${speaker} is in the middle, prominent.`,
+      `${also} flank and lean in — hands, shoulders, close.`,
+      `Same faces as the face cards. Do not invent extras.`,
+    ].join(" ");
+  }
+  return [
+    `${names} together at ${place}.`,
+    `Only ${names} in frame, no one else appears.`,
+    `${speaker} is prominent.`,
+    `${also} are in the same still with them — close, using the furniture and each other.`,
+    `Bodies interact. Same faces as the face cards. Do not invent extras.`,
+  ].join(" ");
+}
+
+/** One beat per face so compositeShotPlate and LTX see the whole gang. */
+export function scratchBeatsForCast(
+  cast: string[],
+  existing: CrashStoryBeat[] = [],
+): CrashStoryBeat[] {
+  const names = [...new Set(cast.map((n) => n.trim()).filter(Boolean))];
+  const bySpeaker = new Map(
+    existing
+      .filter((b) => b.speaker.trim())
+      .map((b) => [b.speaker.trim().toLowerCase(), b] as const),
+  );
+  const beats: CrashStoryBeat[] = [];
+  for (const name of names) {
+    const prev = bySpeaker.get(name.toLowerCase());
+    beats.push(prev ? { ...prev, speaker: name } : { id: newId("beat"), speaker: name, text: "" });
+  }
+  if (!beats.length) beats.push({ id: newId("beat"), speaker: "", text: "" });
+  return beats;
 }
