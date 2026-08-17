@@ -599,19 +599,58 @@ export default function ScratchPage() {
     setBusy("voice");
     setError("");
     try {
-      const data = await postJson<{ job?: MobileGenJob }>("/api/crash/mobile/beat-audio", {
-        jobId: job.id,
-        beatId: beat.id,
-        text,
-      });
+      const data = await postJson<{ job?: MobileGenJob; voiceFile?: string }>(
+        "/api/crash/mobile/beat-audio",
+        {
+          jobId: job.id,
+          beatId: beat.id,
+          text,
+        },
+      );
       if (data.job) setJob(data.job);
-      // Keep the words just Saved — loadStory used to snap back to the first
-      // beat on the scratch card and the box looked like Save did nothing.
+      const savedVoice = (data.voiceFile || "").trim();
+      if (savedVoice) {
+        // Apply immediately — loadStory keepLine used to return before the
+        // client saw the new mp3, so Generate stayed grey after a good Save.
+        setStory((cur) => {
+          if (!cur) return cur;
+          return {
+            ...cur,
+            scenes: cur.scenes.map((sc) => ({
+              ...sc,
+              shots: sc.shots.map((sh) => ({
+                ...sh,
+                beats: sh.beats.map((b) =>
+                  b.id === beat.id ? { ...b, text, voiceFile: savedVoice } : b,
+                ),
+              })),
+            })),
+          };
+        });
+      }
       await loadStory(data.job || job, {
         preferSpeaker: beat.speaker || speaker,
         keepLine: text,
         keepStaging: true,
       });
+      // Re-apply voice after loadStory — cloud story GET can briefly lag the write.
+      if (savedVoice) {
+        setStory((cur) => {
+          if (!cur) return cur;
+          return {
+            ...cur,
+            scenes: cur.scenes.map((sc) => ({
+              ...sc,
+              shots: sc.shots.map((sh) => ({
+                ...sh,
+                beats: sh.beats.map((b) =>
+                  b.id === beat.id ? { ...b, text, voiceFile: savedVoice } : b,
+                ),
+              })),
+            })),
+          };
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save the line");
     } finally {
@@ -661,6 +700,13 @@ export default function ScratchPage() {
   }
 
   const playable = Boolean(beat?.voiceFile && isMobileSavedVoiceFile(beat.voiceFile));
+  const clipPlayable = Boolean(
+    beat &&
+      job?.clips?.some(
+        (c) => c.beatId === beat.id && isMobileSavedVoiceFile(c.voiceFile),
+      ),
+  );
+  const canGenerate = playable || clipPlayable;
 
   useScratchPadHotkeys({
     enabled: Boolean(job) && !resuming,
@@ -673,7 +719,7 @@ export default function ScratchPage() {
       });
     },
     onGenerate: () => {
-      if (busy || !playable) return;
+      if (busy || !canGenerate) return;
       void makeClip();
     },
     onArchive: () => {
