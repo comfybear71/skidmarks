@@ -151,7 +151,7 @@ export function mergeClipsFromStory(
     // Finished takes must survive even if the beat fell out of the
     // queueable set (speaker rename, leftover hydrate, etc.). Wiping
     // them made the previous Generate video disappear on the next Save.
-    if (prev.clipStatus === "done" || stackedClipFiles(prev).length > 0) {
+    if (prev.clipStatus === "done" || prev.clipStatus === "running" || stackedClipFiles(prev).length > 0) {
       next.push(prev);
       continue;
     }
@@ -224,6 +224,11 @@ export function queuedSavedClips(clips: MobileClipUnit[]): MobileClipUnit[] {
   return clips.filter(
     (c) => Boolean((c.voiceFile || "").trim()) && !isLeftoverPackVoiceFile(c.voiceFile),
   );
+}
+
+/** Still waiting on LTX (queued or this worker owns it). */
+export function clipNeedsAnimate(clip: Pick<MobileClipUnit, "clipStatus">): boolean {
+  return clip.clipStatus === "pending" || clip.clipStatus === "running";
 }
 
 export function clipQueueError(clips: MobileClipUnit[]): string {

@@ -73,7 +73,8 @@ export type MobileClipUnit = {
   clipFile: string;
   /** Earlier LTX takes for this line — Generate again must stack, not replace. */
   priorClipFiles?: string[];
-  clipStatus: "pending" | "done" | "error";
+  /** pending = queued; running = this invoke owns the LTX job; done/error = finished. */
+  clipStatus: "pending" | "running" | "done" | "error";
   error: string;
   speaker?: string;
   line?: string;
