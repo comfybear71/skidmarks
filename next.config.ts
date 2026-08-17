@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
       "./node_modules/@ffmpeg-installer/**",
       "./node_modules/ffmpeg-static/ffmpeg",
     ],
+    // public/ is served statically, not bundled with a function — this
+    // one-time seed route needs the actual bytes on disk to push to Blob.
+    "/api/home/seed-cast": ["./public/skid-cast/**"],
   },
   experimental: {
     serverActions: {

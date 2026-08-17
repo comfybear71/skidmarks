@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 
 type CastMember = { file: string; name: string; ar: number };
 
+// Seeded once, at a fixed pathname (addRandomSuffix:false), by
+// GET /api/home/seed-cast — visit that route after changing the cast
+// image set, since these URLs are hardcoded rather than looked up.
+const CAST_BLOB_BASE =
+  "https://klpgwmpsxnp9aoca.public.blob.vercel-storage.com/home/skid-cast/";
+
 // Backgrounds stripped to real transparency and trimmed from the cast dump
 // at public/skid-cast/ — see docs/ for how (checkerboard-aware alpha cut,
 // not a simple threshold, since the raw exports were flat JPEGs with the
@@ -57,7 +63,7 @@ function buildFigureNode(
   wrap.className = variant === "walker" ? "hm-walker" : "hm-figure";
 
   const img = document.createElement("img");
-  img.src = "/skid-cast/" + c.file;
+  img.src = CAST_BLOB_BASE + c.file;
   img.alt = c.name || "";
   img.loading = "lazy";
   wrap.appendChild(img);
