@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   MobileAudioPlayer,
   MobilePrimaryButton,
@@ -155,6 +155,7 @@ export default function ScratchPage() {
   const [resuming, setResuming] = useState(true);
   const [resumeError, setResumeError] = useState("");
   const [lightbox, setLightbox] = useState("");
+  const drawSeq = useRef(0);
 
   const scratch = findScratchShot(story);
   const beat: CrashStoryBeat | undefined =
@@ -284,6 +285,7 @@ export default function ScratchPage() {
     const nextCast = opts?.cast ?? (padCast.length ? padCast : nextSpeaker ? [nextSpeaker] : []);
     const nextScene = opts?.sceneId ?? sceneId;
     if (!nextSpeaker || !nextScene || !nextCast.length) return;
+    const seq = ++drawSeq.current;
     setBusy("draw");
     setError("");
     try {
@@ -298,6 +300,7 @@ export default function ScratchPage() {
           poseId: nextPose,
         },
       );
+      if (seq !== drawSeq.current) return;
       setJob(ensured.job);
       const drawn = await postJson<{ job: MobileGenJob; staging?: string }>(
         "/api/crash/mobile/scratch",
@@ -310,13 +313,15 @@ export default function ScratchPage() {
           staging: nextStaging || undefined,
         },
       );
+      if (seq !== drawSeq.current) return;
       setJob(drawn.job);
       if (drawn.staging) setStaging(drawn.staging);
       await loadStory(drawn.job);
     } catch (e) {
+      if (seq !== drawSeq.current) return;
       setError(e instanceof Error ? e.message : "Couldn't draw");
     } finally {
-      setBusy("");
+      if (seq === drawSeq.current) setBusy("");
     }
   }
 
@@ -401,7 +406,7 @@ export default function ScratchPage() {
 
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh", paddingBottom: "48px" }}>
-      <div style={{ padding: "14px 16px 10px" }}>
+      <div style={{ padding: "28px 16px 0" }}>
         <div
           style={{
             fontFamily: "var(--font-display), sans-serif",
@@ -415,240 +420,234 @@ export default function ScratchPage() {
       </div>
 
       {error ? (
-        <div style={{ margin: "0 16px 12px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
+        <div style={{ margin: "12px 16px 0", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}
         </div>
       ) : null}
 
       {resuming ? (
-        <div style={{ padding: "24px 16px", color: "var(--chrome-dim)" }}>Opening…</div>
+        <div style={{ padding: "48px 16px", color: "var(--chrome-dim)" }}>Opening…</div>
       ) : resumeError && !job ? (
-        <div style={{ padding: "24px 16px", color: "var(--magenta-hot)", fontWeight: 600 }}>{resumeError}</div>
+        <div style={{ padding: "48px 16px", color: "var(--magenta-hot)", fontWeight: 600 }}>{resumeError}</div>
       ) : !job ? (
-        <div style={{ padding: "24px 16px", color: "var(--chrome-dim)", fontSize: "14px" }}>
+        <div style={{ padding: "48px 16px", color: "var(--chrome-dim)", fontSize: "14px" }}>
           Open /m, pick a face and a place, then come back here. Don&apos;t tap Start directing on an episode that already exists.
         </div>
       ) : (
-        <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: "14px" }}>
-          <div className="scratch-stage">
-            <div className="scratch-rail">
-              {(
-                [
-                  { title: "Female", names: castBySex.female },
-                  { title: "Male", names: castBySex.male },
-                ] as const
-              ).map((group) =>
-                group.names.length ? (
-                  <div key={group.title}>
-                    <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-                      {group.title}
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {group.names.map((name) => {
-                        const src = faceUrl(job, name);
-                        const onPad = padCast.includes(name);
-                        const speaks = name === speaker;
-                        return (
-                          <button
-                            key={name}
-                            type="button"
-                            title={
-                              !onPad
-                                ? `Add ${name} to pad`
-                                : !speaks
-                                  ? "On pad — tap to make them speak (lip sync)"
-                                  : padCast.length === 1 && src
-                                    ? "Tap again to enlarge"
-                                    : "Speaking — tap again to pull off pad"
-                            }
-                            onClick={() => pickCast(name)}
-                            style={{
-                              ...thumbBtn(onPad),
-                              boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
-                            }}
-                          >
-                            {src ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={src}
-                                alt=""
-                                style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
-                              />
-                            ) : (
-                              <div
-                                style={{
-                                  width: `${SIDE_THUMB_PX}px`,
-                                  height: `${SIDE_THUMB_PX}px`,
-                                  color: "var(--chrome-dim)",
-                                  fontSize: "10px",
-                                  overflow: "hidden",
-                                }}
-                              >
-                                {name}
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null,
-              )}
-            </div>
-
-            <div className="scratch-pad-col">
-              <button
-                type="button"
-                disabled={!plateSrc}
-                onClick={() => plateSrc && setLightbox(plateSrc)}
-                title={plateSrc ? "Tap to enlarge" : undefined}
-                style={{
-                  ...mobileCard,
-                  padding: "2px",
-                  lineHeight: 0,
-                  width: "100%",
-                  border: "none",
-                  cursor: plateSrc ? "zoom-in" : "default",
-                  background: "var(--panel)",
-                }}
-              >
-                {plateSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={plateSrc}
-                    alt=""
-                    style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "100%",
-                      aspectRatio: "1",
-                      minHeight: `${PLATE_TILE_PX * 2.5}px`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--chrome-dim)",
-                      fontSize: "12px",
-                      textAlign: "center",
-                      padding: "12px",
-                    }}
-                  >
-                    Faces left. Place right. Draw.
-                  </div>
-                )}
-              </button>
-            </div>
-
-            <div className="scratch-rail">
-              {job.scenes.map((sc) => {
-                const src = placeUrl(job, sc.id);
-                const on = sc.id === sceneId;
-                return (
-                  <button
-                    key={sc.id}
-                    type="button"
-                    disabled={Boolean(busy)}
-                    title={on && src ? "Tap again to enlarge" : `Drop ${sc.placeName} on pad`}
-                    onClick={() => dropPlace(sc.id)}
-                    style={thumbBtn(on)}
-                  >
-                    {src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={src}
-                        alt=""
-                        style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: `${SIDE_THUMB_PX}px`,
-                          height: `${SIDE_THUMB_PX}px`,
-                          color: "var(--chrome-dim)",
-                          fontSize: "10px",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {sc.placeName}
+        <>
+          <div className="scratch-viewport">
+            <div className="scratch-stage">
+              <div className="scratch-rail">
+                {(
+                  [
+                    { title: "Female", names: castBySex.female },
+                    { title: "Male", names: castBySex.male },
+                  ] as const
+                ).map((group) =>
+                  group.names.length ? (
+                    <div key={group.title}>
+                      <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
+                        {group.title}
                       </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {job.folderName && stackClips.length ? (
-            <div className="scratch-clip-rail">
-              <PlateClipThumbs job={job} clips={stackClips} preload />
-            </div>
-          ) : null}
-
-          <MobilePrimaryButton
-            disabled={!padCast.length || !sceneId || Boolean(busy)}
-            onClick={() => void draw({ cast: padCast, speaker: speaker || padCast[0] })}
-          >
-            {busy === "draw"
-              ? "Drawing…"
-              : padCast.length > 1
-                ? `Draw ${padCast.length} on pad`
-                : "Draw this picture"}
-          </MobilePrimaryButton>
-
-          {padCast.length > 1 ? (
-            <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
-              On pad: {padCast.join(" · ")}. Speaks: <span style={{ color: "var(--acid)" }}>{speaker || padCast[0]}</span>
-              {" "}— Save line + Generate clip tests that mouth.
-            </div>
-          ) : null}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {POSE_GROUPS.map((group) => (
-              <div key={group.title}>
-                <div style={{ color: "var(--chrome-dim)", fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>
-                  {group.title}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {group.ids.map((id) => {
-                    const p = poseById.get(id);
-                    if (!p) return null;
-                    const on = id === poseId;
-                    const crowd = id.startsWith("crowd-");
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        disabled={Boolean(busy) || !padCast.length || !sceneId || (crowd && padCast.length < 2)}
-                        onClick={() => {
-                          setPoseId(id);
-                          void draw({
-                            poseId: id,
-                            staging: "",
-                            speaker: speaker || padCast[0],
-                            cast: padCast,
-                            sceneId,
-                          });
-                        }}
-                        style={{
-                          padding: "6px 8px",
-                          borderRadius: "2px",
-                          border: on ? "1px solid var(--acid)" : "1px solid var(--line)",
-                          background: on ? "var(--acid)" : "var(--panel-2)",
-                          color: on ? "#111" : "var(--chrome)",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          opacity: crowd && padCast.length < 2 ? 0.45 : 1,
-                        }}
-                      >
-                        {p.label.replace(/^\d+\s+/, "")}
-                      </button>
-                    );
-                  })}
-                </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        {group.names.map((name) => {
+                          const src = faceUrl(job, name);
+                          const onPad = padCast.includes(name);
+                          const speaks = name === speaker;
+                          return (
+                            <button
+                              key={name}
+                              type="button"
+                              title={
+                                !onPad
+                                  ? `Add ${name} to pad`
+                                  : !speaks
+                                    ? "On pad — tap to make them speak (lip sync)"
+                                    : padCast.length === 1 && src
+                                      ? "Tap again to enlarge"
+                                      : "Speaking — tap again to pull off pad"
+                              }
+                              onClick={() => pickCast(name)}
+                              style={{
+                                ...thumbBtn(onPad),
+                                boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
+                              }}
+                            >
+                              {src ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={src}
+                                  alt=""
+                                  style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
+                                />
+                              ) : (
+                                <div
+                                  style={{
+                                    width: `${SIDE_THUMB_PX}px`,
+                                    height: `${SIDE_THUMB_PX}px`,
+                                    color: "var(--chrome-dim)",
+                                    fontSize: "10px",
+                                    overflow: "hidden",
+                                  }}
+                                >
+                                  {name}
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null,
+                )}
               </div>
-            ))}
+
+              <div className="scratch-pad-col">
+                <button
+                  type="button"
+                  disabled={!plateSrc}
+                  onClick={() => plateSrc && setLightbox(plateSrc)}
+                  title={plateSrc ? "Tap to enlarge" : undefined}
+                  style={{
+                    ...mobileCard,
+                    padding: "2px",
+                    lineHeight: 0,
+                    width: "100%",
+                    border: "none",
+                    cursor: plateSrc ? "zoom-in" : "default",
+                    background: "var(--panel)",
+                  }}
+                >
+                  {plateSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={plateSrc}
+                      alt=""
+                      style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        aspectRatio: "1",
+                        minHeight: `${PLATE_TILE_PX * 2.5}px`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--chrome-dim)",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        padding: "12px",
+                      }}
+                    >
+                      Faces left. Place right. Draw.
+                    </div>
+                  )}
+                </button>
+              </div>
+
+              <div className="scratch-rail">
+                {job.scenes.map((sc) => {
+                  const src = placeUrl(job, sc.id);
+                  const on = sc.id === sceneId;
+                  return (
+                    <button
+                      key={sc.id}
+                      type="button"
+                      disabled={Boolean(busy)}
+                      title={on && src ? "Tap again to enlarge" : `Drop ${sc.placeName} on pad`}
+                      onClick={() => dropPlace(sc.id)}
+                      style={thumbBtn(on)}
+                    >
+                      {src ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={src}
+                          alt=""
+                          style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: `${SIDE_THUMB_PX}px`,
+                            height: `${SIDE_THUMB_PX}px`,
+                            color: "var(--chrome-dim)",
+                            fontSize: "10px",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {sc.placeName}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {job.folderName && stackClips.length ? (
+              <div className="scratch-clip-rail">
+                <PlateClipThumbs job={job} clips={stackClips} preload />
+              </div>
+            ) : null}
+
+            <MobilePrimaryButton
+              disabled={!padCast.length || !sceneId || Boolean(busy)}
+              onClick={() => void draw({ cast: padCast, speaker: speaker || padCast[0] })}
+            >
+              {busy === "draw"
+                ? "Drawing…"
+                : padCast.length > 1
+                  ? `Draw ${padCast.length} on pad`
+                  : "Draw this picture"}
+            </MobilePrimaryButton>
           </div>
+
+          <div style={{ padding: "0 16px 28px", display: "flex", flexDirection: "column", gap: "18px" }}>
+            {padCast.length > 1 ? (
+              <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
+                On pad: {padCast.join(" · ")}. Speaks:{" "}
+                <span style={{ color: "var(--acid)" }}>{speaker || padCast[0]}</span>
+              </div>
+            ) : null}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              {POSE_GROUPS.map((group) => (
+                <div key={group.title}>
+                  <div className="scratch-group-label">{group.title}</div>
+                  <div className="scratch-chip-row">
+                    {group.ids.map((id) => {
+                      const p = poseById.get(id);
+                      if (!p) return null;
+                      const on = id === poseId;
+                      const crowd = id.startsWith("crowd-");
+                      const needCrowd = crowd && padCast.length < 2;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          className="scratch-chip"
+                          data-on={on ? "1" : "0"}
+                          disabled={!padCast.length || !sceneId || needCrowd}
+                          onClick={() => {
+                            setPoseId(id);
+                            void draw({
+                              poseId: id,
+                              staging: "",
+                              speaker: speaker || padCast[0],
+                              cast: padCast,
+                              sceneId,
+                            });
+                          }}
+                        >
+                          {p.label.replace(/^\d+\s+/, "")}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
 
           <MobileTextInput
             value={staging}
@@ -680,7 +679,8 @@ export default function ScratchPage() {
           <MobilePrimaryButton disabled={!playable || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
             {busy === "clip" ? "Sending…" : "Generate lip-sync clip"}
           </MobilePrimaryButton>
-        </div>
+          </div>
+        </>
       )}
 
       {lightbox ? <ScratchLightbox src={lightbox} onClose={() => setLightbox("")} /> : null}
