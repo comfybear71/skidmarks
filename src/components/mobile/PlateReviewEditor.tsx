@@ -1416,8 +1416,13 @@ function ShotLineEditor({
             })}
             beat={beat}
             positionPrompt={shot.staging || ""}
-            onPositionSaved={(staging) =>
-              onPlateRebuilt(shot.plateFile, staging, shot.summary, shot.plateTakes)
+            onPositionSaved={(staging, plate) =>
+              onPlateRebuilt(
+                plate?.plateFile !== undefined ? plate.plateFile : shot.plateFile,
+                staging,
+                shot.summary,
+                plate?.plateTakes !== undefined ? plate.plateTakes : shot.plateTakes,
+              )
             }
             onSaved={(text, voiceFile, imageMotion, nextJob) =>
               onBeatSaved(beat.id, text, voiceFile, imageMotion, nextJob)
@@ -1520,7 +1525,10 @@ function BeatLineEditor({
   shotSpeakers: string[];
   beat: CrashStoryBeat;
   positionPrompt: string;
-  onPositionSaved: (staging: string) => void;
+  onPositionSaved: (
+    staging: string,
+    plate?: { plateFile?: string; plateTakes?: PlateTake[] },
+  ) => void;
   onSaved: (text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
 }) {
   const [text, setText] = useState(
@@ -1536,6 +1544,7 @@ function BeatLineEditor({
     lineVoiceLabel({ speaker: beat.speaker, jobVoices, library: [] }),
   );
   const [saving, setSaving] = useState(false);
+  const [redrawing, setRedrawing] = useState(false);
   const [error, setError] = useState("");
   const [ltxOpen, setLtxOpen] = useState(false);
   const [positionOpen, setPositionOpen] = useState(false);
@@ -1574,6 +1583,37 @@ function BeatLineEditor({
       if (!res.ok) throw new Error(data.error || "Couldn't keep position prompt");
       const saved = (data.staging ?? body).trim();
       onPositionSaved(saved);
+      return saved;
+    },
+    [jobId, onPositionSaved, shotId],
+  );
+
+  const redrawPosition = useCallback(
+    async (body: string) => {
+      const staging = body.trim();
+      if (!staging) throw new Error("Write a position prompt before redrawing");
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId,
+          shotId,
+          staging,
+          summary: staging,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        plateFile?: string;
+        plateTakes?: PlateTake[];
+        staging?: string;
+      };
+      if (!res.ok) throw new Error(data.error || "Couldn't redraw that still");
+      const saved = (data.staging ?? staging).trim();
+      onPositionSaved(saved, {
+        plateFile: data.plateFile,
+        plateTakes: data.plateTakes,
+      });
       return saved;
     },
     [jobId, onPositionSaved, shotId],
@@ -1798,7 +1838,7 @@ function BeatLineEditor({
       {positionOpen ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <p style={{ margin: 0, color: "var(--chrome-dim)", fontSize: "11px", lineHeight: 1.45 }}>
-            Still position — who sits, leans, holds what. Not the spoken line.
+            Still position — who sits, leans, holds what. Keep the words, then Redo still to draw again.
           </p>
           <MobileTextInput
             value={positionBody}
@@ -1812,11 +1852,11 @@ function BeatLineEditor({
           {positionAssist.aiError ? (
             <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{positionAssist.aiError}</div>
           ) : null}
-          <div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
             <MobilePrimaryButton
               size="chip"
               tone="ghost"
-              disabled={saving || !positionDirty}
+              disabled={saving || redrawing || !positionDirty}
               onClick={() => {
                 setSaving(true);
                 setError("");
@@ -1826,7 +1866,21 @@ function BeatLineEditor({
                   .finally(() => setSaving(false));
               }}
             >
-              Keep position
+              {saving ? "…" : "Keep position"}
+            </MobilePrimaryButton>
+            <MobilePrimaryButton
+              size="chip"
+              disabled={saving || redrawing || !positionBody.trim()}
+              onClick={() => {
+                setRedrawing(true);
+                setError("");
+                void redrawPosition(positionBody)
+                  .then(() => setPositionDraft(null))
+                  .catch((e) => setError(e instanceof Error ? e.message : "Couldn't redraw that still"))
+                  .finally(() => setRedrawing(false));
+              }}
+            >
+              {redrawing ? "Drawing…" : "Redo still"}
             </MobilePrimaryButton>
           </div>
         </div>
