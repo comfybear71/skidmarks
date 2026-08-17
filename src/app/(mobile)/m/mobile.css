@@ -16,6 +16,15 @@ body {
   margin: 0 auto;
 }
 
+/* PC at 100% zoom should match the old 150% browser zoom. Most /m chrome
+ * is inline px, so html font-size would not move it — zoom the page. Phones
+ * stay 1× (coarse pointer / narrow). */
+@media (min-width: 700px) and (hover: hover) {
+  html {
+    zoom: 1.5;
+  }
+}
+
 @keyframes mobileStepIn {
   from {
     opacity: 0;
