@@ -14,7 +14,11 @@ export type ScratchScoreTag =
   | "face"
   | "place"
   | "speech"
-  | "chaos";
+  | "chaos"
+  | "eye"
+  | "fingers"
+  | "melt"
+  | "ghost";
 
 export type ScratchChaosId =
   | "none"
@@ -66,6 +70,10 @@ export type ScratchBenchRun = {
   tags: ScratchScoreTag[];
   note?: string;
   overlays?: ScratchOverlay[];
+  /** Pad drop snapshot for rehydrate / score context. */
+  placements?: { name: string; xPercent: number; yPercent: number }[];
+  environment?: string;
+  dialogue?: string;
 };
 
 export type ScratchBenchSession = {

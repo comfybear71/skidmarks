@@ -30,7 +30,14 @@ export {
 } from "./chaosPresets";
 export type { ScratchChaosPreset } from "./chaosPresets";
 
-export { SCRATCH_SCORE_OPTIONS, scoreSummary, toggleScoreTag } from "./scorecard";
+export {
+  SCRATCH_SCORE_OPTIONS,
+  SCRATCH_STRESS_TAGS,
+  runVerdict,
+  scoreSummary,
+  stressFailCount,
+  toggleScoreTag,
+} from "./scorecard";
 export type { ScratchScoreOption } from "./scorecard";
 
 export { SCRATCH_STRESS_WORDS, findStressHits, stressHitCount } from "./dictionary";
@@ -62,3 +69,13 @@ export type {
   ScratchDragPayload,
   ScratchPadPlacement,
 } from "./padDrop";
+
+export {
+  formatPositioningBlock,
+  generateScratchPrompt,
+  stagingActionBody,
+  stagingCameraBlock,
+} from "./promptFormatter";
+export type { ScratchPromptFormatConfig } from "./promptFormatter";
+
+export { downloadScratchRunsCsv, scratchRunsToCsv } from "./csvExport";

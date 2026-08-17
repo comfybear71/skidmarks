@@ -39,15 +39,20 @@ import {
   appendBenchRun,
   applyBibleTokens,
   clearBenchRuns,
+  downloadScratchRunsCsv,
   dropPercents,
   emptyBenchSession,
+  generateScratchPrompt,
   injectChaosStill,
   loadBenchSession,
   mergePositionIntoStaging,
   positionPromptLine,
+  saveBenchSession,
   setBenchChaos,
   setScratchDrag,
   readScratchDrag,
+  stagingActionBody,
+  stagingCameraBlock,
   updateBenchRunTags,
   upsertPlacement,
   type ScratchBenchSession,
@@ -56,6 +61,7 @@ import {
   type ScratchPadPlacement,
   type ScratchScoreTag,
 } from "@/lib/scratchBench";
+import { useScratchPadHotkeys } from "@/hooks/useScratchPadHotkeys";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
@@ -368,6 +374,9 @@ export default function ScratchPage() {
           positionPrompt: nextStaging || undefined,
           plateUrl,
           tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
+          placements: placements.length ? placements : undefined,
+          environment: placeName || undefined,
+          dialogue: line.trim() || undefined,
         });
         loggedId = next.runs[0]?.id || null;
         return next;
@@ -429,6 +438,19 @@ export default function ScratchPage() {
   function clearPrompt() {
     setStaging("");
     setBibleActiveId(null);
+  }
+
+  function compilePrompt() {
+    const composed = generateScratchPrompt({
+      placements,
+      environment: placeName,
+      camera: stagingCameraBlock(staging),
+      actionBody: stagingActionBody(staging),
+      dialogue: line,
+    });
+    setStaging(composed);
+    setBibleActiveId(null);
+    setPoseId("");
   }
 
   function clearPad() {
@@ -623,6 +645,9 @@ export default function ScratchPage() {
           plateUrl: plateSrc || undefined,
           clipUrl,
           tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
+          placements: placements.length ? placements : undefined,
+          environment: placeName || undefined,
+          dialogue: line.trim() || undefined,
         });
         loggedId = next.runs[0]?.id || null;
         return next;
@@ -636,6 +661,35 @@ export default function ScratchPage() {
   }
 
   const playable = Boolean(beat?.voiceFile && isMobileSavedVoiceFile(beat.voiceFile));
+
+  useScratchPadHotkeys({
+    enabled: Boolean(job) && !resuming,
+    onDraw: () => {
+      if (busy || !job || !padCast.length || !sceneId) return;
+      void draw({
+        cast: padCast,
+        speaker: speaker || padCast[0],
+        staging: staging || undefined,
+      });
+    },
+    onGenerate: () => {
+      if (busy || !playable) return;
+      void makeClip();
+    },
+    onArchive: () => {
+      saveBenchSession(bench);
+    },
+    onClearPad: () => {
+      clearPad();
+    },
+    onExportCsv: () => {
+      if (!bench.runs.length) {
+        setError("No history to export yet");
+        return;
+      }
+      downloadScratchRunsCsv(bench.runs);
+    },
+  });
 
   return (
     <main className="mobile-shell scratch-shell" style={{ minHeight: "100dvh", paddingBottom: "16px" }}>
@@ -669,6 +723,9 @@ export default function ScratchPage() {
               setBench((prev) => updateBenchRunTags(prev, runId, tags));
             }}
           />
+          <div className="scratch-hotkey-hint">
+            ⌘/Ctrl+Enter Draw · ⇧Enter Generate · S save log · E CSV · ⌫ clear pad
+          </div>
         </div>
       </div>
 
@@ -898,6 +955,9 @@ export default function ScratchPage() {
                   rows={5}
                 />
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                  <button type="button" style={ghostBtn} onClick={compilePrompt}>
+                    Compile layout
+                  </button>
                   <button type="button" style={ghostBtn} onClick={clearPrompt}>
                     Clear prompt
                   </button>
@@ -1056,10 +1116,30 @@ export default function ScratchPage() {
                 setSelectedRunId(run.id);
                 if (run.positionPrompt) setStaging(run.positionPrompt);
                 if (run.plateUrl) setLightbox(run.plateUrl);
+                if (run.placements?.length) {
+                  setPlacements(run.placements);
+                  setPadCast(run.placements.map((p) => p.name));
+                  setSpeaker(run.placements[0]?.name || speaker);
+                  setPadCleared(false);
+                }
+                if (run.dialogue) setLine(run.dialogue);
+                if (run.environment && job) {
+                  const match = job.scenes.find(
+                    (s) => s.placeName.trim().toLowerCase() === run.environment!.trim().toLowerCase(),
+                  );
+                  if (match) setSceneId(match.id);
+                }
               }}
               onClear={() => {
                 setBench((prev) => clearBenchRuns(prev));
                 setSelectedRunId(null);
+              }}
+              onExportCsv={() => {
+                if (!bench.runs.length) {
+                  setError("No history to export yet");
+                  return;
+                }
+                downloadScratchRunsCsv(bench.runs);
               }}
             />
           </div>
