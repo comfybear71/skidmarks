@@ -43,6 +43,8 @@ function patchShotFields(
  * POST { jobId, shotId, speaker, action: "add-cast" } — put one more
  * character into an existing shot (repeat to build a conversation).
  * Appends a beat for that speaker if they're not already in it.
+ * POST { jobId, shotId, speaker?, action: "add-line" } — another spoken
+ * take on the SAME still. Same face, new mp3, new clip thumb under the plate.
  * POST { jobId, shotId, action: "remove" } — take the shot out of the
  * strip entirely. Any plate/audio it made stays on disk/Blob, just
  * unlinked — same park-don't-delete rule as "drop". Returns the removed
@@ -80,6 +82,7 @@ export async function POST(req: Request) {
     const saveOnly = action === "save";
     const add = action === "add";
     const addCast = action === "add-cast";
+    const addLine = action === "add-line";
     const remove = action === "remove";
     const clear = action === "clear";
     const restore = action === "restore";
@@ -94,7 +97,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Need sceneId and shot" }, { status: 400 });
     }
     if (pick && !takeIdIn) return NextResponse.json({ error: "Need takeId" }, { status: 400 });
-    if (!drop && !saveOnly && !add && !addCast && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
+    if (!drop && !saveOnly && !add && !addCast && !addLine && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
       return NextResponse.json(
         { error: "Say who sits where — not two people stuck in the front." },
         { status: 400 },
@@ -201,6 +204,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
     }
     const liveShot = shot;
+
+    if (addLine) {
+      const speaker =
+        speakerIn ||
+        liveShot.beats.find((b) => b.speaker.trim() && !isHydratedLeftoverBeat(liveShot.id, b))?.speaker ||
+        "";
+      if (!speaker.trim()) {
+        return NextResponse.json({ error: "Need a character on this plate first" }, { status: 400 });
+      }
+      const kept = liveShot.beats.filter(
+        (b) => b.speaker.trim() && !isHydratedLeftoverBeat(liveShot.id, b),
+      );
+      const beat = { id: newId("beat"), speaker: speaker.trim(), text: "" };
+      const beats = [...kept, beat];
+      const withBeat: CrashStoryDoc = {
+        ...story,
+        scenes: story.scenes.map((sc) =>
+          sc.id === scene!.id
+            ? {
+                ...sc,
+                shots: sc.shots.map((sh) => (sh.id === shotId ? { ...sh, beats } : sh)),
+              }
+            : sc,
+        ),
+      };
+      await writeMobileStory(withBeat, job.folderName);
+      return NextResponse.json({ ok: true, job, beat });
+    }
 
     if (addCast) {
       const already = liveShot.beats.some(

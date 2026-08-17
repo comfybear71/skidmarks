@@ -14,7 +14,6 @@ import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
-import { PlateLtxCampaignCard } from "./PlateLtxCampaignCard";
 import { StoryFeed } from "./StoryFeed";
 import {
   allCastApproved,
@@ -29,6 +28,7 @@ import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import { MOBILE_STITCH_MOVIES } from "@/lib/mobilePipeline";
+import { episodeJobShots, episodeQueuedClips } from "@/lib/mobileScratch";
 import { queuedSavedClips } from "@/lib/mobileClipQueue";
 import { isJoKeyboardWarrior } from "@/lib/mobileImageMotion";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
@@ -849,8 +849,9 @@ export function StudioTree({
     allLocationsApproved(job) &&
     canLockEpisode(job.phase);
 
-  const plated = job.shots.filter((s) => s.plateFile && s.plateFile !== "__error__");
-  const queued = queuedSavedClips(job.clips);
+  const plated = episodeJobShots(job).filter((s) => s.plateFile && s.plateFile !== "__error__");
+  const episodeShots = episodeJobShots(job);
+  const queued = episodeQueuedClips({ ...job, clips: queuedSavedClips(job.clips) });
   const vibePreset = getShowStylePreset(job.styleId);
   const vibeRealism = job.styleRealism ?? vibePreset.defaultRealism;
 
@@ -863,9 +864,21 @@ export function StudioTree({
             {vibePreset.label} · {vibeRealism} · {styleRealismLabel(vibeRealism)}
           </div>
         </div>
-        {job.folderName && job.speakers.length && job.scenes.length ? (
-          <PlateLtxCampaignCard job={job} onJobChange={onJobChange} />
-        ) : null}
+        <a
+          href={job.id ? `/scratch?job=${encodeURIComponent(job.id)}` : "/scratch"}
+          style={{
+            ...mobileCard,
+            display: "block",
+            padding: "12px 14px",
+            color: "var(--acid)",
+            fontSize: "13px",
+            fontWeight: 700,
+            textDecoration: "none",
+            marginTop: "8px",
+          }}
+        >
+          Scratch — one plate, knobs, many positions
+        </a>
       </TreeBranch>
 
       <TreeBranch label="Cast" headerRight={<CollapseToggle open={castOpen} onToggle={() => setCastOpen((v) => !v)} />}>
@@ -1125,7 +1138,7 @@ export function StudioTree({
         {platesOpen && job.phase === "review" ? (
           <div style={{ marginTop: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "10px" }}>
-              {plated.length}/{job.shots.length} plated · {queued.length}{" "}
+              {plated.length}/{episodeShots.length} plated · {queued.length}{" "}
               {queued.length === 1 ? "line queued" : "lines queued"}
               {queued.length === 0 && plated.length
                 ? " — Save the spoken line (Play appears) before Generate video"
