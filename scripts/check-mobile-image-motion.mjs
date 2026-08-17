@@ -7,6 +7,7 @@ import {
   isJoKeyboardWarrior,
   joPhoneStagingExtra,
   ltxSendPrompt,
+  shortLtxLookLock,
   stripLtxLipSyncLead,
   withLtxLipSyncLead,
 } from "../src/lib/mobileImageMotion.ts";
@@ -101,5 +102,27 @@ assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "standing centre-frame")
 assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "tennis racket in hand"), "");
 
 assert.match(buildGlobalPrompt("skidmarks"), /dication is perfect/);
+
+const bigSexyBio =
+  "BIG AUSSIE MALE, BIT OF A POT BELLY, loves a beer, barrack for collingwood magpies, not a cartoon and not a photo a 3D model, brown greyish hair and not a beard but stubbly, longer hair and bit unkept, a bit older and slightly more beer belly, loves a smoke";
+const shortLook = shortLtxLookLock(bigSexyBio);
+assert.match(shortLook, /POT BELLY|pot belly|brown greyish hair|stubbly/i);
+assert.doesNotMatch(shortLook, /loves a beer/i);
+assert.doesNotMatch(shortLook, /barrack/i);
+assert.doesNotMatch(shortLook, /3d model/i);
+assert.ok(shortLook.length <= 120);
+
+const sexyMotion = buildDefaultBeatMotion({
+  styleId: "skidmarks",
+  speaker: "BIG SEXY",
+  line: "come on you magpies",
+  lookLock: bigSexyBio,
+});
+assert.match(sexyMotion, /^Use the provided start image as the first frame\./);
+assert.match(sexyMotion, /BIG SEXY says: "come on you magpies"/);
+assert.doesNotMatch(sexyMotion, /loves a beer/i);
+assert.doesNotMatch(sexyMotion, /barrack for collingwood/i);
+assert.doesNotMatch(sexyMotion, /not a cartoon and not a photo/i);
+assert.match(sexyMotion, /BIT OF A POT BELLY|pot belly/i);
 
 console.log("check-mobile-image-motion: ok");
