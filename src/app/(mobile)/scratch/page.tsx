@@ -8,7 +8,7 @@ import {
   mobileCard,
 } from "@/components/mobile/MobileUi";
 import { CastVoiceRow } from "@/components/mobile/CastVoiceRow";
-import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
+import { PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId } from "@/lib/mobileJobResume";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
@@ -76,25 +76,25 @@ function pickDefaultPlace(job: MobileGenJob): string {
   );
 }
 
-const SIDE_THUMB_PX = 72;
+const SIDE_THUMB_PX = 96;
 
 const selectStyle: CSSProperties = {
   ...mobileCard,
   width: "100%",
-  padding: "12px 14px",
+  padding: "6px 28px 6px 8px",
   color: "var(--chrome)",
-  fontSize: "14px",
+  fontSize: "12px",
   fontFamily: "inherit",
   appearance: "none",
   backgroundImage:
     "linear-gradient(45deg, transparent 50%, var(--chrome-dim) 50%), linear-gradient(135deg, var(--chrome-dim) 50%, transparent 50%)",
-  backgroundPosition: "calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px)",
-  backgroundSize: "6px 6px, 6px 6px",
+  backgroundPosition: "calc(100% - 14px) calc(50% - 2px), calc(100% - 9px) calc(50% - 2px)",
+  backgroundSize: "5px 5px, 5px 5px",
   backgroundRepeat: "no-repeat",
 };
 
 const ghostBtn: CSSProperties = {
-  padding: "10px 12px",
+  padding: "6px 10px",
   borderRadius: "4px",
   border: "1px solid var(--line)",
   background: "transparent",
@@ -390,11 +390,24 @@ export default function ScratchPage() {
     setEditGroup(preset.group);
   }
 
-  function onPresetSelect(group: ScratchPresetGroup, id: string) {
-    if (!id) return;
-    const preset = presets.find((p) => p.id === id);
-    if (!preset) return;
+  function pickPreset(preset: ScratchPreset) {
+    const crowd = preset.id.startsWith("crowd-");
+    if (crowd && padCast.length < 2) {
+      setError("Put at least two faces on the pad for crowd presets");
+      return;
+    }
     fillFromPreset(preset);
+    void draw({
+      poseId: preset.id,
+      staging: applyScratchPresetTemplate(preset.template, {
+        name: speaker || padCast[0] || "Character",
+        place: placeName,
+        cast: padCast.length ? padCast : [speaker || "Character"],
+      }),
+      speaker: speaker || padCast[0],
+      cast: padCast,
+      sceneId,
+    });
   }
 
   function saveCurrentPreset(asNew: boolean) {
@@ -467,12 +480,12 @@ export default function ScratchPage() {
   const playable = Boolean(beat?.voiceFile && isMobileSavedVoiceFile(beat.voiceFile));
 
   return (
-    <main className="mobile-shell" style={{ minHeight: "100dvh", paddingBottom: "48px" }}>
-      <div style={{ padding: "28px 16px 0" }}>
+    <main className="mobile-shell scratch-shell" style={{ minHeight: "100dvh", paddingBottom: "16px" }}>
+      <div style={{ padding: "12px 12px 0" }}>
         <div
           style={{
             fontFamily: "var(--font-display), sans-serif",
-            fontSize: "22px",
+            fontSize: "20px",
             letterSpacing: "0.04em",
             color: "var(--chrome)",
           }}
@@ -500,54 +513,52 @@ export default function ScratchPage() {
           <div className="scratch-viewport">
             <div className="scratch-stage">
               <div className="scratch-rail">
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {job.speakers.map((name) => {
-                    const src = faceUrl(job, name);
-                    const onPad = padCast.includes(name);
-                    const speaks = name === speaker;
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        title={
-                          !onPad
-                            ? `Add ${name} to pad`
-                            : !speaks
-                              ? "On pad — tap to make them speak (lip sync)"
-                              : padCast.length === 1 && src
-                                ? "Tap again to enlarge"
-                                : "Speaking — tap again to pull off pad"
-                        }
-                        onClick={() => pickCast(name)}
-                        style={{
-                          ...thumbBtn(onPad),
-                          boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
-                        }}
-                      >
-                        {src ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={src}
-                            alt=""
-                            style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: `${SIDE_THUMB_PX}px`,
-                              height: `${SIDE_THUMB_PX}px`,
-                              color: "var(--chrome-dim)",
-                              fontSize: "10px",
-                              overflow: "hidden",
-                            }}
-                          >
-                            {name}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                {job.speakers.map((name) => {
+                  const src = faceUrl(job, name);
+                  const onPad = padCast.includes(name);
+                  const speaks = name === speaker;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      title={
+                        !onPad
+                          ? `Add ${name} to pad`
+                          : !speaks
+                            ? "On pad — tap to make them speak (lip sync)"
+                            : padCast.length === 1 && src
+                              ? "Tap again to enlarge"
+                              : "Speaking — tap again to pull off pad"
+                      }
+                      onClick={() => pickCast(name)}
+                      style={{
+                        ...thumbBtn(onPad),
+                        boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
+                      }}
+                    >
+                      {src ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={src}
+                          alt=""
+                          style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: `${SIDE_THUMB_PX}px`,
+                            height: `${SIDE_THUMB_PX}px`,
+                            color: "var(--chrome-dim)",
+                            fontSize: "10px",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {name}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="scratch-pad-col">
@@ -568,24 +579,18 @@ export default function ScratchPage() {
                 >
                   {plateSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={plateSrc}
-                      alt=""
-                      style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }}
-                    />
+                    <img src={plateSrc} alt="" className="scratch-pad-still" />
                   ) : (
                     <div
+                      className="scratch-pad-still"
                       style={{
-                        width: "100%",
-                        aspectRatio: "1",
-                        minHeight: `${PLATE_TILE_PX * 2.5}px`,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         color: "var(--chrome-dim)",
-                        fontSize: "12px",
+                        fontSize: "13px",
                         textAlign: "center",
-                        padding: "12px",
+                        padding: "16px",
                       }}
                     >
                       Faces left. Place right. Draw.
@@ -658,9 +663,7 @@ export default function ScratchPage() {
                 Clear pad
               </button>
             </div>
-          </div>
 
-          <div style={{ padding: "0 16px 28px", display: "flex", flexDirection: "column", gap: "18px" }}>
             {padCast.length > 1 ? (
               <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
                 On pad: {padCast.join(" · ")}. Speaks:{" "}
@@ -668,88 +671,114 @@ export default function ScratchPage() {
               </div>
             ) : null}
 
-            <div>
-              <div className="scratch-group-label">Prompt</div>
-              <MobileTextInput
-                value={staging}
-                onChange={setStaging}
-                placeholder="Position, emotion, holding, wearing, who is where…"
-                multiline
-                rows={5}
-              />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px" }}>
-                <button type="button" style={ghostBtn} onClick={clearPrompt}>
-                  Clear prompt
-                </button>
-                <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(false)} disabled={!staging.trim()}>
-                  {activePreset?.builtin ? "Save override" : "Save preset"}
-                </button>
-                <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(true)} disabled={!staging.trim()}>
-                  Save as new
-                </button>
-                {activePreset && !activePreset.builtin ? (
-                  <button type="button" style={ghostBtn} onClick={removeCurrentPreset}>
-                    Delete preset
+            <div className="scratch-console">
+              <div>
+                <div className="scratch-group-label">Prompt</div>
+                <MobileTextInput
+                  value={staging}
+                  onChange={setStaging}
+                  placeholder="Position, emotion, holding, wearing, who is where…"
+                  multiline
+                  rows={5}
+                />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                  <button type="button" style={ghostBtn} onClick={clearPrompt}>
+                    Clear prompt
                   </button>
-                ) : null}
+                  <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(false)} disabled={!staging.trim()}>
+                    {activePreset?.builtin ? "Save override" : "Save preset"}
+                  </button>
+                  <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(true)} disabled={!staging.trim()}>
+                    Save as new
+                  </button>
+                  {activePreset && !activePreset.builtin ? (
+                    <button type="button" style={ghostBtn} onClick={removeCurrentPreset}>
+                      Delete preset
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div className="scratch-group-label">Presets</div>
-              {SCRATCH_PRESET_GROUPS.map((group) => {
-                const rows = presets.filter((p) => p.group === group);
-                if (!rows.length) return null;
-                const selectedInGroup = rows.some((p) => p.id === poseId) ? poseId : "";
-                return (
-                  <label key={group} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span className="scratch-group-label" style={{ marginBottom: 0 }}>
-                      {group}
-                    </span>
+              <div className="scratch-preset-stack">
+                {SCRATCH_PRESET_GROUPS.filter((g) => g !== "Mine").map((group) => {
+                  const rows = presets.filter((p) => p.group === group);
+                  if (!rows.length) return null;
+                  const selectedInGroup = rows.some((p) => p.id === poseId) ? poseId : "";
+                  return (
+                    <label key={group} className="scratch-preset-row">
+                      <span className="scratch-group-label">{group}</span>
+                      <select
+                        value={selectedInGroup}
+                        disabled={Boolean(busy) || !padCast.length || !sceneId}
+                        onChange={(e) => {
+                          const preset = presets.find((p) => p.id === e.target.value);
+                          if (preset) pickPreset(preset);
+                        }}
+                        style={selectStyle}
+                      >
+                        <option value="">Choose…</option>
+                        {rows.map((p) => (
+                          <option key={p.id} value={p.id} disabled={p.id.startsWith("crowd-") && padCast.length < 2}>
+                            {p.label}
+                            {p.builtin ? "" : " ★"}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                })}
+                {presets.some((p) => p.group === "Mine") ? (
+                  <label className="scratch-preset-row">
+                    <span className="scratch-group-label">Mine</span>
                     <select
-                      value={selectedInGroup}
-                      onChange={(e) => onPresetSelect(group, e.target.value)}
+                      value={presets.some((p) => p.group === "Mine" && p.id === poseId) ? poseId : ""}
+                      disabled={Boolean(busy) || !padCast.length || !sceneId}
+                      onChange={(e) => {
+                        const preset = presets.find((p) => p.id === e.target.value);
+                        if (preset) pickPreset(preset);
+                      }}
                       style={selectStyle}
                     >
                       <option value="">Choose…</option>
-                      {rows.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label}
-                          {p.builtin ? "" : " ★"}
+                      {presets
+                        .filter((p) => p.group === "Mine")
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label} ★
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                ) : null}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px", marginTop: "2px" }}>
+                  <label style={{ display: "block" }}>
+                    <span className="scratch-group-label" style={{ display: "block" }}>
+                      Name
+                    </span>
+                    <input
+                      value={editLabel}
+                      onChange={(e) => setEditLabel(e.target.value)}
+                      placeholder="Label"
+                      style={{ ...selectStyle, backgroundImage: "none", paddingRight: "8px" }}
+                    />
+                  </label>
+                  <label style={{ display: "block" }}>
+                    <span className="scratch-group-label" style={{ display: "block" }}>
+                      Save under
+                    </span>
+                    <select
+                      value={editGroup}
+                      onChange={(e) => setEditGroup(e.target.value as ScratchPresetGroup)}
+                      style={selectStyle}
+                    >
+                      {SCRATCH_PRESET_GROUPS.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
                         </option>
                       ))}
                     </select>
                   </label>
-                );
-              })}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <span className="scratch-group-label" style={{ marginBottom: 0 }}>
-                    Preset name
-                  </span>
-                  <input
-                    value={editLabel}
-                    onChange={(e) => setEditLabel(e.target.value)}
-                    placeholder="Label"
-                    style={{ ...selectStyle, backgroundImage: "none" }}
-                  />
-                </label>
-                <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <span className="scratch-group-label" style={{ marginBottom: 0 }}>
-                    Save under
-                  </span>
-                  <select
-                    value={editGroup}
-                    onChange={(e) => setEditGroup(e.target.value as ScratchPresetGroup)}
-                    style={selectStyle}
-                  >
-                    {SCRATCH_PRESET_GROUPS.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                </div>
               </div>
             </div>
 
@@ -758,7 +787,7 @@ export default function ScratchPage() {
               onChange={setLine}
               placeholder="What they say — lip-sync test line. Not the still position."
               multiline
-              rows={3}
+              rows={2}
             />
             {playable && beat?.voiceFile && job.folderName ? (
               <MobileAudioPlayer

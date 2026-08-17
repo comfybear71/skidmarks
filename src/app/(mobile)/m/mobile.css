@@ -16,6 +16,11 @@ body {
   margin: 0 auto;
 }
 
+/* Scratch is a test console — wider so pad + knobs sit in one view. */
+.mobile-shell.scratch-shell {
+  max-width: 56rem;
+}
+
 /* PC at 100% zoom should match the old 150% browser zoom. Most /m chrome
  * is inline px, so html font-size would not move it — zoom the page. Phones
  * stay 1× (coarse pointer / narrow). */
@@ -42,23 +47,24 @@ body {
   }
 }
 
-/* Scratch stage — side rails match the pad height and scroll inside. */
+/* Scratch stage — cast | pad | places. Rails scroll; pad sets the row height. */
 .scratch-stage {
   display: grid;
-  grid-template-columns: 80px minmax(0, 1fr) 80px;
-  gap: 10px;
-  align-items: start;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
 }
 
 .scratch-rail {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   overflow-x: hidden;
   overflow-y: auto;
-  height: 0;
-  min-height: 100%;
-  padding: 2px 4px 2px 0;
+  max-height: min(52dvh, 420px);
+  align-self: stretch;
+  padding: 0;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
@@ -80,59 +86,72 @@ body {
 
 .scratch-pad-col {
   min-width: 0;
+  width: 100%;
 }
 
-/* First viewport: pad stage sits in the middle, not glued to the top. */
+.scratch-pad-col .scratch-pad-still {
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 180px;
+  max-height: min(42dvh, 360px);
+  object-fit: cover;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Stage tight under the title — prompt + knobs share the console under Draw. */
 .scratch-viewport {
   box-sizing: border-box;
-  min-height: calc(100dvh - 4.5rem);
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 14px;
-  padding: 28px 16px 20px;
-}
-
-.scratch-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.scratch-chip {
-  padding: 8px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
-  color: var(--chrome);
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 1.2;
-  cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
-}
-
-.scratch-chip:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--acid) 55%, var(--line));
-}
-
-.scratch-chip[data-on="1"] {
-  border-color: var(--acid);
-  background: var(--acid);
-  color: #111;
-}
-
-.scratch-chip:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+  gap: 6px;
+  padding: 4px 10px 10px;
 }
 
 .scratch-group-label {
   color: var(--chrome-dim);
   font-size: 10px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 2px;
+}
+
+.scratch-preset-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Label beside the select — denser than stacked headings. */
+.scratch-preset-row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+
+.scratch-preset-row .scratch-group-label {
+  margin: 0;
+}
+
+/* Prompt left, knobs right — same screen as the pad. */
+.scratch-console {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (min-width: 640px) {
+  .scratch-console {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(12rem, 0.85fr);
+    gap: 10px;
+    align-items: start;
+  }
+
+  .scratch-rail {
+    max-height: min(42dvh, 360px);
+  }
 }
 
 .scratch-clip-rail {
