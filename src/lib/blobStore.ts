@@ -1,4 +1,5 @@
 import { del, get, list, put } from "@vercel/blob";
+import { ownerStoragePrefix } from "./studioOwner";
 
 /** Episode-scoped media (uploaded per pack) + show-level shelf assets. */
 export type BlobFileKind =
@@ -39,8 +40,10 @@ export function blobPathname(
   episodeFolder: string,
   kind: BlobFileKind,
   filename: string,
+  ownerId?: string | null,
 ): string {
-  return `shows/${showId}/episodes/${episodeFolder}/${kind}/${filename}`;
+  const prefix = ownerStoragePrefix(ownerId);
+  return `${prefix}shows/${showId}/episodes/${episodeFolder}/${kind}/${filename}`;
 }
 
 /** Show-level shelf path (no episode). Mirrors the local disk layout. */
@@ -48,6 +51,7 @@ export function showAssetPathname(
   showId: string,
   kind: ShowAssetKind,
   filename: string,
+  ownerId?: string | null,
 ): string {
   const seg =
     kind === "world"
@@ -59,7 +63,8 @@ export function showAssetPathname(
           : kind === "spx_sfx"
             ? "spx/sfx"
             : "spx/video";
-  return `shows/${showId}/${seg}/${filename}`;
+  const prefix = ownerStoragePrefix(ownerId);
+  return `${prefix}shows/${showId}/${seg}/${filename}`;
 }
 
 export function blobContentType(kind: BlobFileKind, filename: string): string {

@@ -11,6 +11,8 @@ import { cloudListShowFiles } from "./cloudShelf";
 // otherwise trips rules-of-hooks in every non-component file that calls it.
 import { useCloudStore as cloudStoreEnabled } from "./cloudEnv";
 import { CRASH_DIR } from "./paths";
+import { boundStudioOwner } from "./studioOwner";
+import { isHomeOwner } from "./studioUsers";
 import { buildCrashGenLook } from "./imageGen";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import {
@@ -134,8 +136,12 @@ export async function saveCharacterPlate(opts: {
   const name = opts.name.trim();
   if (!name) throw new Error("Character plate needs a character name");
 
+  const owner = await boundStudioOwner();
   const filename = characterPlateFilename(name, opts.ext);
-  const dir = characterPlateDir(opts.styleId);
+  const dir =
+    owner && !isHomeOwner(owner)
+      ? path.join(CRASH_DIR, "users", owner, "character-plates", opts.styleId)
+      : characterPlateDir(opts.styleId);
   const localPath = path.join(dir, filename);
   const existing = opts.replace ? null : await findCharacterPlate(opts.styleId, name);
   const cloudRow =
@@ -157,11 +163,13 @@ export async function saveCharacterPlate(opts: {
   if (blocked) throw new Error(blocked);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(localPath, opts.buffer);
-  writeLocalManifest(opts.styleId, filename, name);
+  if (!owner || isHomeOwner(owner)) {
+    writeLocalManifest(opts.styleId, filename, name);
+  }
 
   let url = characterPlateFileUrl(opts.styleId, filename);
   if (cloudStoreEnabled()) {
-    const pathname = showAssetPathname(opts.styleId, PLATE_KIND, filename);
+    const pathname = showAssetPathname(opts.styleId, PLATE_KIND, filename, owner);
     const put = await putBlobFile({
       pathname,
       body: opts.buffer,
@@ -198,6 +206,7 @@ function localPlates(styleId: ShowStyleId): CharacterPlate[] {
 export async function listCharacterPlates(
   styleId: ShowStyleId,
 ): Promise<CharacterPlate[]> {
+  const owner = await boundStudioOwner();
   const cloud = cloudStoreEnabled()
     ? (await cloudListShowFiles(styleId, PLATE_KIND).catch(() => [])).map((row) => ({
         name: (row.label_name || "").trim(),
@@ -205,8 +214,9 @@ export async function listCharacterPlates(
         url: row.blob_url || characterPlateFileUrl(styleId, row.filename),
       }))
     : [];
+  const local = !owner || isHomeOwner(owner) ? localPlates(styleId) : [];
   const byName = new Map<string, CharacterPlate>();
-  for (const p of [...localPlates(styleId), ...cloud]) {
+  for (const p of [...local, ...cloud]) {
     if (p.name) byName.set(p.name.trim().toLowerCase(), p);
   }
   return [...byName.values()];
