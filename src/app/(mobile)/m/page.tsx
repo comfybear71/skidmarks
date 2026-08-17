@@ -14,7 +14,7 @@ import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import { MOBILE_LAST_JOB_KEY, readResumedJobId } from "@/lib/mobileJobResume";
-import { studioFetchError } from "@/lib/studioFetchError";
+import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
@@ -27,9 +27,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   } catch (e) {
     throw new Error(studioFetchError(e, "Request failed"));
   }
-  const data = await res.json().catch(() => ({})) as { error?: string };
-  if (!res.ok) throw new Error(data.error || "Request failed");
-  return data as T;
+  return readApiJson<T & { error?: string }>(res);
 }
 
 export default function MobileHomePage() {
@@ -104,8 +102,10 @@ export default function MobileHomePage() {
         if (data.job.error) setError(data.job.error);
         if (data.job.phase === "error") stopPoll();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Step failed");
-        stopPoll();
+        setError(studioFetchError(e, "Step failed"));
+        // A long voice 504 used to stop the whole placement run. Keep
+        // plating/voicing; the next tick retries the same step.
+        if (!campaignWork) stopPoll();
       } finally {
         inFlight = false;
       }
