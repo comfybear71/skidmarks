@@ -1081,8 +1081,19 @@ export default function ScratchPage() {
                 setSelectedRunId(run.id);
                 if (run.positionPrompt) setStaging(run.positionPrompt);
                 if (run.plateUrl) setLightbox(run.plateUrl);
-                if (run.placements?.length) setPlacements(run.placements);
+                if (run.placements?.length) {
+                  setPlacements(run.placements);
+                  setPadCast(run.placements.map((p) => p.name));
+                  setSpeaker(run.placements[0]?.name || speaker);
+                  setPadCleared(false);
+                }
                 if (run.dialogue) setLine(run.dialogue);
+                if (run.environment && job) {
+                  const match = job.scenes.find(
+                    (s) => s.placeName.trim().toLowerCase() === run.environment!.trim().toLowerCase(),
+                  );
+                  if (match) setSceneId(match.id);
+                }
               }}
               onClear={() => {
                 setBench((prev) => clearBenchRuns(prev));
