@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import {
   MobileAudioPlayer,
   MobilePrimaryButton,
@@ -39,14 +39,21 @@ import {
   appendBenchRun,
   applyBibleTokens,
   clearBenchRuns,
+  dropPercents,
   emptyBenchSession,
   injectChaosStill,
   loadBenchSession,
+  mergePositionIntoStaging,
+  positionPromptLine,
   setBenchChaos,
+  setScratchDrag,
+  readScratchDrag,
   updateBenchRunTags,
+  upsertPlacement,
   type ScratchBenchSession,
   type ScratchBibleEntry,
   type ScratchBibleSectionId,
+  type ScratchPadPlacement,
   type ScratchScoreTag,
 } from "@/lib/scratchBench";
 
@@ -181,6 +188,9 @@ export default function ScratchPage() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
   const [bibleActiveId, setBibleActiveId] = useState<string | null>(null);
+  const [placements, setPlacements] = useState<ScratchPadPlacement[]>([]);
+  const [padDragOver, setPadDragOver] = useState(false);
+  const padSurfaceRef = useRef<HTMLDivElement | null>(null);
   const drawSeq = useRef(0);
 
   const scratch = findScratchShot(story);
@@ -395,6 +405,7 @@ export default function ScratchPage() {
     const next = padCast.filter((n) => n !== name);
     setPadCast(next);
     setSpeaker(next[0] || "");
+    setPlacements((prev) => prev.filter((p) => p.name !== name));
   }
 
   function dropPlace(id: string) {
@@ -426,7 +437,65 @@ export default function ScratchPage() {
     setSpeaker("");
     setStaging("");
     setPoseId("");
+    setPlacements([]);
+    setBibleActiveId(null);
     setError("");
+  }
+
+  function onPadDragOver(e: DragEvent) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    if (!padDragOver) setPadDragOver(true);
+  }
+
+  function onPadDragLeave(e: DragEvent) {
+    const next = e.relatedTarget as Node | null;
+    if (next && padSurfaceRef.current?.contains(next)) return;
+    setPadDragOver(false);
+  }
+
+  function onPadDrop(e: DragEvent) {
+    e.preventDefault();
+    setPadDragOver(false);
+    if (!job || !padSurfaceRef.current) return;
+    const payload = readScratchDrag(e.dataTransfer);
+    if (!payload) return;
+    const rect = padSurfaceRef.current.getBoundingClientRect();
+    const { xPercent, yPercent } = dropPercents(e.clientX, e.clientY, rect);
+
+    if (payload.type === "actor") {
+      const name = payload.id;
+      setPadCast((prev) => (prev.includes(name) ? prev : [...prev, name]));
+      setSpeaker(name);
+      setPadCleared(false);
+      const place = { name, xPercent, yPercent };
+      setPlacements((prev) => upsertPlacement(prev, place));
+      const line = positionPromptLine(name, xPercent, yPercent);
+      setStaging((prev) => mergePositionIntoStaging(prev, line, name));
+      const beatLine = scratch?.shot.beats.find(
+        (b) => b.speaker.trim().toLowerCase() === name.trim().toLowerCase(),
+      )?.text;
+      if (beatLine) setLine(beatLine);
+      return;
+    }
+
+    // place / environment
+    const id = payload.id;
+    setSceneId(id);
+    setPadCleared(false);
+    const placeLabel = payload.label || job.scenes.find((s) => s.id === id)?.placeName || "this place";
+    const backdrop = `[Backdrop: ${placeLabel} — drop anchor ${xPercent}% / ${yPercent}%.]`;
+    const base = staging.trim();
+    const stripped = base.replace(/\[Backdrop:\s*[^\]]*\]/i, "").trim();
+    const nextStaging = stripped ? `${stripped}\n\n${backdrop}` : backdrop;
+    setStaging(nextStaging);
+    void draw({
+      sceneId: id,
+      speaker,
+      cast: padCast.length ? padCast : speaker ? [speaker] : [],
+      poseId,
+      staging: nextStaging || undefined,
+    });
   }
 
   function fillFromPreset(preset: ScratchPreset) {
@@ -630,9 +699,13 @@ export default function ScratchPage() {
                     <button
                       key={name}
                       type="button"
+                      draggable
+                      onDragStart={(e) => {
+                        setScratchDrag(e.dataTransfer, { type: "actor", id: name, label: name });
+                      }}
                       title={
                         !onPad
-                          ? `Add ${name} to pad`
+                          ? `Add ${name} to pad — or drag onto pad`
                           : !speaks
                             ? "On pad — tap to make them speak (lip sync)"
                             : padCast.length === 1 && src
@@ -643,6 +716,7 @@ export default function ScratchPage() {
                       style={{
                         ...thumbBtn(onPad),
                         boxShadow: speaks ? "0 0 0 2px var(--acid)" : undefined,
+                        cursor: "grab",
                       }}
                     >
                       {src ? (
@@ -650,6 +724,7 @@ export default function ScratchPage() {
                         <img
                           src={src}
                           alt=""
+                          draggable={false}
                           style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
                         />
                       ) : (
@@ -671,41 +746,64 @@ export default function ScratchPage() {
               </div>
 
               <div className="scratch-pad-col">
-                <button
-                  type="button"
-                  disabled={!plateSrc}
-                  onClick={() => plateSrc && setLightbox(plateSrc)}
-                  title={plateSrc ? "Tap to enlarge" : undefined}
-                  style={{
-                    ...mobileCard,
-                    padding: "2px",
-                    lineHeight: 0,
-                    width: "100%",
-                    border: "none",
-                    cursor: plateSrc ? "zoom-in" : "default",
-                    background: "var(--panel)",
-                  }}
+                <div
+                  ref={padSurfaceRef}
+                  className={`scratch-pad-surface${padDragOver ? " is-drop-target" : ""}`}
+                  onDragOver={onPadDragOver}
+                  onDragLeave={onPadDragLeave}
+                  onDrop={onPadDrop}
                 >
-                  {plateSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={plateSrc} alt="" className="scratch-pad-still" />
-                  ) : (
-                    <div
-                      className="scratch-pad-still"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "var(--chrome-dim)",
-                        fontSize: "13px",
-                        textAlign: "center",
-                        padding: "16px",
-                      }}
-                    >
-                      Faces left. Place right. Draw.
+                  <button
+                    type="button"
+                    disabled={!plateSrc}
+                    onClick={() => plateSrc && setLightbox(plateSrc)}
+                    title={plateSrc ? "Tap to enlarge" : "Drop a face or place here"}
+                    style={{
+                      ...mobileCard,
+                      padding: "2px",
+                      lineHeight: 0,
+                      width: "100%",
+                      border: "none",
+                      cursor: plateSrc ? "zoom-in" : "default",
+                      background: "var(--panel)",
+                      position: "relative",
+                    }}
+                  >
+                    {plateSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={plateSrc} alt="" className="scratch-pad-still" draggable={false} />
+                    ) : (
+                      <div
+                        className="scratch-pad-still"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "var(--chrome-dim)",
+                          fontSize: "13px",
+                          textAlign: "center",
+                          padding: "16px",
+                        }}
+                      >
+                        Drag faces left · places right · onto pad
+                      </div>
+                    )}
+                  </button>
+                  {placements.length ? (
+                    <div className="scratch-pad-markers" aria-hidden>
+                      {placements.map((p) => (
+                        <div
+                          key={p.name}
+                          className="scratch-pad-marker"
+                          style={{ left: `${p.xPercent}%`, top: `${p.yPercent}%` }}
+                          title={`${p.name} · ${p.xPercent}% / ${p.yPercent}%`}
+                        >
+                          <span className="scratch-pad-marker-label">{p.name}</span>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </button>
+                  ) : null}
+                </div>
               </div>
 
               <div className="scratch-rail">
@@ -716,16 +814,25 @@ export default function ScratchPage() {
                     <button
                       key={sc.id}
                       type="button"
+                      draggable
                       disabled={Boolean(busy)}
-                      title={on && src ? "Tap again to enlarge" : `Drop ${sc.placeName} on pad`}
+                      onDragStart={(e) => {
+                        setScratchDrag(e.dataTransfer, {
+                          type: "place",
+                          id: sc.id,
+                          label: sc.placeName,
+                        });
+                      }}
+                      title={on && src ? "Tap again to enlarge — or drag onto pad" : `Drop ${sc.placeName} on pad`}
                       onClick={() => dropPlace(sc.id)}
-                      style={thumbBtn(on)}
+                      style={{ ...thumbBtn(on), cursor: "grab" }}
                     >
                       {src ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={src}
                           alt=""
+                          draggable={false}
                           style={{ width: `${SIDE_THUMB_PX}px`, height: `${SIDE_THUMB_PX}px`, objectFit: "cover", display: "block" }}
                         />
                       ) : (

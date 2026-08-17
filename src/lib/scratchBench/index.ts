@@ -47,3 +47,18 @@ export type {
   ScratchBibleSection,
   ScratchBibleSectionId,
 } from "./promptBible";
+
+export {
+  SCRATCH_DND_MIME,
+  dropPercents,
+  mergePositionIntoStaging,
+  positionPromptLine,
+  readScratchDrag,
+  setScratchDrag,
+  upsertPlacement,
+} from "./padDrop";
+export type {
+  ScratchDragAssetType,
+  ScratchDragPayload,
+  ScratchPadPlacement,
+} from "./padDrop";

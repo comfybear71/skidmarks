@@ -91,6 +91,47 @@ body {
   width: 100%;
 }
 
+.scratch-pad-surface {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  border-radius: 2px;
+  outline: 1px dashed transparent;
+  outline-offset: 2px;
+  transition: outline-color 0.12s ease;
+}
+
+.scratch-pad-surface.is-drop-target {
+  outline-color: var(--acid);
+}
+
+.scratch-pad-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.scratch-pad-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  max-width: 40%;
+}
+
+.scratch-pad-marker-label {
+  display: block;
+  padding: 2px 6px;
+  border: 1px solid var(--acid);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--acid);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .scratch-pad-col .scratch-pad-still {
   width: 100%;
   aspect-ratio: 1;
