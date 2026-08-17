@@ -16,6 +16,7 @@ import {
   phaseAfterErrorResume,
 } from "@/lib/mobilePipeline";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { rememberClipTake } from "@/lib/mobilePlateClips";
 import {
   clipQueueError,
   findBeatHome,
@@ -400,7 +401,7 @@ export async function POST(req: Request) {
         }
         const clips = job.clips.map((c) =>
           c.beatId === next.beatId
-            ? { ...c, clipFile: result.localMp4, clipStatus: "done" as const }
+            ? { ...c, ...rememberClipTake(c, result.localMp4), clipStatus: "done" as const }
             : c,
         );
         job = (await patchMobileGenJob(jobId, { clips }))!;

@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { readMobileGenJob, patchMobileGenJob } from "@/lib/mobileGenJob";
+import { rememberClipTake } from "@/lib/mobilePlateClips";
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { sortableId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
 
     const clips = job.clips.map((c) =>
       c.beatId === beatId
-        ? { ...c, clipFile: localPath, clipStatus: "done" as const, error: "" }
+        ? { ...c, ...rememberClipTake(c, localPath), clipStatus: "done" as const, error: "" }
         : c,
     );
     const updated = await patchMobileGenJob(jobId, { clips });

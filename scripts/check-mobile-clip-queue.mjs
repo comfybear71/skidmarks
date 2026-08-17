@@ -188,6 +188,30 @@ const afterSave = upsertPendingClip({ ...job, clips: [] }, savedStory, "beat_jo"
 assert.equal(afterSave.length, 1);
 assert.equal(afterSave[0].clipStatus, "pending");
 
+const keepFirst = upsertPendingClip(
+  {
+    ...job,
+    clips: [
+      {
+        beatId: "beat_jo",
+        shotId: "shot_jo",
+        sceneId: "sc1",
+        clipFile: "first.mp4",
+        priorClipFiles: [],
+        clipStatus: "done",
+        error: "",
+        speaker: "CRAZY BIG HOLE JO",
+        line: "sitting on the bed texting",
+        voiceFile: "01_01_CRAZY_BIG_HOLE_JO_sitting-texting_mjx8k2.mp3",
+      },
+    ],
+  },
+  savedStory,
+  "beat_jo",
+);
+assert.equal(keepFirst[0].clipFile, "first.mp4", "Save / Generate again must not wipe the first mp4");
+assert.equal(keepFirst[0].clipStatus, "pending");
+
 assert.equal(
   upsertPendingClip({ ...job, clips: [] }, leftoverJoStory, "beat_jo").length,
   0,

@@ -328,7 +328,9 @@ export function PlateReviewEditor({
           ...cur,
           scenes: cur.scenes.map((sc) => ({
             ...sc,
-            shots: sc.shots.map((sh) => (sh.id === shotId ? { ...sh, plateFile: "" } : sh)),
+            shots: sc.shots.map((sh) =>
+              sh.id === shotId ? { ...sh, plateFile: "", plateTakes: [] } : sh,
+            ),
           })),
         };
       });
@@ -480,14 +482,14 @@ export function PlateReviewEditor({
                     setCastPickerShotId((cur) => (cur === s.shotId ? null : s.shotId));
                   }}
                   style={{
-                    width: "28px",
-                    height: "28px",
+                    width: "22px",
+                    height: "22px",
                     padding: 0,
                     borderRadius: "2px",
-                    border: addingCast ? "1px solid var(--acid)" : "1px solid var(--line)",
-                    background: addingCast ? "var(--acid)" : "var(--panel-2)",
+                    border: "1px solid var(--acid)",
+                    background: addingCast ? "var(--acid)" : "transparent",
                     color: addingCast ? "#111" : "var(--acid)",
-                    fontSize: "20px",
+                    fontSize: "16px",
                     lineHeight: 1,
                     cursor: "pointer",
                   }}
@@ -559,14 +561,14 @@ export function PlateReviewEditor({
                       position: "absolute",
                       top: "4px",
                       left: "4px",
-                      width: "22px",
-                      height: "22px",
+                      width: "18px",
+                      height: "18px",
                       padding: 0,
                       borderRadius: "2px",
-                      border: "none",
+                      border: "1px solid var(--acid)",
                       background: "rgba(0,0,0,0.72)",
-                      color: "var(--chrome)",
-                      fontSize: "14px",
+                      color: "var(--acid)",
+                      fontSize: "12px",
                       lineHeight: 1,
                       cursor: "pointer",
                     }}
@@ -586,14 +588,14 @@ export function PlateReviewEditor({
                       position: "absolute",
                       bottom: "4px",
                       right: "4px",
-                      width: "22px",
-                      height: "22px",
+                      width: "18px",
+                      height: "18px",
                       padding: 0,
                       borderRadius: "2px",
-                      border: "none",
+                      border: "1px solid var(--acid)",
                       background: "rgba(0,0,0,0.72)",
-                      color: "var(--chrome)",
-                      fontSize: "14px",
+                      color: "var(--acid)",
+                      fontSize: "12px",
                       lineHeight: 1,
                       cursor: "pointer",
                     }}
@@ -1133,7 +1135,7 @@ function PlatePreview({
   jobId: string;
   placeSrc?: string;
   jobPlated?: boolean;
-  onPicked: (plateFile: string, staging: string) => void;
+  onPicked: (plateFile: string, staging: string, plateTakes?: PlateTake[]) => void;
 }) {
   const [zoomed, setZoomed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1172,10 +1174,32 @@ function PlatePreview({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId, shotId: shot.id, action: "pick", takeId: take.id }),
       });
-      const data = (await res.json()) as { plateFile?: string; staging?: string };
-      if (res.ok) onPicked(data.plateFile ?? take.fileName, data.staging ?? take.staging);
+      const data = (await res.json()) as { plateFile?: string; staging?: string; plateTakes?: PlateTake[] };
+      if (res.ok) onPicked(data.plateFile ?? take.fileName, data.staging ?? take.staging, data.plateTakes);
     } catch {
       /* strip stays on the current take */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function dropActiveTake() {
+    if (!active || active.id === "legacy" || busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, shotId: shot.id, action: "drop-take", takeId: active.id }),
+      });
+      const data = (await res.json()) as {
+        plateFile?: string;
+        staging?: string;
+        plateTakes?: PlateTake[];
+      };
+      if (res.ok) onPicked(data.plateFile ?? "", data.staging ?? "", data.plateTakes ?? []);
+    } catch {
+      /* take stays until the next refresh */
     } finally {
       setBusy(false);
     }
@@ -1232,6 +1256,32 @@ function PlatePreview({
           style={{ width: "100%", maxHeight: "260px", objectFit: "contain", display: "block", opacity: busy ? 0.6 : 1 }}
         />
       </button>
+      {takes.length > 0 && active?.id !== "legacy" ? (
+        <button
+          type="button"
+          aria-label="Park this still"
+          disabled={busy}
+          onClick={() => void dropActiveTake()}
+          style={{
+            position: "absolute",
+            top: "8px",
+            left: "8px",
+            width: "22px",
+            height: "22px",
+            padding: 0,
+            borderRadius: "2px",
+            border: "1px solid var(--acid)",
+            background: "rgba(0,0,0,0.72)",
+            color: "var(--acid)",
+            fontSize: "14px",
+            lineHeight: 1,
+            cursor: busy ? "default" : "pointer",
+            zIndex: 2,
+          }}
+        >
+          ×
+        </button>
+      ) : null}
       {takes.length > 1 ? (
         <>
           <button
@@ -1393,7 +1443,9 @@ function ShotLineEditor({
         jobId={jobId}
         placeSrc={placeSrc}
         jobPlated={jobPlated}
-        onPicked={(plateFile, staging) => onPlateRebuilt(plateFile, staging, shot.summary)}
+        onPicked={(plateFile, staging, plateTakes) =>
+          onPlateRebuilt(plateFile, staging, shot.summary, plateTakes)
+        }
       />
       {speakingBeats.map((beat) => {
         const clip = clips.find((c) => c.beatId === beat.id);

@@ -12,6 +12,35 @@ export function mobileClipSrc(
   );
 }
 
+/** Playable mp4s for one clip row — older takes first, newest last. */
+export function stackedClipFiles(
+  clip: Pick<MobileClipUnit, "clipFile" | "priorClipFiles">,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of [...(clip.priorClipFiles || []), clip.clipFile || ""]) {
+    const file = raw.trim();
+    if (!file || seen.has(file)) continue;
+    seen.add(file);
+    out.push(file);
+  }
+  return out;
+}
+
+/** Keep the old mp4 on the stack when a new LTX take lands. Files stay in Blob. */
+export function rememberClipTake(
+  clip: Pick<MobileClipUnit, "clipFile" | "priorClipFiles">,
+  nextFile: string,
+): { clipFile: string; priorClipFiles: string[] } {
+  const next = (nextFile || "").trim();
+  const old = (clip.clipFile || "").trim();
+  const kept = stackedClipFiles(clip).filter((f) => f !== next);
+  return {
+    priorClipFiles: kept,
+    clipFile: next || old,
+  };
+}
+
 /** Every plate keeps its own clip(s). Match by beat first so two, three,
  * or more Saved lines on one still all sit under that thumb. */
 export function clipsUnderPlate(

@@ -177,24 +177,39 @@ export function upsertPendingClip(
   const home = findBeatHome(story, beatId);
   if (!home) return mergeClipsFromStory(job, story);
   const clips = mergeClipsFromStory(job, story);
-  const row: MobileClipUnit = {
-    beatId,
-    shotId: home.shotId,
-    sceneId: home.sceneId,
-    clipFile: "",
-    clipStatus: "pending",
-    error: "",
-    speaker: home.speaker,
-    line: home.text,
-    voiceFile: home.voiceFile,
-  };
   if (!clips.some((c) => c.beatId === beatId)) {
     if (!(home.voiceFile || "").trim() || isLeftoverPackVoiceFile(home.voiceFile)) {
       return clips;
     }
-    return [...clips, row];
+    return [
+      ...clips,
+      {
+        beatId,
+        shotId: home.shotId,
+        sceneId: home.sceneId,
+        clipFile: "",
+        clipStatus: "pending",
+        error: "",
+        speaker: home.speaker,
+        line: home.text,
+        voiceFile: home.voiceFile,
+      },
+    ];
   }
-  return clips.map((c) => (c.beatId === beatId ? { ...c, ...row } : c));
+  return clips.map((c) =>
+    c.beatId === beatId
+      ? {
+          ...c,
+          shotId: home.shotId,
+          sceneId: home.sceneId,
+          speaker: home.speaker,
+          line: home.text,
+          voiceFile: home.voiceFile,
+          clipStatus: "pending" as const,
+          error: "",
+        }
+      : c,
+  );
 }
 
 export function queuedSavedClips(clips: MobileClipUnit[]): MobileClipUnit[] {

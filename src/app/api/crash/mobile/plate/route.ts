@@ -35,8 +35,11 @@ function patchShotFields(
  * that one still. Faces and places stay. Not a lineup in the foreground.
  * POST { jobId, shotId, action: "save", summary?, staging? } — write the
  * action / tweak text. Does not composite.
- * POST { jobId, shotId, action: "drop" } — clear the shot still pointer.
- * Blob/disk stay (park, don't delete). The strip shows an empty slot.
+ * POST { jobId, shotId, action: "drop" } — clear the shot still pointer
+ * and its take list so the carousel dots go with it. Blob/disk stay
+ * (park, don't delete). The strip shows an empty slot.
+ * POST { jobId, shotId, takeId, action: "drop-take" } — park one still
+ * from the carousel. Files stay.
  * POST { jobId, sceneId, speaker, action: "add" } — add a shot card at
  * that location. With speaker: a solo card, one beat, that speaker only.
  * Without speaker: an empty plate — add cast to it with "add-cast".
@@ -93,6 +96,7 @@ export async function POST(req: Request) {
     const clear = action === "clear";
     const restore = action === "restore";
     const pick = action === "pick";
+    const dropTake = action === "drop-take";
     if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
     if (!add && !remove && !clear && !restore && !shotId) {
       return NextResponse.json({ error: "Need shotId" }, { status: 400 });
@@ -102,9 +106,9 @@ export async function POST(req: Request) {
     if (restore && (!sceneIdIn || !body.shot?.id)) {
       return NextResponse.json({ error: "Need sceneId and shot" }, { status: 400 });
     }
-    if (pick && !takeIdIn) return NextResponse.json({ error: "Need takeId" }, { status: 400 });
+    if ((pick || dropTake) && !takeIdIn) return NextResponse.json({ error: "Need takeId" }, { status: 400 });
     if (removeLine && !beatIdIn) return NextResponse.json({ error: "Need beatId" }, { status: 400 });
-    if (!drop && !saveOnly && !add && !addCast && !addLine && !removeLine && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
+    if (!drop && !dropTake && !saveOnly && !add && !addCast && !addLine && !removeLine && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
       return NextResponse.json(
         { error: "Say who sits where — not two people stuck in the front." },
         { status: 400 },
@@ -346,13 +350,42 @@ export async function POST(req: Request) {
     }
 
     if (drop) {
-      const dropped = patchShotFields(story, shotId, { plateFile: "" });
+      const dropped = patchShotFields(story, shotId, { plateFile: "", plateTakes: [] });
       await writeMobileStory(dropped, job.folderName);
       const shots = job.shots.map((s) =>
         s.shotId === shotId ? { ...s, plateFile: "", error: "" } : s,
       );
       const updated = await patchMobileGenJob(jobId, { shots, error: "" });
-      return NextResponse.json({ ok: true, job: updated, plateFile: "" });
+      return NextResponse.json({ ok: true, job: updated, plateFile: "", plateTakes: [] });
+    }
+
+    if (dropTake) {
+      const take = (shot.plateTakes || []).find((t) => t.id === takeIdIn);
+      if (!take) return NextResponse.json({ error: "That take is not on this shot" }, { status: 404 });
+      let remaining = (shot.plateTakes || []).filter((t) => t.id !== takeIdIn);
+      let plateFile = shot.plateFile || "";
+      let staging = shot.staging || "";
+      if (!remaining.length) {
+        plateFile = "";
+      } else if (take.fileName === shot.plateFile || remaining.every((t) => !t.approved)) {
+        const nextTake = remaining[remaining.length - 1]!;
+        remaining = remaining.map((t) => ({ ...t, approved: t.id === nextTake.id }));
+        plateFile = nextTake.fileName;
+        staging = nextTake.staging;
+      }
+      const patched = patchShotFields(story, shotId, { plateFile, staging, plateTakes: remaining });
+      await writeMobileStory(patched, job.folderName);
+      const shots = job.shots.map((s) =>
+        s.shotId === shotId ? { ...s, plateFile, error: "" } : s,
+      );
+      const updated = await patchMobileGenJob(jobId, { shots, error: "" });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        plateFile,
+        staging,
+        plateTakes: remaining,
+      });
     }
 
     if (saveOnly) {
