@@ -9,6 +9,7 @@ import {
 } from "@/components/mobile/MobileUi";
 import { CastVoiceRow } from "@/components/mobile/CastVoiceRow";
 import { PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
+import { OpenEpisodePicker } from "@/components/mobile/OpenEpisodePicker";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId } from "@/lib/mobileJobResume";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
@@ -207,6 +208,7 @@ export default function ScratchPage() {
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   /** Which beat the draft belongs to — ignore draft after mouth / beat switch. */
   const motionEditBeatId = useRef<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const padSurfaceRef = useRef<HTMLDivElement | null>(null);
   const drawSeq = useRef(0);
 
@@ -346,6 +348,57 @@ export default function ScratchPage() {
       window.history.replaceState({}, "", `${url.pathname}${url.search}`);
     }
   }, [job?.id]);
+
+  const applyOpenedJob = useCallback(
+    async (next: MobileGenJob) => {
+      setJob(next);
+      setSavedTake(null);
+      setMotionDraft(null);
+      motionEditBeatId.current = null;
+      setPadCleared(false);
+      setPlacements([]);
+      setError("");
+      setResumeError("");
+      const who = pickDefaultSpeaker(next);
+      const fromScratch = next.scratchPlate?.cast?.filter(Boolean) || [];
+      setSpeaker(next.scratchPlate?.speaker || who);
+      setPadCast(fromScratch.length ? fromScratch : who ? [who] : []);
+      setSceneId(pickDefaultPlace(next));
+      setStaging("");
+      setLine("");
+      await loadStory(next);
+    },
+    [loadStory],
+  );
+
+  const openEpisode = useCallback(
+    async (jobId: string) => {
+      const id = jobId.trim();
+      if (!id) return;
+      setBusy("open");
+      setError("");
+      try {
+        const res = await fetch(`/api/crash/mobile/job/${encodeURIComponent(id)}`);
+        const data = (await res.json().catch(() => ({}))) as { job?: MobileGenJob; error?: string };
+        if (!data.job) throw new Error(data.error || "Episode not found");
+        await applyOpenedJob(data.job);
+        try {
+          writeResumedJobId(window.localStorage, data.job.id, jobDeskId(data.job));
+        } catch {
+          /* private mode */
+        }
+        const url = new URL(window.location.href);
+        url.searchParams.set("job", data.job.id);
+        window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+        setPickerOpen(false);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't open episode");
+      } finally {
+        setBusy("");
+      }
+    },
+    [applyOpenedJob],
+  );
 
   async function draw(opts?: {
     poseId?: string;
@@ -845,6 +898,18 @@ export default function ScratchPage() {
         >
           Scratch
         </div>
+        <div style={{ marginTop: "8px" }}>
+          <OpenEpisodePicker
+            deskId={DEFAULT_DESK_ID}
+            activeJobId={job?.id}
+            open={pickerOpen || !job}
+            onOpenChange={setPickerOpen}
+            onOpen={(id) => void openEpisode(id)}
+            onNew={() => {
+              window.location.href = "/m";
+            }}
+          />
+        </div>
         <div className="scratch-bench-toolbar" style={{ marginTop: "8px" }}>
           <ScratchChaosSelect
             value={bench.chaosId}
@@ -879,10 +944,15 @@ export default function ScratchPage() {
       {resuming ? (
         <div style={{ padding: "48px 16px", color: "var(--chrome-dim)" }}>Opening…</div>
       ) : resumeError && !job ? (
-        <div style={{ padding: "48px 16px", color: "var(--magenta-hot)", fontWeight: 600 }}>{resumeError}</div>
+        <div style={{ padding: "16px" }}>
+          <div style={{ color: "var(--magenta-hot)", fontWeight: 600 }}>{resumeError}</div>
+          <div style={{ color: "var(--chrome-dim)", fontSize: "13px", marginTop: "8px" }}>
+            Pick an episode above, or New episode on /m.
+          </div>
+        </div>
       ) : !job ? (
-        <div style={{ padding: "48px 16px", color: "var(--chrome-dim)", fontSize: "14px" }}>
-          Open /m, pick a face and a place, then come back here. Don&apos;t tap Start directing on an episode that already exists.
+        <div style={{ padding: "24px 16px", color: "var(--chrome-dim)", fontSize: "14px" }}>
+          Pick an episode above. Or New episode → /m, approve a face and a place, then come back.
         </div>
       ) : (
         <>

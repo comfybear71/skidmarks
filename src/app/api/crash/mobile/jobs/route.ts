@@ -19,6 +19,8 @@ export async function GET(req: Request) {
       phase: j.phase,
       updatedAt: j.updatedAt,
       speakers: j.speakers,
+      styleId: j.styleId,
+      placeCount: Array.isArray(j.scenes) ? j.scenes.length : 0,
     })),
   });
 }

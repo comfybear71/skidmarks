@@ -10,6 +10,7 @@ import {
 } from "@/components/mobile/MobileUi";
 import { StudioTree } from "@/components/mobile/StudioTree";
 import { StudioSessionChip } from "@/components/mobile/StudioSessionChip";
+import { OpenEpisodePicker } from "@/components/mobile/OpenEpisodePicker";
 import { useMobileAssist } from "@/components/mobile/useMobileAssist";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
@@ -46,6 +47,8 @@ export default function MobileHomePage() {
   const [characterIds, setCharacterIds] = useState<Record<string, string>>({});
   const [resuming, setResuming] = useState(true);
   const [resumeError, setResumeError] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [draftingNew, setDraftingNew] = useState(false);
   const pollRef = useRef<number | null>(null);
 
   const stopPoll = useCallback(() => {
@@ -207,12 +210,57 @@ export default function MobileHomePage() {
         deskId: DEFAULT_DESK_ID,
       });
       setJob(created);
+      setDraftingNew(false);
+      setResumeError("");
+      setPickerOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't start");
     } finally {
       setBusy(false);
     }
   }, [prompt, styleId, styleRealism]);
+
+  const openEpisode = useCallback(async (jobId: string) => {
+    const id = jobId.trim();
+    if (!id) return;
+    setBusy(true);
+    setError("");
+    setResumeError("");
+    try {
+      const res = await fetch(`/api/crash/mobile/job/${encodeURIComponent(id)}`);
+      const data = (await res.json().catch(() => ({}))) as { job?: MobileGenJob; error?: string };
+      if (!data.job) throw new Error(data.error || "Episode not found");
+      setJob(data.job);
+      setDraftingNew(false);
+      setPrompt(data.job.prompt || "");
+      if (data.job.styleId) setStyleId(data.job.styleId as typeof styleId);
+      if (typeof data.job.styleRealism === "number") setStyleRealism(data.job.styleRealism);
+      try {
+        writeResumedJobId(window.localStorage, data.job.id, jobDeskId(data.job));
+      } catch {
+        /* private mode */
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.set("job", data.job.id);
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't open episode");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const beginNewEpisode = useCallback(() => {
+    stopPoll();
+    setJob(null);
+    setDraftingNew(true);
+    setResumeError("");
+    setError("");
+    setPickerOpen(false);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("job");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+  }, [stopPoll]);
 
   const genCandidates = useCallback(
     async (kind: "cast" | "location", target: string, customPrompt?: string) => {
@@ -403,6 +451,9 @@ export default function MobileHomePage() {
 
   const vibeAssist = useMobileAssist("vibe", styleId, () => prompt, setPrompt);
 
+  const showVibeForm = !resuming && (!job || draftingNew);
+  const showResumeFail = !resuming && !job && Boolean(resumeError) && !draftingNew;
+
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh" }}>
       <StudioSessionChip />
@@ -412,20 +463,33 @@ export default function MobileHomePage() {
         </div>
       ) : null}
 
+      {!resuming ? (
+        <div style={{ padding: "8px 16px 0" }}>
+          <OpenEpisodePicker
+            deskId={DEFAULT_DESK_ID}
+            activeJobId={job?.id}
+            open={pickerOpen || !job || showResumeFail}
+            onOpenChange={setPickerOpen}
+            onOpen={(id) => void openEpisode(id)}
+            onNew={beginNewEpisode}
+          />
+        </div>
+      ) : null}
+
       {resuming ? (
         <div style={{ padding: "24px 16px", color: "var(--chrome-dim)", fontSize: "14px" }}>
           Opening the episode…
         </div>
-      ) : !job && resumeError ? (
-        <div style={{ padding: "24px 16px" }}>
+      ) : showResumeFail ? (
+        <div style={{ padding: "16px" }}>
           <div style={{ color: "var(--magenta-hot)", fontSize: "15px", fontWeight: 600 }}>
             {resumeError}
           </div>
           <div style={{ color: "var(--chrome-dim)", fontSize: "13px", marginTop: "8px" }}>
-            Do not tap Start directing. That mints a new empty job. This one is still in the cloud.
+            Pick an episode above, or New episode. Do not mash Start directing hoping it finds the old one.
           </div>
         </div>
-      ) : !job ? (
+      ) : showVibeForm ? (
         <ActiveStepPanel title="What's the vibe?" subtitle="You direct. We hold the cast, the places, and the plates.">
           <MobileTextInput
             value={prompt}
@@ -520,7 +584,7 @@ export default function MobileHomePage() {
         </ActiveStepPanel>
       ) : null}
 
-      {job ? (
+      {job && !draftingNew ? (
         <StudioTree
           job={job}
           characterIds={characterIds}
