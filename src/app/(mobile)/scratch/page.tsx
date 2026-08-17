@@ -1081,6 +1081,8 @@ export default function ScratchPage() {
                 setSelectedRunId(run.id);
                 if (run.positionPrompt) setStaging(run.positionPrompt);
                 if (run.plateUrl) setLightbox(run.plateUrl);
+                if (run.placements?.length) setPlacements(run.placements);
+                if (run.dialogue) setLine(run.dialogue);
               }}
               onClear={() => {
                 setBench((prev) => clearBenchRuns(prev));
