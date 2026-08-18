@@ -3,7 +3,13 @@
  * Plate → Draw / LTX path only. No Comfy / clothing euphemism banks.
  */
 
-import { expandScratchLayoutMarks, positionPromptLine, type ScratchPadPlacement } from "./padDrop";
+import {
+  expandScratchLayoutMarks,
+  positionPromptLine,
+  scratchHasDirectorLetter,
+  stripScratchLayoutMarks,
+  type ScratchPadPlacement,
+} from "./padDrop";
 
 export type ScratchPromptFormatConfig = {
   placements: ScratchPadPlacement[];
@@ -62,8 +68,8 @@ export function mergePlacementsIntoStaging(
   placements: ScratchPadPlacement[],
   environment: string,
 ): string {
-  let next = (staging || "").trim();
-  if (/ONE photograph, ONE camera, ONE room:/i.test(next)) return next;
+  let next = stripScratchLayoutMarks(staging);
+  if (scratchHasDirectorLetter(next)) return next;
   if (!placements.length) return expandScratchLayoutMarks(next);
   const hasAllMarks = placements.every((p) =>
     new RegExp(`\\[Position:\\s*${escapeRegExp(p.name)}\\b`, "i").test(next),
@@ -79,7 +85,7 @@ export function mergePlacementsIntoStaging(
     const names = placements.map((p) => p.name).join(" and ");
     next = `${next}\n\n${names} are full people standing or sitting in those marks in ONE room, ONE photograph — not a picture-in-picture, not a photo on the wall, not a floating head, not a three-panel collage, not a comic page. Only ${names} in frame.`.trim();
   }
-  return expandScratchLayoutMarks(next.trim());
+  return stripScratchLayoutMarks(expandScratchLayoutMarks(next.trim()));
 }
 
 /**

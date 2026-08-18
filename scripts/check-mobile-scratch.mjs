@@ -14,6 +14,7 @@ import {
   keepScratchPositionLines,
   pickJoAndMattyNames,
   scratchJoMattyBedroomPrompt,
+  stripScratchLayoutMarks,
 } from "../src/lib/scratchBench/padDrop.ts";
 import { mergePlacementsIntoStaging } from "../src/lib/scratchBench/promptFormatter.ts";
 
@@ -132,14 +133,14 @@ const kept = keepScratchPositionLines(
 );
 assert.match(kept, /CRAZY BIG HOLE JO/);
 assert.match(kept, /MATTY/);
-const laid = mergePlacementsIntoStaging("Adult MATTY, fully nude at the bedroom.", [
+const laid = mergePlacementsIntoStaging("just a thin line", [
   { name: "MATTY", xPercent: 72, yPercent: 60 },
   { name: "CRAZY BIG HOLE JO", xPercent: 20, yPercent: 55 },
 ], "the bedroom");
-assert.match(laid, /\[Position: MATTY/);
-assert.match(laid, /\[Position: CRAZY BIG HOLE JO/);
-assert.match(laid, /picture-in-picture/i);
-assert.match(laid, /collage/i);
+assert.match(laid, /MATTY/);
+assert.match(laid, /CRAZY BIG HOLE JO/);
+assert.doesNotMatch(laid, /\[Position:/);
+assert.match(laid, /picture-in-picture|same room|ONE photograph|full person/i);
 
 const marksOnly = `[Backdrop: COMFY AND THE LAND LADY'S BEDROOM — drop anchor 48% / 59%.]
 
@@ -172,5 +173,16 @@ assert.equal(
   ], "the bedroom"),
   letter,
 );
+
+const polluted = `[Position: CRAZY BIG HOLE JO TOO framed on the left third of the screen, mid height (drop 28% / 48%).]
+[Position: MATTY framed on the right third of the screen, lower band (drop 74% / 68%).]
+
+${letter}`;
+assert.doesNotMatch(stripScratchLayoutMarks(polluted), /\[Position:/);
+assert.doesNotMatch(stripScratchLayoutMarks(polluted), /left third of the screen/);
+assert.equal(mergePlacementsIntoStaging(polluted, [
+  { name: "MATTY", xPercent: 74, yPercent: 68 },
+  { name: "CRAZY BIG HOLE JO TOO", xPercent: 28, yPercent: 48 },
+], "the bedroom"), letter);
 
 console.log("check-mobile-scratch: ok");

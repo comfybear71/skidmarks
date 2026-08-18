@@ -60,6 +60,8 @@ export {
   bedroomFurnitureLine,
   dropPercents,
   expandScratchLayoutMarks,
+  scratchHasDirectorLetter,
+  stripScratchLayoutMarks,
   isScratchBedroomPlace,
   keepScratchPositionLines,
   mergePositionIntoStaging,
