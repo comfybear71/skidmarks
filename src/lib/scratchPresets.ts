@@ -32,7 +32,14 @@ const BUILTIN_GROUP_IDS: Record<Exclude<ScratchPresetGroup, "Mine">, string[]> =
   Frame: ["mcu-phone", "wide-full", "tight-face", "over-shoulder", "walk-in"],
   Body: ["sitting", "standing", "running", "sprawl", "dance", "leaning", "steps", "crouch", "handstand"],
   Holding: ["beer-cig", "pie"],
-  Wearing: ["clothes-dress", "clothes-underwear", "clothes-partial", "clothes-nude"],
+  Wearing: [
+    "clothes-dress",
+    "clothes-underwear",
+    "clothes-partial",
+    "clothes-nude",
+    "clothes-man-partial",
+    "clothes-man-nude",
+  ],
   "Weather / edge": ["raining", "wash-hair"],
   "Crowd / multi": ["crowd-two-shot", "crowd-surround", "crowd-pile"],
 };
@@ -47,6 +54,16 @@ const WEARING_TEMPLATES: Record<string, { label: string; template: string }> = {
     label: "Nude",
     template:
       "Adult {{name}}, fully nude at {{place}}. Change the clothes from the face card. Same face, hair, age and body. Ignore the outfit on the face card. Natural proportions, unposed. No text or watermarks.",
+  },
+  "clothes-man-partial": {
+    label: "Man partial",
+    template:
+      "Adult man {{name}}, partial nudity at {{place}} — shirtless, underwear only or bare. Adult male chest. Change the clothes from the face card. Same face, this male body, not the tee. Do not redraw as a woman. Natural body, not a catalogue pose.",
+  },
+  "clothes-man-nude": {
+    label: "Man nude",
+    template:
+      "Adult man {{name}}, fully nude at {{place}}. Adult male body — bare chest, large exaggerated penis and heavy scrotum, no clothes. Not modest, not a Ken doll, not a smooth crotch, no shorts. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the face card. Do not redraw as a woman. Unposed. Adults only, no one under 21. No text or watermarks.",
   },
 };
 

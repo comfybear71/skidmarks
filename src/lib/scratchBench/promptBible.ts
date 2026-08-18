@@ -287,6 +287,18 @@ export const SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
           "Adult {{name}}, fully nude at {{place}}, natural proportions, unposed everyday body language. Change the clothes from the face card. Same face and body, not the outfit on the reference. No text or watermarks.",
       },
       {
+        id: "ward-man-partial",
+        label: "Man partial",
+        template:
+          "Adult man {{name}}, partial nudity at {{place}} — shirtless, underwear only or bare. Adult male chest. Change the clothes from the face card. Same face, this male body, not the tee. Do not redraw as a woman.",
+      },
+      {
+        id: "ward-man-nude",
+        label: "Man nude",
+        template:
+          "Adult man {{name}}, fully nude at {{place}}. Adult male body — bare chest, large exaggerated penis and heavy scrotum, no clothes. Not modest, not a Ken doll, not a smooth crotch, no shorts. Same face as the face card, not the tee. Do not redraw as a woman. No text or watermarks.",
+      },
+      {
         id: "ward-wet",
         label: "Wet clothes",
         template:
