@@ -9,7 +9,7 @@ import {
 } from "../src/lib/mobileScratch.ts";
 import { isCampaignShotId, isCampaignShotTitle } from "../src/lib/mobilePlateLtxCampaign.ts";
 import { jobDeskId, normalizeDeskId } from "../src/lib/mobileDesk.ts";
-import { keepScratchPositionLines } from "../src/lib/scratchBench/padDrop.ts";
+import { expandScratchLayoutMarks, keepScratchPositionLines } from "../src/lib/scratchBench/padDrop.ts";
 import { mergePlacementsIntoStaging } from "../src/lib/scratchBench/promptFormatter.ts";
 
 assert.equal(isScratchShotTitle("Scratch"), true);
@@ -135,5 +135,17 @@ assert.match(laid, /\[Position: MATTY/);
 assert.match(laid, /\[Position: CRAZY BIG HOLE JO/);
 assert.match(laid, /picture-in-picture/i);
 assert.match(laid, /collage/i);
+
+const marksOnly = `[Backdrop: COMFY AND THE LAND LADY'S BEDROOM — drop anchor 48% / 59%.]
+
+[Position: MATTY framed on the right third of the screen, lower band (drop 71% / 76%).]
+
+[Position: CRAZY BIG HOLE JO TOO framed on the left third of the screen, mid height (drop 28% / 45%).]`;
+const expanded = expandScratchLayoutMarks(marksOnly);
+assert.match(expanded, /ONE photograph of COMFY AND THE LAND LADY'S BEDROOM/i);
+assert.match(expanded, /MATTY is on the right third/i);
+assert.match(expanded, /CRAZY BIG HOLE JO TOO is on the left third/i);
+assert.match(expanded, /share the same room/i);
+assert.equal(expandScratchLayoutMarks(expanded), expanded);
 
 console.log("check-mobile-scratch: ok");

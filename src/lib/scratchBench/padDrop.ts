@@ -84,6 +84,46 @@ export function mergePositionIntoStaging(staging: string, line: string, name: st
   return `${base}\n\n${line}`.trim();
 }
 
+/**
+ * Seedream ignores "drop 71% / 76%". Turn [Backdrop]/[Position] into
+ * one-room English so JO TOO and MATTY land in the same still.
+ */
+export function expandScratchLayoutMarks(staging: string): string {
+  const text = (staging || "").trim();
+  if (!text) return "";
+  if (/ONE photograph of /i.test(text) && /share the same room/i.test(text)) return text;
+  const backdrop = text.match(/\[Backdrop:\s*([^\]—]+)/i);
+  const positions = [...text.matchAll(/\[Position:\s*([^\]]+)\]/gi)];
+  if (!backdrop && !positions.length) return text;
+  const place = (backdrop?.[1] || "").replace(/\s+$/, "").trim();
+  const bits: string[] = [];
+  if (place) bits.push(`ONE photograph of ${place}.`);
+  const names: string[] = [];
+  for (const m of positions) {
+    const inner = (m[1] || "").trim();
+    const nameMatch = inner.match(/^(.+?)\s+framed\s+/i);
+    const name = (nameMatch?.[1] || "").trim();
+    if (!name) continue;
+    names.push(name);
+    const where = inner
+      .replace(/^(.+?)\s+framed\s+/i, "")
+      .replace(/\(drop[^)]*\)\.?/gi, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\.+$/, "");
+    bits.push(
+      `${name} is ${where} of that room — a full person using the furniture there, not a portrait tile.`,
+    );
+  }
+  if (names.length > 1) {
+    bits.push(
+      `${names.join(" and ")} share the same room and the same camera. Not a collage, not a comic page, not separate portraits.`,
+    );
+  }
+  if (!bits.length) return text;
+  return `${text}\n\n${bits.join(" ")}`.trim();
+}
+
 /** Wearing / Nude replaces the body — keep each drop mark so JO stays parked. */
 export function keepScratchPositionLines(previous: string, nextBody: string): string {
   const body = (nextBody || "").trim();

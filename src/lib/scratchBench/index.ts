@@ -58,6 +58,7 @@ export type {
 export {
   SCRATCH_DND_MIME,
   dropPercents,
+  expandScratchLayoutMarks,
   keepScratchPositionLines,
   mergePositionIntoStaging,
   positionPromptLine,
