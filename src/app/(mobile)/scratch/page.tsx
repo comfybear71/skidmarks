@@ -253,6 +253,7 @@ export default function ScratchPage() {
             line: line.trim(),
             lookLock,
             shotSpeakers: padCast.length ? padCast : [speaker],
+            staging,
           }),
         )
       : "";

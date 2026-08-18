@@ -1725,9 +1725,10 @@ function BeatLineEditor({
           line: text,
           lookLock,
           shotSpeakers,
+          staging: positionBody,
         }),
       ),
-    [beat.speaker, lookLock, shotSpeakers, styleId, text],
+    [beat.speaker, lookLock, positionBody, shotSpeakers, styleId, text],
   );
   const motionBody =
     motionDraft ?? (stripLtxLipSyncLead(beat.imageMotion || "") || defaultMotionBody);

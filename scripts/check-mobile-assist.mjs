@@ -24,6 +24,7 @@ assert.match(ASSIST_CRITERIA_LOCK, /\[SPEECH\]/);
 assert.match(ASSIST_CRITERIA_LOCK, /keyboard warrior/i);
 assert.match(ASSIST_CRITERIA_LOCK, /crazed maniac/i);
 assert.match(ASSIST_CRITERIA_LOCK, /tennis racket/i);
+assert.match(ASSIST_CRITERIA_LOCK, /empty hands/i);
 assert.match(ASSIST_CRITERIA_LOCK, /Use the provided start image as the first frame/);
 assert.ok(ASSIST_CRITERIA_LOCK.includes(LTX_LIP_SYNC_LEAD));
 assert.match(ASSIST_CRITERIA_LOCK, /turnaround sheet/i);

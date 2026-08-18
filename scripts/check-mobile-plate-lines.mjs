@@ -223,6 +223,13 @@ const racketStill = plateCastStagingNote({
 assert.match(racketStill, /tennis racket/);
 assert.doesNotMatch(racketStill, /mobile phone/);
 
+const emptyHandsStill = plateCastStagingNote({
+  speakers: ["CRAZY BIG HOLE JO"],
+  staging: "Sitting on Jo's bed, hands free or resting. Only JO in frame.",
+});
+assert.doesNotMatch(emptyHandsStill, /mobile phone/);
+assert.match(emptyHandsStill, /Empty hands/);
+
 const joPosition =
   "CRAZY BIG HOLE JO alone in Jo's bedroom (the cell). Only CRAZY BIG HOLE JO in frame, no one else appears. Sitting on the bed, holding her mobile phone, texting, staring at the screen like a crazed maniac.";
 assert.equal(looksLikePlatePositionPrompt(joPosition), true);

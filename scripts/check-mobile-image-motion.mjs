@@ -4,6 +4,7 @@ import {
   buildDefaultBeatMotion,
   buildGlobalPrompt,
   defaultSoloStaging,
+  directorWantsEmptyHands,
   isJoKeyboardWarrior,
   joPhoneStagingExtra,
   ensureGoldFrameLocks,
@@ -114,6 +115,22 @@ assert.equal(
 );
 assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "standing centre-frame").length > 0, true);
 assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "tennis racket in hand"), "");
+assert.equal(directorWantsEmptyHands("hands free or resting"), true);
+assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "sitting on the bed, hands free or resting"), "");
+
+const emptyJo = buildDefaultBeatMotion({
+  styleId: "skidmarks",
+  speaker: "CRAZY BIG HOLE JO",
+  line: "get stuffed",
+  staging: "Empty hands in her lap. No phone. Only JO in frame.",
+});
+assert.match(emptyJo, /empty hands|no phone/i);
+assert.doesNotMatch(emptyJo, /holding her mobile phone/);
+assert.doesNotMatch(emptyJo, /keyboard warrior/);
+
+const sentEmpty = ltxSendPrompt(jo, "Empty hands in her lap. No phone.");
+assert.doesNotMatch(sentEmpty, /holding her mobile phone/);
+assert.match(sentEmpty, /empty hands|no phone/i);
 
 assert.match(buildGlobalPrompt("skidmarks"), /dication is perfect/);
 

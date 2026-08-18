@@ -127,8 +127,9 @@ export async function runScratchLtxClip(opts: {
       line,
       lookLock,
       shotSpeakers: shotCast,
+      staging: storyShot.staging,
     });
-  const imageMotion = ltxSendPrompt(body);
+  const imageMotion = ltxSendPrompt(body, storyShot.staging);
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
     ? (job.clips || []).map((c) =>
