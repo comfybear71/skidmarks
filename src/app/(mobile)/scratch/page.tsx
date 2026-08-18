@@ -69,6 +69,14 @@ import {
   type ScratchScoreTag,
 } from "@/lib/scratchBench";
 import { useScratchPadHotkeys } from "@/hooks/useScratchPadHotkeys";
+import {
+  SIRAY_I2V_DEFAULT,
+  SIRAY_I2V_MODELS,
+  sirayI2vSpec,
+  type SirayI2vId,
+} from "@/lib/sirayI2v";
+
+type ScratchClipPick = "ltx" | SirayI2vId;
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
@@ -206,8 +214,9 @@ export default function ScratchPage() {
   /** Last successful Save — unlocks Generate even if story GET lags. */
   const [savedTake, setSavedTake] = useState<{ beatId: string; voiceFile: string } | null>(null);
   const [ltxOpen, setLtxOpen] = useState(true);
-  const [clipEngine, setClipEngine] = useState<"ltx" | "siray">("ltx");
+  const [clipEngine, setClipEngine] = useState<ScratchClipPick>("ltx");
   const [stillBackend, setStillBackend] = useState<ScratchBackendId>("unknown");
+  const [clipStamp, setClipStamp] = useState("");
   const [sirayReady, setSirayReady] = useState(false);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   /** Which beat the draft belongs to — ignore draft after mouth / beat switch. */
@@ -867,6 +876,8 @@ export default function ScratchPage() {
         job?: MobileGenJob;
         backend?: ScratchBackendId;
         siray?: boolean;
+        clipLabel?: string;
+        i2v?: SirayI2vId;
       }>("/api/crash/mobile/scratch", {
         action: "clip",
         jobId: job.id,
@@ -875,6 +886,10 @@ export default function ScratchPage() {
       });
       if (typeof data.siray === "boolean") setSirayReady(data.siray);
       if (data.job) setJob(data.job);
+      const ranLabel =
+        data.clipLabel ||
+        (clipEngine === "ltx" ? "LTX (mp3)" : sirayI2vSpec(clipEngine).label);
+      setClipStamp(ranLabel);
       const clipFile =
         data.job?.clips?.filter((c) => c.beatId === beat.id && c.clipFile).at(-1)?.clipFile || "";
       const clipUrl = clipFile
@@ -884,7 +899,7 @@ export default function ScratchPage() {
       setBench((prev) => {
         const next = appendBenchRun(prev, {
           kind: "clip",
-          backend: data.backend || (clipEngine === "siray" ? "siray-i2v" : "ltx"),
+          backend: data.backend || (clipEngine === "ltx" ? "ltx" : "siray-i2v"),
           chaosId: prev.chaosId,
           positionPrompt: staging || undefined,
           plateUrl: plateSrc || undefined,
@@ -914,7 +929,9 @@ export default function ScratchPage() {
   );
   const canGenerate = playable || clipPlayable;
   const canSirayGenerate = Boolean(plateSrc && beat && job);
-  const generateReady = clipEngine === "siray" ? canSirayGenerate && sirayReady : canGenerate;
+  const generateReady = clipEngine === "ltx" ? canGenerate : canSirayGenerate && sirayReady;
+  const sirayClip = clipEngine !== "ltx";
+  const selectedSiray = sirayClip ? sirayI2vSpec(clipEngine) : sirayI2vSpec(SIRAY_I2V_DEFAULT);
 
   useScratchPadHotkeys({
     enabled: Boolean(job) && !resuming,
@@ -1404,7 +1421,10 @@ export default function ScratchPage() {
               <button
                 type="button"
                 disabled={Boolean(busy)}
-                onClick={() => setClipEngine("ltx")}
+                onClick={() => {
+                  setClipEngine("ltx");
+                  setClipStamp("");
+                }}
                 style={{
                   ...ghostBtn,
                   border: clipEngine === "ltx" ? "1px solid var(--acid)" : ghostBtn.border,
@@ -1416,20 +1436,53 @@ export default function ScratchPage() {
               <button
                 type="button"
                 disabled={Boolean(busy) || !sirayReady}
-                onClick={() => setClipEngine("siray")}
+                onClick={() => {
+                  if (clipEngine === "ltx") {
+                    setClipEngine(SIRAY_I2V_DEFAULT);
+                    setClipStamp("");
+                  }
+                }}
                 style={{
                   ...ghostBtn,
-                  border: clipEngine === "siray" ? "1px solid var(--acid)" : ghostBtn.border,
-                  color: clipEngine === "siray" ? "var(--acid)" : "var(--chrome)",
+                  border: sirayClip ? "1px solid var(--acid)" : ghostBtn.border,
+                  color: sirayClip ? "var(--acid)" : "var(--chrome)",
                 }}
               >
-                Siray Seedance Spicy
+                Siray i2v
               </button>
-              <span style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
-                {clipEngine === "siray"
-                  ? "Motion from the still. No lip-sync — keep LTX for the Saved mp3."
-                  : "Lip-sync follows the Saved mp3 on Comfy."}
+              {SIRAY_I2V_MODELS.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  disabled={Boolean(busy) || !sirayReady}
+                  onClick={() => {
+                    setClipEngine(row.id);
+                    setClipStamp("");
+                  }}
+                  title={row.hint}
+                  style={{
+                    ...ghostBtn,
+                    border: clipEngine === row.id ? "1px solid var(--acid)" : ghostBtn.border,
+                    color: clipEngine === row.id ? "var(--acid)" : "var(--chrome)",
+                    fontSize: "11px",
+                  }}
+                >
+                  {row.shortLabel}
+                  {row.id === SIRAY_I2V_DEFAULT ? " cheap" : ""}
+                </button>
+              ))}
+            </div>
+            <div style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
+              Clip:{" "}
+              <span style={{ color: sirayClip || clipStamp ? "var(--acid)" : "var(--chrome)" }}>
+                {clipStamp ||
+                  (sirayClip
+                    ? selectedSiray.label
+                    : sirayReady
+                      ? "LTX — lip-sync on the Saved mp3"
+                      : "LTX — Siray chip needs SIRAY_API_KEY")}
               </span>
+              {sirayClip ? " — motion from the still. Keep LTX when she has to speak." : ""}
             </div>
 
             <div className="scratch-ltx-motion">

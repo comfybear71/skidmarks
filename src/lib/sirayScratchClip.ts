@@ -19,13 +19,13 @@ import type { CrashStoryDoc } from "./crashStoryTypes";
 import { sortableId } from "./types";
 import { fileToDataUrl } from "./sirayScratchPlate";
 import {
-  SIRAY_SEEDANCE_20_I2V_SPICY,
   clampSirayI2vDurationSec,
   sirayConfigured,
   sirayDownloadUrl,
   siraySubmitVideoAsync,
   sirayWaitVideoOutputs,
 } from "./sirayClient";
+import { SIRAY_I2V_DEFAULT, sirayI2vSpec, type SirayI2vId } from "./sirayI2v";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
@@ -63,7 +63,8 @@ export async function runScratchSirayClip(opts: {
   shotId: string;
   sceneId: string;
   beatId: string;
-}): Promise<MobileGenJob> {
+  i2v?: SirayI2vId;
+}): Promise<{ job: MobileGenJob; i2v: SirayI2vId; model: string; label: string }> {
   if (!sirayConfigured()) {
     throw new Error("Missing SIRAY_API_KEY — https://console.siray.ai/keys");
   }
@@ -103,8 +104,10 @@ export async function runScratchSirayClip(opts: {
         voiceFile,
       })
     : "";
+  const i2v = opts.i2v || SIRAY_I2V_DEFAULT;
+  const spec = sirayI2vSpec(i2v);
   const probed = audioPath ? probeDurationSeconds(audioPath) : undefined;
-  const duration = clampSirayI2vDurationSec(probed ?? 5);
+  const duration = clampSirayI2vDurationSec(probed ?? 5, spec.minSec, spec.maxSec);
   const lookLock =
     candidateLookPrompt(job.castCandidates, speaker) ||
     job.roster.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())?.appearance ||
@@ -153,12 +156,12 @@ export async function runScratchSirayClip(opts: {
 
   try {
     const taskId = await siraySubmitVideoAsync({
-      model: SIRAY_SEEDANCE_20_I2V_SPICY,
+      model: spec.model,
       prompt,
       image: fileToDataUrl(platePath),
       duration,
-      size: "720p",
-      aspect_ratio: "adaptive",
+      size: spec.size,
+      ...(spec.aspectRatio ? { aspect_ratio: spec.aspectRatio } : {}),
       audio_enable: false,
     });
     const urls = await sirayWaitVideoOutputs(taskId);
@@ -191,5 +194,5 @@ export async function runScratchSirayClip(opts: {
     job = (await patchMobileGenJob(jobId, { clips: next }))!;
     throw e;
   }
-  return job;
+  return { job, i2v, model: spec.model, label: spec.label };
 }

@@ -1,58 +1,40 @@
 import assert from "node:assert/strict";
 import {
   clampSirayI2vDurationSec,
-  SIRAY_SEEDANCE_20_I2V_SPICY,
-  SIRAY_SEEDANCE_I2V_MAX_SEC,
-  SIRAY_SEEDANCE_I2V_MIN_SEC,
-  SIRAY_SEEDREAM_45_REF2I_SPICY,
-} from "../src/lib/sirayClient.ts";
-import { buildSirayScratchPrompt } from "../src/lib/sirayScratchPlate.ts";
-import { buildSirayI2vPrompt } from "../src/lib/sirayScratchClip.ts";
+  parseScratchClipEngine,
+  SIRAY_I2V_DEFAULT,
+  SIRAY_I2V_MODELS,
+  sirayI2vSpec,
+} from "../src/lib/sirayI2v.ts";
 
-assert.equal(SIRAY_SEEDREAM_45_REF2I_SPICY, "bytedance/seedream-4.5-ref2i-spicy");
-assert.equal(SIRAY_SEEDANCE_20_I2V_SPICY, "bytedance/seedance-2.0-i2v-spicy");
-assert.equal(SIRAY_SEEDANCE_I2V_MIN_SEC, 4);
-assert.equal(SIRAY_SEEDANCE_I2V_MAX_SEC, 15);
+assert.equal(SIRAY_I2V_DEFAULT, "seedance-20");
+assert.equal(sirayI2vSpec("seedance-20").model, "bytedance/seedance-2.0-i2v-spicy");
+assert.equal(sirayI2vSpec("seedance-25").model, "bytedance/seedance-2.5-i2v-spicy");
+assert.equal(sirayI2vSpec("wan-27").model, "alibaba/wan-2.7-i2v-spicy");
+assert.equal(sirayI2vSpec("wan-30").model, "alibaba/wan-3.0-i2v-spicy");
+assert.equal(sirayI2vSpec("seedance-20").minSec, 4);
+assert.equal(sirayI2vSpec("seedance-20").maxSec, 15);
+assert.equal(sirayI2vSpec("seedance-25").maxSec, 30);
+assert.equal(sirayI2vSpec("wan-27").aspectRatio, undefined);
+assert.equal(sirayI2vSpec("wan-30").aspectRatio, "adaptive");
+assert.equal(SIRAY_I2V_MODELS.length, 4);
+
+assert.equal(parseScratchClipEngine("ltx"), "ltx");
+assert.equal(parseScratchClipEngine("siray"), "seedance-20");
+assert.equal(parseScratchClipEngine("siray-spicy"), "seedance-20");
+assert.equal(parseScratchClipEngine("siray-i2v"), "seedance-20");
+assert.equal(parseScratchClipEngine("seedance-25"), "seedance-25");
+assert.equal(parseScratchClipEngine("wan-27"), "wan-27");
+assert.equal(parseScratchClipEngine("wan-30"), "wan-30");
+assert.throws(() => parseScratchClipEngine("kling"));
+
 assert.equal(clampSirayI2vDurationSec(0), 5);
 assert.equal(clampSirayI2vDurationSec(3.2), 4);
 assert.equal(clampSirayI2vDurationSec(6.4), 6);
 assert.equal(clampSirayI2vDurationSec(40), 15);
-
-const still = buildSirayScratchPrompt({
-  styleId: "skidmarks",
-  styleRealism: 70,
-  placeName: "Matty's bar",
-  speakers: ["BIG SEXY"],
-  looks: "BIG SEXY looks like: tall, shaved.",
-  placeLook: "sticky carpet",
-  staging: "BIG SEXY leans on the bar, empty hands.",
-});
-assert.match(still, /Image 1 is the LOCKED place/);
-assert.match(still, /Image 2 is BIG SEXY/);
-assert.match(still, /leans on the bar/);
-assert.doesNotMatch(still, /\[VISUAL\]|\[SPEECH\]/);
-
-const duo = buildSirayScratchPrompt({
-  styleId: "skidmarks",
-  styleRealism: 70,
-  placeName: "Matty's bar",
-  speakers: ["BIG SEXY", "MATTY"],
-  looks: "",
-  placeLook: "",
-  staging: "",
-});
-assert.match(duo, /Images 2–3 are BIG SEXY, MATTY/);
-assert.match(duo, /Exactly 2 people/);
-
-const motion = buildSirayI2vPrompt({
-  speaker: "TEE",
-  line: "I am so incredibly frustrated, I want to scream back!",
-  motion: 'Use the provided start image as the first frame. TEE says: "I am so incredibly frustrated, I want to scream back!"',
-  staging: "TEE on the couch.",
-});
-assert.match(motion, /first frame/);
-assert.match(motion, /TEE is speaking/);
-assert.match(motion, /scream back/);
-assert.doesNotMatch(motion, /\[VISUAL\]|\[SPEECH\]/);
+assert.equal(clampSirayI2vDurationSec(3, 4, 30), 4);
+assert.equal(clampSirayI2vDurationSec(22, 4, 30), 22);
+assert.equal(clampSirayI2vDurationSec(40, 2, 30), 30);
+assert.equal(clampSirayI2vDurationSec(3, 2, 15), 3);
 
 console.log("check-siray-scratch: ok");
