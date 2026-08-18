@@ -147,6 +147,8 @@ export type MobileGenJob = {
   scratchPlate?: ScratchPlateRef;
   /** Siray Draw in flight. Cleared when the still lands. */
   scratchDraw?: ScratchDrawTask | null;
+  /** Hide the last still on /scratch. Plate file stays — refresh must not put it back. */
+  scratchPadCleared?: boolean;
   finalVideoFile: string;
   error: string;
   createdAt: string;

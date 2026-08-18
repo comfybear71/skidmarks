@@ -350,12 +350,14 @@ export default function ScratchPage() {
           return;
         }
         setJob(d.job);
-        const who = pickDefaultSpeaker(d.job);
         const fromScratch = d.job.scratchPlate?.cast?.filter(Boolean) || [];
-        setSpeaker(d.job.scratchPlate?.speaker || who);
-        setPadCast(fromScratch.length ? fromScratch : who ? [who] : []);
+        const padWiped = Boolean(d.job.scratchPadCleared && !fromScratch.length);
+        setPadCleared(Boolean(d.job.scratchPadCleared));
+        const who = pickDefaultSpeaker(d.job);
+        setSpeaker(d.job.scratchPlate?.speaker || (fromScratch[0] || (padWiped ? "" : who)));
+        setPadCast(fromScratch.length ? fromScratch : padWiped ? [] : who ? [who] : []);
         setSceneId(pickDefaultPlace(d.job));
-        await loadStory(d.job);
+        await loadStory(d.job, { keepStaging: padWiped });
       })
       .catch(() => {
         if (!cancelled) setResumeError("Couldn't open that episode. Don't tap Start directing.");
@@ -388,18 +390,19 @@ export default function ScratchPage() {
       setSavedTake(null);
       setMotionDraft(null);
       motionEditBeatId.current = null;
-      setPadCleared(false);
+      const fromScratch = next.scratchPlate?.cast?.filter(Boolean) || [];
+      const padWiped = Boolean(next.scratchPadCleared && !fromScratch.length);
+      setPadCleared(Boolean(next.scratchPadCleared));
       setPlacements([]);
       setError("");
       setResumeError("");
       const who = pickDefaultSpeaker(next);
-      const fromScratch = next.scratchPlate?.cast?.filter(Boolean) || [];
-      setSpeaker(next.scratchPlate?.speaker || who);
-      setPadCast(fromScratch.length ? fromScratch : who ? [who] : []);
+      setSpeaker(next.scratchPlate?.speaker || (fromScratch[0] || (padWiped ? "" : who)));
+      setPadCast(fromScratch.length ? fromScratch : padWiped ? [] : who ? [who] : []);
       setSceneId(pickDefaultPlace(next));
       setStaging("");
       setLine("");
-      await loadStory(next);
+      await loadStory(next, { keepStaging: padWiped });
     },
     [loadStory],
   );
@@ -640,11 +643,20 @@ export default function ScratchPage() {
     setPoseId("");
   }
 
-  /** Hide the still only — keep faces, place, marks. Do not wipe the episode. */
+  /** Hide the still only — keep faces, place, marks. Plate file stays on the episode. */
   function clearPlate() {
     setPadCleared(true);
     setLightbox("");
     setError("");
+    if (!job) return;
+    void postJson<{ job: MobileGenJob }>("/api/crash/mobile/scratch", {
+      action: "clear-plate",
+      jobId: job.id,
+    })
+      .then((d) => {
+        if (d.job) setJob(d.job);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Couldn't hide the plate"));
   }
 
   function clearPad() {
@@ -657,6 +669,15 @@ export default function ScratchPage() {
     setBibleActiveId(null);
     setSavedTake(null);
     setError("");
+    if (!job) return;
+    void postJson<{ job: MobileGenJob }>("/api/crash/mobile/scratch", {
+      action: "clear-pad",
+      jobId: job.id,
+    })
+      .then((d) => {
+        if (d.job) setJob(d.job);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Couldn't clear the pad"));
   }
 
   function onPadDragOver(e: DragEvent) {
@@ -1284,7 +1305,7 @@ export default function ScratchPage() {
                       : "XAI — no SIRAY_API_KEY"}
               </span>
               {scratchWantsMaleNude(staging)
-                ? " — wardrobe override: adult man, drop the shorts, exaggerate the anatomy."
+                ? " — wardrobe override: adult man, drop the shorts, keep human anatomy."
                 : scratchWantsNude(staging)
                   ? " — wardrobe override: drop the face-card clothes."
                   : ""}
