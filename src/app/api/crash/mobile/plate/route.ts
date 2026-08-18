@@ -9,10 +9,14 @@ import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
 import { dropLeftoverHydrateBeats } from "@/lib/mobilePlateLines";
 import { clearAllStoryShots } from "@/lib/mobileClipQueue";
 import { defaultSoloStaging } from "@/lib/mobileImageMotion";
+import { leftoverHydrateBeat } from "@/lib/mobilePlateLines";
+import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import {
   PLATE_QA_MAX_ATTEMPTS,
   appendPlateQaFix,
+  compileScriptedPosition,
   judgePlateStill,
+  resolvePlateQaIdentity,
   type PlateQaVerdict,
 } from "@/lib/mobilePlateQa";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
@@ -115,12 +119,6 @@ export async function POST(req: Request) {
     }
     if ((pick || dropTake) && !takeIdIn) return NextResponse.json({ error: "Need takeId" }, { status: 400 });
     if (removeLine && !beatIdIn) return NextResponse.json({ error: "Need beatId" }, { status: 400 });
-    if (!drop && !dropTake && !saveOnly && !add && !addCast && !addLine && !removeLine && !remove && !clear && !restore && !pick && !(stagingIn || "").trim()) {
-      return NextResponse.json(
-        { error: "Say who sits where — not two people stuck in the front." },
-        { status: 400 },
-      );
-    }
     if (saveOnly && stagingIn === undefined && summaryIn === undefined) {
       return NextResponse.json({ error: "Nothing to save" }, { status: 400 });
     }
@@ -410,8 +408,33 @@ export async function POST(req: Request) {
       });
     }
 
-    let staging = (stagingIn || "").trim();
     const cleanedBeats = dropLeftoverHydrateBeats(shot.id, shot.beats);
+    const speaker =
+      cleanedBeats.find((b) => b.speaker.trim() && !leftoverHydrateBeat(shot.id, b.id))
+        ?.speaker ||
+      cleanedBeats[0]?.speaker ||
+      "";
+    let staging = (stagingIn || "").trim();
+    if (!staging && speaker) {
+      staging = compileScriptedPosition({
+        name: speaker,
+        place: scene.placeName || "this place",
+      });
+    }
+    if (!staging) {
+      return NextResponse.json(
+        { error: "Say who sits where — not two people stuck in the front." },
+        { status: 400 },
+      );
+    }
+    const lookLock =
+      candidateLookPrompt(job.castCandidates, speaker) ||
+      job.roster.find((c) => c.name.trim().toLowerCase() === speaker.trim().toLowerCase())
+        ?.appearance ||
+      "";
+    const identity = speaker
+      ? await resolvePlateQaIdentity({ styleId: job.styleId, name: speaker, job }).catch(() => null)
+      : null;
     const wantQa = body.qa !== false;
     let working: CrashStoryDoc = {
       ...story,
@@ -469,7 +492,14 @@ export async function POST(req: Request) {
 
       if (!wantQa || attempt >= PLATE_QA_MAX_ATTEMPTS) break;
       try {
-        qa = await judgePlateStill({ plateFile: fileName, staging });
+        qa = await judgePlateStill({
+          plateFile: fileName,
+          staging,
+          speaker,
+          lookLock,
+          identityDataUrl: identity?.dataUrl,
+          identitySource: identity?.source,
+        });
       } catch {
         qa = null;
         break;
