@@ -869,7 +869,7 @@ export default function ScratchPage() {
     setBusy("clip");
     setError("");
     try {
-      if (motionBody.trim()) {
+      if (clipEngine === "ltx" && motionBody.trim()) {
         await persistMotion(motionBody);
       }
       const data = await postJson<{

@@ -93,3 +93,57 @@ export function clampSirayI2vDurationSec(
   if (!Number.isFinite(sec) || sec <= 0) return fallback;
   return Math.max(minSec, Math.min(maxSec, Math.round(sec)));
 }
+
+/**
+ * LTX Image motion is a speaking prompt. Seedance/Wan chew the plate if we
+ * send "says" / lip-sync / mouth while speaking — melted mouth, new face,
+ * extra people. Siray i2v is motion only.
+ */
+export function stripSpeechForSirayMotion(text: string): string {
+  return (text || "")
+    .replace(/perfect lip sync[^.]*\.\s*/gi, "")
+    .replace(/\b[\w .'-]{1,40}\s+says:\s*"[^"]*"/gi, "")
+    .replace(/\b[\w .'-]{1,40}\s+is speaking:\s*"[^"]*"/gi, "")
+    .replace(/mouth and head move naturally while (?:speaking|she speaks),?\s*/gi, "")
+    .replace(/mouth and head move while speaking,?\s*/gi, "")
+    .replace(/citing the dialogue[^.]*\.?/gi, "")
+    .replace(/clear lip movement,?\s*/gi, "")
+    .replace(/facial expressions and hand gestures are lively,?\s*/gi, "")
+    .replace(/dication is perfect\.?/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function buildSirayI2vPrompt(opts: {
+  speaker: string;
+  motion: string;
+  staging: string;
+  lookLock?: string;
+  styleLock?: string;
+}): string {
+  const who = (opts.speaker || "").trim();
+  const look = (opts.lookLock || "").trim();
+  const style = (opts.styleLock || "").trim();
+  const motion = stripSpeechForSirayMotion(opts.motion || "");
+  const staging = stripSpeechForSirayMotion(opts.staging || "");
+  const action =
+    motion ||
+    (staging
+      ? staging
+      : `${who || "The person"} holds their pose, subtle idle motion, weight shift, breathing.`);
+  const whoLook = [who, look].filter(Boolean).join(", ");
+  return [
+    "Use the provided start image as the first frame.",
+    whoLook
+      ? `${whoLook} is prominent, same face, hair, age, wardrobe and body as the start image.`
+      : "Keep that face, body, wardrobe and place.",
+    action,
+    "No dialogue. Mouth stays closed. Do not invent a new take or a new face.",
+    "Props and background stay exactly as the start image, nothing new enters frame.",
+    "Camera holds, no cuts. Same person and objects as the start image. No new people.",
+    "No text, no captions, no watermarks.",
+    style,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}

@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import {
+  buildSirayI2vPrompt,
   clampSirayI2vDurationSec,
   parseScratchClipEngine,
   SIRAY_I2V_DEFAULT,
   SIRAY_I2V_MODELS,
   sirayI2vSpec,
+  stripSpeechForSirayMotion,
 } from "../src/lib/sirayI2v.ts";
 
 assert.equal(SIRAY_I2V_DEFAULT, "seedance-20");
@@ -36,5 +38,27 @@ assert.equal(clampSirayI2vDurationSec(3, 4, 30), 4);
 assert.equal(clampSirayI2vDurationSec(22, 4, 30), 22);
 assert.equal(clampSirayI2vDurationSec(40, 2, 30), 30);
 assert.equal(clampSirayI2vDurationSec(3, 2, 15), 3);
+
+const stripped = stripSpeechForSirayMotion(
+  'Use the provided start image as the first frame. TEE says: "I am so incredibly frustrated, I want to scream back!" mouth and head move naturally while speaking, subtle lean.',
+);
+assert.doesNotMatch(stripped, /says:|speaking|scream back/);
+assert.match(stripped, /subtle lean/i);
+
+const motion = buildSirayI2vPrompt({
+  speaker: "TEE",
+  motion:
+    'Use the provided start image as the first frame. TEE says: "I am so incredibly frustrated, I want to scream back!" mouth and head move naturally while speaking.',
+  staging: "TEE on the couch.",
+  lookLock: "dark hair, black tee",
+  styleLock: "stylised 3D feature render",
+});
+assert.match(motion, /first frame/);
+assert.match(motion, /Mouth stays closed/);
+assert.match(motion, /dark hair/);
+assert.doesNotMatch(motion, /is speaking/);
+assert.doesNotMatch(motion, /says:/);
+assert.doesNotMatch(motion, /scream back/);
+assert.doesNotMatch(motion, /\[VISUAL\]|\[SPEECH\]/);
 
 console.log("check-siray-scratch: ok");

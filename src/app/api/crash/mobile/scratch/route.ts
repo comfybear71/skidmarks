@@ -469,40 +469,39 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
-      const useSiray = clipPick !== "ltx";
       try {
-        if (useSiray) {
-          const drawn = await runScratchSirayClip({
+        if (clipPick === "ltx") {
+          const updated = await runScratchLtxClip({
             job,
             story,
             shotId,
             sceneId: scene.id,
             beatId,
-            i2v: clipPick,
+            poseId: job.scratchPlate.poseId,
           });
           return NextResponse.json({
             ok: true,
-            job: drawn.job,
-            backend: "siray-i2v",
-            clipModel: drawn.model,
-            clipLabel: drawn.label,
-            i2v: drawn.i2v,
+            job: updated,
+            backend: "ltx",
+            clipLabel: "LTX (mp3)",
             siray: sirayConfigured(),
           });
         }
-        const updated = await runScratchLtxClip({
+        const drawn = await runScratchSirayClip({
           job,
           story,
           shotId,
           sceneId: scene.id,
           beatId,
-          poseId: job.scratchPlate.poseId,
+          i2v: clipPick,
         });
         return NextResponse.json({
           ok: true,
-          job: updated,
-          backend: "ltx",
-          clipLabel: "LTX (mp3)",
+          job: drawn.job,
+          backend: "siray-i2v",
+          clipModel: drawn.model,
+          clipLabel: drawn.label,
+          i2v: drawn.i2v,
           siray: sirayConfigured(),
         });
       } catch (e) {

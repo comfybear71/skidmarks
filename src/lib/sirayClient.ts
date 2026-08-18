@@ -157,6 +157,7 @@ type VideoSubmitBody = {
   size: string;
   aspect_ratio?: string;
   audio_enable?: boolean;
+  prompt_expansion_enable?: boolean;
   seed?: number;
 };
 
