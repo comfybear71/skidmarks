@@ -5,27 +5,34 @@
  */
 
 import { getEnv } from "./env";
+import { SIRAY_I2V_MODELS, sirayI2vSpec } from "./sirayI2v";
+
+export {
+  clampSirayI2vDurationSec,
+  isSirayI2vId,
+  parseScratchClipEngine,
+  SIRAY_I2V_DEFAULT,
+  SIRAY_I2V_MODELS,
+  sirayI2vSpec,
+  type SirayI2vId,
+  type SirayI2vSpec,
+} from "./sirayI2v";
 
 export const SIRAY_API_BASE = "https://api.siray.ai";
 
 export const SIRAY_SEEDREAM_45_REF2I_SPICY = "bytedance/seedream-4.5-ref2i-spicy";
 export const SIRAY_SEEDREAM_45_T2I_SPICY = "bytedance/seedream-4.5-t2i-spicy";
-export const SIRAY_SEEDANCE_20_I2V_SPICY = "bytedance/seedance-2.0-i2v-spicy";
+export const SIRAY_SEEDANCE_20_I2V_SPICY = sirayI2vSpec("seedance-20").model;
+export const SIRAY_SEEDANCE_25_I2V_SPICY = sirayI2vSpec("seedance-25").model;
+export const SIRAY_WAN_27_I2V_SPICY = sirayI2vSpec("wan-27").model;
+export const SIRAY_WAN_30_I2V_SPICY = sirayI2vSpec("wan-30").model;
 
 /** Flat $0.040/image on Siray's Spicy 4.5 post — any allowed size. */
 export const SIRAY_SEEDREAM_45_SIZE = "2048x2048" as const;
 
 /** Seedance 2.0 i2v Spicy — integer seconds only. */
-export const SIRAY_SEEDANCE_I2V_MIN_SEC = 4;
-export const SIRAY_SEEDANCE_I2V_MAX_SEC = 15;
-
-export function clampSirayI2vDurationSec(sec: number): number {
-  if (!Number.isFinite(sec) || sec <= 0) return 5;
-  return Math.max(
-    SIRAY_SEEDANCE_I2V_MIN_SEC,
-    Math.min(SIRAY_SEEDANCE_I2V_MAX_SEC, Math.round(sec)),
-  );
-}
+export const SIRAY_SEEDANCE_I2V_MIN_SEC = SIRAY_I2V_MODELS[0].minSec;
+export const SIRAY_SEEDANCE_I2V_MAX_SEC = SIRAY_I2V_MODELS[0].maxSec;
 
 export type SirayTaskStatus =
   | "NOT_START"
@@ -148,8 +155,9 @@ type VideoSubmitBody = {
   image: string;
   duration: number;
   size: string;
-  aspect_ratio: string;
+  aspect_ratio?: string;
   audio_enable?: boolean;
+  prompt_expansion_enable?: boolean;
   seed?: number;
 };
 

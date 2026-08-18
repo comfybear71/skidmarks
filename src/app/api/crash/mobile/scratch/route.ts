@@ -3,6 +3,12 @@ import { NextResponse } from "next/server";
 import { compositeShotPlatePreferSiray } from "@/lib/sirayScratchPlate";
 import { runScratchSirayClip } from "@/lib/sirayScratchClip";
 import { sirayConfigured } from "@/lib/sirayClient";
+import {
+  parseScratchClipEngine,
+  SIRAY_I2V_DEFAULT,
+  SIRAY_I2V_MODELS,
+  sirayI2vSpec,
+} from "@/lib/sirayI2v";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import {
@@ -154,16 +160,25 @@ async function persistScratch(
  * POST { action: "preset", jobId, poseId, staging?, cast?, speaker? }
  *   — rebuild that same still with a position preset (or typed staging).
  * POST { action: "clip", jobId, beatId?, clipEngine? }
- *   — LTX (default) this scratch plate's Saved mp3, or Siray Seedance
- *     spicy i2v (`clipEngine: "siray"`). Does not queue the episode.
+ *   — LTX (default) this scratch plate's Saved mp3, or a Siray i2v
+ *     spicy model (`clipEngine: "siray"` = Seedance 2.0 cheap first pass,
+ *     or seedance-20 / seedance-25 / wan-27 / wan-30). Does not queue the episode.
  * GET — whether SIRAY_API_KEY is on this process (no secrets).
  */
 export async function GET() {
+  const cheap = sirayI2vSpec(SIRAY_I2V_DEFAULT);
   return NextResponse.json({
     ok: true,
     siray: sirayConfigured(),
     stillModel: "bytedance/seedream-4.5-ref2i-spicy",
-    clipModel: "bytedance/seedance-2.0-i2v-spicy",
+    clipModel: cheap.model,
+    clipModels: SIRAY_I2V_MODELS.map((row) => ({
+      id: row.id,
+      model: row.model,
+      label: row.label,
+      shortLabel: row.shortLabel,
+      hint: row.hint,
+    })),
   });
 }
 
@@ -445,29 +460,48 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
-      const clipEngine = (body.clipEngine || "ltx").trim().toLowerCase();
-      const useSiray = clipEngine === "siray" || clipEngine === "siray-spicy" || clipEngine === "siray-i2v";
+      let clipPick: ReturnType<typeof parseScratchClipEngine>;
       try {
-        const updated = useSiray
-          ? await runScratchSirayClip({
-              job,
-              story,
-              shotId,
-              sceneId: scene.id,
-              beatId,
-            })
-          : await runScratchLtxClip({
-              job,
-              story,
-              shotId,
-              sceneId: scene.id,
-              beatId,
-              poseId: job.scratchPlate.poseId,
-            });
+        clipPick = parseScratchClipEngine(body.clipEngine);
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : String(e) },
+          { status: 400 },
+        );
+      }
+      try {
+        if (clipPick === "ltx") {
+          const updated = await runScratchLtxClip({
+            job,
+            story,
+            shotId,
+            sceneId: scene.id,
+            beatId,
+            poseId: job.scratchPlate.poseId,
+          });
+          return NextResponse.json({
+            ok: true,
+            job: updated,
+            backend: "ltx",
+            clipLabel: "LTX (mp3)",
+            siray: sirayConfigured(),
+          });
+        }
+        const drawn = await runScratchSirayClip({
+          job,
+          story,
+          shotId,
+          sceneId: scene.id,
+          beatId,
+          i2v: clipPick,
+        });
         return NextResponse.json({
           ok: true,
-          job: updated,
-          backend: useSiray ? "siray-i2v" : "ltx",
+          job: drawn.job,
+          backend: "siray-i2v",
+          clipModel: drawn.model,
+          clipLabel: drawn.label,
+          i2v: drawn.i2v,
           siray: sirayConfigured(),
         });
       } catch (e) {

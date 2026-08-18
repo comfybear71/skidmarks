@@ -13,19 +13,24 @@ import { rememberClipTake } from "./mobilePlateClips";
 import { probeDurationSeconds } from "./mediaDuration";
 import { candidateLookPrompt } from "./mobileJobReady";
 import { CRASH_DIR } from "./paths";
-import { stripLtxLipSyncLead } from "./mobileImageMotion";
+import { motionStyleLock, stripLtxLipSyncLead } from "./mobileImageMotion";
 import { patchMobileGenJob, type MobileClipUnit, type MobileGenJob } from "./mobileGenJob";
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import { sortableId } from "./types";
 import { fileToDataUrl } from "./sirayScratchPlate";
 import {
-  SIRAY_SEEDANCE_20_I2V_SPICY,
   clampSirayI2vDurationSec,
   sirayConfigured,
   sirayDownloadUrl,
   siraySubmitVideoAsync,
   sirayWaitVideoOutputs,
 } from "./sirayClient";
+import {
+  buildSirayI2vPrompt,
+  SIRAY_I2V_DEFAULT,
+  sirayI2vSpec,
+  type SirayI2vId,
+} from "./sirayI2v";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
@@ -33,25 +38,7 @@ function genDir() {
   return d;
 }
 
-export function buildSirayI2vPrompt(opts: {
-  speaker: string;
-  line: string;
-  motion: string;
-  staging: string;
-}): string {
-  const motion = stripLtxLipSyncLead(opts.motion || "").trim();
-  const staging = (opts.staging || "").trim();
-  const line = (opts.line || "").trim();
-  const who = (opts.speaker || "").trim();
-  return [
-    "Use the provided start image as the first frame. Keep that face, body, wardrobe and place.",
-    motion || staging || `${who || "The person"} moves naturally in place.`,
-    line && who ? `${who} is speaking: "${line}"` : "",
-    "Camera holds. No new people. No text, no captions, no watermarks.",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-}
+export { buildSirayI2vPrompt } from "./sirayI2v";
 
 /**
  * One Seedance spicy clip for the scratch plate. Does not flip job.phase.
@@ -63,7 +50,8 @@ export async function runScratchSirayClip(opts: {
   shotId: string;
   sceneId: string;
   beatId: string;
-}): Promise<MobileGenJob> {
+  i2v?: SirayI2vId;
+}): Promise<{ job: MobileGenJob; i2v: SirayI2vId; model: string; label: string }> {
   if (!sirayConfigured()) {
     throw new Error("Missing SIRAY_API_KEY — https://console.siray.ai/keys");
   }
@@ -103,8 +91,10 @@ export async function runScratchSirayClip(opts: {
         voiceFile,
       })
     : "";
+  const i2v = opts.i2v || SIRAY_I2V_DEFAULT;
+  const spec = sirayI2vSpec(i2v);
   const probed = audioPath ? probeDurationSeconds(audioPath) : undefined;
-  const duration = clampSirayI2vDurationSec(probed ?? 5);
+  const duration = clampSirayI2vDurationSec(probed ?? 5, spec.minSec, spec.maxSec);
   const lookLock =
     candidateLookPrompt(job.castCandidates, speaker) ||
     job.roster.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())?.appearance ||
@@ -112,9 +102,10 @@ export async function runScratchSirayClip(opts: {
   const motion = stripLtxLipSyncLead(beat.imageMotion || "");
   const prompt = buildSirayI2vPrompt({
     speaker,
-    line,
-    motion: motion || lookLock,
+    motion,
     staging: storyShot.staging || "",
+    lookLock,
+    styleLock: motionStyleLock(job.styleId),
   });
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
@@ -153,12 +144,13 @@ export async function runScratchSirayClip(opts: {
 
   try {
     const taskId = await siraySubmitVideoAsync({
-      model: SIRAY_SEEDANCE_20_I2V_SPICY,
+      model: spec.model,
       prompt,
       image: fileToDataUrl(platePath),
       duration,
-      size: "720p",
-      aspect_ratio: "adaptive",
+      size: spec.size,
+      ...(spec.aspectRatio ? { aspect_ratio: spec.aspectRatio } : {}),
+      ...(spec.id === "wan-27" ? { prompt_expansion_enable: false } : {}),
       audio_enable: false,
     });
     const urls = await sirayWaitVideoOutputs(taskId);
@@ -191,5 +183,5 @@ export async function runScratchSirayClip(opts: {
     job = (await patchMobileGenJob(jobId, { clips: next }))!;
     throw e;
   }
-  return job;
+  return { job, i2v, model: spec.model, label: spec.label };
 }
