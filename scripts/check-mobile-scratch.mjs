@@ -9,7 +9,12 @@ import {
 } from "../src/lib/mobileScratch.ts";
 import { isCampaignShotId, isCampaignShotTitle } from "../src/lib/mobilePlateLtxCampaign.ts";
 import { jobDeskId, normalizeDeskId } from "../src/lib/mobileDesk.ts";
-import { keepScratchPositionLines } from "../src/lib/scratchBench/padDrop.ts";
+import {
+  expandScratchLayoutMarks,
+  keepScratchPositionLines,
+  pickJoAndMattyNames,
+  scratchJoMattyBedroomPrompt,
+} from "../src/lib/scratchBench/padDrop.ts";
 import { mergePlacementsIntoStaging } from "../src/lib/scratchBench/promptFormatter.ts";
 
 assert.equal(isScratchShotTitle("Scratch"), true);
@@ -134,5 +139,29 @@ const laid = mergePlacementsIntoStaging("Adult MATTY, fully nude at the bedroom.
 assert.match(laid, /\[Position: MATTY/);
 assert.match(laid, /\[Position: CRAZY BIG HOLE JO/);
 assert.match(laid, /picture-in-picture/i);
+assert.match(laid, /collage/i);
+
+const marksOnly = `[Backdrop: COMFY AND THE LAND LADY'S BEDROOM — drop anchor 48% / 59%.]
+
+[Position: MATTY framed on the right third of the screen, lower band (drop 71% / 76%).]
+
+[Position: CRAZY BIG HOLE JO TOO framed on the left third of the screen, mid height (drop 28% / 45%).]`;
+const expanded = expandScratchLayoutMarks(marksOnly);
+assert.match(expanded, /ONE photograph of COMFY AND THE LAND LADY'S BEDROOM/i);
+assert.match(expanded, /MATTY is on the sofa/i);
+assert.match(expanded, /CRAZY BIG HOLE JO TOO is on the bed/i);
+assert.match(expanded, /share the same room/i);
+assert.match(expanded, /not a floating bust/i);
+assert.equal(expandScratchLayoutMarks(expanded), expanded);
+
+const pair = pickJoAndMattyNames(["CRAZY BIG HOLE JO TOO", "MATTY", "TEE"]);
+assert.ok(pair);
+assert.equal(pair.jo, "CRAZY BIG HOLE JO TOO");
+assert.equal(pair.matty, "MATTY");
+const letter = scratchJoMattyBedroomPrompt("COMFY AND THE LAND LADY'S BEDROOM", pair.jo, pair.matty);
+assert.match(letter, /CRAZY BIG HOLE JO TOO is fully nude on the bed/i);
+assert.match(letter, /MATTY is fully nude on the sofa/i);
+assert.match(letter, /not a floating bust/i);
+assert.equal(expandScratchLayoutMarks(letter), letter);
 
 console.log("check-mobile-scratch: ok");

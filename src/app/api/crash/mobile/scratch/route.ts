@@ -175,6 +175,7 @@ async function landScratchStill(opts: {
     shots,
     error: "",
     scratchDraw: null,
+    scratchPadCleared: false,
     scratchPlate: {
       ...job.scratchPlate!,
       speaker,
@@ -220,6 +221,12 @@ async function persistScratch(
  *     Siray: submit and return `{ pending: true }` — do not wait for the still.
  * POST { action: "preset-poll", jobId }
  *   — one Siray tick. `{ pending: true }` until the still lands. Same episode.
+ * POST { action: "clear-plate", jobId }
+ *   — hide the last still. Does not delete the plate or the episode.
+ * POST { action: "clear-pad", jobId }
+ *   — hide the still and empty the scratch cast on the job. Story stays.
+ * POST { action: "select-place", jobId, sceneId }
+ *   — park a place on the pad. Hides the last composite. Faces stay.
  * POST { action: "clip", jobId, beatId?, clipEngine? }
  *   — LTX (default) this scratch plate's Saved mp3, or a Siray i2v
  *     spicy model (`clipEngine: "siray"` = Seedance 2.0 cheap first pass,
@@ -262,6 +269,48 @@ export async function POST(req: Request) {
 
     let job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+    if (action === "select-place") {
+      const sceneId = (body.sceneId || "").trim();
+      if (!sceneId || !job.scenes.some((s) => s.id === sceneId)) {
+        return NextResponse.json({ error: "Pick a place first — drop it on the pad." }, { status: 400 });
+      }
+      const prev = job.scratchPlate;
+      const scratchPlate: ScratchPlateRef = {
+        shotId: prev?.shotId || "",
+        sceneId,
+        speaker: prev?.speaker || "",
+        cast: prev?.cast || [],
+        poseId: prev?.poseId,
+      };
+      const updated = await patchMobileGenJob(jobId, {
+        scratchPadCleared: true,
+        scratchPlate,
+        error: "",
+      });
+      if (!updated) return NextResponse.json({ error: "Job vanished" }, { status: 404 });
+      return NextResponse.json({ ok: true, job: updated, sceneId });
+    }
+
+    if (action === "clear-plate" || action === "clear-pad") {
+      const emptyPad = action === "clear-pad";
+      const updated = await patchMobileGenJob(jobId, {
+        scratchPadCleared: true,
+        error: "",
+        scratchDraw: null,
+        ...(emptyPad && job.scratchPlate
+          ? {
+              scratchPlate: {
+                ...job.scratchPlate,
+                speaker: "",
+                cast: [],
+              },
+            }
+          : {}),
+      });
+      if (!updated) return NextResponse.json({ error: "Job vanished" }, { status: 404 });
+      return NextResponse.json({ ok: true, job: updated, cleared: emptyPad ? "pad" : "plate" });
+    }
 
     if (action === "ensure") {
       const cast = parseCastBody(body, job.scratchPlate?.speaker || "");

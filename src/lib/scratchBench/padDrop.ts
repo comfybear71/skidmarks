@@ -84,6 +84,92 @@ export function mergePositionIntoStaging(staging: string, line: string, name: st
   return `${base}\n\n${line}`.trim();
 }
 
+/** Land-lady bedroom / named bedroom — left is the bed, right is the sofa. */
+export function isScratchBedroomPlace(place: string): boolean {
+  return /bedroom|land lady/i.test(place || "");
+}
+
+export function pickJoAndMattyNames(names: string[]): { jo: string; matty: string } | null {
+  const list = names.map((n) => n.trim()).filter(Boolean);
+  const jo = list.find((n) => /\bjo\b/i.test(n));
+  const matty = list.find((n) => /matt/i.test(n));
+  if (!jo || !matty) return null;
+  return { jo, matty };
+}
+
+/** Paste letter: JO TOO on the bed, MATTY on the sofa. Adults only. */
+export function scratchJoMattyBedroomPrompt(
+  placeName: string,
+  joName = "JO TOO",
+  mattyName = "MATTY",
+): string {
+  const room = (placeName || "").trim() || "COMFY AND THE LAND LADY'S BEDROOM";
+  const jo = (joName || "JO TOO").trim() || "JO TOO";
+  const matty = (mattyName || "MATTY").trim() || "MATTY";
+  return [
+    `ONE photograph, ONE camera, ONE room: ${room}. Not a collage, not a comic page, not three panels, not inset portraits.`,
+    `Adult ${jo} is fully nude on the bed, left of frame — on the quilt, leaning hard forward like she is about to lurch toward ${matty}. Same face as her face card. Ignore face-card clothes. Full body on the mattress — not a floating bust, not framed in a window.`,
+    `Adult man ${matty} is fully nude on the sofa / armchair, right of frame, lower — sitting back, head tipped up, eyes closed. Same face, tattoos and build as his face card. Visible human penis, two human feet on the floor. Not a Ken doll. No extra limbs. Full body in the seat — not a floating bust, not framed in a window.`,
+    `Only ${jo} and ${matty} in frame. Full people using the furniture. No picture-in-picture. No text. Adults only, no one under 21.`,
+  ].join("\n\n");
+}
+
+export function bedroomFurnitureLine(name: string, where: string, place: string): string {
+  if (!isScratchBedroomPlace(place)) return "";
+  const who = (name || "").trim() || "Subject";
+  if (/left/i.test(where)) {
+    return `${who} is on the bed, left of that room — full body on the mattress, using that bed, not a floating bust in a window.`;
+  }
+  if (/right/i.test(where)) {
+    return `${who} is on the sofa or armchair, right of that room — full body sitting in the seat, not a floating bust in a window.`;
+  }
+  return "";
+}
+
+/**
+ * Seedream ignores "drop 71% / 76%". Turn [Backdrop]/[Position] into
+ * one-room English so JO TOO and MATTY land in the same still.
+ */
+export function expandScratchLayoutMarks(staging: string): string {
+  const text = (staging || "").trim();
+  if (!text) return "";
+  if (/ONE photograph of /i.test(text) && /share the same room/i.test(text)) return text;
+  if (/ONE photograph, ONE camera, ONE room:/i.test(text) && /on the bed/i.test(text) && /on the sofa/i.test(text)) {
+    return text;
+  }
+  const backdrop = text.match(/\[Backdrop:\s*([^\]—]+)/i);
+  const positions = [...text.matchAll(/\[Position:\s*([^\]]+)\]/gi)];
+  if (!backdrop && !positions.length) return text;
+  const place = (backdrop?.[1] || "").replace(/\s+$/, "").trim();
+  const bits: string[] = [];
+  if (place) bits.push(`ONE photograph of ${place}.`);
+  const names: string[] = [];
+  for (const m of positions) {
+    const inner = (m[1] || "").trim();
+    const nameMatch = inner.match(/^(.+?)\s+framed\s+/i);
+    const name = (nameMatch?.[1] || "").trim();
+    if (!name) continue;
+    names.push(name);
+    const where = inner
+      .replace(/^(.+?)\s+framed\s+/i, "")
+      .replace(/\(drop[^)]*\)\.?/gi, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\.+$/, "");
+    bits.push(
+      bedroomFurnitureLine(name, where, place) ||
+        `${name} is ${where} of that room — a full person using the furniture there, not a portrait tile.`,
+    );
+  }
+  if (names.length > 1) {
+    bits.push(
+      `${names.join(" and ")} share the same room and the same camera. Not a collage, not a comic page, not separate portraits.`,
+    );
+  }
+  if (!bits.length) return text;
+  return `${text}\n\n${bits.join(" ")}`.trim();
+}
+
 /** Wearing / Nude replaces the body — keep each drop mark so JO stays parked. */
 export function keepScratchPositionLines(previous: string, nextBody: string): string {
   const body = (nextBody || "").trim();

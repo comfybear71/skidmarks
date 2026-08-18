@@ -140,18 +140,21 @@ export const SCRATCH_NUDE_STILL_LOCK =
 
 /** Male nude — Seedream spicy defaults to a woman or a Ken doll unless we lock sex. */
 export const SCRATCH_NUDE_STILL_LOCK_MALE =
-  "Adults only — no one under 21. This person is an adult man. Draw an adult male body: bare chest, a large exaggerated penis and heavy scrotum, no clothes. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the reference. Do not redraw him as a woman. Do not add breasts. Do not put shorts back on.";
+  "Adults only — no one under 21. This person is an adult man. Draw a normal adult male body: bare chest, a visible human penis and scrotum, no clothes. Two legs, two human feet on the floor. Same face, hair, age and build as the face card. Ignore the tee, shorts and undies on the reference. Do not redraw him as a woman. Do not add breasts. Do not put shorts back on. Do not grow extra limbs or a foot on the penis.";
 
-/** Seedream skips male genitals unless we overshoot — shorts or a blank crotch. */
+/** Visible — not Ken doll, not a mutation. "Longer than real life" made a foot-penis. */
 export const SCRATCH_NUDE_MALE_ANATOMY =
-  "If any adult man is nude: oversized exaggerated penis and heavy scrotum, obvious in frame, thicker and longer than real life. Not modest. Not a Ken doll. Not a smooth blank crotch. No shorts, no underwear, no towel, no blur, no hand covering the groin.";
+  "If any adult man is nude: a normal visible human penis and scrotum, prominent enough to see, attached the usual way between the legs. Two legs, two feet on the floor. Not a Ken doll. Not a smooth blank crotch. Not a collage. No extra feet, no extra hands, no objects growing from the body. No shorts, no underwear, no towel, no blur, no hand covering the groin.";
+
+export const SCRATCH_SINGLE_FRAME_LOCK =
+  "ONE photograph, ONE camera, ONE room. Composite every face into the place still. Not a triptych, not a comic page, not a contact sheet, not a split screen, not three panels, not inset portraits, not a character-select grid.";
 
 /** Motion from a nude plate — do not dress them again. */
 export const SCRATCH_NUDE_I2V_LOCK =
   "Same bare body as the start image. Do not add clothes. Do not invent a new wardrobe.";
 
 export const SCRATCH_NUDE_I2V_LOCK_MALE =
-  "Same adult male body as the start image. The large exaggerated penis stays visible. Do not add clothes or shorts. Do not redraw as a woman.";
+  "Same adult male body as the start image. The visible human penis stays. Two feet on the floor. Do not add clothes or shorts. Do not redraw as a woman. Do not mutate anatomy.";
 
 export function clampSirayI2vDurationSec(
   sec: number,
