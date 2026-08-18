@@ -53,7 +53,7 @@ const WEARING_TEMPLATES: Record<string, { label: string; template: string }> = {
   "clothes-nude": {
     label: "Nude",
     template:
-      "Adult {{name}}, fully nude at {{place}}. Change the clothes from the face card. Same face, hair, age and body. Ignore the outfit on the face card. Natural proportions, unposed. No text or watermarks.",
+      "Adult {{name}}, fully nude at {{place}}. {{cast}} stay in their marked positions — full bodies, not a picture-in-picture. Change the clothes from the face card. Same face, hair, age and body. Ignore the outfit on the face card. Natural proportions, unposed. No text or watermarks.",
   },
   "clothes-man-partial": {
     label: "Man partial",
@@ -63,7 +63,7 @@ const WEARING_TEMPLATES: Record<string, { label: string; template: string }> = {
   "clothes-man-nude": {
     label: "Man nude",
     template:
-      "Adult man {{name}}, fully nude at {{place}}. Adult male body — bare chest, large exaggerated penis and heavy scrotum, no clothes. Not modest, not a Ken doll, not a smooth crotch, no shorts. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the face card. Do not redraw as a woman. Unposed. Adults only, no one under 21. No text or watermarks.",
+      "Adult man {{name}}, fully nude at {{place}}. {{cast}} stay in their marked positions — full bodies, not a picture-in-picture. Adult male body — bare chest, large exaggerated penis and heavy scrotum, no clothes. Not modest, not a Ken doll, not a smooth crotch, no shorts. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the face card. Do not redraw as a woman. Unposed. Adults only, no one under 21. No text or watermarks.",
   },
 };
 

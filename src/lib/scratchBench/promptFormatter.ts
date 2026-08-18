@@ -3,7 +3,7 @@
  * Plate → Draw / LTX path only. No Comfy / clothing euphemism banks.
  */
 
-import type { ScratchPadPlacement } from "./padDrop";
+import { positionPromptLine, type ScratchPadPlacement } from "./padDrop";
 
 export type ScratchPromptFormatConfig = {
   placements: ScratchPadPlacement[];
@@ -15,6 +15,10 @@ export type ScratchPromptFormatConfig = {
   dialogue?: string;
   style?: string;
 };
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 const DEFAULT_CAMERA = "Static cinematic medium framing, keeping pace naturally.";
 const DEFAULT_STYLE =
@@ -50,6 +54,31 @@ export function formatPositioningBlock(
     (a) => `${a.name} (${framingPhrase(a.xPercent, a.yPercent)}; ${a.xPercent}% / ${a.yPercent}%)`,
   );
   return `Left-to-right layout at ${place}: ${parts.join("; ")}.`;
+}
+
+/** Draw must send every drop mark — tap-add + Nude otherwise parks extras as an inset. */
+export function mergePlacementsIntoStaging(
+  staging: string,
+  placements: ScratchPadPlacement[],
+  environment: string,
+): string {
+  let next = (staging || "").trim();
+  if (!placements.length) return next;
+  const hasAllMarks = placements.every((p) =>
+    new RegExp(`\\[Position:\\s*${escapeRegExp(p.name)}\\b`, "i").test(next),
+  );
+  if (!hasAllMarks) {
+    const marks = placements.map((p) => positionPromptLine(p.name, p.xPercent, p.yPercent));
+    next = next ? `${marks.join("\n")}\n\n${next}` : marks.join("\n");
+  }
+  if (
+    placements.length > 1 &&
+    !/picture-in-picture|photo inset|floating head/i.test(next)
+  ) {
+    const names = placements.map((p) => p.name).join(" and ");
+    next = `${next}\n\n${names} are full people standing or sitting in those marks — not a picture-in-picture, not a photo on the wall, not a floating head. Only ${names} in frame.`.trim();
+  }
+  return next.trim();
 }
 
 /**

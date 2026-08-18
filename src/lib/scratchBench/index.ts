@@ -58,6 +58,7 @@ export type {
 export {
   SCRATCH_DND_MIME,
   dropPercents,
+  keepScratchPositionLines,
   mergePositionIntoStaging,
   positionPromptLine,
   readScratchDrag,
@@ -73,6 +74,7 @@ export type {
 export {
   formatPositioningBlock,
   generateScratchPrompt,
+  mergePlacementsIntoStaging,
   stagingActionBody,
   stagingCameraBlock,
 } from "./promptFormatter";
