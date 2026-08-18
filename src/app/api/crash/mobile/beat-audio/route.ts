@@ -19,6 +19,9 @@ import {
   leftoverHydrateSpeakers,
   shotSpeakersOnCard,
 } from "@/lib/mobilePlateLines";
+import { splitSpokenRant } from "@/lib/mobileRantSplit";
+import { newId } from "@/lib/types";
+import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
 export const runtime = "nodejs";
@@ -89,10 +92,14 @@ export async function POST(req: Request) {
     // scratch disk last happened to hold, not this job's.
     const story = await readMobileStory(job.styleId, job.folderName);
     let speaker = "";
+    let shotId = "";
     for (const scene of story.scenes) {
       for (const shot of scene.shots) {
         const beat = shot.beats.find((b) => b.id === beatId);
-        if (beat) speaker = beat.speaker;
+        if (beat) {
+          speaker = beat.speaker;
+          shotId = shot.id;
+        }
       }
     }
     if (!speaker) {
@@ -123,7 +130,14 @@ export async function POST(req: Request) {
       await ensureSpeakerVoiceCast(job.styleId, speaker);
     }
 
-    const result = await synthesizeStoryBeat({ styleId: job.styleId, beatId, speaker, text });
+    const chunks = splitSpokenRant(text);
+    const firstLine = chunks[0] || text;
+    const result = await synthesizeStoryBeat({
+      styleId: job.styleId,
+      beatId,
+      speaker,
+      text: firstLine,
+    });
     const lookLock =
       candidateLookPrompt(job.castCandidates, speaker) ||
       job.roster.find((c) => c.name.trim().toLowerCase() === speaker.trim().toLowerCase())
@@ -151,7 +165,7 @@ export async function POST(req: Request) {
               if (b.id !== beatId) return b;
               if (
                 keepStoredImageMotion(b.imageMotion, leftovers) &&
-                imageMotionUsableForLine(b.imageMotion, text, sh.staging)
+                imageMotionUsableForLine(b.imageMotion, firstLine, sh.staging)
               ) {
                 return b;
               }
@@ -160,7 +174,7 @@ export async function POST(req: Request) {
                 imageMotion: buildDefaultBeatMotion({
                   styleId: job.styleId,
                   speaker,
-                  line: text,
+                  line: firstLine,
                   lookLock,
                   shotSpeakers: onCard,
                   staging: sh.staging,
@@ -171,12 +185,101 @@ export async function POST(req: Request) {
         }),
       })),
     };
-    await writeMobileStory(next, job.folderName);
-    const clips = upsertPendingClip(
+    let working: CrashStoryDoc = next;
+    await writeMobileStory(working, job.folderName);
+    let clips = upsertPendingClip(
       { ...job, clips: job.clips || [] },
-      next,
+      working,
       beatId,
     );
+    const addedBeats: { id: string; text: string; voiceFile: string }[] = [];
+    if (shotId && chunks.length > 1) {
+      for (const chunk of chunks.slice(1)) {
+        const extraId = newId("beat");
+        working = {
+          ...working,
+          scenes: working.scenes.map((sc) => ({
+            ...sc,
+            shots: sc.shots.map((sh) =>
+              sh.id === shotId
+                ? { ...sh, beats: [...sh.beats, { id: extraId, speaker, text: chunk }] }
+                : sh,
+            ),
+          })),
+        };
+        await writeMobileStory(working, job.folderName);
+        const extra = await synthesizeStoryBeat({
+          styleId: job.styleId,
+          beatId: extraId,
+          speaker,
+          text: chunk,
+        });
+        working = {
+          ...extra.story,
+          scenes: extra.story.scenes.map((sc) => ({
+            ...sc,
+            shots: sc.shots.map((sh) => {
+              if (sh.id !== shotId) return sh;
+              const leftovers = leftoverHydrateSpeakers(sh.id, sh.beats);
+              const beats = dropLeftoverHydrateBeats(sh.id, sh.beats, extraId);
+              const onCard = shotSpeakersOnCard({
+                shotId: sh.id,
+                title: sh.title,
+                staging: sh.staging,
+                summary: sh.summary,
+                plateFile: sh.plateFile,
+                jobSpeakers: job.speakers,
+                beats,
+              });
+              return {
+                ...sh,
+                beats: beats.map((b) =>
+                  b.id === extraId
+                    ? {
+                        ...b,
+                        imageMotion: buildDefaultBeatMotion({
+                          styleId: job.styleId,
+                          speaker,
+                          line: chunk,
+                          lookLock,
+                          shotSpeakers: onCard,
+                          staging: sh.staging,
+                        }),
+                      }
+                    : b,
+                ),
+              };
+            }),
+          })),
+        };
+        await writeMobileStory(working, job.folderName);
+        clips = upsertPendingClip({ ...job, clips }, working, extraId);
+        addedBeats.push({ id: extraId, text: chunk, voiceFile: extra.voiceFile });
+        const extraPath = await resolveMobileBeatAudio({
+          styleId: job.styleId,
+          folderName: job.folderName,
+          beatId: extraId,
+          voiceFile: extra.voiceFile,
+        });
+        if (extraPath) {
+          try {
+            await uploadMobileMedia({
+              styleId: job.styleId,
+              folderName: job.folderName,
+              kind: "audio",
+              localPath: extraPath,
+            });
+          } catch {
+            await uploadMobileMedia({
+              styleId: job.styleId,
+              folderName: job.folderName,
+              kind: "audio",
+              localPath: extraPath,
+            });
+          }
+        }
+      }
+    }
     const patched = await patchMobileGenJob(jobId, {
       clips,
       error: "",
@@ -226,9 +329,12 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       voiceFile: result.voiceFile,
+      line: firstLine,
+      split: chunks.length,
+      addedBeats,
       job: patched,
       imageMotion:
-        next.scenes
+        working.scenes
           .flatMap((sc) => sc.shots.flatMap((sh) => sh.beats))
           .find((b) => b.id === beatId)?.imageMotion || "",
     });
