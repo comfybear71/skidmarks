@@ -524,6 +524,7 @@ export async function POST(req: Request) {
           silentCast: [],
           styleRealism: job.styleRealism,
           job,
+          useLastStill: !job.scratchPadCleared,
         });
         const updated = await patchMobileGenJob(jobId, {
           error: "",

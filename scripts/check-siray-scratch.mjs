@@ -10,6 +10,7 @@ import {
   scratchWantsMaleNude,
   scratchNudeLooksMale,
   scratchNudeStillLock,
+  scratchStartImageLock,
   stripSpeechForSirayMotion,
 } from "../src/lib/sirayI2v.ts";
 import { studioFetchError } from "../src/lib/studioFetchError.ts";
@@ -111,5 +112,10 @@ assert.doesNotMatch(
   studioFetchError(new TypeError("Failed to fetch"), "Request failed"),
   /Check the signal/i,
 );
+
+assert.match(scratchStartImageLock(true), /LOCKED last still/i);
+assert.match(scratchStartImageLock(true), /Do not add a person/i);
+assert.match(scratchStartImageLock(false), /LOCKED place/i);
+assert.doesNotMatch(scratchStartImageLock(false), /last still/i);
 
 console.log("check-siray-scratch: ok");

@@ -149,6 +149,17 @@ export const SCRATCH_NUDE_MALE_ANATOMY =
 export const SCRATCH_SINGLE_FRAME_LOCK =
   "ONE photograph, ONE camera, ONE room. Composite every face into the place still. Not a triptych, not a comic page, not a contact sheet, not a split screen, not three panels, not inset portraits, not a character-select grid.";
 
+/** Next Draw edits the pass still instead of rebuilding the empty room. */
+export const SCRATCH_REFINE_STILL_LOCK =
+  "Image 1 is the LOCKED last still. Same people already in that picture. Same room. Only change what staging says. Do not add a person. Do not stand up anyone who is sitting. Do not draw a second copy of anyone.";
+
+export const SCRATCH_PLACE_STILL_LOCK =
+  "Image 1 is the LOCKED place — keep that exact location, lighting and materials. Do not replace the place.";
+
+export function scratchStartImageLock(refineFromStill: boolean): string {
+  return refineFromStill ? SCRATCH_REFINE_STILL_LOCK : SCRATCH_PLACE_STILL_LOCK;
+}
+
 /** Motion from a nude plate — do not dress them again. */
 export const SCRATCH_NUDE_I2V_LOCK =
   "Same bare body as the start image. Do not add clothes. Do not invent a new wardrobe.";
