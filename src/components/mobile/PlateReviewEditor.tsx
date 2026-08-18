@@ -38,7 +38,7 @@ import {
   LTX_LIP_SYNC_LEAD,
   buildDefaultBeatMotion,
   looksLikePlatePositionPrompt,
-  storedMotionFightsEmptyHands,
+  storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
 } from "@/lib/mobileImageMotion";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
@@ -1740,7 +1740,7 @@ function BeatLineEditor({
   );
   const storedMotion = stripLtxLipSyncLead(beat.imageMotion || "");
   const storedMotionOk =
-    Boolean(storedMotion) && !storedMotionFightsEmptyHands(storedMotion, positionBody);
+    Boolean(storedMotion) && !storedMotionNeedsRebuild(storedMotion, positionBody);
   const motionBody = motionDraft ?? (storedMotionOk ? storedMotion : defaultMotionBody);
   const motionDirty = motionDraft !== null;
   const motionHint = useMemo(
@@ -1777,7 +1777,7 @@ function BeatLineEditor({
   const emptiedPhoneMotionRef = useRef("");
   useEffect(() => {
     if (motionDraft !== null) return;
-    if (!storedMotionFightsEmptyHands(storedMotion, positionBody)) return;
+    if (!storedMotionNeedsRebuild(storedMotion, positionBody)) return;
     const next = defaultMotionBody.trim();
     if (!next) return;
     const key = `${beat.id}:${next}`;
