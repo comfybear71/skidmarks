@@ -16,6 +16,39 @@ export type ScratchPlateRef = {
   poseId?: string;
 };
 
+/** In-flight Siray still — browser polls so Vercel does not drop a 3-minute POST. */
+export type ScratchDrawTask = {
+  taskId: string;
+  shotId: string;
+  sceneId: string;
+  staging: string;
+  poseId?: string;
+  speaker: string;
+  cast: string[];
+  castNames: string[];
+  placeName: string;
+  startedAt: string;
+};
+
+/** Reuse the same Siray task if Draw dropped after submit (do not mint a new episode). */
+export const SCRATCH_DRAW_RESUME_MS = 240_000;
+
+export function scratchDrawStillInFlight(
+  task: ScratchDrawTask | null | undefined,
+  want: { shotId: string; staging: string; speaker: string; cast: string[] },
+  nowMs = Date.now(),
+): boolean {
+  if (!task?.taskId) return false;
+  const started = Date.parse(task.startedAt);
+  if (!Number.isFinite(started) || nowMs - started > SCRATCH_DRAW_RESUME_MS) return false;
+  if (task.shotId !== want.shotId) return false;
+  if (task.staging !== want.staging) return false;
+  if (task.speaker.trim().toLowerCase() !== want.speaker.trim().toLowerCase()) return false;
+  const a = task.cast.map((n) => n.trim().toLowerCase()).join("\0");
+  const b = want.cast.map((n) => n.trim().toLowerCase()).join("\0");
+  return a === b;
+}
+
 export function isScratchShotTitle(title?: string): boolean {
   return (title || "").trim().toLowerCase() === SCRATCH_SHOT_TITLE.toLowerCase();
 }
