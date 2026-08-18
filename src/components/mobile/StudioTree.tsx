@@ -26,6 +26,7 @@ import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import { MOBILE_STITCH_MOVIES } from "@/lib/mobilePipeline";
+import { episodePlateCounts } from "@/lib/mobilePlateGraph";
 import { episodeJobShots, episodeQueuedClips } from "@/lib/mobileScratch";
 import { queuedSavedClips } from "@/lib/mobileClipQueue";
 import { isJoKeyboardWarrior } from "@/lib/mobileImageMotion";
@@ -758,6 +759,8 @@ export function StudioTree({
   const [addPlateError, setAddPlateError] = useState("");
   const [addPlateDoneFor, setAddPlateDoneFor] = useState<string | null>(null);
   const [scriptDraft, setScriptDraft] = useState("");
+  const [plating, setPlating] = useState(false);
+  const [plateGraphHint, setPlateGraphHint] = useState("");
 
   async function addLocationToPlate(sceneId: string) {
     setAddingPlateFor(sceneId);
@@ -832,6 +835,46 @@ export function StudioTree({
 
   const plated = episodeJobShots(job).filter((s) => s.plateFile && s.plateFile !== "__error__");
   const episodeShots = episodeJobShots(job);
+  const plateCounts = episodePlateCounts(job);
+  const unplated = plateCounts.total - plateCounts.done;
+
+  async function plateTheEpisode() {
+    if (plating || !unplated) return;
+    setPlating(true);
+    setPlateGraphHint("pick → compile → draw → qa");
+    try {
+      for (;;) {
+        const res = await fetch("/api/crash/mobile/plate-episode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: job.id }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          job?: MobileGenJob;
+          done?: boolean;
+          node?: string;
+          doneCount?: number;
+          total?: number;
+          speaker?: string;
+        };
+        if (data.job) onJobChange(data.job);
+        if (!res.ok) throw new Error(data.error || "Couldn't plate that shot");
+        const n = data.doneCount ?? 0;
+        const t = data.total ?? episodeShots.length;
+        setPlateGraphHint(
+          data.node === "halt_lines"
+            ? "halt — your lines next"
+            : `loop ${n}/${t}${data.speaker ? ` · ${data.speaker}` : ""}`,
+        );
+        if (data.done) break;
+      }
+    } catch (e) {
+      setPlateGraphHint(e instanceof Error ? e.message : "Plate graph stopped");
+    } finally {
+      setPlating(false);
+    }
+  }
   const queued = episodeQueuedClips({ ...job, clips: queuedSavedClips(job.clips) });
   const vibePreset = getShowStylePreset(job.styleId);
   const vibeRealism = job.styleRealism ?? vibePreset.defaultRealism;
@@ -1140,8 +1183,23 @@ export function StudioTree({
                   .join(" · ")}
               </div>
             ) : null}
+            {unplated && episodeShots.length ? (
+              <MobilePrimaryButton
+                disabled={busy || plating}
+                onClick={() => void plateTheEpisode()}
+              >
+                {plating
+                  ? plateGraphHint || "Plating…"
+                  : `Plate the episode (${unplated} left)`}
+              </MobilePrimaryButton>
+            ) : null}
+            {plateGraphHint && !plating ? (
+              <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "8px 0" }}>
+                {plateGraphHint}
+              </div>
+            ) : null}
             {plated.length || busy ? (
-              <MobilePrimaryButton disabled={busy || !plated.length} onClick={onGenerateVideo}>
+              <MobilePrimaryButton disabled={busy || plating || !plated.length} onClick={onGenerateVideo}>
                 {busy ? "Sending…" : "Generate video"}
               </MobilePrimaryButton>
             ) : null}

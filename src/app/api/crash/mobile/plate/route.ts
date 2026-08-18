@@ -1,27 +1,13 @@
-import path from "path";
 import { NextResponse } from "next/server";
-import { compositeShotPlatePreferSiray } from "@/lib/sirayScratchPlate";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
-import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
-import { dropLeftoverHydrateBeats } from "@/lib/mobilePlateLines";
 import { clearAllStoryShots } from "@/lib/mobileClipQueue";
 import { defaultSoloStaging } from "@/lib/mobileImageMotion";
-import { leftoverHydrateBeat } from "@/lib/mobilePlateLines";
-import { candidateLookPrompt } from "@/lib/mobileJobReady";
-import {
-  PLATE_QA_MAX_ATTEMPTS,
-  appendPlateQaFix,
-  compileScriptedPosition,
-  judgePlateStill,
-  resolvePlateQaIdentity,
-  type PlateQaVerdict,
-} from "@/lib/mobilePlateQa";
+import { rebuildShotPlate } from "@/lib/mobilePlateRebuild";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { newId } from "@/lib/types";
-import { CRASH_DIR } from "@/lib/paths";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -408,118 +394,21 @@ export async function POST(req: Request) {
       });
     }
 
-    const cleanedBeats = dropLeftoverHydrateBeats(shotId, shot.beats);
-    const speaker =
-      cleanedBeats.find((b) => b.speaker.trim() && !leftoverHydrateBeat(shotId, b.id))
-        ?.speaker ||
-      cleanedBeats[0]?.speaker ||
-      "";
-    let staging = (stagingIn || "").trim();
-    if (!staging && speaker) {
-      staging = compileScriptedPosition({
-        name: speaker,
-        place: scene.placeName || "this place",
-      });
-    }
-    if (!staging) {
-      return NextResponse.json(
-        { error: "Say who sits where — not two people stuck in the front." },
-        { status: 400 },
-      );
-    }
-    const lookLock =
-      candidateLookPrompt(job.castCandidates, speaker) ||
-      job.roster.find((c) => c.name.trim().toLowerCase() === speaker.trim().toLowerCase())
-        ?.appearance ||
-      "";
-    const identity = speaker
-      ? await resolvePlateQaIdentity({ styleId: job.styleId, name: speaker, job }).catch(() => null)
-      : null;
-    const wantQa = body.qa !== false;
-    let working: CrashStoryDoc = {
-      ...story,
-      scenes: story.scenes.map((sc) => ({
-        ...sc,
-        shots: sc.shots.map((sh) =>
-          sh.id === shotId
-            ? {
-                ...sh,
-                staging,
-                ...(summaryIn !== undefined ? { summary: summaryIn } : {}),
-                plateFile: "",
-                beats: cleanedBeats,
-              }
-            : sh,
-        ),
-      })),
-    };
-    await writeMobileStory(working, job.folderName);
-
-    let fileName = "";
-    let plateTakes: PlateTake[] = [];
-    let qa: PlateQaVerdict | null = null;
-    let qaAttempts = 0;
-
-    for (let attempt = 1; attempt <= PLATE_QA_MAX_ATTEMPTS; attempt++) {
-      qaAttempts = attempt;
-      scene = working.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId))!;
-      shot = scene.shots.find((sh) => sh.id === shotId)!;
-      shot = { ...shot, staging };
-
-      // Only people already on THIS shot. Feeding the rest of the job as
-      // silent extras is how a Jo-solo test kept drawing the old crowd.
-      fileName = await compositeShotPlatePreferSiray(job.styleId, scene, shot, {
-        silentCast: [],
-        styleRealism: job.styleRealism,
-        job,
-      });
-      try {
-        await uploadMobileMedia({
-          styleId: job.styleId,
-          folderName: job.folderName,
-          kind: "plates",
-          localPath: path.join(CRASH_DIR, "gen", fileName),
-        });
-      } catch {
-        /* still usable this request */
-      }
-
-      const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: true };
-      const prevTakes = shot.plateTakes || [];
-      plateTakes = [...prevTakes.map((t) => ({ ...t, approved: false })), newTake];
-      working = patchShotFields(working, shotId, { plateFile: fileName, staging, plateTakes });
-      await writeMobileStory(working, job.folderName);
-
-      if (!wantQa || attempt >= PLATE_QA_MAX_ATTEMPTS) break;
-      try {
-        qa = await judgePlateStill({
-          plateFile: fileName,
-          staging,
-          speaker,
-          lookLock,
-          identityDataUrl: identity?.dataUrl,
-          identitySource: identity?.source,
-        });
-      } catch {
-        qa = null;
-        break;
-      }
-      if (!qa || qa.ok) break;
-      staging = appendPlateQaFix(staging, qa.fix);
-    }
-
-    const shots = job.shots.map((s) =>
-      s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
-    );
-    const updated = await patchMobileGenJob(jobId, { shots, error: "" });
+    const rebuilt = await rebuildShotPlate({
+      job,
+      story,
+      shotId,
+      stagingIn,
+      qa: body.qa,
+    });
     return NextResponse.json({
       ok: true,
-      job: updated,
-      plateFile: fileName,
-      plateTakes,
-      staging,
-      qa,
-      qaAttempts,
+      job: rebuilt.job,
+      plateFile: rebuilt.plateFile,
+      plateTakes: rebuilt.plateTakes,
+      staging: rebuilt.staging,
+      qa: rebuilt.qa,
+      qaAttempts: rebuilt.qaAttempts,
     });
   } catch (e) {
     return NextResponse.json(
