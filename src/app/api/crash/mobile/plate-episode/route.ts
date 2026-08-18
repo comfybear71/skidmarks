@@ -8,6 +8,7 @@ import {
   nextUnplatedEpisodeShot,
   storyShotSpeaker,
 } from "@/lib/mobilePlateGraph";
+import { compileMattyBarGroupPosition } from "@/lib/mobileCastPlaces";
 import { rebuildShotPlate } from "@/lib/mobilePlateRebuild";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 
@@ -53,6 +54,8 @@ export async function POST(req: Request) {
         job,
         story,
         speaker: need.speaker,
+        speakers: need.speakers,
+        ensemble: need.ensemble,
         sceneId: need.sceneId,
       });
       await writeMobileStory(minted.story, job.folderName);
@@ -80,9 +83,14 @@ export async function POST(req: Request) {
     const storyShot = story.scenes
       .flatMap((sc) => sc.shots)
       .find((sh) => sh.id === next.shotId);
+    const groupNames = (storyShot?.beats || [])
+      .map((b) => b.speaker.trim())
+      .filter(Boolean);
     const stagingIn =
       (storyShot?.staging || "").trim() ||
-      compileScriptedPosition({ name: speaker, place: placeName });
+      (groupNames.length > 1
+        ? compileMattyBarGroupPosition(groupNames, placeName)
+        : compileScriptedPosition({ name: speaker, place: placeName }));
 
     const rebuilt = await rebuildShotPlate({
       job,

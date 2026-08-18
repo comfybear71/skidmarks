@@ -138,12 +138,13 @@ const houseStory = {
 const missing = missingCastPlacePlates(houseJob, houseStory);
 assert.ok(missing.some((r) => r.speaker === "TEE" && r.kind === "jo_lounge"));
 assert.ok(missing.some((r) => r.speaker === "TEE" && r.kind === "jo_pool"));
-assert.ok(missing.some((r) => r.speaker === "TEE" && r.kind === "matty_bar"));
+assert.ok(!missing.some((r) => r.speaker === "TEE" && r.kind === "matty_bar" && !r.ensemble));
 assert.ok(!missing.some((r) => r.speaker === "TEE" && r.kind === "jo_cell"));
 assert.ok(!missing.some((r) => r.speaker === "LAND LADY" && r.kind === "jo_cell"));
 assert.ok(missing.some((r) => r.speaker === "LAND LADY" && r.kind === "ll_bedroom"));
 assert.ok(missing.some((r) => r.speaker === "BIG SEXY" && r.kind === "donga"));
-assert.ok(!missing.some((r) => r.speaker === "CRAZY BIG HOLE JO" && r.kind === "matty_bar"));
+assert.ok(!missing.some((r) => r.speaker === "CRAZY BIG HOLE JO"));
+assert.equal(missing.filter((r) => r.ensemble).length, 2);
 
 const minted = appendSoloCastShot({
   job: houseJob,

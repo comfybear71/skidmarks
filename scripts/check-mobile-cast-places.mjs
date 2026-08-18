@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import {
+  MATTY_BAR_ENSEMBLE_SHOTS,
+  castGoesToMattyBar,
   castPlaceKindsFor,
   classifyCastPlace,
   classifyCastRoster,
+  mattyBarCast,
   requiredCastPlacePlates,
 } from "../src/lib/mobileCastPlaces.ts";
 
@@ -26,14 +29,21 @@ assert.equal(classifyCastPlace("The donga"), "donga");
 assert.equal(classifyCastPlace("Matty's bar"), "matty_bar");
 
 assert.deepEqual(castPlaceKindsFor("CRAZY BIG HOLE JO"), ["jo_cell"]);
-assert.deepEqual(castPlaceKindsFor("TEE"), ["jo_lounge", "jo_pool", "matty_bar"]);
-assert.deepEqual(castPlaceKindsFor("BC"), ["jo_lounge", "jo_pool", "matty_bar"]);
-assert.deepEqual(castPlaceKindsFor("LADDER ONE"), ["jo_lounge", "jo_pool", "matty_bar"]);
-assert.deepEqual(castPlaceKindsFor("JO TOO"), ["jo_lounge", "jo_pool", "matty_bar"]);
-assert.deepEqual(castPlaceKindsFor("LAND LADY"), ["ll_bedroom", "front_house", "matty_bar"]);
-assert.deepEqual(castPlaceKindsFor("COMFY"), ["ll_bedroom", "front_house", "matty_bar"]);
-assert.deepEqual(castPlaceKindsFor("BIG SEXY"), ["donga", "matty_bar"]);
+assert.deepEqual(castPlaceKindsFor("TEE"), ["jo_lounge", "jo_pool"]);
+assert.deepEqual(castPlaceKindsFor("BC"), ["jo_lounge", "jo_pool"]);
+assert.deepEqual(castPlaceKindsFor("LADDER ONE"), ["jo_lounge", "jo_pool"]);
+assert.deepEqual(castPlaceKindsFor("JO TOO"), ["jo_lounge", "jo_pool"]);
+assert.deepEqual(castPlaceKindsFor("LAND LADY"), ["ll_bedroom", "front_house"]);
+assert.deepEqual(castPlaceKindsFor("COMFY"), ["ll_bedroom", "front_house"]);
+assert.deepEqual(castPlaceKindsFor("BIG SEXY"), ["donga"]);
 assert.deepEqual(castPlaceKindsFor("MATTY"), ["matty_bar"]);
+assert.equal(castGoesToMattyBar("jo"), false);
+assert.equal(castGoesToMattyBar("tee"), true);
+assert.equal(MATTY_BAR_ENSEMBLE_SHOTS, 2);
+assert.deepEqual(
+  mattyBarCast(["CRAZY BIG HOLE JO", "TEE", "MATTY", "BIG SEXY"]),
+  ["TEE", "MATTY", "BIG SEXY"],
+);
 
 const scenes = [
   { id: "cell", placeName: "Jo's bedroom (the cell)" },
@@ -47,7 +57,7 @@ const scenes = [
 const tee = requiredCastPlacePlates(["TEE"], scenes);
 assert.deepEqual(
   tee.map((r) => r.kind),
-  ["jo_lounge", "jo_pool", "matty_bar"],
+  ["jo_lounge", "jo_pool"],
 );
 assert.ok(!tee.some((r) => r.kind === "jo_cell"));
 const jo = requiredCastPlacePlates(["CRAZY BIG HOLE JO"], scenes);

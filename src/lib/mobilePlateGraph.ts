@@ -3,6 +3,10 @@ import type { MobileGenJob, MobileShotUnit } from "./mobileGenJob";
 import {
   classifyCastPlace,
   classifyCastRoster,
+  compileMattyBarGroupPosition,
+  MATTY_BAR_ENSEMBLE_LABEL,
+  MATTY_BAR_ENSEMBLE_SHOTS,
+  mattyBarCast,
   requiredCastPlacePlates,
   type MissingCastPlacePlate,
 } from "./mobileCastPlaces";
@@ -20,8 +24,8 @@ import { voiceNamesMatch } from "./voiceNameMatch";
  *                               └─ halt_lines     (strip done — human speech)
  *
  * Cast is the roster. Each picked face gets a solo card at their rooms
- * (two-house bible). Existing plates stay. Wrong-house first-scene dump
- * is not a plate.
+ * (two-house bible). Matty's bar is Matty solo, any mix of the others,
+ * plus a few everyone-except-Jo plates. Existing plates stay.
  *
  * Does not Save voices. Does not Generate.
  */
@@ -126,9 +130,52 @@ export function missingCastPlacePlates(
   for (const s of [...job.scenes, ...story.scenes]) {
     if (!sceneById.has(s.id)) sceneById.set(s.id, { id: s.id, placeName: s.placeName });
   }
-  return requiredCastPlacePlates(speakers, [...sceneById.values()]).filter(
+  const scenes = [...sceneById.values()];
+  const missing = requiredCastPlacePlates(speakers, scenes).filter(
     (need) => !speakerHasShotAtPlace(job, story, need.speaker, need.sceneId),
   );
+  const bar = scenes.find((s) => classifyCastPlace(s.placeName) === "matty_bar");
+  const barGoers = mattyBarCast(speakers);
+  if (bar && barGoers.length >= 2) {
+    const have = countMattyBarEnsembleShots(job, story, bar.id, barGoers);
+    const want = Math.max(0, MATTY_BAR_ENSEMBLE_SHOTS - have);
+    for (let i = 0; i < want; i++) {
+      missing.push({
+        speaker: barGoers[0],
+        speakers: barGoers,
+        ensemble: true,
+        kind: "matty_bar",
+        sceneId: bar.id,
+        placeName: bar.placeName,
+      });
+    }
+  }
+  return missing;
+}
+
+function countMattyBarEnsembleShots(
+  job: PlateGraphJob,
+  story: CrashStoryDoc,
+  sceneId: string,
+  barGoers: string[],
+): number {
+  let n = 0;
+  for (const unit of episodeJobShots(job, story)) {
+    if (unit.sceneId !== sceneId) continue;
+    const sh = story.scenes.flatMap((sc) => sc.shots).find((s) => s.id === unit.shotId);
+    if (!sh) continue;
+    const words = `${sh.title} ${sh.summary}`.toLowerCase();
+    if (words.includes(MATTY_BAR_ENSEMBLE_LABEL.toLowerCase())) {
+      n += 1;
+      continue;
+    }
+    const onShot = sh.beats
+      .filter((b) => b.speaker.trim() && !leftoverHydrateBeat(unit.shotId, b.id))
+      .map((b) => b.speaker.trim());
+    const allIn = barGoers.every((g) => onShot.some((s) => speakerNamesMatch(s, g)));
+    if (allIn && barGoers.length >= 2) n += 1;
+  }
+  return n;
 }
 
 /** Speakers who still need at least one house plate. */
@@ -197,11 +244,13 @@ function pickCastPlateScene(
   };
 }
 
-/** Append a solo talking card at one house room. Does not draw. */
+/** Append a talking card at one house room. One face or a bar mix. Does not draw. */
 export function appendSoloCastShot(opts: {
   job: Pick<MobileGenJob, "scenes" | "shots">;
   story: CrashStoryDoc;
   speaker: string;
+  speakers?: string[];
+  ensemble?: boolean;
   sceneId: string;
 }): {
   story: CrashStoryDoc;
@@ -210,16 +259,27 @@ export function appendSoloCastShot(opts: {
   sceneId: string;
   placeName: string;
 } {
-  const speaker = opts.speaker.trim();
-  if (!speaker) throw new Error("Need a character");
   const picked = pickCastPlateScene(opts.job, opts.story, opts.sceneId);
+  const raw = (opts.speakers?.length ? opts.speakers : [opts.speaker])
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const atBar =
+    opts.ensemble || classifyCastPlace(picked.placeName) === "matty_bar";
+  const names = atBar ? mattyBarCast(raw) : raw;
+  const speaker = names[0];
+  if (!speaker) throw new Error("Need a character");
+  const group = names.length > 1;
   const newShot: CrashStoryShot = {
     id: newId("shot"),
-    title: speaker,
-    summary: `${speaker}, solo. Only ${speaker} in frame, no one else appears.`,
-    staging: "",
+    title: group ? names.join(", ") : speaker,
+    summary: opts.ensemble
+      ? `${picked.placeName} — ${MATTY_BAR_ENSEMBLE_LABEL}`
+      : group
+        ? `${names.join(", ")} at ${picked.placeName}`
+        : `${speaker}, solo. Only ${speaker} in frame, no one else appears.`,
+    staging: group ? compileMattyBarGroupPosition(names, picked.placeName) : "",
     plateFile: "",
-    beats: [{ id: newId("beat"), speaker, text: "" }],
+    beats: names.map((name) => ({ id: newId("beat"), speaker: name, text: "" })),
     sfx: [],
   };
   const story: CrashStoryDoc = {

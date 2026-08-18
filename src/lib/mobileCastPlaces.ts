@@ -4,8 +4,12 @@
  *
  * Jo house: cell (Jo only), upstairs lounge, pool.
  * 2nd house: front house, Land Lady / Comfy bedroom, donga, Matty's bar.
- * Everyone goes to Matty's bar except Jo.
+ * Matty's bar: Matty solo, or any mix of the others. A few plates of
+ * everyone except Jo. Jo never goes.
  */
+
+export const MATTY_BAR_ENSEMBLE_SHOTS = 2;
+export const MATTY_BAR_ENSEMBLE_LABEL = "everyone except Jo";
 export type CastHouseId = "jo_house" | "second_house";
 
 export type CastPlaceKind =
@@ -77,9 +81,33 @@ export function castGoesToMattyBar(tag: CastRosterTag): boolean {
 export function castPlaceKindsFor(name: string): CastPlaceKind[] {
   const tag = classifyCastRoster(name);
   if (!tag) return [];
-  const home = castHomePlaces(tag);
-  if (castGoesToMattyBar(tag) && !home.includes("matty_bar")) home.push("matty_bar");
-  return home;
+  return castHomePlaces(tag);
+}
+
+/** Who may stand in a Matty's bar plate — any mix, never Jo. */
+export function mattyBarCast(speakers: string[]): string[] {
+  const out: string[] = [];
+  for (const raw of speakers) {
+    const name = raw.trim();
+    if (!name) continue;
+    const tag = classifyCastRoster(name);
+    if (tag && !castGoesToMattyBar(tag)) continue;
+    if (tag === "jo") continue;
+    if (!out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
+export function compileMattyBarGroupPosition(names: string[], place: string): string {
+  const who = names.map((n) => n.trim()).filter(Boolean).join(", ") || "the regulars";
+  const bar = place.trim() || "Matty's bar";
+  return [
+    `Medium of ${who} at ${bar}.`,
+    `${who} sit and lean at the bar, bodies in the room, using the furniture.`,
+    "Jo is not here.",
+    "Facing camera, mouths clear.",
+    "Empty hands. No phone.",
+  ].join(" ");
 }
 
 export type CastPlaceScene = { id: string; placeName: string };
@@ -100,6 +128,8 @@ export function firstSceneForPlaceKind(
 
 export type MissingCastPlacePlate = {
   speaker: string;
+  speakers?: string[];
+  ensemble?: boolean;
   kind: CastPlaceKind;
   sceneId: string;
   placeName: string;
