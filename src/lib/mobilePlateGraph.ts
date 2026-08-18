@@ -1,11 +1,12 @@
 import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileGenJob, MobileShotUnit } from "./mobileGenJob";
 import {
+  barMixGroups,
   classifyCastPlace,
   classifyCastRoster,
   compileMattyBarGroupPosition,
   MATTY_BAR_ENSEMBLE_LABEL,
-  MATTY_BAR_ENSEMBLE_SHOTS,
+  MATTY_BAR_GROUP_MAX,
   mattyBarCast,
   requiredCastPlacePlates,
   type MissingCastPlacePlate,
@@ -25,7 +26,7 @@ import { voiceNamesMatch } from "./voiceNameMatch";
  *
  * Cast is the roster. Each picked face gets a solo card at their rooms
  * (two-house bible). Matty's bar is Matty solo, any mix of the others,
- * plus a few everyone-except-Jo plates. Existing plates stay.
+ * plus 2–3 person bar mixes. Existing plates stay.
  *
  * Does not Save voices. Does not Generate.
  */
@@ -135,14 +136,12 @@ export function missingCastPlacePlates(
     (need) => !speakerHasShotAtPlace(job, story, need.speaker, need.sceneId),
   );
   const bar = scenes.find((s) => classifyCastPlace(s.placeName) === "matty_bar");
-  const barGoers = mattyBarCast(speakers);
-  if (bar && barGoers.length >= 2) {
-    const have = countMattyBarEnsembleShots(job, story, bar.id, barGoers);
-    const want = Math.max(0, MATTY_BAR_ENSEMBLE_SHOTS - have);
-    for (let i = 0; i < want; i++) {
+  if (bar) {
+    for (const group of barMixGroups(speakers)) {
+      if (barMixGroupAlreadyPlated(job, story, bar.id, group)) continue;
       missing.push({
-        speaker: barGoers[0],
-        speakers: barGoers,
+        speaker: group[0],
+        speakers: group,
         ensemble: true,
         kind: "matty_bar",
         sceneId: bar.id,
@@ -153,29 +152,25 @@ export function missingCastPlacePlates(
   return missing;
 }
 
-function countMattyBarEnsembleShots(
+function barMixGroupAlreadyPlated(
   job: PlateGraphJob,
   story: CrashStoryDoc,
   sceneId: string,
-  barGoers: string[],
-): number {
-  let n = 0;
+  group: string[],
+): boolean {
   for (const unit of episodeJobShots(job, story)) {
     if (unit.sceneId !== sceneId) continue;
     const sh = story.scenes.flatMap((sc) => sc.shots).find((s) => s.id === unit.shotId);
     if (!sh) continue;
-    const words = `${sh.title} ${sh.summary}`.toLowerCase();
-    if (words.includes(MATTY_BAR_ENSEMBLE_LABEL.toLowerCase())) {
-      n += 1;
-      continue;
-    }
     const onShot = sh.beats
       .filter((b) => b.speaker.trim() && !leftoverHydrateBeat(unit.shotId, b.id))
       .map((b) => b.speaker.trim());
-    const allIn = barGoers.every((g) => onShot.some((s) => speakerNamesMatch(s, g)));
-    if (allIn && barGoers.length >= 2) n += 1;
+    if (onShot.length < 2 || onShot.length > 3) continue;
+    const sameSize = onShot.length === group.length;
+    const allIn = group.every((g) => onShot.some((s) => speakerNamesMatch(s, g)));
+    if (sameSize && allIn) return true;
   }
-  return n;
+  return false;
 }
 
 /** Speakers who still need at least one house plate. */
@@ -265,7 +260,7 @@ export function appendSoloCastShot(opts: {
     .filter(Boolean);
   const atBar =
     opts.ensemble || classifyCastPlace(picked.placeName) === "matty_bar";
-  const names = atBar ? mattyBarCast(raw) : raw;
+  const names = atBar ? mattyBarCast(raw).slice(0, MATTY_BAR_GROUP_MAX) : raw;
   const speaker = names[0];
   if (!speaker) throw new Error("Need a character");
   const group = names.length > 1;

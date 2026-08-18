@@ -4,12 +4,15 @@
  *
  * Jo house: cell (Jo only), upstairs lounge, pool.
  * 2nd house: front house, Land Lady / Comfy bedroom, donga, Matty's bar.
- * Matty's bar: Matty solo, or any mix of the others. A few plates of
- * everyone except Jo. Jo never goes.
+ * Matty's bar: Matty solo, or mixes of 2–3. Never a full dump — faces stray.
+ * Jo never goes.
  */
 
+export const MATTY_BAR_GROUP_MIN = 2;
+export const MATTY_BAR_GROUP_MAX = 3;
+export const MATTY_BAR_ENSEMBLE_LABEL = "bar mix";
+/** @deprecated use barMixGroups — kept so old checks don't explode */
 export const MATTY_BAR_ENSEMBLE_SHOTS = 2;
-export const MATTY_BAR_ENSEMBLE_LABEL = "everyone except Jo";
 export type CastHouseId = "jo_house" | "second_house";
 
 export type CastPlaceKind =
@@ -40,7 +43,7 @@ export function classifyCastRoster(name: string): CastRosterTag | null {
   if (/\bbc\b/.test(n)) return "bc";
   if (/\bladder\b/.test(n)) return "ladder";
   if (/\bbig sexy\b/.test(n) || /\bsexy\b/.test(n)) return "big_sexy";
-  if (/land\s*lady/.test(n)) return "land_lady";
+  if (/landlady/.test(n) || /land\s*lady/.test(n) || /\bjummie\b/.test(n)) return "land_lady";
   if (/\bcomfy\b/.test(n)) return "comfy";
   if (/\bmatty\b/.test(n)) return "matty";
   if (/\bjo\b/.test(n)) return "jo";
@@ -50,12 +53,12 @@ export function classifyCastRoster(name: string): CastRosterTag | null {
 export function classifyCastPlace(placeName: string): CastPlaceKind | null {
   const n = placeName.trim().toLowerCase();
   if (!n) return null;
-  if (/\bmatty/.test(n) && /\bbar\b/.test(n)) return "matty_bar";
+  if ((/\bmatty/.test(n) || /\bmojo\b/.test(n)) && /\bbar\b/.test(n)) return "matty_bar";
   if (/\bdonga\b/.test(n)) return "donga";
   if (/\bpool\b/.test(n)) return "jo_pool";
   if (/\blounge\b/.test(n) || /\bupstairs\b/.test(n)) return "jo_lounge";
-  if (/\bfront\b/.test(n) && /\bhouse\b/.test(n)) return "front_house";
-  if (/\bfront house\b/.test(n) || /\bfront-house\b/.test(n)) return "front_house";
+  if (/\bfront\b/.test(n)) return "front_house";
+  if (/\b2nd house\b/.test(n) || /\bsecond house\b/.test(n)) return "front_house";
   if (/\bcell\b/.test(n)) return "jo_cell";
   if (/\bjo\b/.test(n) && /\bbed/.test(n)) return "jo_cell";
   if (/\bbed/.test(n) && !/\bjo\b/.test(n) && !/\bcell\b/.test(n)) return "ll_bedroom";
@@ -98,13 +101,57 @@ export function mattyBarCast(speakers: string[]): string[] {
   return out;
 }
 
+/** Split bar-goers into 2–3 person mixes. A leftover 1 joins a pair or splits a trio. */
+function sortBarMix(names: string[]): string[] {
+  const rank = (n: string) => {
+    const t = classifyCastRoster(n);
+    if (t === "land_lady") return 0;
+    if (t === "comfy") return 1;
+    if (t === "matty") return 2;
+    return 3;
+  };
+  return [...names].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+}
+
+export function barMixGroups(speakers: string[]): string[][] {
+  const people = sortBarMix(mattyBarCast(speakers));
+  if (people.length < MATTY_BAR_GROUP_MIN) return [];
+  if (people.length <= MATTY_BAR_GROUP_MAX) return [people];
+  const groups: string[][] = [];
+  let i = 0;
+  while (i < people.length) {
+    const left = people.length - i;
+    if (left === 4) {
+      groups.push(people.slice(i, i + 2), people.slice(i + 2, i + 4));
+      break;
+    }
+    if (left === 1) {
+      const last = groups[groups.length - 1];
+      if (last && last.length === 2) {
+        last.push(people[i]);
+      } else if (last && last.length === 3) {
+        const moved = last.pop();
+        if (moved) groups.push([moved, people[i]]);
+      }
+      break;
+    }
+    const take = Math.min(MATTY_BAR_GROUP_MAX, left);
+    groups.push(people.slice(i, i + take));
+    i += take;
+  }
+  return groups.filter(
+    (g) => g.length >= MATTY_BAR_GROUP_MIN && g.length <= MATTY_BAR_GROUP_MAX,
+  );
+}
+
 export function compileMattyBarGroupPosition(names: string[], place: string): string {
   const who = names.map((n) => n.trim()).filter(Boolean).join(", ") || "the regulars";
   const bar = place.trim() || "Matty's bar";
   return [
-    `Medium of ${who} at ${bar}.`,
+    `Medium of ${who} at ${bar}. Two or three people only.`,
     `${who} sit and lean at the bar, bodies in the room, using the furniture.`,
-    "Jo is not here.",
+    "Jo is not here. Do not invent extra people.",
+    "Each face matches that person's single cast card. Same hair, same face, same clothes.",
     "Facing camera, mouths clear.",
     "Empty hands. No phone.",
   ].join(" ");

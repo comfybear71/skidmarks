@@ -144,7 +144,10 @@ assert.ok(!missing.some((r) => r.speaker === "LAND LADY" && r.kind === "jo_cell"
 assert.ok(missing.some((r) => r.speaker === "LAND LADY" && r.kind === "ll_bedroom"));
 assert.ok(missing.some((r) => r.speaker === "BIG SEXY" && r.kind === "donga"));
 assert.ok(!missing.some((r) => r.speaker === "CRAZY BIG HOLE JO"));
-assert.equal(missing.filter((r) => r.ensemble).length, 2);
+const barMixes = missing.filter((r) => r.ensemble);
+assert.ok(barMixes.length >= 1);
+assert.ok(barMixes.every((r) => (r.speakers || []).length >= 2 && (r.speakers || []).length <= 3));
+assert.ok(barMixes.some((r) => (r.speakers || []).includes("LAND LADY")));
 
 const minted = appendSoloCastShot({
   job: houseJob,
