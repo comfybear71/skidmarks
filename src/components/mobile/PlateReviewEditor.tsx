@@ -575,6 +575,7 @@ export function PlateReviewEditor({
                   <PlateClipThumbs
                     job={job}
                     clips={underClips}
+                    poster={plated ? thumbSrc : undefined}
                     preload={s.shotId === openShotId}
                   />
                 </div>
