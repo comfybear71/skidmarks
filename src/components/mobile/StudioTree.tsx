@@ -888,21 +888,6 @@ export function StudioTree({
             {vibePreset.label} · {vibeRealism} · {styleRealismLabel(vibeRealism)}
           </div>
         </div>
-        <a
-          href={job.id ? `/scratch?job=${encodeURIComponent(job.id)}` : "/scratch"}
-          style={{
-            ...mobileCard,
-            display: "block",
-            padding: "12px 14px",
-            color: "var(--acid)",
-            fontSize: "13px",
-            fontWeight: 700,
-            textDecoration: "none",
-            marginTop: "8px",
-          }}
-        >
-          Scratch — one plate, knobs, many positions
-        </a>
       </TreeBranch>
 
       {job.phase === "review" ? (
