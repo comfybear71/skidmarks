@@ -1688,6 +1688,8 @@ function BeatLineEditor({
         plateFile?: string;
         plateTakes?: PlateTake[];
         staging?: string;
+        qa?: { ok?: boolean; fails?: string[] };
+        qaAttempts?: number;
       };
       if (!res.ok) throw new Error(data.error || "Couldn't redraw that still");
       const saved = (data.staging ?? staging).trim();
@@ -1695,6 +1697,11 @@ function BeatLineEditor({
         plateFile: data.plateFile,
         plateTakes: data.plateTakes,
       });
+      if (data.qa && data.qa.ok === false) {
+        const n = data.qaAttempts || 3;
+        const why = (data.qa.fails || []).join(", ") || "the still";
+        throw new Error(`Still off after ${n} tries (${why}). Tweak Position and Redo still.`);
+      }
       return saved;
     },
     [jobId, onPositionSaved, shotId],
@@ -2012,7 +2019,7 @@ function BeatLineEditor({
                   .finally(() => setRedrawing(false));
               }}
             >
-              {redrawing ? "Drawing…" : "Redo still"}
+              {redrawing ? "Drawing + checking…" : "Redo still"}
             </MobilePrimaryButton>
           </div>
         </div>
