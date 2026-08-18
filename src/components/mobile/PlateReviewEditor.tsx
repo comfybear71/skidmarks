@@ -1833,8 +1833,15 @@ function BeatLineEditor({
         job?: MobileGenJob;
       }>(res);
       const stamped = (data.voiceFile || "").trim();
-      if (!isMobileSavedVoiceFile(stamped)) {
-        throw new Error("Save didn't land a playable mp3 — try Save again");
+      // A 200 Save already voiced the line. Don't reject Jo / long-name
+      // takes just because the leftover-pack detector is picky — that
+      // showed "try Save again" while the mp3 was already on disk.
+      if (!stamped.toLowerCase().endsWith(".mp3")) {
+        throw new Error(
+          stamped
+            ? `Save came back without an mp3 (${stamped}). Tap Save again — don't start a new episode.`
+            : "Save came back empty. Tap Save again — don't start a new episode.",
+        );
       }
       setVoiceFile(stamped);
       let imageMotion = (data.imageMotion as string) || "";
