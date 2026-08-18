@@ -134,5 +134,6 @@ const laid = mergePlacementsIntoStaging("Adult MATTY, fully nude at the bedroom.
 assert.match(laid, /\[Position: MATTY/);
 assert.match(laid, /\[Position: CRAZY BIG HOLE JO/);
 assert.match(laid, /picture-in-picture/i);
+assert.match(laid, /collage/i);
 
 console.log("check-mobile-scratch: ok");

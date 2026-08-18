@@ -76,7 +76,7 @@ export function mergePlacementsIntoStaging(
     !/picture-in-picture|photo inset|floating head/i.test(next)
   ) {
     const names = placements.map((p) => p.name).join(" and ");
-    next = `${next}\n\n${names} are full people standing or sitting in those marks — not a picture-in-picture, not a photo on the wall, not a floating head. Only ${names} in frame.`.trim();
+    next = `${next}\n\n${names} are full people standing or sitting in those marks in ONE room, ONE photograph — not a picture-in-picture, not a photo on the wall, not a floating head, not a three-panel collage, not a comic page. Only ${names} in frame.`.trim();
   }
   return next.trim();
 }
