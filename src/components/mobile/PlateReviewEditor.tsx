@@ -41,6 +41,7 @@ import {
   storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
 } from "@/lib/mobileImageMotion";
+import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { episodeJobShots } from "@/lib/mobileScratch";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
@@ -1634,7 +1635,11 @@ function BeatLineEditor({
   // the first token of "BIG SEXY" — don't hide Play after a good Save.
   const playable = Boolean(voiceFile && isMobileSavedVoiceFile(voiceFile));
   const savedTake = playable && !dirty;
-  const positionBody = positionDraft ?? positionPrompt;
+  const scriptedPosition = compileScriptedPosition({
+    name: beat.speaker,
+    place: placeName || "this place",
+  });
+  const positionBody = positionDraft ?? (positionPrompt.trim() ? positionPrompt : scriptedPosition);
   const positionDirty = positionDraft !== null && positionDraft.trim() !== (positionPrompt || "").trim();
 
   useEffect(() => {

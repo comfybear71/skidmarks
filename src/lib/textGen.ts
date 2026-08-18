@@ -71,20 +71,24 @@ type GrokContentPart =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string } };
 
-/** Same chat endpoint, image in the user turn. Used to judge a plate still. */
+/** Same chat endpoint, image(s) in the user turn. Used to judge a plate still. */
 export async function askGrokVision(opts: {
   system: string;
   user: string;
-  imageDataUrl: string;
+  imageDataUrl?: string;
+  imageDataUrls?: string[];
   temperature?: number;
   maxTokens?: number;
 }): Promise<string> {
   const apiKey = key();
   if (!apiKey) throw new Error(missingXaiMessage());
 
+  const images = (opts.imageDataUrls?.length ? opts.imageDataUrls : [opts.imageDataUrl || ""]).filter(
+    Boolean,
+  );
   const content: GrokContentPart[] = [
     { type: "text", text: opts.user },
-    { type: "image_url", image_url: { url: opts.imageDataUrl } },
+    ...images.map((url) => ({ type: "image_url" as const, image_url: { url } })),
   ];
 
   const res = await fetch("https://api.x.ai/v1/chat/completions", {
