@@ -477,6 +477,7 @@ export default function ScratchPage() {
     const seq = ++drawSeq.current;
     setBusy("draw");
     setError("");
+    setPadCleared(true);
     try {
       const ensured = await postJson<{ job: MobileGenJob; shotId?: string }>(
         "/api/crash/mobile/scratch",
@@ -637,6 +638,13 @@ export default function ScratchPage() {
     setStaging(composed);
     setBibleActiveId(null);
     setPoseId("");
+  }
+
+  /** Hide the still only — keep faces, place, marks. Do not wipe the episode. */
+  function clearPlate() {
+    setPadCleared(true);
+    setLightbox("");
+    setError("");
   }
 
   function clearPad() {
@@ -1162,7 +1170,7 @@ export default function ScratchPage() {
                           padding: "16px",
                         }}
                       >
-                        Drag each face onto the still to park them. Tap adds — drag places.
+                        Clear plate first. Drag each face onto this empty pad to park them.
                       </div>
                     )}
                   </button>
@@ -1252,6 +1260,14 @@ export default function ScratchPage() {
                   {busy === "draw" ? "Drawing…" : "Draw"}
                 </MobilePrimaryButton>
               </div>
+              <button
+                type="button"
+                style={ghostBtn}
+                onClick={clearPlate}
+                disabled={Boolean(busy) || !plateSrc}
+              >
+                Clear plate
+              </button>
               <button type="button" style={ghostBtn} onClick={clearPad} disabled={Boolean(busy)}>
                 Clear pad
               </button>
@@ -1278,8 +1294,9 @@ export default function ScratchPage() {
               <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
                 On pad: {padCast.join(" · ")}. Speaks:{" "}
                 <span style={{ color: "var(--acid)" }}>{speaker || padCast[0]}</span>
-                . Drag each face onto the still to park them (left / chair / right). Nude
-                keeps those marks — do not leave extras as a corner inset.
+                . Clear plate first, then drag each face onto the empty pad (left /
+                chair / right). Nude keeps those marks — do not leave extras as a
+                corner inset.
               </div>
             ) : null}
 
