@@ -99,6 +99,27 @@ export async function POST(req: Request) {
       stagingIn,
       qa: true,
     });
+    if (rebuilt.qa && rebuilt.qa.ok === false) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            rebuilt.job.shots.find((s) => s.shotId === next.shotId)?.error ||
+            `Still failed proof (${(rebuilt.qa.fails || []).join(", ")}). Tweak Position and Redo.`,
+          node: "qa",
+          job: rebuilt.job,
+          shotId: next.shotId,
+          speaker,
+          plateFile: rebuilt.plateFile,
+          staging: rebuilt.staging,
+          qa: rebuilt.qa,
+          qaAttempts: rebuilt.qaAttempts,
+          doneCount: counts.done,
+          total: counts.total,
+        },
+        { status: 422 },
+      );
+    }
     const after = episodePlateCounts(rebuilt.job, rebuilt.story);
     const more = Boolean(
       nextUnplatedEpisodeShot(rebuilt.job, rebuilt.story) ||

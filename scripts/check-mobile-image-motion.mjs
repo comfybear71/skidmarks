@@ -68,6 +68,7 @@ assert.match(shortCustom, /Empty hands stay in her lap/);
 assert.match(shortCustom, /nothing new enters frame/);
 assert.match(shortCustom, /No new people enter the frame/);
 assert.match(shortCustom, /Nobody mentioned in the spoken line appears on screen/);
+assert.match(shortCustom, /No readable text or signage/);
 assert.equal(ensureGoldFrameLocks(shortCustom), shortCustom);
 
 const other = buildDefaultBeatMotion({

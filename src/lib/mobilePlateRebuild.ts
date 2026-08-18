@@ -76,6 +76,9 @@ export async function rebuildShotPlate(opts: {
   const identity = speaker
     ? await resolvePlateQaIdentity({ styleId: job.styleId, name: speaker, job }).catch(() => null)
     : null;
+  const expectedPeople = [
+    ...new Set(cleanedBeats.map((b) => b.speaker.trim()).filter(Boolean)),
+  ].length;
   const wantQa = opts.qa !== false;
 
   let working: CrashStoryDoc = {
@@ -118,19 +121,27 @@ export async function rebuildShotPlate(opts: {
       /* still usable this request */
     }
 
-    const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: true };
+    const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: false };
     const prevTakes = shot.plateTakes || [];
     plateTakes = [...prevTakes.map((t) => ({ ...t, approved: false })), newTake];
     working = patchShotFields(working, shotId, { plateFile: fileName, staging, plateTakes });
     await writeMobileStory(working, job.folderName);
 
-    if (!wantQa || attempt >= PLATE_QA_MAX_ATTEMPTS) break;
+    if (!wantQa) {
+      plateTakes = plateTakes.map((t, i) =>
+        i === plateTakes.length - 1 ? { ...t, approved: true } : t,
+      );
+      working = patchShotFields(working, shotId, { plateTakes });
+      await writeMobileStory(working, job.folderName);
+      break;
+    }
     try {
       qa = await judgePlateStill({
         plateFile: fileName,
         staging,
         speaker,
         lookLock,
+        people: expectedPeople,
         identityDataUrl: identity?.dataUrl,
         identitySource: identity?.source,
       });
@@ -138,14 +149,30 @@ export async function rebuildShotPlate(opts: {
       qa = null;
       break;
     }
-    if (!qa || qa.ok) break;
-    staging = appendPlateQaFix(staging, qa.fix);
+    if (!qa) break;
+    if (qa.ok) {
+      plateTakes = plateTakes.map((t, i) =>
+        i === plateTakes.length - 1 ? { ...t, approved: true } : t,
+      );
+      working = patchShotFields(working, shotId, { plateTakes });
+      await writeMobileStory(working, job.folderName);
+      break;
+    }
+    if (attempt < PLATE_QA_MAX_ATTEMPTS) {
+      staging = appendPlateQaFix(staging, qa.fix);
+    }
   }
 
+  const qaFailed = Boolean(wantQa && qa && qa.ok === false);
+  const qaError = qaFailed
+    ? `Still failed proof after ${qaAttempts} tries (${(qa?.fails || []).join(", ") || "anatomy"}). Tweak Position and Redo.`
+    : "";
   const shots = job.shots.map((s) =>
-    s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
+    s.shotId === shotId
+      ? { ...s, plateFile: fileName, error: qaError }
+      : s,
   );
-  const updated = (await patchMobileGenJob(job.id, { shots, error: "" }))!;
+  const updated = (await patchMobileGenJob(job.id, { shots, error: qaFailed ? qaError : "" }))!;
   return {
     job: updated,
     story: working,
