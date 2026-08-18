@@ -1261,7 +1261,7 @@ export default function ScratchPage() {
                       : "XAI — no SIRAY_API_KEY"}
               </span>
               {scratchWantsMaleNude(staging)
-                ? " — wardrobe override: adult man, drop the face-card clothes."
+                ? " — wardrobe override: adult man, drop the shorts, keep the anatomy."
                 : scratchWantsNude(staging)
                   ? " — wardrobe override: drop the face-card clothes."
                   : ""}

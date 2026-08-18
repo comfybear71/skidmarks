@@ -4,6 +4,8 @@
  * 2.0 is the cheap first pass; 2.5 / Wan are later swaps.
  */
 
+import { speakerWantedSex } from "./crashVoicePrompt";
+
 export type SirayI2vId = "seedance-20" | "seedance-25" | "wan-27" | "wan-30";
 
 export type SirayI2vSpec = {
@@ -106,28 +108,50 @@ export function scratchWantsMaleNude(text: string): boolean {
   return male && !female;
 }
 
-export function scratchNudeStillLock(text: string): string {
-  return scratchWantsMaleNude(text) ? SCRATCH_NUDE_STILL_LOCK_MALE : SCRATCH_NUDE_STILL_LOCK;
+/** Nude staging names this speaker, or a solo male face — Ken-doll lock applies. */
+export function scratchNudeLooksMale(text: string, speakers: string[] = []): boolean {
+  if (scratchWantsMaleNude(text)) return true;
+  if (!scratchWantsNude(text)) return false;
+  const named = speakers.filter((n) => n && text.toLowerCase().includes(n.trim().toLowerCase()));
+  const pool = named.length ? named : speakers.length === 1 ? speakers : [];
+  if (!pool.length) return false;
+  return pool.every((n) => speakerWantedSex(n, text) === "male");
 }
 
-export function scratchNudeI2vLock(text: string): string {
-  return scratchWantsMaleNude(text) ? SCRATCH_NUDE_I2V_LOCK_MALE : SCRATCH_NUDE_I2V_LOCK;
+export function scratchNudeStillLock(text: string, speakers: string[] = []): string {
+  const lock = scratchNudeLooksMale(text, speakers)
+    ? SCRATCH_NUDE_STILL_LOCK_MALE
+    : SCRATCH_NUDE_STILL_LOCK;
+  return scratchWantsNude(text) ? `${lock} ${SCRATCH_NUDE_MALE_ANATOMY}` : lock;
+}
+
+export function scratchNudeI2vLock(text: string, speakers: string[] = []): string {
+  if (scratchNudeLooksMale(text, speakers)) {
+    return `${SCRATCH_NUDE_I2V_LOCK_MALE} ${SCRATCH_NUDE_MALE_ANATOMY}`;
+  }
+  return scratchWantsNude(text)
+    ? `${SCRATCH_NUDE_I2V_LOCK} ${SCRATCH_NUDE_MALE_ANATOMY}`
+    : SCRATCH_NUDE_I2V_LOCK;
 }
 
 /** Still Draw — spicy ref2i must drop the face-card outfit. */
 export const SCRATCH_NUDE_STILL_LOCK =
   "Adults only — no one under 21. Change the clothes from the face cards. Ignore the outfit on the reference images. Same face, hair, age, sex and body. Nude as staged. Do not put the face-card clothes back on. Do not change a man into a woman.";
 
-/** Male nude — Seedream spicy defaults to a woman unless we lock sex. */
+/** Male nude — Seedream spicy defaults to a woman or a Ken doll unless we lock sex. */
 export const SCRATCH_NUDE_STILL_LOCK_MALE =
-  "Adults only — no one under 21. This person is an adult man. Draw an adult male body: bare male chest, male groin, no clothes. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the reference. Do not redraw him as a woman. Do not add breasts. Do not put clothes back on.";
+  "Adults only — no one under 21. This person is an adult man. Draw an adult male body: bare chest, visible penis and scrotum, no clothes. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the reference. Do not redraw him as a woman. Do not add breasts. Do not put shorts back on.";
+
+/** Seedream skips male genitals unless we say penis — shorts or a blank crotch. */
+export const SCRATCH_NUDE_MALE_ANATOMY =
+  "If any adult man is nude: visible penis and scrotum, natural adult male genitals. Not a Ken doll. Not a smooth blank crotch. No shorts, no underwear, no towel, no blur, no hand covering the groin.";
 
 /** Motion from a nude plate — do not dress them again. */
 export const SCRATCH_NUDE_I2V_LOCK =
   "Same bare body as the start image. Do not add clothes. Do not invent a new wardrobe.";
 
 export const SCRATCH_NUDE_I2V_LOCK_MALE =
-  "Same adult male body as the start image. Do not add clothes. Do not redraw as a woman.";
+  "Same adult male body as the start image. Visible penis stays. Do not add clothes or shorts. Do not redraw as a woman.";
 
 export function clampSirayI2vDurationSec(
   sec: number,
@@ -179,6 +203,7 @@ export function buildSirayI2vPrompt(opts: {
   const whoLook = [who, look].filter(Boolean).join(", ");
   const nudeText = `${opts.staging} ${opts.motion} ${opts.lookLock || ""}`;
   const nude = scratchWantsNude(nudeText);
+  const speakers = who ? [who] : [];
   return [
     "Use the provided start image as the first frame.",
     whoLook
@@ -188,7 +213,7 @@ export function buildSirayI2vPrompt(opts: {
       : nude
         ? "Keep that face, body and place. Same bare body as the start image."
         : "Keep that face, body, wardrobe and place.",
-    nude ? scratchNudeI2vLock(nudeText) : "",
+    nude ? scratchNudeI2vLock(nudeText, speakers) : "",
     action,
     "No dialogue. Mouth stays closed. Do not invent a new take or a new face.",
     "Props and background stay exactly as the start image, nothing new enters frame.",

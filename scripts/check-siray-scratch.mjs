@@ -8,6 +8,7 @@ import {
   sirayI2vSpec,
   scratchWantsNude,
   scratchWantsMaleNude,
+  scratchNudeLooksMale,
   scratchNudeStillLock,
   stripSpeechForSirayMotion,
 } from "../src/lib/sirayI2v.ts";
@@ -75,7 +76,13 @@ assert.equal(
   true,
 );
 assert.match(scratchNudeStillLock("Adult man TEE, fully nude at the bar"), /adult male body/i);
-assert.doesNotMatch(scratchNudeStillLock("Adult TEE, fully nude at the bar"), /adult male body/i);
+assert.match(scratchNudeStillLock("Adult TEE, fully nude at the bar"), /ken doll/i);
+assert.doesNotMatch(scratchNudeStillLock("Adult woman TEE, fully nude at the bar"), /adult male body/i);
+assert.equal(scratchNudeLooksMale("Adult MATTY, fully nude at THE DONGA", ["LADDER ONE", "LAND LANDY", "MATTY"]), true);
+assert.match(
+  scratchNudeStillLock("Adult MATTY, fully nude at THE DONGA", ["LADDER ONE", "LAND LANDY", "MATTY"]),
+  /visible penis/i,
+);
 const nudeClip = buildSirayI2vPrompt({
   speaker: "TEE",
   motion: "",
@@ -92,6 +99,7 @@ const manClip = buildSirayI2vPrompt({
   lookLock: "beard, black tee",
 });
 assert.match(manClip, /adult male body/i);
+assert.match(manClip, /visible penis/i);
 assert.match(manClip, /Do not redraw as a woman/);
 
 assert.match(

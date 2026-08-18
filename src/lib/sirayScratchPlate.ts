@@ -75,7 +75,10 @@ export function buildSirayScratchPrompt(opts: {
     look,
     "Image 1 is the LOCKED place — keep that exact location, lighting and materials. Do not replace the place.",
     who,
-    nude ? scratchNudeStillLock(nudeText) : "",
+    nude ? scratchNudeStillLock(nudeText, opts.speakers) : "",
+    nude && n > 1
+      ? "Only undress who the staging names as nude. Everyone else keeps their clothes. No floating name labels."
+      : "",
     looks,
     opts.placeLook ? `Place look: ${opts.placeLook}` : "",
     opts.staging

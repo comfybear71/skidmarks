@@ -63,7 +63,7 @@ const WEARING_TEMPLATES: Record<string, { label: string; template: string }> = {
   "clothes-man-nude": {
     label: "Man nude",
     template:
-      "Adult man {{name}}, fully nude at {{place}}. Adult male body — bare chest, male groin, no clothes. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the face card. Do not redraw as a woman. Natural proportions, unposed. Adults only, no one under 21. No text or watermarks.",
+      "Adult man {{name}}, fully nude at {{place}}. Adult male body — bare chest, visible penis and scrotum, no clothes. Not a Ken doll, not a smooth crotch, no shorts. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the face card. Do not redraw as a woman. Natural proportions, unposed. Adults only, no one under 21. No text or watermarks.",
   },
 };
 
