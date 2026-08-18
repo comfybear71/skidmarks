@@ -296,7 +296,7 @@ export const SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
         id: "ward-man-nude",
         label: "Man nude",
         template:
-          "Adult man {{name}}, fully nude at {{place}}. Adult male body — bare chest, large exaggerated penis and heavy scrotum, no clothes. Not modest, not a Ken doll, not a smooth crotch, no shorts. Same face as the face card, not the tee. Do not redraw as a woman. No text or watermarks.",
+          "Adult man {{name}}, fully nude at {{place}}. Adult male body — bare chest, visible human penis and scrotum, two feet on the floor, no clothes. Not a Ken doll, not a mutation. Same face as the face card, not the tee. Do not redraw as a woman. One photograph. No text or watermarks.",
       },
       {
         id: "ward-wet",
