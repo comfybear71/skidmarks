@@ -240,6 +240,17 @@ export function storedMotionFightsEmptyHands(
   return imageMotionHasJoPhoneLock(motion || "");
 }
 
+/** CAST bio leaked into LTX ("a little bit younger… cleaner") — start image is the look. */
+export function storedMotionReinventsLook(motion: string | undefined): boolean {
+  const t = stripLtxLipSyncLead(motion || "").toLowerCase();
+  if (!t) return false;
+  return (
+    /\bsame person just\b/.test(t) ||
+    /\ba little bit younger\b/.test(t) ||
+    /\bshe is cleaner\b/.test(t)
+  );
+}
+
 /** Keep a stored LTX body only if it still names this spoken line — not a still position. */
 export function imageMotionUsableForLine(
   motion: string | undefined,
@@ -254,8 +265,15 @@ export function imageMotionUsableForLine(
   if (looksLikePlatePositionPrompt(existing) && !imageMotionCitesLine(existing, line)) {
     return false;
   }
-  if (storedMotionFightsEmptyHands(existing, staging)) return false;
+  if (storedMotionNeedsRebuild(existing, staging)) return false;
   return imageMotionCitesLine(existing, line);
+}
+
+export function storedMotionNeedsRebuild(
+  motion: string | undefined,
+  staging: string,
+): boolean {
+  return storedMotionFightsEmptyHands(motion, staging) || storedMotionReinventsLook(motion);
 }
 
 function inFrameNames(speaker: string, shotSpeakers?: string[]): string[] {
@@ -273,16 +291,13 @@ export function shortLtxLookLock(lookLock: string, maxChars = 120): string {
   const raw = clean(lookLock);
   if (!raw) return "";
   const drop =
-    /\b(loves?|love[sd]?|barrack|barracks|fan of|supports?|not a cartoon|not a photo|not photographic|not photorealistic|3d model|a 3d|personality|vibe|energy)\b/i;
+    /\b(loves?|love[sd]?|barrack|barracks|fan of|supports?|not a cartoon|not a photo|not photographic|not photorealistic|3d model|a 3d|personality|vibe|energy|younger|older|cleaner|same person)\b/i;
   const parts = raw
     .split(/[,;]+/)
     .map((p) => clean(p))
     .filter(Boolean)
     .filter((p) => !drop.test(p));
-  const picked = (parts.length ? parts : raw.split(/[,;]+/).map(clean).filter(Boolean)).slice(
-    0,
-    4,
-  );
+  const picked = parts.slice(0, 4);
   let out = clean(picked.join(", "));
   if (out.length > maxChars) {
     out = clean(out.slice(0, maxChars).replace(/[,;\s]+[^,;]*$/, ""));

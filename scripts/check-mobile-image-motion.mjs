@@ -9,6 +9,7 @@ import {
   joPhoneStagingExtra,
   ensureGoldFrameLocks,
   storedMotionFightsEmptyHands,
+  storedMotionReinventsLook,
   ltxSendPrompt,
   shortLtxLookLock,
   stripLtxLipSyncLead,
@@ -161,5 +162,23 @@ assert.doesNotMatch(sexyMotion, /loves a beer/i);
 assert.doesNotMatch(sexyMotion, /barrack for collingwood/i);
 assert.doesNotMatch(sexyMotion, /not a cartoon and not a photo/i);
 assert.match(sexyMotion, /BIT OF A POT BELLY|pot belly/i);
+
+const joLook =
+  "same person just a little bit younger and she is cleaner, with untrustworthy smile";
+assert.doesNotMatch(shortLtxLookLock(joLook), /younger|cleaner|same person/i);
+const joAgeMotion = buildDefaultBeatMotion({
+  styleId: "skidmarks",
+  speaker: "CRAZY BIG HOLE JO",
+  line: "I'll be moving out as soon as I can.",
+  lookLock: joLook,
+  staging: "Empty hands in her lap. No phone.",
+});
+assert.doesNotMatch(joAgeMotion, /younger|she is cleaner|same person just/i);
+assert.equal(
+  storedMotionReinventsLook(
+    'Use the provided start image as the first frame. CRAZY BIG HOLE JO, same person just a little bit younger and she is cleaner, with untrustworthy smile is prominent.',
+  ),
+  true,
+);
 
 console.log("check-mobile-image-motion: ok");
