@@ -117,7 +117,7 @@ export async function runScratchLtxClip(opts: {
   const body =
     (stored &&
     !imageMotionNamesLeftovers(stored, leftovers) &&
-    imageMotionUsableForLine(stored, line)
+    imageMotionUsableForLine(stored, line, storyShot.staging)
       ? stored
       : "") ||
     fromPose ||

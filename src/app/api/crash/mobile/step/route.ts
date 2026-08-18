@@ -402,7 +402,7 @@ export async function POST(req: Request) {
         const body =
           (stored &&
           !imageMotionNamesLeftovers(stored, leftovers) &&
-          imageMotionUsableForLine(stored, line)
+          imageMotionUsableForLine(stored, line, storyShot.staging)
             ? stored
             : "") ||
           buildDefaultBeatMotion({

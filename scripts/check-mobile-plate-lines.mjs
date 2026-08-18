@@ -243,4 +243,19 @@ assert.equal(
   true,
 );
 
+const phoneGold =
+  'Use the provided start image as the first frame. CRAZY BIG HOLE JO is prominent, holding her mobile phone, texting, staring at the screen like a crazed maniac, keyboard warrior. CRAZY BIG HOLE JO says: "I\'ll be moving out as soon as I can."';
+assert.equal(
+  imageMotionUsableForLine(phoneGold, "I'll be moving out as soon as I can."),
+  true,
+);
+assert.equal(
+  imageMotionUsableForLine(
+    phoneGold,
+    "I'll be moving out as soon as I can.",
+    "Empty hands in her lap. No phone. Only JO in frame.",
+  ),
+  false,
+);
+
 console.log("check-mobile-plate-lines: ok");

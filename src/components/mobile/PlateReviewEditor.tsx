@@ -38,6 +38,7 @@ import {
   LTX_LIP_SYNC_LEAD,
   buildDefaultBeatMotion,
   looksLikePlatePositionPrompt,
+  storedMotionFightsEmptyHands,
   stripLtxLipSyncLead,
 } from "@/lib/mobileImageMotion";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
@@ -1730,8 +1731,10 @@ function BeatLineEditor({
       ),
     [beat.speaker, lookLock, positionBody, shotSpeakers, styleId, text],
   );
-  const motionBody =
-    motionDraft ?? (stripLtxLipSyncLead(beat.imageMotion || "") || defaultMotionBody);
+  const storedMotion = stripLtxLipSyncLead(beat.imageMotion || "");
+  const storedMotionOk =
+    Boolean(storedMotion) && !storedMotionFightsEmptyHands(storedMotion, positionBody);
+  const motionBody = motionDraft ?? (storedMotionOk ? storedMotion : defaultMotionBody);
   const motionDirty = motionDraft !== null;
   const motionHint = useMemo(
     () =>
@@ -1763,6 +1766,20 @@ function BeatLineEditor({
     },
     [beat.id, jobId, onSaved, text, voiceFile],
   );
+
+  const emptiedPhoneMotionRef = useRef("");
+  useEffect(() => {
+    if (motionDraft !== null) return;
+    if (!storedMotionFightsEmptyHands(storedMotion, positionBody)) return;
+    const next = defaultMotionBody.trim();
+    if (!next) return;
+    const key = `${beat.id}:${next}`;
+    if (emptiedPhoneMotionRef.current === key) return;
+    emptiedPhoneMotionRef.current = key;
+    void persistMotion(next).catch(() => {
+      emptiedPhoneMotionRef.current = "";
+    });
+  }, [beat.id, defaultMotionBody, motionDraft, persistMotion, positionBody, storedMotion]);
 
   const motionAssist = useMobileAssist(
     "image_motion",

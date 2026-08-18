@@ -221,8 +221,31 @@ function imageMotionCitesLine(motion: string, line: string): boolean {
   return motion.toLowerCase().includes(needle);
 }
 
+export function imageMotionHasJoPhoneLock(motion: string): boolean {
+  const t = stripLtxLipSyncLead(motion).toLowerCase();
+  if (!t) return false;
+  return (
+    t.includes("holding her mobile phone") ||
+    t.includes("keyboard warrior") ||
+    t.includes("staring at the screen like a crazed maniac")
+  );
+}
+
+/** Stored gold still has Jo's phone, but Position asked for empty hands. */
+export function storedMotionFightsEmptyHands(
+  motion: string | undefined,
+  staging: string,
+): boolean {
+  if (!directorWantsEmptyHands(staging)) return false;
+  return imageMotionHasJoPhoneLock(motion || "");
+}
+
 /** Keep a stored LTX body only if it still names this spoken line — not a still position. */
-export function imageMotionUsableForLine(motion: string | undefined, line: string): boolean {
+export function imageMotionUsableForLine(
+  motion: string | undefined,
+  line: string,
+  staging = "",
+): boolean {
   const existing = stripLtxLipSyncLead(motion || "");
   if (!existing) return false;
   if (looksLikePlatePositionPrompt(line)) return false;
@@ -231,6 +254,7 @@ export function imageMotionUsableForLine(motion: string | undefined, line: strin
   if (looksLikePlatePositionPrompt(existing) && !imageMotionCitesLine(existing, line)) {
     return false;
   }
+  if (storedMotionFightsEmptyHands(existing, staging)) return false;
   return imageMotionCitesLine(existing, line);
 }
 

@@ -8,6 +8,7 @@ import {
   isJoKeyboardWarrior,
   joPhoneStagingExtra,
   ensureGoldFrameLocks,
+  storedMotionFightsEmptyHands,
   ltxSendPrompt,
   shortLtxLookLock,
   stripLtxLipSyncLead,
@@ -116,6 +117,11 @@ assert.equal(
 assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "standing centre-frame").length > 0, true);
 assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "tennis racket in hand"), "");
 assert.equal(directorWantsEmptyHands("hands free or resting"), true);
+assert.equal(
+  storedMotionFightsEmptyHands(jo, "Empty hands in her lap. No phone."),
+  true,
+);
+assert.equal(storedMotionFightsEmptyHands(jo, "holding her mobile phone"), false);
 assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "sitting on the bed, hands free or resting"), "");
 
 const emptyJo = buildDefaultBeatMotion({

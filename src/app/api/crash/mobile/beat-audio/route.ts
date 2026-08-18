@@ -151,7 +151,7 @@ export async function POST(req: Request) {
               if (b.id !== beatId) return b;
               if (
                 keepStoredImageMotion(b.imageMotion, leftovers) &&
-                imageMotionUsableForLine(b.imageMotion, text)
+                imageMotionUsableForLine(b.imageMotion, text, sh.staging)
               ) {
                 return b;
               }
