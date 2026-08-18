@@ -1159,7 +1159,7 @@ export function StudioTree({
           />
         ) : null}
 
-        {platesOpen && job.phase === "review" ? (
+        {job.phase === "review" ? (
           <div style={{ marginTop: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "10px" }}>
               {plated.length}/{episodeShots.length} plated · {queued.length}{" "}
@@ -1183,14 +1183,16 @@ export function StudioTree({
                   .join(" · ")}
               </div>
             ) : null}
-            {unplated && episodeShots.length ? (
+            {episodeShots.length ? (
               <MobilePrimaryButton
-                disabled={busy || plating}
+                disabled={busy || plating || !unplated}
                 onClick={() => void plateTheEpisode()}
               >
                 {plating
                   ? plateGraphHint || "Plating…"
-                  : `Plate the episode (${unplated} left)`}
+                  : unplated
+                    ? `Plate the episode (${unplated} left)`
+                    : "Plate the episode — all plated"}
               </MobilePrimaryButton>
             ) : null}
             {plateGraphHint && !plating ? (
