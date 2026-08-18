@@ -9,12 +9,18 @@ import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
 import { dropLeftoverHydrateBeats } from "@/lib/mobilePlateLines";
 import { clearAllStoryShots } from "@/lib/mobileClipQueue";
 import { defaultSoloStaging } from "@/lib/mobileImageMotion";
+import {
+  PLATE_QA_MAX_ATTEMPTS,
+  appendPlateQaFix,
+  judgePlateStill,
+  type PlateQaVerdict,
+} from "@/lib/mobilePlateQa";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { newId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
 
 export const runtime = "nodejs";
-export const maxDuration = 180;
+export const maxDuration = 300;
 
 function patchShotFields(
   story: CrashStoryDoc,
@@ -76,6 +82,7 @@ export async function POST(req: Request) {
       shot?: CrashStoryShot;
       takeId?: string;
       beatId?: string;
+      qa?: boolean;
     };
     const jobId = (body.jobId || "").trim();
     const shotId = (body.shotId || "").trim();
@@ -403,9 +410,10 @@ export async function POST(req: Request) {
       });
     }
 
-    const staging = (stagingIn || "").trim();
+    let staging = (stagingIn || "").trim();
     const cleanedBeats = dropLeftoverHydrateBeats(shot.id, shot.beats);
-    const nextStory: CrashStoryDoc = {
+    const wantQa = body.qa !== false;
+    let working: CrashStoryDoc = {
       ...story,
       scenes: story.scenes.map((sc) => ({
         ...sc,
@@ -422,37 +430,67 @@ export async function POST(req: Request) {
         ),
       })),
     };
-    await writeMobileStory(nextStory, job.folderName);
-    scene = nextStory.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId))!;
-    shot = scene.shots.find((sh) => sh.id === shotId)!;
+    await writeMobileStory(working, job.folderName);
 
-    // Only people already on THIS shot. Feeding the rest of the job as
-    // silent extras is how a Jo-solo test kept drawing the old crowd.
-    const fileName = await compositeShotPlatePreferSiray(job.styleId, scene, shot, {
-      silentCast: [],
-      styleRealism: job.styleRealism,
-      job,
-    });
-    try {
-      await uploadMobileMedia({
-        styleId: job.styleId,
-        folderName: job.folderName,
-        kind: "plates",
-        localPath: path.join(CRASH_DIR, "gen", fileName),
+    let fileName = "";
+    let plateTakes: PlateTake[] = [];
+    let qa: PlateQaVerdict | null = null;
+    let qaAttempts = 0;
+
+    for (let attempt = 1; attempt <= PLATE_QA_MAX_ATTEMPTS; attempt++) {
+      qaAttempts = attempt;
+      scene = working.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId))!;
+      shot = scene.shots.find((sh) => sh.id === shotId)!;
+      shot = { ...shot, staging };
+
+      // Only people already on THIS shot. Feeding the rest of the job as
+      // silent extras is how a Jo-solo test kept drawing the old crowd.
+      fileName = await compositeShotPlatePreferSiray(job.styleId, scene, shot, {
+        silentCast: [],
+        styleRealism: job.styleRealism,
+        job,
       });
-    } catch {
-      /* still usable this request */
+      try {
+        await uploadMobileMedia({
+          styleId: job.styleId,
+          folderName: job.folderName,
+          kind: "plates",
+          localPath: path.join(CRASH_DIR, "gen", fileName),
+        });
+      } catch {
+        /* still usable this request */
+      }
+
+      const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: true };
+      const prevTakes = shot.plateTakes || [];
+      plateTakes = [...prevTakes.map((t) => ({ ...t, approved: false })), newTake];
+      working = patchShotFields(working, shotId, { plateFile: fileName, staging, plateTakes });
+      await writeMobileStory(working, job.folderName);
+
+      if (!wantQa || attempt >= PLATE_QA_MAX_ATTEMPTS) break;
+      try {
+        qa = await judgePlateStill({ plateFile: fileName, staging });
+      } catch {
+        qa = null;
+        break;
+      }
+      if (!qa || qa.ok) break;
+      staging = appendPlateQaFix(staging, qa.fix);
     }
 
-    const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: true };
-    const plateTakes = [...(shot.plateTakes || []).map((t) => ({ ...t, approved: false })), newTake];
-    const plated = patchShotFields(nextStory, shotId, { plateFile: fileName, staging, plateTakes });
-    await writeMobileStory(plated, job.folderName);
     const shots = job.shots.map((s) =>
       s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
     );
     const updated = await patchMobileGenJob(jobId, { shots, error: "" });
-    return NextResponse.json({ ok: true, job: updated, plateFile: fileName, plateTakes });
+    return NextResponse.json({
+      ok: true,
+      job: updated,
+      plateFile: fileName,
+      plateTakes,
+      staging,
+      qa,
+      qaAttempts,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },
