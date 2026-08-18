@@ -54,8 +54,10 @@ import {
   mergePlacementsIntoStaging,
   loadBenchSession,
   mergePositionIntoStaging,
+  pickJoAndMattyNames,
   positionPromptLine,
   saveBenchSession,
+  scratchJoMattyBedroomPrompt,
   setBenchChaos,
   setScratchDrag,
   readScratchDrag,
@@ -94,6 +96,61 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     throw new Error(studioFetchError(e, "Request failed"));
   }
   return readApiJson<T & { error?: string }>(res);
+}
+
+function padClearedStorageKey(jobId: string): string {
+  return `skidmarks.scratch.padCleared.${jobId.trim()}`;
+}
+
+function sceneStorageKey(jobId: string): string {
+  return `skidmarks.scratch.sceneId.${jobId.trim()}`;
+}
+
+function readLocalPadCleared(jobId: string): boolean {
+  try {
+    return window.localStorage.getItem(padClearedStorageKey(jobId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeLocalPadCleared(jobId: string, cleared: boolean): void {
+  try {
+    const key = padClearedStorageKey(jobId);
+    if (cleared) window.localStorage.setItem(key, "1");
+    else window.localStorage.removeItem(key);
+  } catch {
+    /* private mode */
+  }
+}
+
+function readLocalSceneId(jobId: string): string {
+  try {
+    return window.localStorage.getItem(sceneStorageKey(jobId))?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeLocalSceneId(jobId: string, sceneId: string): void {
+  try {
+    const key = sceneStorageKey(jobId);
+    const id = sceneId.trim();
+    if (id) window.localStorage.setItem(key, id);
+    else window.localStorage.removeItem(key);
+  } catch {
+    /* private mode */
+  }
+}
+
+function resolveJobSceneId(next: MobileGenJob, fallback = ""): string {
+  const local = readLocalSceneId(next.id);
+  const fromScratch = (next.scratchPlate?.sceneId || "").trim();
+  const pick =
+    [local, fromScratch, fallback, pickDefaultPlace(next)].find(
+      (id) => id && next.scenes.some((s) => s.id === id),
+    ) || "";
+  return pick;
 }
 
 function faceUrl(job: MobileGenJob, name: string): string {
@@ -228,6 +285,8 @@ export default function ScratchPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const padSurfaceRef = useRef<HTMLDivElement | null>(null);
   const drawSeq = useRef(0);
+  const drawStartedAt = useRef(0);
+  const [drawTick, setDrawTick] = useState(0);
 
   const scratch = findScratchShot(story);
   const beat: CrashStoryBeat | undefined =
@@ -243,6 +302,13 @@ export default function ScratchPage() {
     !padCleared && plateFile && plateFile !== "__error__"
       ? `/api/crash/gen/file?name=${encodeURIComponent(plateFile)}`
       : "";
+  const placePreview = job && sceneId ? placeUrl(job, sceneId) : "";
+  const padImage = plateSrc || placePreview;
+  const padIsPlaceOnly = !plateSrc && Boolean(placePreview);
+  const drawSecs =
+    busy === "draw" && drawStartedAt.current
+      ? Math.max(drawTick, Math.floor((Date.now() - drawStartedAt.current) / 1000))
+      : 0;
   const underClips = scratch
     ? clipsUnderPlate(
         scratch.shot.id,
@@ -287,6 +353,12 @@ export default function ScratchPage() {
   useEffect(() => {
     setBench(loadBenchSession());
   }, []);
+
+  useEffect(() => {
+    if (busy !== "draw") return;
+    const t = window.setInterval(() => setDrawTick((n) => n + 1), 1000);
+    return () => window.clearInterval(t);
+  }, [busy]);
 
   const loadStory = useCallback(
     async (
@@ -351,12 +423,16 @@ export default function ScratchPage() {
         }
         setJob(d.job);
         const fromScratch = d.job.scratchPlate?.cast?.filter(Boolean) || [];
-        const padWiped = Boolean(d.job.scratchPadCleared && !fromScratch.length);
-        setPadCleared(Boolean(d.job.scratchPadCleared));
+        const cleared = Boolean(d.job.scratchPadCleared) || readLocalPadCleared(d.job.id);
+        const padWiped = Boolean(cleared && !fromScratch.length);
+        setPadCleared(cleared);
+        writeLocalPadCleared(d.job.id, cleared);
         const who = pickDefaultSpeaker(d.job);
         setSpeaker(d.job.scratchPlate?.speaker || (fromScratch[0] || (padWiped ? "" : who)));
         setPadCast(fromScratch.length ? fromScratch : padWiped ? [] : who ? [who] : []);
-        setSceneId(pickDefaultPlace(d.job));
+        const scene = resolveJobSceneId(d.job);
+        setSceneId(scene);
+        if (scene) writeLocalSceneId(d.job.id, scene);
         await loadStory(d.job, { keepStaging: padWiped });
       })
       .catch(() => {
@@ -391,15 +467,19 @@ export default function ScratchPage() {
       setMotionDraft(null);
       motionEditBeatId.current = null;
       const fromScratch = next.scratchPlate?.cast?.filter(Boolean) || [];
-      const padWiped = Boolean(next.scratchPadCleared && !fromScratch.length);
-      setPadCleared(Boolean(next.scratchPadCleared));
+      const cleared = Boolean(next.scratchPadCleared) || readLocalPadCleared(next.id);
+      const padWiped = Boolean(cleared && !fromScratch.length);
+      setPadCleared(cleared);
+      writeLocalPadCleared(next.id, cleared);
       setPlacements([]);
       setError("");
       setResumeError("");
       const who = pickDefaultSpeaker(next);
       setSpeaker(next.scratchPlate?.speaker || (fromScratch[0] || (padWiped ? "" : who)));
       setPadCast(fromScratch.length ? fromScratch : padWiped ? [] : who ? [who] : []);
-      setSceneId(pickDefaultPlace(next));
+      const scene = resolveJobSceneId(next);
+      setSceneId(scene);
+      if (scene) writeLocalSceneId(next.id, scene);
       setStaging("");
       setLine("");
       await loadStory(next, { keepStaging: padWiped });
@@ -450,6 +530,8 @@ export default function ScratchPage() {
       setMotionDraft(null);
       motionEditBeatId.current = null;
       setPadCleared(false);
+      writeLocalPadCleared(jobId, false);
+      writeLocalSceneId(jobId, "");
       setPlacements([]);
       setError("");
       setResumeError("");
@@ -476,11 +558,21 @@ export default function ScratchPage() {
     const nextSpeaker = opts?.speaker ?? speaker;
     const nextCast = opts?.cast ?? (padCast.length ? padCast : nextSpeaker ? [nextSpeaker] : []);
     const nextScene = opts?.sceneId ?? sceneId;
-    if (!nextSpeaker || !nextScene || !nextCast.length) return;
+    if (!nextScene) {
+      setError("Drop a place on the pad so you can see the room, then Draw.");
+      return;
+    }
+    if (!nextSpeaker || !nextCast.length) {
+      setError("Park faces on the place still (JO TOO on the bed, MATTY on the sofa), then Draw.");
+      return;
+    }
     const seq = ++drawSeq.current;
     setBusy("draw");
+    drawStartedAt.current = Date.now();
+    setDrawTick(0);
     setError("");
     setPadCleared(true);
+    writeLocalPadCleared(job.id, true);
     try {
       const ensured = await postJson<{ job: MobileGenJob; shotId?: string }>(
         "/api/crash/mobile/scratch",
@@ -540,6 +632,8 @@ export default function ScratchPage() {
       if (drawn.staging) setStaging(drawn.staging);
       else if (nextStaging) setStaging(nextStaging);
       setPadCleared(false);
+      writeLocalPadCleared(drawn.job.id, false);
+      drawStartedAt.current = 0;
       await loadStory(drawn.job);
       const plateFileName =
         drawn.job.shots.map((s) => s.plateFile).filter((f): f is string => Boolean(f && f !== "__error__")).at(-1) ||
@@ -568,7 +662,10 @@ export default function ScratchPage() {
       if (seq !== drawSeq.current) return;
       setError(e instanceof Error ? e.message : "Couldn't draw");
     } finally {
-      if (seq === drawSeq.current) setBusy("");
+      if (seq === drawSeq.current) {
+        setBusy("");
+        drawStartedAt.current = 0;
+      }
     }
   }
 
@@ -610,12 +707,30 @@ export default function ScratchPage() {
   function dropPlace(id: string) {
     if (!job) return;
     const src = placeUrl(job, id);
-    if (id === sceneId && src) {
+    if (id === sceneId && src && padCleared) {
       setLightbox(src);
       return;
     }
+    parkPlace(id);
+  }
+
+  function parkPlace(id: string) {
+    if (!job) return;
     setSceneId(id);
-    /* Select only — do not Draw. Clear plate/pad must stay empty until they tap Draw. */
+    setPadCleared(true);
+    writeLocalPadCleared(job.id, true);
+    writeLocalSceneId(job.id, id);
+    setLightbox("");
+    setError("");
+    void postJson<{ job: MobileGenJob }>("/api/crash/mobile/scratch", {
+      action: "select-place",
+      jobId: job.id,
+      sceneId: id,
+    })
+      .then((d) => {
+        if (d.job) setJob(d.job);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Couldn't park that place"));
   }
 
   function clearPrompt() {
@@ -636,12 +751,40 @@ export default function ScratchPage() {
     setPoseId("");
   }
 
-  /** Hide the still only — keep faces, place, marks. Plate file stays on the episode. */
+  function fillJoMattyBedroom() {
+    if (!job) return;
+    const pair =
+      pickJoAndMattyNames(padCast) ||
+      pickJoAndMattyNames(job.speakers) ||
+      { jo: "JO TOO", matty: "MATTY" };
+    const joOnDesk = job.speakers.find((n) => n === pair.jo) || job.speakers.find((n) => /\bjo\b/i.test(n));
+    const mattyOnDesk = job.speakers.find((n) => n === pair.matty) || job.speakers.find((n) => /matt/i.test(n));
+    if (!joOnDesk || !mattyOnDesk) {
+      setError("Need JO TOO and MATTY on this episode — approve both faces, then tap this again.");
+      return;
+    }
+    setPadCast((prev) => {
+      const next = prev.filter((n) => n !== joOnDesk && n !== mattyOnDesk);
+      return [joOnDesk, mattyOnDesk, ...next];
+    });
+    setSpeaker(joOnDesk);
+    setPlacements([
+      { name: joOnDesk, xPercent: 28, yPercent: 48 },
+      { name: mattyOnDesk, xPercent: 74, yPercent: 68 },
+    ]);
+    setStaging(scratchJoMattyBedroomPrompt(placeName, joOnDesk, mattyOnDesk));
+    setPoseId("");
+    setBibleActiveId(null);
+    setError("");
+  }
+
+  /** Hide the composite — keep the place still so they can park faces. */
   function clearPlate() {
     setPadCleared(true);
     setLightbox("");
     setError("");
     if (!job) return;
+    writeLocalPadCleared(job.id, true);
     void postJson<{ job: MobileGenJob }>("/api/crash/mobile/scratch", {
       action: "clear-plate",
       jobId: job.id,
@@ -663,6 +806,7 @@ export default function ScratchPage() {
     setSavedTake(null);
     setError("");
     if (!job) return;
+    writeLocalPadCleared(job.id, true);
     void postJson<{ job: MobileGenJob }>("/api/crash/mobile/scratch", {
       action: "clear-pad",
       jobId: job.id,
@@ -711,7 +855,7 @@ export default function ScratchPage() {
 
     // place / environment
     const id = payload.id;
-    setSceneId(id);
+    parkPlace(id);
     const placeLabel = payload.label || job.scenes.find((s) => s.id === id)?.placeName || "this place";
     const backdrop = `[Backdrop: ${placeLabel} — drop anchor ${xPercent}% / ${yPercent}%.]`;
     const base = staging.trim();
@@ -1145,23 +1289,34 @@ export default function ScratchPage() {
                 >
                   <button
                     type="button"
-                    disabled={!plateSrc}
-                    onClick={() => plateSrc && setLightbox(plateSrc)}
-                    title={plateSrc ? "Tap to enlarge" : "Drop a face or place here"}
+                    disabled={!padImage}
+                    onClick={() => padImage && setLightbox(padImage)}
+                    title={
+                      padIsPlaceOnly
+                        ? "Place still — drag faces onto the bed / sofa"
+                        : padImage
+                          ? "Tap to enlarge"
+                          : "Drop a place here so the room loads"
+                    }
                     style={{
                       ...mobileCard,
                       padding: "2px",
                       lineHeight: 0,
                       width: "100%",
                       border: "none",
-                      cursor: plateSrc ? "zoom-in" : "default",
+                      cursor: padImage ? "zoom-in" : "default",
                       background: "var(--panel)",
                       position: "relative",
                     }}
                   >
-                    {plateSrc ? (
+                    {padImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={plateSrc} alt="" className="scratch-pad-still" draggable={false} />
+                      <img
+                        src={padImage}
+                        alt={padIsPlaceOnly ? "Place still — park faces here" : "Last Draw"}
+                        className="scratch-pad-still"
+                        draggable={false}
+                      />
                     ) : (
                       <div
                         className="scratch-pad-still"
@@ -1175,9 +1330,12 @@ export default function ScratchPage() {
                           padding: "16px",
                         }}
                       >
-                        Clear plate first. Drag each face onto this empty pad to park them.
+                        Drop a place first so the room loads. Then drag faces onto the furniture.
                       </div>
                     )}
+                    {busy === "draw" ? (
+                      <div className="scratch-pad-drawing">Drawing… {drawSecs}s</div>
+                    ) : null}
                   </button>
                   {placements.length ? (
                     <div className="scratch-pad-markers" aria-hidden>
@@ -1205,7 +1363,6 @@ export default function ScratchPage() {
                       key={sc.id}
                       type="button"
                       draggable
-                      disabled={Boolean(busy)}
                       onDragStart={(e) => {
                         setScratchDrag(e.dataTransfer, {
                           type: "place",
@@ -1253,7 +1410,7 @@ export default function ScratchPage() {
             <div style={{ display: "flex", gap: "8px", alignItems: "stretch" }}>
               <div style={{ flex: 1 }}>
                 <MobilePrimaryButton
-                  disabled={!padCast.length || !sceneId || Boolean(busy)}
+                  disabled={!job}
                   onClick={() =>
                     void draw({
                       cast: padCast,
@@ -1262,20 +1419,29 @@ export default function ScratchPage() {
                     })
                   }
                 >
-                  {busy === "draw" ? "Drawing…" : "Draw"}
+                  {busy === "draw"
+                    ? `Drawing… ${drawSecs}s — tap to retry`
+                    : "Draw"}
                 </MobilePrimaryButton>
               </div>
               <button
                 type="button"
                 style={ghostBtn}
                 onClick={clearPlate}
-                disabled={Boolean(busy) || !plateSrc}
+                disabled={!job || !padImage}
               >
                 Clear plate
               </button>
-              <button type="button" style={ghostBtn} onClick={clearPad} disabled={Boolean(busy)}>
+              <button type="button" style={ghostBtn} onClick={clearPad} disabled={!job}>
                 Clear pad
               </button>
+            </div>
+            <div style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
+              {padIsPlaceOnly
+                ? "Place still is on the pad. Drag JO TOO onto the bed, MATTY onto the sofa, then Draw."
+                : plateSrc
+                  ? "Last Draw. Clear plate keeps this room so you can park faces again."
+                  : "Drop a place first. The room stays so you can park people."}
             </div>
             <div style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
               Still:{" "}
@@ -1299,9 +1465,8 @@ export default function ScratchPage() {
               <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
                 On pad: {padCast.join(" · ")}. Speaks:{" "}
                 <span style={{ color: "var(--acid)" }}>{speaker || padCast[0]}</span>
-                . Clear plate first, then drag each face onto the empty pad (left /
-                chair / right). Nude keeps those marks — do not leave extras as a
-                corner inset.
+                . Park them on the place still — JO TOO on the bed, MATTY on the sofa.
+                Nude keeps those marks. Do not leave extras as a corner inset.
               </div>
             ) : null}
 
@@ -1318,6 +1483,9 @@ export default function ScratchPage() {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
                   <button type="button" style={ghostBtn} onClick={compilePrompt}>
                     Compile layout
+                  </button>
+                  <button type="button" style={ghostBtn} onClick={fillJoMattyBedroom}>
+                    JO on bed · MATTY on sofa
                   </button>
                   <button type="button" style={ghostBtn} onClick={clearPrompt}>
                     Clear prompt

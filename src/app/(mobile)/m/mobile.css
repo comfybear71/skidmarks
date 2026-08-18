@@ -143,6 +143,20 @@ body {
   text-overflow: ellipsis;
 }
 
+.scratch-pad-drawing {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 3;
+  padding: 4px 8px;
+  border: 1px solid var(--acid);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--acid);
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
 .scratch-pad-col .scratch-pad-still {
   width: 100%;
   aspect-ratio: 1;

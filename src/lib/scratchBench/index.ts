@@ -57,12 +57,16 @@ export type {
 
 export {
   SCRATCH_DND_MIME,
+  bedroomFurnitureLine,
   dropPercents,
   expandScratchLayoutMarks,
+  isScratchBedroomPlace,
   keepScratchPositionLines,
   mergePositionIntoStaging,
+  pickJoAndMattyNames,
   positionPromptLine,
   readScratchDrag,
+  scratchJoMattyBedroomPrompt,
   setScratchDrag,
   upsertPlacement,
 } from "./padDrop";
