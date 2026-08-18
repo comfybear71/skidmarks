@@ -149,7 +149,7 @@ const marksOnly = `[Backdrop: COMFY AND THE LAND LADY'S BEDROOM — drop anchor 
 const expanded = expandScratchLayoutMarks(marksOnly);
 assert.match(expanded, /ONE photograph of COMFY AND THE LAND LADY'S BEDROOM/i);
 assert.match(expanded, /MATTY is on the sofa/i);
-assert.match(expanded, /CRAZY BIG HOLE JO TOO is on the bed/i);
+assert.match(expanded, /CRAZY BIG HOLE JO TOO is on her back on the bed/i);
 assert.match(expanded, /share the same room/i);
 assert.match(expanded, /not a floating bust/i);
 assert.equal(expandScratchLayoutMarks(expanded), expanded);
@@ -160,6 +160,7 @@ assert.equal(pair.jo, "CRAZY BIG HOLE JO TOO");
 assert.equal(pair.matty, "MATTY");
 const letter = scratchJoMattyBedroomPrompt("COMFY AND THE LAND LADY'S BEDROOM", pair.jo, pair.matty);
 assert.match(letter, /CRAZY BIG HOLE JO TOO is fully nude on the bed/i);
+assert.match(letter, /on her back/i);
 assert.match(letter, /MATTY is fully nude on the sofa/i);
 assert.match(letter, /not a floating bust/i);
 assert.equal(expandScratchLayoutMarks(letter), letter);

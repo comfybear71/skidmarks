@@ -563,7 +563,7 @@ export default function ScratchPage() {
       return;
     }
     if (!nextSpeaker || !nextCast.length) {
-      setError("Park faces on the place still (JO TOO on the bed, MATTY on the sofa), then Draw.");
+      setError("Park faces on the place still, tap JO on her back · MATTY sofa, then Draw.");
       return;
     }
     const seq = ++drawSeq.current;
@@ -1287,15 +1287,12 @@ export default function ScratchPage() {
                   onDragLeave={onPadDragLeave}
                   onDrop={onPadDrop}
                 >
-                  <button
-                    type="button"
-                    disabled={!padImage}
-                    onClick={() => padImage && setLightbox(padImage)}
+                  <div
                     title={
                       padIsPlaceOnly
                         ? "Place still — drag faces onto the bed / sofa"
                         : padImage
-                          ? "Tap to enlarge"
+                          ? "Drop faces onto this still"
                           : "Drop a place here so the room loads"
                     }
                     style={{
@@ -1304,7 +1301,7 @@ export default function ScratchPage() {
                       lineHeight: 0,
                       width: "100%",
                       border: "none",
-                      cursor: padImage ? "zoom-in" : "default",
+                      cursor: "default",
                       background: "var(--panel)",
                       position: "relative",
                     }}
@@ -1336,7 +1333,16 @@ export default function ScratchPage() {
                     {busy === "draw" ? (
                       <div className="scratch-pad-drawing">Drawing… {drawSecs}s</div>
                     ) : null}
-                  </button>
+                    {padImage ? (
+                      <button
+                        type="button"
+                        className="scratch-pad-enlarge"
+                        onClick={() => setLightbox(padImage)}
+                      >
+                        Enlarge
+                      </button>
+                    ) : null}
+                  </div>
                   {placements.length ? (
                     <div className="scratch-pad-markers" aria-hidden>
                       {placements.map((p) => (
@@ -1407,8 +1413,8 @@ export default function ScratchPage() {
               </div>
             ) : null}
 
-            <div style={{ display: "flex", gap: "8px", alignItems: "stretch" }}>
-              <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", gap: "8px", alignItems: "stretch", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 160px" }}>
                 <MobilePrimaryButton
                   disabled={!job}
                   onClick={() =>
@@ -1427,6 +1433,14 @@ export default function ScratchPage() {
               <button
                 type="button"
                 style={ghostBtn}
+                onClick={fillJoMattyBedroom}
+                disabled={!job}
+              >
+                JO on her back · MATTY sofa
+              </button>
+              <button
+                type="button"
+                style={ghostBtn}
                 onClick={clearPlate}
                 disabled={!job || !padImage}
               >
@@ -1438,7 +1452,7 @@ export default function ScratchPage() {
             </div>
             <div style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
               {padIsPlaceOnly
-                ? "Place still is on the pad. Drag JO TOO onto the bed, MATTY onto the sofa, then Draw."
+                ? "Place still is on the pad. Drag faces onto the furniture, tap JO on her back · MATTY sofa, then Draw. Tapping the picture only enlarges it."
                 : plateSrc
                   ? "Last Draw. Clear plate keeps this room so you can park faces again."
                   : "Drop a place first. The room stays so you can park people."}
@@ -1465,7 +1479,7 @@ export default function ScratchPage() {
               <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
                 On pad: {padCast.join(" · ")}. Speaks:{" "}
                 <span style={{ color: "var(--acid)" }}>{speaker || padCast[0]}</span>
-                . Park them on the place still — JO TOO on the bed, MATTY on the sofa.
+                . Park them on the place still — JO TOO on her back on the bed, MATTY on the sofa.
                 Nude keeps those marks. Do not leave extras as a corner inset.
               </div>
             ) : null}
@@ -1485,7 +1499,7 @@ export default function ScratchPage() {
                     Compile layout
                   </button>
                   <button type="button" style={ghostBtn} onClick={fillJoMattyBedroom}>
-                    JO on bed · MATTY on sofa
+                    JO on her back · MATTY sofa
                   </button>
                   <button type="button" style={ghostBtn} onClick={clearPrompt}>
                     Clear prompt

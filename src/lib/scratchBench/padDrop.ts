@@ -108,7 +108,7 @@ export function scratchJoMattyBedroomPrompt(
   const matty = (mattyName || "MATTY").trim() || "MATTY";
   return [
     `ONE photograph, ONE camera, ONE room: ${room}. Not a collage, not a comic page, not three panels, not inset portraits.`,
-    `Adult ${jo} is fully nude on the bed, left of frame — on the quilt, leaning hard forward like she is about to lurch toward ${matty}. Same face as her face card. Ignore face-card clothes. Full body on the mattress — not a floating bust, not framed in a window.`,
+    `Adult ${jo} is fully nude on the bed, left of frame — on her back on the quilt, shoulders and head on the mattress, looking toward ${matty}. Same face as her face card. Ignore face-card clothes. Full body lying on the mattress — not sitting up, not leaning forward, not a floating bust, not framed in a window.`,
     `Adult man ${matty} is fully nude on the sofa / armchair, right of frame, lower — sitting back, head tipped up, eyes closed. Same face, tattoos and build as his face card. Visible human penis, two human feet on the floor. Not a Ken doll. No extra limbs. Full body in the seat — not a floating bust, not framed in a window.`,
     `Only ${jo} and ${matty} in frame. Full people using the furniture. No picture-in-picture. No text. Adults only, no one under 21.`,
   ].join("\n\n");
@@ -118,7 +118,7 @@ export function bedroomFurnitureLine(name: string, where: string, place: string)
   if (!isScratchBedroomPlace(place)) return "";
   const who = (name || "").trim() || "Subject";
   if (/left/i.test(where)) {
-    return `${who} is on the bed, left of that room — full body on the mattress, using that bed, not a floating bust in a window.`;
+    return `${who} is on her back on the bed, left of that room — full body lying on the mattress, not sitting up, not a floating bust in a window.`;
   }
   if (/right/i.test(where)) {
     return `${who} is on the sofa or armchair, right of that room — full body sitting in the seat, not a floating bust in a window.`;
