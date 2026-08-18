@@ -29,7 +29,7 @@ import {
 } from "./sirayClient";
 import { buildCrashGenLook } from "./imageGen";
 import { saveCplateMeta } from "./cplateManifest";
-import { scratchWantsNude, SCRATCH_NUDE_STILL_LOCK } from "./sirayI2v";
+import { scratchWantsNude, scratchNudeStillLock } from "./sirayI2v";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
@@ -60,7 +60,8 @@ export function buildSirayScratchPrompt(opts: {
 }): string {
   const look = buildCrashGenLook(opts.styleId, opts.styleRealism);
   const n = opts.speakers.length;
-  const nude = scratchWantsNude(`${opts.staging} ${opts.looks}`);
+  const nudeText = `${opts.staging} ${opts.looks}`;
+  const nude = scratchWantsNude(nudeText);
   const who =
     n === 1
       ? `Image 2 is ${opts.speakers[0]} — same face, hair, age and body. One person only.`
@@ -74,7 +75,7 @@ export function buildSirayScratchPrompt(opts: {
     look,
     "Image 1 is the LOCKED place — keep that exact location, lighting and materials. Do not replace the place.",
     who,
-    nude ? SCRATCH_NUDE_STILL_LOCK : "",
+    nude ? scratchNudeStillLock(nudeText) : "",
     looks,
     opts.placeLook ? `Place look: ${opts.placeLook}` : "",
     opts.staging

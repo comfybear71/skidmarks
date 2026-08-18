@@ -97,13 +97,37 @@ export function scratchWantsNude(text: string): boolean {
   );
 }
 
+/** Nude + the pad/look says this is a man — Seedream otherwise draws a woman. */
+export function scratchWantsMaleNude(text: string): boolean {
+  if (!scratchWantsNude(text)) return false;
+  const t = (text || "").toLowerCase();
+  const female = /\bwom[ae]n\b|\bfemale\b|\blady\b/.test(t);
+  const male = /\bman\b|\bmale\b|\bmen\b|\bbeard\b|\bmoustache\b|\bmustache\b/.test(t);
+  return male && !female;
+}
+
+export function scratchNudeStillLock(text: string): string {
+  return scratchWantsMaleNude(text) ? SCRATCH_NUDE_STILL_LOCK_MALE : SCRATCH_NUDE_STILL_LOCK;
+}
+
+export function scratchNudeI2vLock(text: string): string {
+  return scratchWantsMaleNude(text) ? SCRATCH_NUDE_I2V_LOCK_MALE : SCRATCH_NUDE_I2V_LOCK;
+}
+
 /** Still Draw — spicy ref2i must drop the face-card outfit. */
 export const SCRATCH_NUDE_STILL_LOCK =
-  "Adults only — no one under 21. Change the clothes from the face cards. Ignore the outfit on the reference images. Same face, hair, age and body. Nude as staged. Do not put the face-card clothes back on.";
+  "Adults only — no one under 21. Change the clothes from the face cards. Ignore the outfit on the reference images. Same face, hair, age, sex and body. Nude as staged. Do not put the face-card clothes back on. Do not change a man into a woman.";
+
+/** Male nude — Seedream spicy defaults to a woman unless we lock sex. */
+export const SCRATCH_NUDE_STILL_LOCK_MALE =
+  "Adults only — no one under 21. This person is an adult man. Draw an adult male body: bare male chest, male groin, no clothes. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the reference. Do not redraw him as a woman. Do not add breasts. Do not put clothes back on.";
 
 /** Motion from a nude plate — do not dress them again. */
 export const SCRATCH_NUDE_I2V_LOCK =
   "Same bare body as the start image. Do not add clothes. Do not invent a new wardrobe.";
+
+export const SCRATCH_NUDE_I2V_LOCK_MALE =
+  "Same adult male body as the start image. Do not add clothes. Do not redraw as a woman.";
 
 export function clampSirayI2vDurationSec(
   sec: number,
@@ -153,7 +177,8 @@ export function buildSirayI2vPrompt(opts: {
       ? staging
       : `${who || "The person"} holds their pose, subtle idle motion, weight shift, breathing.`);
   const whoLook = [who, look].filter(Boolean).join(", ");
-  const nude = scratchWantsNude(`${opts.staging} ${opts.motion}`);
+  const nudeText = `${opts.staging} ${opts.motion} ${opts.lookLock || ""}`;
+  const nude = scratchWantsNude(nudeText);
   return [
     "Use the provided start image as the first frame.",
     whoLook
@@ -163,7 +188,7 @@ export function buildSirayI2vPrompt(opts: {
       : nude
         ? "Keep that face, body and place. Same bare body as the start image."
         : "Keep that face, body, wardrobe and place.",
-    nude ? SCRATCH_NUDE_I2V_LOCK : "",
+    nude ? scratchNudeI2vLock(nudeText) : "",
     action,
     "No dialogue. Mouth stays closed. Do not invent a new take or a new face.",
     "Props and background stay exactly as the start image, nothing new enters frame.",

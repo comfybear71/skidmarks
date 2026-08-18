@@ -7,6 +7,8 @@ import {
   SIRAY_I2V_MODELS,
   sirayI2vSpec,
   scratchWantsNude,
+  scratchWantsMaleNude,
+  scratchNudeStillLock,
   stripSpeechForSirayMotion,
 } from "../src/lib/sirayI2v.ts";
 import { studioFetchError } from "../src/lib/studioFetchError.ts";
@@ -65,6 +67,15 @@ assert.doesNotMatch(motion, /\[VISUAL\]|\[SPEECH\]/);
 
 assert.equal(scratchWantsNude("Adult TEE, fully nude at the bar"), true);
 assert.equal(scratchWantsNude("TEE leans on the bar, empty hands"), false);
+assert.equal(scratchWantsMaleNude("Adult man TEE, fully nude at the bar"), true);
+assert.equal(scratchWantsMaleNude("Adult TEE, fully nude at the bar"), false);
+assert.equal(scratchWantsMaleNude("Adult woman TEE, fully nude at the bar"), false);
+assert.equal(
+  scratchWantsMaleNude("Adult TEE, fully nude at the bar. TEE looks like: Australian man, beard"),
+  true,
+);
+assert.match(scratchNudeStillLock("Adult man TEE, fully nude at the bar"), /adult male body/i);
+assert.doesNotMatch(scratchNudeStillLock("Adult TEE, fully nude at the bar"), /adult male body/i);
 const nudeClip = buildSirayI2vPrompt({
   speaker: "TEE",
   motion: "",
@@ -74,6 +85,14 @@ const nudeClip = buildSirayI2vPrompt({
 assert.match(nudeClip, /bare body/);
 assert.match(nudeClip, /Do not add clothes/);
 assert.doesNotMatch(nudeClip, /wardrobe and body/);
+const manClip = buildSirayI2vPrompt({
+  speaker: "TEE",
+  motion: "",
+  staging: "Adult man TEE, fully nude on the couch.",
+  lookLock: "beard, black tee",
+});
+assert.match(manClip, /adult male body/i);
+assert.match(manClip, /Do not redraw as a woman/);
 
 assert.match(
   studioFetchError(new TypeError("Failed to fetch"), "Request failed"),
