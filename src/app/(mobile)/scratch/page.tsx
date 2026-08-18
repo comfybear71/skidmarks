@@ -52,10 +52,9 @@ import {
   injectChaosStill,
   keepScratchPositionLines,
   mergePlacementsIntoStaging,
+  stripScratchLayoutMarks,
   loadBenchSession,
-  mergePositionIntoStaging,
   pickJoAndMattyNames,
-  positionPromptLine,
   saveBenchSession,
   scratchJoMattyBedroomPrompt,
   setBenchChaos,
@@ -635,8 +634,8 @@ export default function ScratchPage() {
       setJob(drawn.job);
       if (drawn.backend) setStillBackend(drawn.backend);
       if (typeof drawn.siray === "boolean") setSirayReady(drawn.siray);
-      if (drawn.staging) setStaging(drawn.staging);
-      else if (nextStaging) setStaging(nextStaging);
+      if (drawn.staging) setStaging(stripScratchLayoutMarks(drawn.staging));
+      else if (nextStaging) setStaging(stripScratchLayoutMarks(nextStaging));
       setPadCleared(false);
       writeLocalPadCleared(drawn.job.id, false);
       drawStartedAt.current = 0;
@@ -850,8 +849,6 @@ export default function ScratchPage() {
       setSpeaker(name);
       const place = { name, xPercent, yPercent };
       setPlacements((prev) => upsertPlacement(prev, place));
-      const line = positionPromptLine(name, xPercent, yPercent);
-      setStaging((prev) => mergePositionIntoStaging(prev, line, name));
       const beatLine = scratch?.shot.beats.find(
         (b) => b.speaker.trim().toLowerCase() === name.trim().toLowerCase(),
       )?.text;
@@ -862,12 +859,6 @@ export default function ScratchPage() {
     // place / environment
     const id = payload.id;
     parkPlace(id);
-    const placeLabel = payload.label || job.scenes.find((s) => s.id === id)?.placeName || "this place";
-    const backdrop = `[Backdrop: ${placeLabel} — drop anchor ${xPercent}% / ${yPercent}%.]`;
-    const base = staging.trim();
-    const stripped = base.replace(/\[Backdrop:\s*[^\]]*\]/i, "").trim();
-    const nextStaging = stripped ? `${stripped}\n\n${backdrop}` : backdrop;
-    setStaging(nextStaging);
   }
 
   function fillFromPreset(preset: ScratchPreset): string {

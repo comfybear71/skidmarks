@@ -62,6 +62,24 @@ export function dropPercents(
   };
 }
 
+/** Drop marks. Seedream reads "left third of the screen" as a comic panel. */
+export function stripScratchLayoutMarks(staging: string): string {
+  return (staging || "")
+    .replace(/\[Position:\s*[^\]]*\]/gi, "")
+    .replace(/\[Backdrop:\s*[^\]]*\]/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function scratchHasDirectorLetter(staging: string): boolean {
+  const t = stripScratchLayoutMarks(staging);
+  if (!t) return false;
+  if (/ONE photograph/i.test(t)) return true;
+  if (/exactly two (people|adults)/i.test(t)) return true;
+  if (/fully nude/i.test(t) && /\b(jo|matty)\b/i.test(t)) return true;
+  return t.length >= 80;
+}
+
 /** Horizontal third + vertical band → cinematic position line. */
 export function positionPromptLine(name: string, xPercent: number, yPercent: number): string {
   const who = name.trim() || "Subject";
@@ -158,7 +176,7 @@ export function expandScratchLayoutMarks(staging: string): string {
       .replace(/\.+$/, "");
     bits.push(
       bedroomFurnitureLine(name, where, place) ||
-        `${name} is ${where} of that room — a full person using the furniture there, not a portrait tile.`,
+        `${name} is in that same room as a full person using the furniture — not a portrait tile, not a separate panel.`,
     );
   }
   if (names.length > 1) {
