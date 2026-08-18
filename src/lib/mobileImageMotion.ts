@@ -140,8 +140,19 @@ export function directorWantsEmptyHands(text: string): boolean {
     /\bno mobile\b/.test(t) ||
     /\bhands free\b/.test(t) ||
     /\bhands in (her|his|their) lap\b/.test(t) ||
-    /\bnot holding\b/.test(t)
+    /\bnot holding\b/.test(t) ||
+    /\barms? (at|to|by|down at) (her |his |their )?(sides?|side)\b/.test(t) ||
+    /\bhands? (at|to|by) (her |his |their )?sides?\b/.test(t)
   );
+}
+
+/** Scratch letter that never named a phone — do not inject JO's keyboard-warrior default. */
+export function withScratchEmptyHands(staging: string): string {
+  const t = (staging || "").trim();
+  if (!t) return t;
+  if (directorWantsEmptyHands(t)) return t;
+  if (/\b(phone|mobile)\b/i.test(t)) return t;
+  return `${t}\n\nEmpty hands. Arms down at her sides. No phone. Do not copy a phone from the face card.`;
 }
 
 function stagingAlreadyNamesHeldProp(staging: string): boolean {

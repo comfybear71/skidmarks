@@ -30,6 +30,7 @@ import {
 import { buildCrashGenLook } from "./imageGen";
 import { saveCplateMeta } from "./cplateManifest";
 import { scratchWantsNude, scratchNudeStillLock, SCRATCH_SINGLE_FRAME_LOCK } from "./sirayI2v";
+import { withScratchEmptyHands } from "./mobileImageMotion";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
@@ -189,7 +190,7 @@ async function startSirayScratchPlate(
   const placeLook = opts.job ? candidateLookPrompt(opts.job.locationCandidates, scene.id) : "";
   const staging = plateCastStagingNote({
     speakers: castNames,
-    staging: shot.staging,
+    staging: withScratchEmptyHands(shot.staging || ""),
     looks,
     placeLook,
   });

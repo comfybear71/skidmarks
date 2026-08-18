@@ -254,7 +254,7 @@ export default function ScratchPage() {
   const [speaker, setSpeaker] = useState("");
   const [padCast, setPadCast] = useState<string[]>([]);
   const [sceneId, setSceneId] = useState("");
-  const [poseId, setPoseId] = useState("mcu-phone");
+  const [poseId, setPoseId] = useState("");
   const [staging, setStaging] = useState("");
   const [line, setLine] = useState("");
   const [busy, setBusy] = useState("");
@@ -551,8 +551,14 @@ export default function ScratchPage() {
     sceneId?: string;
   }) {
     if (!job) return;
-    const nextPose = opts?.poseId ?? poseId;
     const rawStaging = opts?.staging ?? staging;
+    const requestedPose = opts?.poseId ?? poseId;
+    const nextPose =
+      requestedPose === "mcu-phone" &&
+      (rawStaging || "").trim() &&
+      !/\b(phone|mobile)\b/i.test(rawStaging)
+        ? ""
+        : requestedPose;
     const laidOut = mergePlacementsIntoStaging(rawStaging || "", placements, placeName);
     const nextStaging = injectChaosStill(laidOut, bench.chaosId);
     const nextSpeaker = opts?.speaker ?? speaker;
