@@ -1497,9 +1497,17 @@ function ShotLineEditor({
                 plate?.plateTakes !== undefined ? plate.plateTakes : shot.plateTakes,
               )
             }
-            onSaved={(text, voiceFile, imageMotion, nextJob) =>
-              onBeatSaved(beat.id, text, voiceFile, imageMotion, nextJob)
-            }
+            onSaved={(text, voiceFile, imageMotion, nextJob, addedBeats) => {
+              onBeatSaved(beat.id, text, voiceFile, imageMotion, nextJob);
+              for (const extra of addedBeats || []) {
+                onLineAdded?.({
+                  id: extra.id,
+                  speaker: beat.speaker,
+                  text: extra.text,
+                  voiceFile: extra.voiceFile,
+                });
+              }
+            }}
           />
           </div>
         );
@@ -1604,7 +1612,13 @@ function BeatLineEditor({
     staging: string,
     plate?: { plateFile?: string; plateTakes?: PlateTake[] },
   ) => void;
-  onSaved: (text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
+  onSaved: (
+    text: string,
+    voiceFile: string,
+    imageMotion?: string,
+    job?: MobileGenJob,
+    addedBeats?: { id: string; text: string; voiceFile: string }[],
+  ) => void;
 }) {
   const [text, setText] = useState(
     isLeftoverPackVoiceFile(beat.voiceFile) ? "" : beat.text,
@@ -1859,6 +1873,9 @@ function BeatLineEditor({
       const data = await readApiJson<{
         error?: string;
         voiceFile: string;
+        line?: string;
+        split?: number;
+        addedBeats?: { id: string; text: string; voiceFile: string }[];
         imageMotion?: string;
         job?: MobileGenJob;
       }>(res);
@@ -1874,12 +1891,14 @@ function BeatLineEditor({
         );
       }
       setVoiceFile(stamped);
+      const firstLine = (data.line || "").trim() || text;
+      if (firstLine !== text) setText(firstLine);
       let imageMotion = (data.imageMotion as string) || "";
       if (motionDirty) {
         imageMotion = await persistMotion(motionBody);
         setMotionDraft(null);
       }
-      onSaved(text, stamped, imageMotion, data.job);
+      onSaved(firstLine, stamped, imageMotion, data.job, data.addedBeats);
     } catch (e) {
       setError(studioFetchError(e, "Save failed"));
     } finally {
