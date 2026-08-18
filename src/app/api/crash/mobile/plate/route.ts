@@ -408,9 +408,9 @@ export async function POST(req: Request) {
       });
     }
 
-    const cleanedBeats = dropLeftoverHydrateBeats(shot.id, shot.beats);
+    const cleanedBeats = dropLeftoverHydrateBeats(shotId, shot.beats);
     const speaker =
-      cleanedBeats.find((b) => b.speaker.trim() && !leftoverHydrateBeat(shot.id, b.id))
+      cleanedBeats.find((b) => b.speaker.trim() && !leftoverHydrateBeat(shotId, b.id))
         ?.speaker ||
       cleanedBeats[0]?.speaker ||
       "";
