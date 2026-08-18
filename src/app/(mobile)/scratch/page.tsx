@@ -65,6 +65,7 @@ import {
   type ScratchBibleEntry,
   type ScratchBibleSectionId,
   type ScratchPadPlacement,
+  type ScratchBackendId,
   type ScratchScoreTag,
 } from "@/lib/scratchBench";
 import { useScratchPadHotkeys } from "@/hooks/useScratchPadHotkeys";
@@ -205,6 +206,9 @@ export default function ScratchPage() {
   /** Last successful Save — unlocks Generate even if story GET lags. */
   const [savedTake, setSavedTake] = useState<{ beatId: string; voiceFile: string } | null>(null);
   const [ltxOpen, setLtxOpen] = useState(true);
+  const [clipEngine, setClipEngine] = useState<"ltx" | "siray">("ltx");
+  const [stillBackend, setStillBackend] = useState<ScratchBackendId>("unknown");
+  const [sirayReady, setSirayReady] = useState(false);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   /** Which beat the draft belongs to — ignore draft after mouth / beat switch. */
   const motionEditBeatId = useRef<string | null>(null);
@@ -300,6 +304,21 @@ export default function ScratchPage() {
     },
     [],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/crash/mobile/scratch")
+      .then((r) => r.json())
+      .then((d: { siray?: boolean }) => {
+        if (!cancelled && typeof d.siray === "boolean") setSirayReady(d.siray);
+      })
+      .catch(() => {
+        /* Draw still works — chip stays off until a preset round-trip */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const id = readResumedJobId(window.location.search, window.localStorage, DEFAULT_DESK_ID);
@@ -458,7 +477,12 @@ export default function ScratchPage() {
       );
       if (seq !== drawSeq.current) return;
       setJob(ensured.job);
-      const drawn = await postJson<{ job: MobileGenJob; staging?: string }>(
+      const drawn = await postJson<{
+        job: MobileGenJob;
+        staging?: string;
+        backend?: ScratchBackendId;
+        siray?: boolean;
+      }>(
         "/api/crash/mobile/scratch",
         {
           action: "preset",
@@ -471,6 +495,8 @@ export default function ScratchPage() {
       );
       if (seq !== drawSeq.current) return;
       setJob(drawn.job);
+      if (drawn.backend) setStillBackend(drawn.backend);
+      if (typeof drawn.siray === "boolean") setSirayReady(drawn.siray);
       if (drawn.staging) setStaging(drawn.staging);
       else if (nextStaging) setStaging(nextStaging);
       setPadCleared(false);
@@ -485,7 +511,7 @@ export default function ScratchPage() {
       setBench((prev) => {
         const next = appendBenchRun(prev, {
           kind: "still",
-          backend: "unknown",
+          backend: drawn.backend || "unknown",
           chaosId: prev.chaosId,
           positionPrompt: nextStaging || undefined,
           plateUrl,
@@ -837,11 +863,17 @@ export default function ScratchPage() {
       if (motionBody.trim()) {
         await persistMotion(motionBody);
       }
-      const data = await postJson<{ job?: MobileGenJob }>("/api/crash/mobile/scratch", {
+      const data = await postJson<{
+        job?: MobileGenJob;
+        backend?: ScratchBackendId;
+        siray?: boolean;
+      }>("/api/crash/mobile/scratch", {
         action: "clip",
         jobId: job.id,
         beatId: beat.id,
+        clipEngine,
       });
+      if (typeof data.siray === "boolean") setSirayReady(data.siray);
       if (data.job) setJob(data.job);
       const clipFile =
         data.job?.clips?.filter((c) => c.beatId === beat.id && c.clipFile).at(-1)?.clipFile || "";
@@ -852,7 +884,7 @@ export default function ScratchPage() {
       setBench((prev) => {
         const next = appendBenchRun(prev, {
           kind: "clip",
-          backend: "unknown",
+          backend: data.backend || (clipEngine === "siray" ? "siray-i2v" : "ltx"),
           chaosId: prev.chaosId,
           positionPrompt: staging || undefined,
           plateUrl: plateSrc || undefined,
@@ -881,6 +913,8 @@ export default function ScratchPage() {
       ),
   );
   const canGenerate = playable || clipPlayable;
+  const canSirayGenerate = Boolean(plateSrc && beat && job);
+  const generateReady = clipEngine === "siray" ? canSirayGenerate && sirayReady : canGenerate;
 
   useScratchPadHotkeys({
     enabled: Boolean(job) && !resuming,
@@ -893,7 +927,7 @@ export default function ScratchPage() {
       });
     },
     onGenerate: () => {
-      if (busy || !canGenerate) return;
+      if (busy || !generateReady) return;
       void makeClip();
     },
     onArchive: () => {
@@ -1174,6 +1208,18 @@ export default function ScratchPage() {
                 Clear pad
               </button>
             </div>
+            <div style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
+              Still:{" "}
+              <span style={{ color: stillBackend === "siray-spicy" ? "var(--acid)" : "var(--chrome)" }}>
+                {stillBackend === "siray-spicy"
+                  ? "Siray Seedream 4.5 Spicy"
+                  : stillBackend === "xai"
+                    ? "XAI (Grok)"
+                    : sirayReady
+                      ? "Siray Spicy when you Draw"
+                      : "XAI — no SIRAY_API_KEY"}
+              </span>
+            </div>
 
             {padCast.length > 1 ? (
               <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
@@ -1349,10 +1395,41 @@ export default function ScratchPage() {
                 <div style={{ flex: "1 1 auto" }} />
               )}
               <div style={{ flex: "0 0 auto" }}>
-                <MobilePrimaryButton disabled={!canGenerate || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
+                <MobilePrimaryButton disabled={!generateReady || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
                   {busy === "clip" ? "Sending…" : "Generate"}
                 </MobilePrimaryButton>
               </div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => setClipEngine("ltx")}
+                style={{
+                  ...ghostBtn,
+                  border: clipEngine === "ltx" ? "1px solid var(--acid)" : ghostBtn.border,
+                  color: clipEngine === "ltx" ? "var(--acid)" : "var(--chrome)",
+                }}
+              >
+                LTX (mp3)
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(busy) || !sirayReady}
+                onClick={() => setClipEngine("siray")}
+                style={{
+                  ...ghostBtn,
+                  border: clipEngine === "siray" ? "1px solid var(--acid)" : ghostBtn.border,
+                  color: clipEngine === "siray" ? "var(--acid)" : "var(--chrome)",
+                }}
+              >
+                Siray Seedance Spicy
+              </button>
+              <span style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
+                {clipEngine === "siray"
+                  ? "Motion from the still. No lip-sync — keep LTX for the Saved mp3."
+                  : "Lip-sync follows the Saved mp3 on Comfy."}
+              </span>
             </div>
 
             <div className="scratch-ltx-motion">

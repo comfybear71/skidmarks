@@ -10,9 +10,22 @@ export const SIRAY_API_BASE = "https://api.siray.ai";
 
 export const SIRAY_SEEDREAM_45_REF2I_SPICY = "bytedance/seedream-4.5-ref2i-spicy";
 export const SIRAY_SEEDREAM_45_T2I_SPICY = "bytedance/seedream-4.5-t2i-spicy";
+export const SIRAY_SEEDANCE_20_I2V_SPICY = "bytedance/seedance-2.0-i2v-spicy";
 
 /** Flat $0.040/image on Siray's Spicy 4.5 post — any allowed size. */
 export const SIRAY_SEEDREAM_45_SIZE = "2048x2048" as const;
+
+/** Seedance 2.0 i2v Spicy — integer seconds only. */
+export const SIRAY_SEEDANCE_I2V_MIN_SEC = 4;
+export const SIRAY_SEEDANCE_I2V_MAX_SEC = 15;
+
+export function clampSirayI2vDurationSec(sec: number): number {
+  if (!Number.isFinite(sec) || sec <= 0) return 5;
+  return Math.max(
+    SIRAY_SEEDANCE_I2V_MIN_SEC,
+    Math.min(SIRAY_SEEDANCE_I2V_MAX_SEC, Math.round(sec)),
+  );
+}
 
 export type SirayTaskStatus =
   | "NOT_START"
@@ -97,35 +110,7 @@ export async function sirayPollImageTask(taskId: string): Promise<SirayPollResul
       `Siray poll failed (${res.status})`;
     throw new Error(msg);
   }
-  const data = (raw.data && typeof raw.data === "object" ? raw.data : raw) as Record<
-    string,
-    unknown
-  >;
-  const status = String(data.status || raw.status || "").toUpperCase() || "UNKNOWN";
-  const outputsRaw = data.outputs ?? data.output ?? data.images ?? data.result;
-  const outputs: string[] = [];
-  if (Array.isArray(outputsRaw)) {
-    for (const item of outputsRaw) {
-      if (typeof item === "string" && item.trim()) outputs.push(item.trim());
-      else if (item && typeof item === "object") {
-        const row = item as Record<string, unknown>;
-        const url = String(row.url || row.image_url || row.image || "").trim();
-        if (url) outputs.push(url);
-      }
-    }
-  } else if (typeof outputsRaw === "string" && outputsRaw.trim()) {
-    outputs.push(outputsRaw.trim());
-  }
-  const failReason = String(
-    data.fail_reason || data.failReason || data.error || raw.message || "",
-  ).trim();
-  const progress =
-    typeof data.progress === "number"
-      ? data.progress
-      : typeof raw.progress === "number"
-        ? (raw.progress as number)
-        : undefined;
-  return { status, progress, outputs, failReason, raw };
+  return parseSirayPoll(raw);
 }
 
 export async function sirayWaitImageOutputs(
@@ -155,4 +140,111 @@ export async function sirayDownloadUrl(url: string): Promise<Buffer> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Couldn't download Siray output (${res.status})`);
   return Buffer.from(await res.arrayBuffer());
+}
+
+type VideoSubmitBody = {
+  model: string;
+  prompt: string;
+  image: string;
+  duration: number;
+  size: string;
+  aspect_ratio: string;
+  audio_enable?: boolean;
+  seed?: number;
+};
+
+export async function siraySubmitVideoAsync(body: VideoSubmitBody): Promise<string> {
+  const res = await fetch(`${SIRAY_API_BASE}/v1/video/generations`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  const raw = (await res.json().catch(() => ({}))) as {
+    code?: string;
+    message?: string;
+    data?: { task_id?: string };
+    error?: string | { message?: string };
+  };
+  if (!res.ok) {
+    const msg =
+      (typeof raw.error === "string" ? raw.error : raw.error?.message) ||
+      raw.message ||
+      `Siray video submit failed (${res.status})`;
+    throw new Error(msg);
+  }
+  const taskId = (raw.data?.task_id || "").trim();
+  if (!taskId) throw new Error(raw.message || "Siray did not return a video task_id");
+  return taskId;
+}
+
+export async function sirayPollVideoTask(taskId: string): Promise<SirayPollResult> {
+  const id = encodeURIComponent(taskId.trim());
+  const res = await fetch(`${SIRAY_API_BASE}/v1/video/generations/${id}`, {
+    method: "GET",
+    headers: authHeaders(),
+  });
+  const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const msg =
+      (typeof raw.message === "string" && raw.message) ||
+      (typeof raw.error === "string" && raw.error) ||
+      `Siray video poll failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return parseSirayPoll(raw);
+}
+
+function parseSirayPoll(raw: Record<string, unknown>): SirayPollResult {
+  const data = (raw.data && typeof raw.data === "object" ? raw.data : raw) as Record<
+    string,
+    unknown
+  >;
+  const status = String(data.status || raw.status || "").toUpperCase() || "UNKNOWN";
+  const outputsRaw = data.outputs ?? data.output ?? data.videos ?? data.result;
+  const outputs: string[] = [];
+  if (Array.isArray(outputsRaw)) {
+    for (const item of outputsRaw) {
+      if (typeof item === "string" && item.trim()) outputs.push(item.trim());
+      else if (item && typeof item === "object") {
+        const row = item as Record<string, unknown>;
+        const url = String(row.url || row.video_url || row.video || row.image_url || "").trim();
+        if (url) outputs.push(url);
+      }
+    }
+  } else if (typeof outputsRaw === "string" && outputsRaw.trim()) {
+    outputs.push(outputsRaw.trim());
+  }
+  const failReason = String(
+    data.fail_reason || data.failReason || data.error || raw.message || "",
+  ).trim();
+  const progress =
+    typeof data.progress === "number"
+      ? data.progress
+      : typeof raw.progress === "number"
+        ? (raw.progress as number)
+        : undefined;
+  return { status, progress, outputs, failReason, raw };
+}
+
+export async function sirayWaitVideoOutputs(
+  taskId: string,
+  opts?: { intervalMs?: number; timeoutMs?: number },
+): Promise<string[]> {
+  const intervalMs = opts?.intervalMs ?? 5000;
+  const timeoutMs = opts?.timeoutMs ?? 480_000;
+  const started = Date.now();
+  for (;;) {
+    const tick = await sirayPollVideoTask(taskId);
+    if (tick.status === "SUCCESS") {
+      if (!tick.outputs.length) throw new Error("Siray video SUCCESS but no output URLs");
+      return tick.outputs;
+    }
+    if (tick.status === "FAILURE") {
+      throw new Error(tick.failReason || "Siray video generation failed");
+    }
+    if (Date.now() - started > timeoutMs) {
+      throw new Error(`Siray video timed out after ${Math.round(timeoutMs / 1000)}s (last: ${tick.status})`);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
 }

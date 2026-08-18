@@ -35,7 +35,7 @@ function genDir() {
   return d;
 }
 
-function fileToDataUrl(filePath: string): string {
+export function fileToDataUrl(filePath: string): string {
   const buf = fs.readFileSync(filePath);
   const ext = path.extname(filePath).toLowerCase();
   const mime =
@@ -47,7 +47,7 @@ function fileToDataUrl(filePath: string): string {
   return `data:${mime};base64,${buf.toString("base64")}`;
 }
 
-function buildSirayScratchPrompt(opts: {
+export function buildSirayScratchPrompt(opts: {
   styleId: ShowStyleId;
   styleRealism: number;
   placeName: string;
@@ -82,6 +82,8 @@ function buildSirayScratchPrompt(opts: {
  * Falls back to the existing XAI compositor if Siray is off or throws
  * when allowFallback is true.
  */
+export type ScratchPlateBackend = "siray-spicy" | "xai";
+
 export async function compositeShotPlatePreferSiray(
   styleId: ShowStyleId,
   scene: CrashStoryScene,
@@ -95,20 +97,23 @@ export async function compositeShotPlatePreferSiray(
     /** If Siray fails, use XAI plateCastIntoGen. Default true. */
     allowFallback?: boolean;
   } = {},
-): Promise<string> {
+): Promise<{ fileName: string; backend: ScratchPlateBackend }> {
   const scratch = isScratchShotTitle(shot.title);
   const wantSiray = sirayConfigured() && (opts.forceSiray || scratch);
   if (!wantSiray) {
-    return compositeShotPlate(styleId, scene, shot, opts);
+    const fileName = await compositeShotPlate(styleId, scene, shot, opts);
+    return { fileName, backend: "xai" };
   }
 
   try {
-    return await compositeShotPlateSiray(styleId, scene, shot, opts);
+    const fileName = await compositeShotPlateSiray(styleId, scene, shot, opts);
+    return { fileName, backend: "siray-spicy" };
   } catch (e) {
     if (opts.allowFallback === false) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     console.warn(`[siray] Scratch plate failed, falling back to XAI: ${msg}`);
-    return compositeShotPlate(styleId, scene, shot, opts);
+    const fileName = await compositeShotPlate(styleId, scene, shot, opts);
+    return { fileName, backend: "xai" };
   }
 }
 

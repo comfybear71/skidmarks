@@ -1,6 +1,8 @@
 import path from "path";
 import { NextResponse } from "next/server";
 import { compositeShotPlatePreferSiray } from "@/lib/sirayScratchPlate";
+import { runScratchSirayClip } from "@/lib/sirayScratchClip";
+import { sirayConfigured } from "@/lib/sirayClient";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import {
@@ -151,9 +153,20 @@ async function persistScratch(
  *   — `cast` = everyone on the still (multi lip-sync / pile). Speaker speaks.
  * POST { action: "preset", jobId, poseId, staging?, cast?, speaker? }
  *   — rebuild that same still with a position preset (or typed staging).
- * POST { action: "clip", jobId, beatId? }
- *   — LTX this scratch plate's Saved mp3. Does not queue the episode.
+ * POST { action: "clip", jobId, beatId?, clipEngine? }
+ *   — LTX (default) this scratch plate's Saved mp3, or Siray Seedance
+ *     spicy i2v (`clipEngine: "siray"`). Does not queue the episode.
+ * GET — whether SIRAY_API_KEY is on this process (no secrets).
  */
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    siray: sirayConfigured(),
+    stillModel: "bytedance/seedream-4.5-ref2i-spicy",
+    clipModel: "bytedance/seedance-2.0-i2v-spicy",
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
@@ -165,6 +178,7 @@ export async function POST(req: Request) {
       poseId?: string;
       staging?: string;
       beatId?: string;
+      clipEngine?: string;
     };
     const jobId = (body.jobId || "").trim();
     const action = (body.action || "ensure").trim().toLowerCase();
@@ -247,7 +261,16 @@ export async function POST(req: Request) {
           shots: [{ shotId: shot.id, sceneId, plateFile: "" }],
           error: "",
         }))!;
-        return NextResponse.json({ ok: true, job, shotId: shot.id, sceneId, speaker, cast: onPad, poseId });
+        return NextResponse.json({
+          ok: true,
+          job,
+          shotId: shot.id,
+          sceneId,
+          speaker,
+          cast: onPad,
+          poseId,
+          siray: sirayConfigured(),
+        });
       }
 
       await hydrateMobilePackOnDisk(job.styleId, job.folderName);
@@ -284,6 +307,7 @@ export async function POST(req: Request) {
         speaker,
         cast: onPad,
         poseId: job.scratchPlate?.poseId || poseId,
+        siray: sirayConfigured(),
       });
     }
 
@@ -356,11 +380,13 @@ export async function POST(req: Request) {
       await writeMobileStory(nextStory, job.folderName);
       const liveScene = nextStory.scenes.find((sc) => sc.id === scene.id)!;
       const liveShot = liveScene.shots.find((sh) => sh.id === shotId)!;
-      const fileName = await compositeShotPlatePreferSiray(job.styleId, liveScene, liveShot, {
+      const drawn = await compositeShotPlatePreferSiray(job.styleId, liveScene, liveShot, {
         silentCast: [],
         styleRealism: job.styleRealism,
         job,
+        allowFallback: sirayConfigured() ? false : true,
       });
+      const fileName = drawn.fileName;
       try {
         await uploadMobileMedia({
           styleId: job.styleId,
@@ -396,7 +422,16 @@ export async function POST(req: Request) {
           poseId: poseId || job.scratchPlate.poseId,
         },
       });
-      return NextResponse.json({ ok: true, job: updated, plateFile: fileName, staging, poseId, cast: onPad });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        plateFile: fileName,
+        staging,
+        poseId,
+        cast: onPad,
+        backend: drawn.backend,
+        siray: sirayConfigured(),
+      });
     }
 
     if (action === "clip") {
@@ -410,16 +445,31 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
+      const clipEngine = (body.clipEngine || "ltx").trim().toLowerCase();
+      const useSiray = clipEngine === "siray" || clipEngine === "siray-spicy" || clipEngine === "siray-i2v";
       try {
-        const updated = await runScratchLtxClip({
-          job,
-          story,
-          shotId,
-          sceneId: scene.id,
-          beatId,
-          poseId: job.scratchPlate.poseId,
+        const updated = useSiray
+          ? await runScratchSirayClip({
+              job,
+              story,
+              shotId,
+              sceneId: scene.id,
+              beatId,
+            })
+          : await runScratchLtxClip({
+              job,
+              story,
+              shotId,
+              sceneId: scene.id,
+              beatId,
+              poseId: job.scratchPlate.poseId,
+            });
+        return NextResponse.json({
+          ok: true,
+          job: updated,
+          backend: useSiray ? "siray-i2v" : "ltx",
+          siray: sirayConfigured(),
         });
-        return NextResponse.json({ ok: true, job: updated });
       } catch (e) {
         const latest = await readMobileGenJob(jobId);
         return NextResponse.json(
