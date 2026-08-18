@@ -12,9 +12,15 @@ assert.equal(PLATE_QA_MAX_ATTEMPTS, 3);
 const jo = plateQaChecks(
   "Medium close-up of JO. Sitting on the bed, butt on the mattress. Facing camera. Empty hands in her lap. No phone. Only JO in frame. No other people.",
 );
-assert.deepEqual(jo.sort(), ["alone", "emptyHands", "facingCamera", "noPhone", "onBed"].sort());
+assert.deepEqual(
+  jo.sort(),
+  ["alone", "anatomy", "emptyHands", "facingCamera", "noPhone", "noText", "onBed"].sort(),
+);
 
-assert.deepEqual(plateQaChecks("a wide landscape"), []);
+assert.deepEqual(plateQaChecks("a wide landscape").sort(), ["anatomy", "noText"].sort());
+assert.ok(plateQaChecks("three at the bar", { people: 3 }).includes("peopleCount"));
+assert.ok(plateQaChecks("solo", { people: 1 }).includes("alone"));
+assert.ok(!plateQaChecks("three at the bar", { people: 3 }).includes("alone"));
 assert.ok(
   plateQaChecks(
     "Medium close-up of JO. Sitting on the bed. Facing camera. Empty hands. Only JO in frame.",

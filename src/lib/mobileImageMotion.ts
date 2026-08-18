@@ -66,6 +66,8 @@ const GOLD_PROPS_LOCK =
 const GOLD_SAME_OBJECTS = "Same person and objects as the start image.";
 const GOLD_NO_NEW_PEOPLE = "No new people enter the frame.";
 const GOLD_NO_LINE_EXTRAS = "Nobody mentioned in the spoken line appears on screen.";
+const GOLD_NO_TEXT =
+  "No new objects. No readable text or signage. Background stays as the start image.";
 const GOLD_CAMERA_HOLDS = "Camera holds.";
 
 /**
@@ -88,6 +90,7 @@ export function ensureGoldFrameLocks(prompt: string): string {
   if (/\bsays:\s*"/i.test(body) && !/nobody mentioned in the spoken line/i.test(body)) {
     bits.push(GOLD_NO_LINE_EXTRAS);
   }
+  if (!/no readable text or signage/i.test(body)) bits.push(GOLD_NO_TEXT);
   if (!/camera holds/i.test(body)) bits.push(GOLD_CAMERA_HOLDS);
   return bits.length ? clean(`${body} ${bits.join(" ")}`) : body;
 }
@@ -326,6 +329,7 @@ export function buildSpeakingMotion(opts: {
       `${who} is prominent, ${speakingAction(opts.speaker, emptyHands)}.`,
       onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
       "Props and background stay exactly as the start image, nothing new enters frame.",
+      GOLD_NO_TEXT,
       `${name} says: "${clean(opts.line)}".`,
       "Camera holds. Same person and objects as the start image.",
       "No new people enter the frame.",
@@ -353,6 +357,7 @@ export function buildHoldMotion(opts: {
       `${who} ${holdAction(opts.speaker, emptyHands)}.`,
       onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
       "Props and background stay exactly as the start image, nothing new enters frame.",
+      GOLD_NO_TEXT,
       "No dialogue. Camera holds, no cuts. Same person and objects as the start image.",
       "No new people enter the frame.",
       motionStyleLock(opts.styleId),
@@ -379,6 +384,7 @@ export function buildGroupHoldMotion(opts: {
       "Everyone holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies.",
       "All mouths stay closed.",
       "Props and background stay exactly as the start image, nothing new enters frame.",
+      GOLD_NO_TEXT,
       "No dialogue. Camera holds, no cuts. Same people and objects as the start image.",
       motionStyleLock(opts.styleId),
     ].join(" "),

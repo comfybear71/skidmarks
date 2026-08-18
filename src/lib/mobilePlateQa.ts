@@ -18,7 +18,10 @@ export type PlateQaCheckId =
   | "alone"
   | "facingCamera"
   | "noPhone"
-  | "sameFace";
+  | "sameFace"
+  | "anatomy"
+  | "noText"
+  | "peopleCount";
 
 export type PlateQaVerdict = {
   ok: boolean;
@@ -36,13 +39,23 @@ const CHECK_FIX: Record<PlateQaCheckId, string> = {
   facingCamera: "Faces the camera, eyes toward lens, mouth clearly readable.",
   sameFace:
     "Same face as the locked character plate for this name. One person. Not a stranger. Not a different cast member.",
+  anatomy:
+    "Normal human anatomy. Two hands, five separate fingers each. No extra hands, no extra limbs, no melted or fused fingers, no warped torso.",
+  noText:
+    "No writing, no signage, no readable letters, no captions, no watermarks. Blank or out-of-focus boards only.",
+  peopleCount:
+    "Exactly the asked number of distinct people. No clones of the same face. No extras.",
 };
 
-/** What Position asked for — only those get judged. sameFace when we have a name. */
-export function plateQaChecks(staging: string, opts?: { identity?: boolean }): PlateQaCheckId[] {
+/** Always proof anatomy + text. Position keywords add more. sameFace when we have a name. */
+export function plateQaChecks(
+  staging: string,
+  opts?: { identity?: boolean; people?: number },
+): PlateQaCheckId[] {
   const t = staging.toLowerCase();
-  const out: PlateQaCheckId[] = [];
+  const out: PlateQaCheckId[] = ["anatomy", "noText"];
   if (opts?.identity) out.push("sameFace");
+  if (opts?.people && opts.people > 0) out.push("peopleCount");
   if (/\bon the bed\b|\bbutt on the mattress\b|\bsitting on .{0,40}bed\b/.test(t)) {
     out.push("onBed");
   }
@@ -50,7 +63,9 @@ export function plateQaChecks(staging: string, opts?: { identity?: boolean }): P
     out.push("emptyHands");
     out.push("noPhone");
   }
-  if (/only .{1,80} in frame|\bno other people\b/.test(t)) out.push("alone");
+  if (opts?.people === 1 || /only .{1,80} in frame|\bno other people\b/.test(t)) {
+    if (!out.includes("alone")) out.push("alone");
+  }
   if (/facing (the )?camera/.test(t)) out.push("facingCamera");
   return out;
 }
@@ -151,12 +166,14 @@ export async function judgePlateStill(opts: {
   staging: string;
   speaker?: string;
   lookLock?: string;
+  people?: number;
   identityDataUrl?: string;
   identitySource?: "character_plate" | "cast_card";
 }): Promise<PlateQaVerdict | null> {
   const name = (opts.speaker || "").trim();
   const withIdentity = Boolean(name || opts.identityDataUrl);
-  const checks = plateQaChecks(opts.staging, { identity: withIdentity });
+  const people = Number.isFinite(opts.people) ? Math.max(0, Math.round(opts.people as number)) : 0;
+  const checks = plateQaChecks(opts.staging, { identity: withIdentity, people });
   if (!checks.length) return { ok: true, fails: [], fix: "", checks };
   if (!textKeyPresent()) return null;
 
@@ -167,8 +184,11 @@ export async function judgePlateStill(opts: {
   const raw = await askGrokVision({
     system: [
       "You QA one still for a director. Reply with JSON only.",
-      "Keys: sameFace, onBed, emptyHands, noPhone, alone, facingCamera (true/false only if that check is asked), fails (array of failed check ids), fix (one short affirmative sentence to append to the still prompt).",
+      "Keys: anatomy, noText, peopleCount, sameFace, onBed, emptyHands, noPhone, alone, facingCamera (true/false only if that check is asked), fails (array of failed check ids), fix (one short affirmative sentence to append to the still prompt).",
       "First image is the still. Second image if present is the locked identity: a character-plate turnaround of ONE person (several angles of the same face) or a single cast card. It is not a crowd.",
+      "anatomy is false if extra hands, extra limbs, melted/fused fingers, missing hands, or a warped body.",
+      "noText is false if any readable letters, signage, captions, watermarks, or nonsense words (LADDER, BEXXY, etc.) appear.",
+      "peopleCount is false if the number of distinct people is wrong, or two people are the same face cloned.",
       "sameFace is false if the still is a different person, a stranger, or the wrong cast member.",
       "onBed is false if they sit on a chair/stool in front of a bed, or stand, or the bed is only background.",
       "alone is false if any other person is visible, even blurry.",
@@ -177,6 +197,7 @@ export async function judgePlateStill(opts: {
     ].join(" "),
     user: [
       name ? `This still must be ${name}.` : "",
+      people > 0 ? `Exactly ${people} distinct people in frame.` : "",
       look ? `Look words: ${look}` : "",
       opts.identitySource === "character_plate"
         ? "Second image = series character plate (same person, several views)."
