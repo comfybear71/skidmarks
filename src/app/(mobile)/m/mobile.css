@@ -143,6 +143,20 @@ body {
   text-overflow: ellipsis;
 }
 
+.scratch-pad-enlarge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: zoom-in;
+}
+
 .scratch-pad-drawing {
   position: absolute;
   left: 8px;
