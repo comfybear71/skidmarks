@@ -60,9 +60,57 @@ export function stripLtxLipSyncLead(prompt: string): string {
   return clean(body);
 }
 
-/** The one string Cloud LTX gets: lead + Image motion body. */
-export function ltxSendPrompt(imageMotion: string): string {
-  return withLtxLipSyncLead(imageMotion);
+const GOLD_START_FRAME = "Use the provided start image as the first frame.";
+const GOLD_PROPS_LOCK =
+  "Props and background stay exactly as the start image, nothing new enters frame.";
+const GOLD_SAME_OBJECTS = "Same person and objects as the start image.";
+const GOLD_NO_NEW_PEOPLE = "No new people enter the frame.";
+const GOLD_NO_LINE_EXTRAS = "Nobody mentioned in the spoken line appears on screen.";
+const GOLD_CAMERA_HOLDS = "Camera holds.";
+
+/**
+ * Short custom LTX (start image + mouth + says) drops the walker locks.
+ * Append any missing gold sentences on send so extras from the rant
+ * (land lady, addicts) do not walk through a plate that was already clean.
+ */
+export function ensureGoldFrameLocks(prompt: string): string {
+  const body = stripLtxLipSyncLead(prompt);
+  if (!body) return body;
+  const bits: string[] = [];
+  if (!/use the provided start image as the first frame/i.test(body)) {
+    bits.push(GOLD_START_FRAME);
+  }
+  if (!/nothing new enters frame/i.test(body)) bits.push(GOLD_PROPS_LOCK);
+  if (!/same (person|people) and objects as the start image/i.test(body)) {
+    bits.push(GOLD_SAME_OBJECTS);
+  }
+  if (!/no new people enter/i.test(body)) bits.push(GOLD_NO_NEW_PEOPLE);
+  if (/\bsays:\s*"/i.test(body) && !/nobody mentioned in the spoken line/i.test(body)) {
+    bits.push(GOLD_NO_LINE_EXTRAS);
+  }
+  if (!/camera holds/i.test(body)) bits.push(GOLD_CAMERA_HOLDS);
+  return bits.length ? clean(`${body} ${bits.join(" ")}`) : body;
+}
+
+/** Drop Jo's injected phone lock when the director asked for empty hands. */
+export function stripJoPhoneLock(prompt: string): string {
+  return clean(
+    prompt
+      .replace(JO_PHONE_LOCK, "empty hands, no phone")
+      .replace(/thumbs hammering the keys as she texts,?\s*/gi, "")
+      .replace(/thumbs tapping the keys,?\s*/gi, "")
+      .replace(/while she speaks the line as she types,?\s*/gi, "")
+      .replace(/,? ?keyboard warrior/gi, ""),
+  );
+}
+
+/** The one string Cloud LTX gets: lead + Image motion body + walker locks. */
+export function ltxSendPrompt(imageMotion: string, staging = ""): string {
+  let body = ensureGoldFrameLocks(imageMotion);
+  if (directorWantsEmptyHands(staging) || directorWantsEmptyHands(body)) {
+    body = stripJoPhoneLock(body);
+  }
+  return withLtxLipSyncLead(body);
 }
 
 /**
@@ -80,15 +128,31 @@ export function isJoKeyboardWarrior(speaker: string): boolean {
 export const JO_PHONE_LOCK =
   "holding her mobile phone, texting, staring at the screen like a crazed maniac";
 
+/** Director already chose empty hands — do not inject Jo's phone. */
+export function directorWantsEmptyHands(text: string): boolean {
+  const t = text.toLowerCase();
+  return (
+    /\bempty hands\b/.test(t) ||
+    /\bno phone\b/.test(t) ||
+    /\bno mobile\b/.test(t) ||
+    /\bhands free\b/.test(t) ||
+    /\bhands in (her|his|their) lap\b/.test(t) ||
+    /\bnot holding\b/.test(t)
+  );
+}
+
 function stagingAlreadyNamesHeldProp(staging: string): boolean {
   const text = staging.toLowerCase();
+  if (directorWantsEmptyHands(text)) return true;
   if (/\b(racket|pie)\b/.test(text)) return true;
+  if (/\bno (phone|mobile)\b/.test(text)) return true;
   return /\b(phone|mobile)\b/.test(text);
 }
 
 /** Extra sentence for the plate still when Jo is on the card and no other prop is named. */
 export function joPhoneStagingExtra(speakers: string[], staging: string): string {
   if (!speakers.some((n) => isJoKeyboardWarrior(n))) return "";
+  if (directorWantsEmptyHands(staging)) return "";
   if (stagingAlreadyNamesHeldProp(staging)) return "";
   return `Holding her mobile phone, texting, staring at the screen like a crazed maniac.`;
 }
@@ -100,14 +164,20 @@ export function defaultSoloStaging(speaker: string): string {
   return `${alone} Holding her mobile phone, texting, staring at the screen like a crazed maniac.`;
 }
 
-function speakingAction(speaker: string): string {
+function speakingAction(speaker: string, emptyHands = false): string {
+  if (emptyHands) {
+    return "empty hands stay as the start image, no phone, mouth and head move naturally while speaking, subtle gesture";
+  }
   if (isJoKeyboardWarrior(speaker)) {
     return `${JO_PHONE_LOCK}, thumbs hammering the keys as she texts, mouth and head move naturally while she speaks the line as she types, keyboard warrior`;
   }
   return "mouth and head move naturally while speaking, subtle gesture";
 }
 
-function holdAction(speaker: string): string {
+function holdAction(speaker: string, emptyHands = false): string {
+  if (emptyHands) {
+    return "is prominent, empty hands, no phone, holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies";
+  }
   if (isJoKeyboardWarrior(speaker)) {
     return `is prominent, ${JO_PHONE_LOCK}, thumbs tapping the keys, holds her pose, subtle idle motion, weight shift, breathing, heat haze, flies`;
   }
@@ -204,19 +274,23 @@ export function buildSpeakingMotion(opts: {
   /** The character's look, so the plate's subject is named and held. */
   lookLock?: string;
   shotSpeakers?: string[];
+  /** Position / staging — empty hands here beats Jo's phone default. */
+  staging?: string;
 }): string {
   const name = clean(opts.speaker) || "The character";
   const look = shortLtxLookLock(opts.lookLock || "");
   const who = look ? `${name}, ${look}` : name;
+  const emptyHands = directorWantsEmptyHands(opts.staging || "");
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} is prominent, ${speakingAction(opts.speaker)}.`,
+      `${who} is prominent, ${speakingAction(opts.speaker, emptyHands)}.`,
       onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
       "Props and background stay exactly as the start image, nothing new enters frame.",
       `${name} says: "${clean(opts.line)}".`,
       "Camera holds. Same person and objects as the start image.",
       "No new people enter the frame.",
+      GOLD_NO_LINE_EXTRAS,
       motionStyleLock(opts.styleId),
     ].join(" "),
   );
@@ -228,14 +302,16 @@ export function buildHoldMotion(opts: {
   speaker: string;
   lookLock?: string;
   shotSpeakers?: string[];
+  staging?: string;
 }): string {
   const name = clean(opts.speaker) || "The character";
   const look = shortLtxLookLock(opts.lookLock || "");
   const who = look ? `${name}, ${look}` : name;
+  const emptyHands = directorWantsEmptyHands(opts.staging || "");
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} ${holdAction(opts.speaker)}.`,
+      `${who} ${holdAction(opts.speaker, emptyHands)}.`,
       onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
       "Props and background stay exactly as the start image, nothing new enters frame.",
       "No dialogue. Camera holds, no cuts. Same person and objects as the start image.",
@@ -285,6 +361,7 @@ export function buildDefaultBeatMotion(opts: {
   line: string;
   lookLock?: string;
   shotSpeakers?: string[];
+  staging?: string;
 }): string {
   const line = (opts.line || "").trim();
   if (line) {
@@ -294,6 +371,7 @@ export function buildDefaultBeatMotion(opts: {
       line,
       lookLock: opts.lookLock,
       shotSpeakers: opts.shotSpeakers,
+      staging: opts.staging,
     });
   }
   const names = (opts.shotSpeakers || []).map(clean).filter(Boolean);
@@ -303,6 +381,7 @@ export function buildDefaultBeatMotion(opts: {
     speaker: opts.speaker,
     lookLock: opts.lookLock,
     shotSpeakers: names.length ? names : undefined,
+    staging: opts.staging,
   });
 }
 

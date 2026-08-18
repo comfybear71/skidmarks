@@ -163,6 +163,7 @@ export async function POST(req: Request) {
                   line: text,
                   lookLock,
                   shotSpeakers: onCard,
+                  staging: sh.staging,
                 }),
               };
             }),

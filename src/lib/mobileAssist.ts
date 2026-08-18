@@ -39,7 +39,7 @@ export const ASSIST_CRITERIA_LOCK = [
     JSON.stringify(LTX_LIP_SYNC_LEAD),
   "Image motion shape: Use the provided start image as the first frame. NAME, look lock is prominent, held prop + action, mouth and head move naturally while speaking. Props and background stay exactly as the start image, nothing new enters frame. NAME says: \"the spoken line\". Camera holds. Same person and objects as the start image.",
   "Held props work — name the object in their hands the same way pies and tennis rackets already work: phone, pie, racket, whatever they are holding. Affirmative only. Naming a thing puts it in the picture.",
-  "CRAZY BIG HOLE JO (and Jo Too): on plate / shot / episode Action+Plate / Image motion, she is holding her phone, staring at the screen like a crazed maniac, thumbs on the keys, saying the line as she texts — keyboard warrior. Unless the current text already asks for a different held prop (racket, pie, walking). Spoken-line and cast-look boxes do not write the phone action unless the director already did.",
+  "CRAZY BIG HOLE JO (and Jo Too): on plate / shot / episode Action+Plate / Image motion, she is holding her phone, staring at the screen like a crazed maniac, thumbs on the keys, saying the line as she texts — keyboard warrior. Unless the current text already asks for empty hands, no phone, hands free, or a different held prop (racket, pie, walking). Spoken-line and cast-look boxes do not write the phone action unless the director already did.",
   "Do not invent people or places. Spell locked names exactly. English and Australian comic taste. Never American sitcom warmth.",
 ].join("\n");
 
@@ -111,21 +111,21 @@ Spoken line.
 - Everyone is into it. Hands on hips, climbing on, looking back grinning.
 - Never a lineup of faces standing in the foreground like cutouts.
 - Never pinning, holding someone down, or forced sex.
-- CRAZY BIG HOLE JO holds her phone unless the current text already names a different held prop.
+- CRAZY BIG HOLE JO holds her phone unless the current text already says empty hands, no phone, or names a different held prop.
 - Not LTX. Not the spoken line.`,
 
   shot: `WRITE: what we see in this shot — the action paragraph a director would type.
 - Bodies, the place, what happens, the held prop. Not spoken dialogue. Not a camera list.
 - Keep the locked people and the place. Willing energy.
 - Never pinning, holding someone down, or forced sex.
-- CRAZY BIG HOLE JO is on her phone, keyboard warrior, unless the current text already names a different held prop.`,
+- CRAZY BIG HOLE JO is on her phone, keyboard warrior, unless the current text already says empty hands, no phone, or names a different held prop.`,
 
   image_motion: `WRITE: IMAGE MOTION body — the one LTX Cloud prompt.
 - One continuous paragraph. No [VISUAL]. No [SPEECH].
 - Do not write the locked lip-sync lead. It is prepended on send.
 - Shape: Use the provided start image as the first frame. NAME, look lock is prominent, held prop + action, mouth and head move naturally while speaking. Props and background stay exactly as the start image, nothing new enters frame. NAME says: "the spoken line". Camera holds. Same person and objects as the start image.
 - Held prop: name what is in their hands (phone, pie, racket) the same way those prompts already work.
-- CRAZY BIG HOLE JO default: holding her phone, staring at the screen like a crazed maniac, thumbs hammering the keys as she texts, speaking the line as she types, keyboard warrior — unless the current text already asks for a different experiment.
+- CRAZY BIG HOLE JO default: holding her phone, staring at the screen like a crazed maniac, thumbs hammering the keys as she texts, speaking the line as she types, keyboard warrior — unless the current text already asks for empty hands, no phone, or a different experiment.
 - If the box already has a custom experiment, refine it. Do not throw it away.
 - Affirmative only.`,
 };
@@ -167,7 +167,7 @@ export function platePositionAssistHint(opts: {
   );
   if (opts.people.some((n) => isJoKeyboardWarrior(n))) {
     lines.push(
-      "CRAZY BIG HOLE JO is holding her mobile phone, texting, staring at the screen like a crazed maniac, unless this box already names a different held prop.",
+      "CRAZY BIG HOLE JO is holding her mobile phone, texting, staring at the screen like a crazed maniac, unless this box already says empty hands, no phone, hands free, or names a different held prop.",
     );
   }
   return lines.join("\n");

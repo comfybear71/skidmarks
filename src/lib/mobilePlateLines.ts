@@ -1,5 +1,5 @@
 import { voiceNamesMatch } from "./voiceNameMatch";
-import { joPhoneStagingExtra } from "./mobileImageMotion";
+import { directorWantsEmptyHands, joPhoneStagingExtra } from "./mobileImageMotion";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
 
 export function leftoverHydrateBeat(shotId: string, beatId: string): boolean {
@@ -193,6 +193,7 @@ export function plateCastStagingNote(opts: {
   return [
     staging,
     joPhoneStagingExtra(speakers, staging),
+    directorWantsEmptyHands(staging) ? "Empty hands. No phone in anyone's hands." : "",
     opts.looks,
     opts.placeLook ? `This place: ${opts.placeLook}` : "",
     solo
