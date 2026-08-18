@@ -6,6 +6,7 @@ import {
   SIRAY_I2V_DEFAULT,
   SIRAY_I2V_MODELS,
   sirayI2vSpec,
+  scratchWantsNude,
   stripSpeechForSirayMotion,
 } from "../src/lib/sirayI2v.ts";
 
@@ -60,5 +61,17 @@ assert.doesNotMatch(motion, /is speaking/);
 assert.doesNotMatch(motion, /says:/);
 assert.doesNotMatch(motion, /scream back/);
 assert.doesNotMatch(motion, /\[VISUAL\]|\[SPEECH\]/);
+
+assert.equal(scratchWantsNude("Adult TEE, fully nude at the bar"), true);
+assert.equal(scratchWantsNude("TEE leans on the bar, empty hands"), false);
+const nudeClip = buildSirayI2vPrompt({
+  speaker: "TEE",
+  motion: "",
+  staging: "Adult TEE, fully nude on the couch.",
+  lookLock: "black tee",
+});
+assert.match(nudeClip, /bare body/);
+assert.match(nudeClip, /Do not add clothes/);
+assert.doesNotMatch(nudeClip, /wardrobe and body/);
 
 console.log("check-siray-scratch: ok");

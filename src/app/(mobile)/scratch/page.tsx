@@ -72,6 +72,7 @@ import { useScratchPadHotkeys } from "@/hooks/useScratchPadHotkeys";
 import {
   SIRAY_I2V_DEFAULT,
   SIRAY_I2V_MODELS,
+  scratchWantsNude,
   sirayI2vSpec,
   type SirayI2vId,
 } from "@/lib/sirayI2v";
@@ -1236,6 +1237,9 @@ export default function ScratchPage() {
                       ? "Siray Spicy when you Draw"
                       : "XAI — no SIRAY_API_KEY"}
               </span>
+              {scratchWantsNude(staging)
+                ? " — wardrobe override: drop the face-card clothes."
+                : ""}
             </div>
 
             {padCast.length > 1 ? (

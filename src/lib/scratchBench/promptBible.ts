@@ -278,13 +278,13 @@ export const SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
         id: "ward-partial",
         label: "Partial nude",
         template:
-          "Adult {{name}}, partial nudity at {{place}} — topless or underwear only, natural body, not a catalogue pose.",
+          "Adult {{name}}, partial nudity at {{place}} — topless or underwear only, natural body, not a catalogue pose. Change the clothes from the face card. Same face, this body, not the outfit on the reference.",
       },
       {
         id: "ward-nude",
         label: "Nude",
         template:
-          "Adult {{name}}, fully nude at {{place}}, natural proportions, unposed everyday body language, no text or watermarks.",
+          "Adult {{name}}, fully nude at {{place}}, natural proportions, unposed everyday body language. Change the clothes from the face card. Same face and body, not the outfit on the reference. No text or watermarks.",
       },
       {
         id: "ward-wet",

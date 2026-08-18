@@ -32,9 +32,22 @@ const BUILTIN_GROUP_IDS: Record<Exclude<ScratchPresetGroup, "Mine">, string[]> =
   Frame: ["mcu-phone", "wide-full", "tight-face", "over-shoulder", "walk-in"],
   Body: ["sitting", "standing", "running", "sprawl", "dance", "leaning", "steps", "crouch", "handstand"],
   Holding: ["beer-cig", "pie"],
-  Wearing: ["clothes-dress", "clothes-underwear"],
+  Wearing: ["clothes-dress", "clothes-underwear", "clothes-partial", "clothes-nude"],
   "Weather / edge": ["raining", "wash-hair"],
   "Crowd / multi": ["crowd-two-shot", "crowd-surround", "crowd-pile"],
+};
+
+const WEARING_TEMPLATES: Record<string, { label: string; template: string }> = {
+  "clothes-partial": {
+    label: "Partial nude",
+    template:
+      "Adult {{name}}, partial nudity at {{place}} — topless or underwear only. Change the clothes from the face card. Same face, this body, not the outfit on the reference. Natural body, not a catalogue pose.",
+  },
+  "clothes-nude": {
+    label: "Nude",
+    template:
+      "Adult {{name}}, fully nude at {{place}}. Change the clothes from the face card. Same face, hair, age and body. Ignore the outfit on the face card. Natural proportions, unposed. No text or watermarks.",
+  },
 };
 
 const CROWD_TEMPLATES: Record<string, { label: string; template: string }> = {
@@ -67,6 +80,11 @@ function builtinPresets(): ScratchPreset[] {
       if (group === "Crowd / multi") {
         const row = CROWD_TEMPLATES[id];
         if (!row) continue;
+        out.push({ id, group, label: row.label, template: row.template, builtin: true });
+        continue;
+      }
+      if (group === "Wearing" && WEARING_TEMPLATES[id]) {
+        const row = WEARING_TEMPLATES[id];
         out.push({ id, group, label: row.label, template: row.template, builtin: true });
         continue;
       }
