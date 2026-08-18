@@ -1,6 +1,6 @@
 /** Scratch boundary-testing bench — shared types (boilerplate). */
 
-export type ScratchBackendId = "siray-spicy" | "xai" | "unknown";
+export type ScratchBackendId = "siray-spicy" | "siray-i2v" | "xai" | "ltx" | "unknown";
 
 export type ScratchRunKind = "still" | "clip" | "plate-redo";
 

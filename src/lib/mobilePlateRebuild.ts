@@ -101,11 +101,12 @@ export async function rebuildShotPlate(opts: {
     scene = working.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId))!;
     shot = { ...scene.shots.find((sh) => sh.id === shotId)!, staging };
 
-    fileName = await compositeShotPlatePreferSiray(job.styleId, scene, shot, {
+    const drawn = await compositeShotPlatePreferSiray(job.styleId, scene, shot, {
       silentCast: [],
       styleRealism: job.styleRealism,
       job,
     });
+    fileName = drawn.fileName;
     try {
       await uploadMobileMedia({
         styleId: job.styleId,
