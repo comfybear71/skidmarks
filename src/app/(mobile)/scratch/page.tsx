@@ -615,14 +615,7 @@ export default function ScratchPage() {
       return;
     }
     setSceneId(id);
-    // Place is backdrop — drop it straight onto the pad and redraw.
-    void draw({
-      sceneId: id,
-      speaker,
-      cast: padCast.length ? padCast : speaker ? [speaker] : [],
-      poseId,
-      staging: staging || undefined,
-    });
+    /* Select only — do not Draw. Clear plate/pad must stay empty until they tap Draw. */
   }
 
   function clearPrompt() {
@@ -705,7 +698,6 @@ export default function ScratchPage() {
       const name = payload.id;
       setPadCast((prev) => (prev.includes(name) ? prev : [...prev, name]));
       setSpeaker(name);
-      setPadCleared(false);
       const place = { name, xPercent, yPercent };
       setPlacements((prev) => upsertPlacement(prev, place));
       const line = positionPromptLine(name, xPercent, yPercent);
@@ -720,20 +712,12 @@ export default function ScratchPage() {
     // place / environment
     const id = payload.id;
     setSceneId(id);
-    setPadCleared(false);
     const placeLabel = payload.label || job.scenes.find((s) => s.id === id)?.placeName || "this place";
     const backdrop = `[Backdrop: ${placeLabel} — drop anchor ${xPercent}% / ${yPercent}%.]`;
     const base = staging.trim();
     const stripped = base.replace(/\[Backdrop:\s*[^\]]*\]/i, "").trim();
     const nextStaging = stripped ? `${stripped}\n\n${backdrop}` : backdrop;
     setStaging(nextStaging);
-    void draw({
-      sceneId: id,
-      speaker,
-      cast: padCast.length ? padCast : speaker ? [speaker] : [],
-      poseId,
-      staging: nextStaging || undefined,
-    });
   }
 
   function fillFromPreset(preset: ScratchPreset): string {
