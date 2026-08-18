@@ -1509,6 +1509,10 @@ function ShotLineEditor({
                 });
               }
             }}
+            onRemoved={(beatId, nextJob, emptyBeat) => {
+              onLineRemoved?.(beatId, nextJob);
+              if (emptyBeat) onLineAdded?.(emptyBeat);
+            }}
           />
           </div>
         );
@@ -1598,6 +1602,7 @@ function BeatLineEditor({
   positionPrompt,
   onPositionSaved,
   onSaved,
+  onRemoved,
 }: {
   styleId: string;
   folderName: string;
@@ -1620,6 +1625,7 @@ function BeatLineEditor({
     job?: MobileGenJob,
     addedBeats?: { id: string; text: string; voiceFile: string }[],
   ) => void;
+  onRemoved?: (beatId: string, job?: MobileGenJob, emptyBeat?: CrashStoryBeat) => void;
 }) {
   const [text, setText] = useState(
     isLeftoverPackVoiceFile(beat.voiceFile) ? "" : beat.text,
@@ -1634,6 +1640,7 @@ function BeatLineEditor({
     lineVoiceLabel({ speaker: beat.speaker, jobVoices, library: [] }),
   );
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [redrawing, setRedrawing] = useState(false);
   const [error, setError] = useState("");
   const [ltxOpen, setLtxOpen] = useState(false);
@@ -1862,7 +1869,33 @@ function BeatLineEditor({
     };
   }, [jobId, styleId, beat.speaker, jobVoices]);
 
+  async function removeLine() {
+    setRemoving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, shotId, beatId: beat.id, action: "remove-line" }),
+      });
+      const data = await readApiJson<{
+        error?: string;
+        job?: MobileGenJob;
+        beat?: CrashStoryBeat;
+      }>(res);
+      onRemoved?.(beat.id, data.job, data.beat);
+    } catch (e) {
+      setError(studioFetchError(e, "Couldn't remove that line"));
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   async function save() {
+    if (!text.trim()) {
+      setError("Type what they say, then Save.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -1918,6 +1951,8 @@ function BeatLineEditor({
             src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(
               folderName,
             )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(voiceFile)}`}
+            onRemove={() => void removeLine()}
+            removing={removing}
           />
         ) : (
           <div style={{ fontSize: "12px", color: "var(--chrome-dim)", flex: 1 }}>No line yet</div>
@@ -1940,13 +1975,21 @@ function BeatLineEditor({
           That&apos;s the still position, not the spoken line. Wipe it. Type what she says, then Save.
         </div>
       ) : null}
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", minWidth: 0 }}>
         <MobilePrimaryButton
           size="chip"
-          disabled={saving || savedTake || positionAsLine}
+          disabled={saving || removing || savedTake || positionAsLine || !text.trim()}
           onClick={() => void save()}
         >
           {saving ? "…" : savedTake ? "Saved" : "Save"}
+        </MobilePrimaryButton>
+        <MobilePrimaryButton
+          size="chip"
+          tone="ghost"
+          disabled={saving || removing}
+          onClick={() => void removeLine()}
+        >
+          {removing ? "…" : playable ? "Remove mp3" : "Remove line"}
         </MobilePrimaryButton>
         <span
           style={{

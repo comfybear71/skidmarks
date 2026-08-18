@@ -5,6 +5,7 @@ import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryT
 import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
 import { clearAllStoryShots } from "@/lib/mobileClipQueue";
 import { defaultSoloStaging } from "@/lib/mobileImageMotion";
+import { beatsAfterRemoveLine } from "@/lib/mobilePlateLines";
 import { rebuildShotPlate } from "@/lib/mobilePlateRebuild";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { newId } from "@/lib/types";
@@ -46,7 +47,8 @@ function patchShotFields(
  * take on the SAME still. Same face, new mp3, new clip thumb under the plate.
  * POST { jobId, shotId, beatId, action: "remove-line" } — drop that spoken
  * take from the plate. Audio/clip files stay in Blob (park). The thumb
- * under the plate goes with it.
+ * under the plate goes with it. Last real line leaves an empty box
+ * (`beat`) so they can Save again.
  * POST { jobId, shotId, action: "remove" } — take the shot out of the
  * strip entirely. Any plate/audio it made stays on disk/Blob, just
  * unlinked — same park-don't-delete rule as "drop". Returns the removed
@@ -240,7 +242,13 @@ export async function POST(req: Request) {
       if (!beat) {
         return NextResponse.json({ error: "That line is not on this plate" }, { status: 404 });
       }
-      const beats = liveShot.beats.filter((b) => b.id !== beatIdIn);
+      const emptyBeat = { id: newId("beat"), speaker: beat.speaker, text: "" };
+      const { beats, keptEmpty } = beatsAfterRemoveLine({
+        shotId,
+        beats: liveShot.beats,
+        beatId: beatIdIn,
+        emptyBeat,
+      });
       const withoutBeat: CrashStoryDoc = {
         ...story,
         scenes: story.scenes.map((sc) =>
@@ -255,7 +263,12 @@ export async function POST(req: Request) {
       await writeMobileStory(withoutBeat, job.folderName);
       const clips = (job.clips || []).filter((c) => c.beatId !== beatIdIn);
       const updated = await patchMobileGenJob(jobId, { clips, error: "" });
-      return NextResponse.json({ ok: true, job: updated, removedBeatId: beatIdIn });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        removedBeatId: beatIdIn,
+        ...(keptEmpty ? { beat: emptyBeat } : {}),
+      });
     }
 
     if (addCast) {

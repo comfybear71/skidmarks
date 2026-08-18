@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   leftoverHydrateBeat,
+  beatsAfterRemoveLine,
   packDialogueSpeaker,
   plateLineBeats,
   plateCastStagingNote,
@@ -68,6 +69,44 @@ assert.equal(
 );
 
 assert.equal(leftoverHydrateBeat("shot_jo", "shot_jo_a1"), true);
+
+const emptyJo = { id: "beat_jo_empty", speaker: "CRAZY BIG HOLE JO", text: "" };
+assert.deepEqual(
+  beatsAfterRemoveLine({
+    shotId: "shot_jo",
+    beats: [
+      { id: "beat_sexy", speaker: "BIG SEXY", text: "oi" },
+      { id: "beat_land", speaker: "LAND LANDY", text: "wrong" },
+    ],
+    beatId: "beat_land",
+    emptyBeat: emptyJo,
+  }),
+  {
+    beats: [{ id: "beat_sexy", speaker: "BIG SEXY", text: "oi" }],
+    keptEmpty: false,
+  },
+);
+assert.deepEqual(
+  beatsAfterRemoveLine({
+    shotId: "shot_jo",
+    beats: [{ id: "beat_sexy", speaker: "BIG SEXY", text: "oi" }],
+    beatId: "beat_sexy",
+    emptyBeat: emptyJo,
+  }),
+  { beats: [emptyJo], keptEmpty: true },
+);
+assert.deepEqual(
+  beatsAfterRemoveLine({
+    shotId: "shot_jo",
+    beats: [
+      { id: "beat_sexy", speaker: "BIG SEXY", text: "oi" },
+      { id: "shot_jo_a1", speaker: "Comfy", text: "leftover" },
+    ],
+    beatId: "beat_sexy",
+    emptyBeat: emptyJo,
+  }),
+  { beats: [{ id: "shot_jo_a1", speaker: "Comfy", text: "leftover" }, emptyJo], keptEmpty: true },
+);
 assert.equal(leftoverHydrateBeat("shot_jo", "beat_jo"), false);
 assert.equal(packDialogueSpeaker("01_01_Comfy_Keep-the-rhythm.mp3"), "Comfy");
 assert.equal(voiceFileBelongsToSpeaker("01_01_Comfy_Keep-the-rhythm.mp3", "CRAZY BIG HOLE JO"), false);

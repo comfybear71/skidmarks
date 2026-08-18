@@ -295,7 +295,15 @@ function clock(sec: number): string {
 }
 
 /** Squared acid play + scrub — not the browser's rounded grey widget. */
-export function MobileAudioPlayer({ src }: { src: string }) {
+export function MobileAudioPlayer({
+  src,
+  onRemove,
+  removing,
+}: {
+  src: string;
+  onRemove?: () => void;
+  removing?: boolean;
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [t, setT] = useState(0);
@@ -403,6 +411,30 @@ export function MobileAudioPlayer({ src }: { src: string }) {
       >
         {clock(t)}/{clock(dur)}
       </span>
+      {onRemove ? (
+        <button
+          type="button"
+          disabled={removing}
+          aria-label="Remove this mp3"
+          onClick={onRemove}
+          style={{
+            width: "28px",
+            height: "28px",
+            flex: "0 0 auto",
+            borderRadius: "2px",
+            border: "1px solid var(--line)",
+            background: "transparent",
+            color: removing ? "var(--chrome-dim)" : "var(--magenta-hot)",
+            fontSize: "18px",
+            lineHeight: 1,
+            fontWeight: 700,
+            opacity: removing ? 0.55 : 1,
+            touchAction: "manipulation",
+          }}
+        >
+          ×
+        </button>
+      ) : null}
     </div>
   );
 }
