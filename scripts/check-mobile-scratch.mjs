@@ -163,6 +163,14 @@ assert.match(letter, /CRAZY BIG HOLE JO TOO is fully nude on the bed/i);
 assert.match(letter, /on her back/i);
 assert.match(letter, /MATTY is fully nude on the sofa/i);
 assert.match(letter, /not a floating bust/i);
+assert.match(letter, /no phone/i);
 assert.equal(expandScratchLayoutMarks(letter), letter);
+assert.equal(
+  mergePlacementsIntoStaging(letter, [
+    { name: "MATTY", xPercent: 74, yPercent: 68 },
+    { name: "CRAZY BIG HOLE JO TOO", xPercent: 28, yPercent: 48 },
+  ], "the bedroom"),
+  letter,
+);
 
 console.log("check-mobile-scratch: ok");

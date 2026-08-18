@@ -63,6 +63,7 @@ export function mergePlacementsIntoStaging(
   environment: string,
 ): string {
   let next = (staging || "").trim();
+  if (/ONE photograph, ONE camera, ONE room:/i.test(next)) return next;
   if (!placements.length) return expandScratchLayoutMarks(next);
   const hasAllMarks = placements.every((p) =>
     new RegExp(`\\[Position:\\s*${escapeRegExp(p.name)}\\b`, "i").test(next),

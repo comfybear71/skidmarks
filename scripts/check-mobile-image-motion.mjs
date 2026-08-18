@@ -7,6 +7,7 @@ import {
   directorWantsEmptyHands,
   isJoKeyboardWarrior,
   joPhoneStagingExtra,
+  withScratchEmptyHands,
   ensureGoldFrameLocks,
   storedMotionFightsEmptyHands,
   storedMotionReinventsLook,
@@ -125,6 +126,12 @@ assert.equal(
 );
 assert.equal(storedMotionFightsEmptyHands(jo, "holding her mobile phone"), false);
 assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "sitting on the bed, hands free or resting"), "");
+assert.equal(directorWantsEmptyHands("arms down at her sides, no phone"), true);
+assert.equal(directorWantsEmptyHands("hands at her sides"), true);
+assert.match(withScratchEmptyHands("JO on the bed staring at MATTY"), /no phone/i);
+assert.match(withScratchEmptyHands("JO on the bed staring at MATTY"), /arms down at her sides/i);
+assert.equal(withScratchEmptyHands("holding her mobile phone"), "holding her mobile phone");
+assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO TOO"], withScratchEmptyHands("sitting on the bed")), "");
 
 const emptyJo = buildDefaultBeatMotion({
   styleId: "skidmarks",
