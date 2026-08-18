@@ -84,6 +84,27 @@ export function parseScratchClipEngine(raw: string | undefined): "ltx" | SirayI2
   throw new Error(`Unknown clip engine: ${raw}`);
 }
 
+export function scratchWantsNude(text: string): boolean {
+  const t = (text || "").toLowerCase();
+  return (
+    /\b(fully )?nude\b/.test(t) ||
+    /\bnaked\b/.test(t) ||
+    /\bpartial nudity\b/.test(t) ||
+    /\btopless\b/.test(t) ||
+    /\bundress/.test(t) ||
+    /\bno clothes\b/.test(t) ||
+    /\bwithout clothes\b/.test(t)
+  );
+}
+
+/** Still Draw — spicy ref2i must drop the face-card outfit. */
+export const SCRATCH_NUDE_STILL_LOCK =
+  "Adults only — no one under 21. Change the clothes from the face cards. Ignore the outfit on the reference images. Same face, hair, age and body. Nude as staged. Do not put the face-card clothes back on.";
+
+/** Motion from a nude plate — do not dress them again. */
+export const SCRATCH_NUDE_I2V_LOCK =
+  "Same bare body as the start image. Do not add clothes. Do not invent a new wardrobe.";
+
 export function clampSirayI2vDurationSec(
   sec: number,
   minSec = SIRAY_I2V_MODELS[0].minSec,
@@ -132,11 +153,17 @@ export function buildSirayI2vPrompt(opts: {
       ? staging
       : `${who || "The person"} holds their pose, subtle idle motion, weight shift, breathing.`);
   const whoLook = [who, look].filter(Boolean).join(", ");
+  const nude = scratchWantsNude(`${opts.staging} ${opts.motion}`);
   return [
     "Use the provided start image as the first frame.",
     whoLook
-      ? `${whoLook} is prominent, same face, hair, age, wardrobe and body as the start image.`
-      : "Keep that face, body, wardrobe and place.",
+      ? nude
+        ? `${whoLook} is prominent, same face, hair, age and bare body as the start image.`
+        : `${whoLook} is prominent, same face, hair, age, wardrobe and body as the start image.`
+      : nude
+        ? "Keep that face, body and place. Same bare body as the start image."
+        : "Keep that face, body, wardrobe and place.",
+    nude ? SCRATCH_NUDE_I2V_LOCK : "",
     action,
     "No dialogue. Mouth stays closed. Do not invent a new take or a new face.",
     "Props and background stay exactly as the start image, nothing new enters frame.",
