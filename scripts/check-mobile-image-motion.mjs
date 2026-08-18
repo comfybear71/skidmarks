@@ -6,6 +6,7 @@ import {
   defaultSoloStaging,
   isJoKeyboardWarrior,
   joPhoneStagingExtra,
+  ensureGoldFrameLocks,
   ltxSendPrompt,
   shortLtxLookLock,
   stripLtxLipSyncLead,
@@ -32,6 +33,7 @@ assert.match(jo, /keyboard warrior/);
 assert.match(jo, /speaks the line as she types/);
 assert.match(jo, /CRAZY BIG HOLE JO says: "get stuffed"/);
 assert.match(jo, /Only CRAZY BIG HOLE JO in frame, no one else appears/);
+assert.match(jo, /Nobody mentioned in the spoken line appears on screen/);
 assert.doesNotMatch(jo, /\bComfy\b/);
 assert.doesNotMatch(jo, /\bLand\b/);
 assert.doesNotMatch(jo, /Other people/);
@@ -51,7 +53,19 @@ const racket = ltxSendPrompt(
 );
 assert.ok(racket.startsWith(LTX_LIP_SYNC_LEAD));
 assert.match(racket, /tennis racket in hand/);
+assert.match(racket, /nothing new enters frame/);
+assert.match(racket, /No new people enter the frame/);
+assert.match(racket, /Nobody mentioned in the spoken line appears on screen/);
 assert.doesNotMatch(racket, /\[VISUAL\]/);
+
+const shortCustom = ensureGoldFrameLocks(
+  'Use the provided start image as the first frame. JO is prominent, mouth and head move naturally while speaking. Empty hands stay in her lap, no phone. Only JO in frame. JO says: "I\'ll be moving out as soon as I can." Camera holds.',
+);
+assert.match(shortCustom, /Empty hands stay in her lap/);
+assert.match(shortCustom, /nothing new enters frame/);
+assert.match(shortCustom, /No new people enter the frame/);
+assert.match(shortCustom, /Nobody mentioned in the spoken line appears on screen/);
+assert.equal(ensureGoldFrameLocks(shortCustom), shortCustom);
 
 const other = buildDefaultBeatMotion({
   styleId: "skidmarks",

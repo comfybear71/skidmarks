@@ -60,9 +60,41 @@ export function stripLtxLipSyncLead(prompt: string): string {
   return clean(body);
 }
 
-/** The one string Cloud LTX gets: lead + Image motion body. */
+const GOLD_START_FRAME = "Use the provided start image as the first frame.";
+const GOLD_PROPS_LOCK =
+  "Props and background stay exactly as the start image, nothing new enters frame.";
+const GOLD_SAME_OBJECTS = "Same person and objects as the start image.";
+const GOLD_NO_NEW_PEOPLE = "No new people enter the frame.";
+const GOLD_NO_LINE_EXTRAS = "Nobody mentioned in the spoken line appears on screen.";
+const GOLD_CAMERA_HOLDS = "Camera holds.";
+
+/**
+ * Short custom LTX (start image + mouth + says) drops the walker locks.
+ * Append any missing gold sentences on send so extras from the rant
+ * (land lady, addicts) do not walk through a plate that was already clean.
+ */
+export function ensureGoldFrameLocks(prompt: string): string {
+  const body = stripLtxLipSyncLead(prompt);
+  if (!body) return body;
+  const bits: string[] = [];
+  if (!/use the provided start image as the first frame/i.test(body)) {
+    bits.push(GOLD_START_FRAME);
+  }
+  if (!/nothing new enters frame/i.test(body)) bits.push(GOLD_PROPS_LOCK);
+  if (!/same (person|people) and objects as the start image/i.test(body)) {
+    bits.push(GOLD_SAME_OBJECTS);
+  }
+  if (!/no new people enter/i.test(body)) bits.push(GOLD_NO_NEW_PEOPLE);
+  if (/\bsays:\s*"/i.test(body) && !/nobody mentioned in the spoken line/i.test(body)) {
+    bits.push(GOLD_NO_LINE_EXTRAS);
+  }
+  if (!/camera holds/i.test(body)) bits.push(GOLD_CAMERA_HOLDS);
+  return bits.length ? clean(`${body} ${bits.join(" ")}`) : body;
+}
+
+/** The one string Cloud LTX gets: lead + Image motion body + walker locks. */
 export function ltxSendPrompt(imageMotion: string): string {
-  return withLtxLipSyncLead(imageMotion);
+  return withLtxLipSyncLead(ensureGoldFrameLocks(imageMotion));
 }
 
 /**
@@ -217,6 +249,7 @@ export function buildSpeakingMotion(opts: {
       `${name} says: "${clean(opts.line)}".`,
       "Camera holds. Same person and objects as the start image.",
       "No new people enter the frame.",
+      GOLD_NO_LINE_EXTRAS,
       motionStyleLock(opts.styleId),
     ].join(" "),
   );
