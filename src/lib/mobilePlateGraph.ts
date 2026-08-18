@@ -1,5 +1,11 @@
 import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileGenJob, MobileShotUnit } from "./mobileGenJob";
+import {
+  classifyCastPlace,
+  classifyCastRoster,
+  requiredCastPlacePlates,
+  type MissingCastPlacePlate,
+} from "./mobileCastPlaces";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { approvedCandidateFileName } from "./mobileJobReady";
 import { episodeJobShots } from "./mobileScratch";
@@ -13,8 +19,9 @@ import { voiceNamesMatch } from "./voiceNameMatch";
  *                               ├─ next → pick    (pass or max 3)
  *                               └─ halt_lines     (strip done — human speech)
  *
- * Cast is the roster. A speaker with a picked face and no episode shot
- * gets a solo card, then the same draw → qa loop. Existing plates stay.
+ * Cast is the roster. Each picked face gets a solo card at their rooms
+ * (two-house bible). Existing plates stay. Wrong-house first-scene dump
+ * is not a plate.
  *
  * Does not Save voices. Does not Generate.
  */
@@ -47,6 +54,9 @@ function speakerNamesMatch(a: string, b: string): boolean {
   const left = a.trim();
   const right = b.trim();
   if (!left || !right) return false;
+  const tagA = classifyCastRoster(left);
+  const tagB = classifyCastRoster(right);
+  if (tagA && tagB) return tagA === tagB;
   return (
     left.toLowerCase() === right.toLowerCase() || voiceNamesMatch(left, right)
   );
@@ -72,18 +82,65 @@ export function episodeShotSpeakerNames(
   return names;
 }
 
-/** Approved Cast faces that are not on any episode shot yet. */
+function speakerHasShotAtPlace(
+  job: PlateGraphJob,
+  story: CrashStoryDoc,
+  speaker: string,
+  sceneId: string,
+): boolean {
+  const scene =
+    story.scenes.find((sc) => sc.id === sceneId) ||
+    job.scenes.find((s) => s.id === sceneId);
+  const wantKind = classifyCastPlace(scene?.placeName || "");
+  for (const unit of episodeJobShots(job, story)) {
+    const unitScene =
+      story.scenes.find((sc) => sc.id === unit.sceneId) ||
+      job.scenes.find((s) => s.id === unit.sceneId);
+    const unitKind = classifyCastPlace(unitScene?.placeName || "");
+    const samePlace =
+      unit.sceneId === sceneId || (wantKind && unitKind === wantKind);
+    if (!samePlace) continue;
+    const sh = story.scenes
+      .flatMap((sc) => sc.shots)
+      .find((s) => s.id === unit.shotId);
+    if (!sh) continue;
+    const onShot = sh.beats.some((b) => {
+      const who = b.speaker.trim();
+      return Boolean(who && !leftoverHydrateBeat(unit.shotId, b.id) && speakerNamesMatch(who, speaker));
+    });
+    if (onShot) return true;
+  }
+  return false;
+}
+
+/** Approved faces still missing a card at one of their rooms. */
+export function missingCastPlacePlates(
+  job: PlateGraphJob,
+  story?: CrashStoryDoc | null,
+): MissingCastPlacePlate[] {
+  if (!story) return [];
+  const speakers = (job.speakers || []).filter((name) =>
+    Boolean(approvedCandidateFileName(job.castCandidates || {}, name)),
+  );
+  const sceneById = new Map<string, { id: string; placeName: string }>();
+  for (const s of [...job.scenes, ...story.scenes]) {
+    if (!sceneById.has(s.id)) sceneById.set(s.id, { id: s.id, placeName: s.placeName });
+  }
+  return requiredCastPlacePlates(speakers, [...sceneById.values()]).filter(
+    (need) => !speakerHasShotAtPlace(job, story, need.speaker, need.sceneId),
+  );
+}
+
+/** Speakers who still need at least one house plate. */
 export function speakersMissingEpisodeShot(
   job: PlateGraphJob,
   story?: CrashStoryDoc | null,
 ): string[] {
-  const speakers = (job.speakers || []).map((s) => s.trim()).filter(Boolean);
-  if (!speakers.length || !story) return [];
-  const covered = episodeShotSpeakerNames(job, story);
-  return speakers.filter((name) => {
-    if (covered.some((c) => speakerNamesMatch(c, name))) return false;
-    return Boolean(approvedCandidateFileName(job.castCandidates || {}, name));
-  });
+  const names: string[] = [];
+  for (const row of missingCastPlacePlates(job, story)) {
+    if (!names.some((n) => speakerNamesMatch(n, row.speaker))) names.push(row.speaker);
+  }
+  return names;
 }
 
 export function episodePlateCounts(
@@ -91,7 +148,7 @@ export function episodePlateCounts(
   story?: CrashStoryDoc | null,
 ): { done: number; total: number } {
   const shots = episodeJobShots(job, story);
-  const missing = speakersMissingEpisodeShot(job, story);
+  const missing = missingCastPlacePlates(job, story);
   return {
     done: shots.filter(shotHasPlate).length,
     total: shots.length + missing.length,
@@ -117,23 +174,15 @@ export function storyShotSpeaker(
 function pickCastPlateScene(
   job: Pick<MobileGenJob, "scenes">,
   story: CrashStoryDoc,
+  sceneId: string,
 ): { sceneId: string; placeName: string; story: CrashStoryDoc } {
-  const inStory =
-    job.scenes.find((s) => story.scenes.some((sc) => sc.id === s.id)) ||
-    null;
+  const want = sceneId.trim();
+  const inStory = story.scenes.find((sc) => sc.id === want);
   if (inStory) {
-    const scene = story.scenes.find((sc) => sc.id === inStory.id)!;
-    return { sceneId: scene.id, placeName: scene.placeName || inStory.placeName, story };
+    return { sceneId: inStory.id, placeName: inStory.placeName || "this place", story };
   }
-  if (story.scenes[0]) {
-    return {
-      sceneId: story.scenes[0].id,
-      placeName: story.scenes[0].placeName || "this place",
-      story,
-    };
-  }
-  const jobScene = job.scenes[0];
-  if (!jobScene) throw new Error("Need a place before the rest of the cast can plate");
+  const jobScene = job.scenes.find((s) => s.id === want);
+  if (!jobScene) throw new Error("That place is not on this episode");
   const scene = {
     id: jobScene.id,
     title: jobScene.placeName,
@@ -148,11 +197,12 @@ function pickCastPlateScene(
   };
 }
 
-/** Append a solo talking card for one Cast face. Does not draw. */
+/** Append a solo talking card at one house room. Does not draw. */
 export function appendSoloCastShot(opts: {
   job: Pick<MobileGenJob, "scenes" | "shots">;
   story: CrashStoryDoc;
   speaker: string;
+  sceneId: string;
 }): {
   story: CrashStoryDoc;
   shots: MobileShotUnit[];
@@ -162,7 +212,7 @@ export function appendSoloCastShot(opts: {
 } {
   const speaker = opts.speaker.trim();
   if (!speaker) throw new Error("Need a character");
-  const picked = pickCastPlateScene(opts.job, opts.story);
+  const picked = pickCastPlateScene(opts.job, opts.story, opts.sceneId);
   const newShot: CrashStoryShot = {
     id: newId("shot"),
     title: speaker,
