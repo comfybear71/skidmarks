@@ -85,6 +85,27 @@ export function plateLineBeats<T extends LineBeat>(opts: {
     );
 }
 
+/**
+ * Park one spoken take. If that was the last real line on the plate, leave
+ * an empty box for the same speaker so they can Save again. Leftover pack
+ * hydrate beats do not count as a real line.
+ */
+export function beatsAfterRemoveLine<T extends { id: string; speaker: string }>(opts: {
+  shotId: string;
+  beats: T[];
+  beatId: string;
+  emptyBeat: T;
+}): { beats: T[]; keptEmpty: boolean } {
+  const gone = opts.beats.find((b) => b.id === opts.beatId);
+  if (!gone) return { beats: opts.beats, keptEmpty: false };
+  const next = opts.beats.filter((b) => b.id !== opts.beatId);
+  const stillSpeaking = next.some(
+    (b) => b.speaker.trim() && !leftoverHydrateBeat(opts.shotId, b.id),
+  );
+  if (stillSpeaking) return { beats: next, keptEmpty: false };
+  return { beats: [...next, opts.emptyBeat], keptEmpty: true };
+}
+
 /** Before anyone is tapped, every face stays in colour. Grey is "the rest" after a pick. */
 export function castPopupFaceGrey(picked: string | null, name: string): boolean {
   return Boolean(picked) && picked !== name;
