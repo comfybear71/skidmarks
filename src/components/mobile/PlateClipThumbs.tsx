@@ -16,10 +16,13 @@ export function PlateClipThumbs({
   job,
   clips,
   preload,
+  poster,
 }: {
   job: { styleId: string; folderName: string };
   clips: MobileClipUnit[];
   preload?: boolean;
+  /** Plate still — first frame stand-in so the box is not black before play. */
+  poster?: string;
 }) {
   const files = clips.flatMap((clip, i) => {
     const stacked = stackedClipFiles(clip);
@@ -45,6 +48,7 @@ export function PlateClipThumbs({
         <ClipPlayer
           key={row.key}
           src={mobileClipSrc(job, row.file)}
+          poster={poster}
           preload={row.preload}
           takeLabel={row.takeLabel}
         />
@@ -66,10 +70,12 @@ const frame: CSSProperties = {
 
 function ClipPlayer({
   src,
+  poster,
   preload,
   takeLabel,
 }: {
   src: string;
+  poster?: string;
   preload?: boolean;
   takeLabel?: string;
 }) {
@@ -97,9 +103,14 @@ function ClipPlayer({
         <video
           ref={ref}
           src={src}
+          poster={poster || undefined}
           controls
           playsInline
-          preload={preload ? "metadata" : "none"}
+          preload="metadata"
+          onLoadedMetadata={(e) => {
+            const el = e.currentTarget;
+            if (el.currentTime < 0.05) el.currentTime = 0.08;
+          }}
           style={{
             width: "100%",
             height: "100%",

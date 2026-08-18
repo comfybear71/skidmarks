@@ -1151,7 +1151,7 @@ export default function ScratchPage() {
 
             {job.folderName && stackClips.length ? (
               <div className="scratch-clip-rail">
-                <PlateClipThumbs job={job} clips={stackClips} preload />
+                <PlateClipThumbs job={job} clips={stackClips} poster={plateSrc || undefined} preload />
               </div>
             ) : null}
 
