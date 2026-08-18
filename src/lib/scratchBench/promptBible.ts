@@ -130,6 +130,12 @@ export const SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
           "{{name}} is sitting at {{place}}, weight grounded, natural posture, hands free or resting.",
       },
       {
+        id: "pose-on-bed",
+        label: "On the bed",
+        template:
+          "{{name}} is sitting on the bed at {{place}}, butt on the mattress, knees forward, bed frame readable behind or beside them — not on a chair, not standing.",
+      },
+      {
         id: "pose-stand",
         label: "Standing",
         template:
@@ -140,6 +146,12 @@ export const SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
         label: "Facing camera",
         template:
           "{{name}} faces the camera at {{place}}, eyes toward lens, head square to frame, mouth clearly readable for speech.",
+      },
+      {
+        id: "pose-alone",
+        label: "Alone in frame",
+        template:
+          "Only {{name}} in frame at {{place}}. Empty room behind them. No other people, no walkers, no extras, no crowd.",
       },
       {
         id: "pose-lie",
