@@ -8,8 +8,10 @@
 function takeStamp(fileName: string): string {
   const m = String(fileName || "")
     .trim()
-    .match(/_([0-9a-z]{6,12})\.mp3$/i);
-  if (!m?.[1] || !/\d/.test(m[1])) return "";
+    .match(/_([0-9a-z]{5,14})\.mp3$/i);
+  if (!m?.[1]) return "";
+  // Date.now().toString(36) is usually mixed. Don't require a digit —
+  // some windows are all letters and Jo Saves were rejected as leftover.
   return m[1];
 }
 
