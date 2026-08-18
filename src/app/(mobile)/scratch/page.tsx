@@ -50,6 +50,8 @@ import {
   emptyBenchSession,
   generateScratchPrompt,
   injectChaosStill,
+  keepScratchPositionLines,
+  mergePlacementsIntoStaging,
   loadBenchSession,
   mergePositionIntoStaging,
   positionPromptLine,
@@ -466,7 +468,8 @@ export default function ScratchPage() {
     if (!job) return;
     const nextPose = opts?.poseId ?? poseId;
     const rawStaging = opts?.staging ?? staging;
-    const nextStaging = injectChaosStill(rawStaging || "", bench.chaosId);
+    const laidOut = mergePlacementsIntoStaging(rawStaging || "", placements, placeName);
+    const nextStaging = injectChaosStill(laidOut, bench.chaosId);
     const nextSpeaker = opts?.speaker ?? speaker;
     const nextCast = opts?.cast ?? (padCast.length ? padCast : nextSpeaker ? [nextSpeaker] : []);
     const nextScene = opts?.sceneId ?? sceneId;
@@ -571,6 +574,12 @@ export default function ScratchPage() {
       setPadCast([...padCast, name]);
       setSpeaker(name);
       setSavedTake(null);
+      setPlacements((prev) => {
+        if (prev.some((p) => p.name === name)) return prev;
+        const n = prev.length;
+        const xPercent = n === 0 ? 70 : n === 1 ? 22 : Math.min(88, 22 + n * 28);
+        return upsertPlacement(prev, { name, xPercent, yPercent: 58 });
+      });
       const beatLine = scratch?.shot.beats.find((b) => b.speaker.trim().toLowerCase() === name.trim().toLowerCase())?.text;
       if (beatLine) setLine(beatLine);
       return;
@@ -698,18 +707,20 @@ export default function ScratchPage() {
     });
   }
 
-  function fillFromPreset(preset: ScratchPreset) {
+  function fillFromPreset(preset: ScratchPreset): string {
     const who = speaker || padCast[0] || "Character";
     const text = applyScratchPresetTemplate(preset.template, {
       name: who,
       place: placeName,
       cast: padCast.length ? padCast : [who],
     });
+    const kept = keepScratchPositionLines(staging, text);
     setPoseId(preset.id);
-    setStaging(text);
+    setStaging(kept);
     setEditLabel(preset.label);
     setEditGroup(preset.group);
     setBibleActiveId(null);
+    return kept;
   }
 
   function pickBibleEntry(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) {
@@ -724,7 +735,7 @@ export default function ScratchPage() {
     if (bibleMode === "append" && staging.trim()) {
       setStaging(`${staging.trim()}\n\n${text}`);
     } else {
-      setStaging(text);
+      setStaging(keepScratchPositionLines(staging, text));
     }
   }
 
@@ -734,14 +745,10 @@ export default function ScratchPage() {
       setError("Put at least two faces on the pad for crowd presets");
       return;
     }
-    fillFromPreset(preset);
+    const kept = fillFromPreset(preset);
     void draw({
       poseId: preset.id,
-      staging: applyScratchPresetTemplate(preset.template, {
-        name: speaker || padCast[0] || "Character",
-        place: placeName,
-        cast: padCast.length ? padCast : [speaker || "Character"],
-      }),
+      staging: kept,
       speaker: speaker || padCast[0],
       cast: padCast,
       sceneId,
@@ -1155,7 +1162,7 @@ export default function ScratchPage() {
                           padding: "16px",
                         }}
                       >
-                        Drag faces left · places right · onto pad
+                        Drag each face onto the still to park them. Tap adds — drag places.
                       </div>
                     )}
                   </button>
@@ -1271,6 +1278,8 @@ export default function ScratchPage() {
               <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
                 On pad: {padCast.join(" · ")}. Speaks:{" "}
                 <span style={{ color: "var(--acid)" }}>{speaker || padCast[0]}</span>
+                . Drag each face onto the still to park them (left / chair / right). Nude
+                keeps those marks — do not leave extras as a corner inset.
               </div>
             ) : null}
 

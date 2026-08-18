@@ -9,6 +9,8 @@ import {
 } from "../src/lib/mobileScratch.ts";
 import { isCampaignShotId, isCampaignShotTitle } from "../src/lib/mobilePlateLtxCampaign.ts";
 import { jobDeskId, normalizeDeskId } from "../src/lib/mobileDesk.ts";
+import { keepScratchPositionLines } from "../src/lib/scratchBench/padDrop.ts";
+import { mergePlacementsIntoStaging } from "../src/lib/scratchBench/promptFormatter.ts";
 
 assert.equal(isScratchShotTitle("Scratch"), true);
 assert.equal(isScratchShotTitle("Jo sitting"), false);
@@ -117,5 +119,20 @@ assert.equal(
   ),
   false,
 );
+
+const joMark = "[Position: CRAZY BIG HOLE JO framed on the left third of the screen, mid height (drop 22% / 58%).]";
+const kept = keepScratchPositionLines(
+  joMark,
+  "Adult MATTY, fully nude at THE DONGA.",
+);
+assert.match(kept, /CRAZY BIG HOLE JO/);
+assert.match(kept, /MATTY/);
+const laid = mergePlacementsIntoStaging("Adult MATTY, fully nude at the bedroom.", [
+  { name: "MATTY", xPercent: 72, yPercent: 60 },
+  { name: "CRAZY BIG HOLE JO", xPercent: 20, yPercent: 55 },
+], "the bedroom");
+assert.match(laid, /\[Position: MATTY/);
+assert.match(laid, /\[Position: CRAZY BIG HOLE JO/);
+assert.match(laid, /picture-in-picture/i);
 
 console.log("check-mobile-scratch: ok");

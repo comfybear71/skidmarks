@@ -84,6 +84,23 @@ export function mergePositionIntoStaging(staging: string, line: string, name: st
   return `${base}\n\n${line}`.trim();
 }
 
+/** Wearing / Nude replaces the body — keep each drop mark so JO stays parked. */
+export function keepScratchPositionLines(previous: string, nextBody: string): string {
+  const body = (nextBody || "").trim();
+  const lines = (previous || "").match(/\[Position:[^\]]*\]/gi) || [];
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const line of lines) {
+    const key = line.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(line);
+  }
+  if (!unique.length) return body;
+  if (unique.every((line) => body.includes(line))) return body;
+  return `${unique.join("\n")}\n\n${body}`.trim();
+}
+
 export function upsertPlacement(
   list: ScratchPadPlacement[],
   next: ScratchPadPlacement,
