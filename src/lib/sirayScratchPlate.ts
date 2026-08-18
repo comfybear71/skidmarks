@@ -64,13 +64,22 @@ export function buildSirayScratchPrompt(opts: {
   const nude = scratchWantsNude(nudeText);
   const who =
     n === 1
-      ? `Image 2 is ${opts.speakers[0]} — same face, hair, age and body. Place them IN image 1. One person only. One photograph.`
-      : `Images 2–${n + 1} are ${opts.speakers.join(", ")} — one identity each. Put all of them INTO image 1 as people in that room. Match each face. Never merge faces. Exactly ${n} people. Not a panel per person.`;
-  const looks = nude
-    ? "Looks: identity only — same face, hair, age, skin and body. Ignore clothes on the face cards."
-    : opts.looks
-      ? `Looks: ${opts.looks}`
-      : "";
+      ? `Image 2 is ${opts.speakers[0]}'s face card. Copy that face exactly — same face, hair, age, skin and body. Do not invent a new face. Place them IN image 1. One person only. One photograph.`
+      : opts.speakers
+          .map(
+            (name, i) =>
+              `Image ${i + 2} is ${name}'s face card. Copy that face exactly — same face, hair, age, skin. Do not invent a new face for ${name}.`,
+          )
+          .concat(
+            `Put all of them INTO image 1 as people in that room. Never merge faces. Exactly ${n} people. Not a panel per person.`,
+          )
+          .join(" ");
+  const looks = [
+    nude ? "Ignore clothes on the face cards. Keep each face from its card." : "",
+    opts.looks ? `Looks: ${opts.looks}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return [
     look,
     "Image 1 is the LOCKED place — keep that exact location, lighting and materials. Do not replace the place.",
