@@ -81,7 +81,7 @@ assert.doesNotMatch(scratchNudeStillLock("Adult woman TEE, fully nude at the bar
 assert.equal(scratchNudeLooksMale("Adult MATTY, fully nude at THE DONGA", ["LADDER ONE", "LAND LANDY", "MATTY"]), true);
 assert.match(
   scratchNudeStillLock("Adult MATTY, fully nude at THE DONGA", ["LADDER ONE", "LAND LANDY", "MATTY"]),
-  /visible penis/i,
+  /exaggerated penis/i,
 );
 const nudeClip = buildSirayI2vPrompt({
   speaker: "TEE",
@@ -99,7 +99,7 @@ const manClip = buildSirayI2vPrompt({
   lookLock: "beard, black tee",
 });
 assert.match(manClip, /adult male body/i);
-assert.match(manClip, /visible penis/i);
+assert.match(manClip, /exaggerated penis/i);
 assert.match(manClip, /Do not redraw as a woman/);
 
 assert.match(

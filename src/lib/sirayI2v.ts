@@ -140,18 +140,18 @@ export const SCRATCH_NUDE_STILL_LOCK =
 
 /** Male nude — Seedream spicy defaults to a woman or a Ken doll unless we lock sex. */
 export const SCRATCH_NUDE_STILL_LOCK_MALE =
-  "Adults only — no one under 21. This person is an adult man. Draw an adult male body: bare chest, visible penis and scrotum, no clothes. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the reference. Do not redraw him as a woman. Do not add breasts. Do not put shorts back on.";
+  "Adults only — no one under 21. This person is an adult man. Draw an adult male body: bare chest, a large exaggerated penis and heavy scrotum, no clothes. Same face, hair, age as the face card. Ignore the tee, shorts and undies on the reference. Do not redraw him as a woman. Do not add breasts. Do not put shorts back on.";
 
-/** Seedream skips male genitals unless we say penis — shorts or a blank crotch. */
+/** Seedream skips male genitals unless we overshoot — shorts or a blank crotch. */
 export const SCRATCH_NUDE_MALE_ANATOMY =
-  "If any adult man is nude: visible penis and scrotum, natural adult male genitals. Not a Ken doll. Not a smooth blank crotch. No shorts, no underwear, no towel, no blur, no hand covering the groin.";
+  "If any adult man is nude: oversized exaggerated penis and heavy scrotum, obvious in frame, thicker and longer than real life. Not modest. Not a Ken doll. Not a smooth blank crotch. No shorts, no underwear, no towel, no blur, no hand covering the groin.";
 
 /** Motion from a nude plate — do not dress them again. */
 export const SCRATCH_NUDE_I2V_LOCK =
   "Same bare body as the start image. Do not add clothes. Do not invent a new wardrobe.";
 
 export const SCRATCH_NUDE_I2V_LOCK_MALE =
-  "Same adult male body as the start image. Visible penis stays. Do not add clothes or shorts. Do not redraw as a woman.";
+  "Same adult male body as the start image. The large exaggerated penis stays visible. Do not add clothes or shorts. Do not redraw as a woman.";
 
 export function clampSirayI2vDurationSec(
   sec: number,
