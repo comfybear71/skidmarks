@@ -30,7 +30,17 @@ import { episodePlateCounts } from "@/lib/mobilePlateGraph";
 import { episodeJobShots, episodeQueuedClips } from "@/lib/mobileScratch";
 import { queuedSavedClips } from "@/lib/mobileClipQueue";
 import { isJoKeyboardWarrior } from "@/lib/mobileImageMotion";
+import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
+
+async function fetchDeskStory(styleId: string, folderName: string): Promise<CrashStoryDoc | null> {
+  const res = await fetch(
+    `/api/crash/story?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(folderName)}`,
+  );
+  if (!res.ok) return null;
+  const data = (await res.json()) as { story?: CrashStoryDoc };
+  return data.story || null;
+}
 
 function castFaceUrl(
   job: MobileGenJob,
@@ -761,6 +771,7 @@ export function StudioTree({
   const [scriptDraft, setScriptDraft] = useState("");
   const [plating, setPlating] = useState(false);
   const [plateGraphHint, setPlateGraphHint] = useState("");
+  const [deskStory, setDeskStory] = useState<CrashStoryDoc | null>(null);
 
   async function addLocationToPlate(sceneId: string) {
     setAddingPlateFor(sceneId);
@@ -827,19 +838,32 @@ export function StudioTree({
       setScriptDraft(episodeTemplateFromJob(job));
     }
   }, [job.id, job.scenes.length, job.speakers.length, job.prompt, scriptDraft]);
+  useEffect(() => {
+    if (!job.folderName || job.phase !== "review") return;
+    let cancelled = false;
+    fetchDeskStory(job.styleId, job.folderName)
+      .then((s) => {
+        if (!cancelled && s) setDeskStory(s);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [job.styleId, job.folderName, job.phase, job.shots.length, job.speakers.join("|")]);
 
   const canWrite =
     allCastApproved(job) &&
     allLocationsApproved(job) &&
     canLockEpisode(job.phase);
 
-  const plated = episodeJobShots(job).filter((s) => s.plateFile && s.plateFile !== "__error__");
-  const episodeShots = episodeJobShots(job);
-  const plateCounts = episodePlateCounts(job);
+  const plated = episodeJobShots(job, deskStory).filter((s) => s.plateFile && s.plateFile !== "__error__");
+  const episodeShots = episodeJobShots(job, deskStory);
+  const plateCounts = episodePlateCounts(job, deskStory);
   const unplated = plateCounts.total - plateCounts.done;
+  const plateCountsReady = Boolean(deskStory) || !job.folderName;
 
   async function plateTheEpisode() {
-    if (plating || !unplated) return;
+    if (plating || (plateCountsReady && !unplated)) return;
     setPlating(true);
     setPlateGraphHint("pick → compile → draw → qa");
     try {
@@ -893,7 +917,7 @@ export function StudioTree({
       {job.phase === "review" ? (
         <div style={{ margin: "0 0 22px", display: "flex", flexDirection: "column", gap: "8px" }}>
           <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
-            {plated.length}/{episodeShots.length} plated · {queued.length}{" "}
+            {plateCounts.done}/{plateCounts.total} plated · {queued.length}{" "}
             {queued.length === 1 ? "line queued" : "lines queued"}
             {queued.length === 0 && plated.length
               ? " — Save the spoken line (Play appears) before Generate video"
@@ -912,9 +936,9 @@ export function StudioTree({
                 .join(" · ")}
             </div>
           ) : null}
-          {episodeShots.length ? (
+          {plateCounts.total || !plateCountsReady ? (
             <MobilePrimaryButton
-              disabled={busy || plating || !unplated}
+              disabled={busy || plating || (plateCountsReady && !unplated)}
               onClick={() => void plateTheEpisode()}
             >
               {plating
