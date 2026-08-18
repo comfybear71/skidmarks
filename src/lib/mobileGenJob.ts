@@ -8,7 +8,7 @@ import type { ShowStyleId } from "./showStylePresets";
 import type { ScriptCharacterData } from "./types";
 import { jobVoiceForSpeaker, withJobSpeakerVoice } from "./mobileJobVoices";
 import type { PlateLtxCampaign } from "./mobilePlateLtxCampaign";
-import type { ScratchPlateRef } from "./mobileScratch";
+import type { ScratchDrawTask, ScratchPlateRef } from "./mobileScratch";
 import { DEFAULT_DESK_ID, normalizeDeskId } from "./mobileDesk";
 
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
@@ -145,6 +145,8 @@ export type MobileGenJob = {
   deskId?: string;
   /** One experiment still — many positions. Lives on /m/scratch, hidden on /m. */
   scratchPlate?: ScratchPlateRef;
+  /** Siray Draw in flight. Cleared when the still lands. */
+  scratchDraw?: ScratchDrawTask | null;
   finalVideoFile: string;
   error: string;
   createdAt: string;

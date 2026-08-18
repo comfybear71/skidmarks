@@ -1,6 +1,10 @@
 import path from "path";
 import { NextResponse } from "next/server";
-import { compositeShotPlatePreferSiray } from "@/lib/sirayScratchPlate";
+import {
+  compositeShotPlatePreferSiray,
+  finishSirayScratchPlate,
+  submitSirayScratchPlate,
+} from "@/lib/sirayScratchPlate";
 import { runScratchSirayClip } from "@/lib/sirayScratchClip";
 import { sirayConfigured } from "@/lib/sirayClient";
 import {
@@ -27,6 +31,7 @@ import {
   findScratchShot,
   normalizeScratchCast,
   scratchBeatsForCast,
+  scratchDrawStillInFlight,
   scratchStagingForCast,
   type ScratchPlateRef,
 } from "@/lib/mobileScratch";
@@ -128,6 +133,59 @@ function ensureScene(
   };
 }
 
+async function landScratchStill(opts: {
+  job: MobileGenJob;
+  jobId: string;
+  story: CrashStoryDoc;
+  shotId: string;
+  fileName: string;
+  staging: string;
+  speaker: string;
+  cast: string[];
+  poseId?: string;
+}): Promise<MobileGenJob> {
+  const { job, jobId, story, shotId, fileName, staging, speaker, cast, poseId } = opts;
+  try {
+    await uploadMobileMedia({
+      styleId: job.styleId,
+      folderName: job.folderName,
+      kind: "plates",
+      localPath: path.join(CRASH_DIR, "gen", fileName),
+    });
+  } catch {
+    /* still usable this request */
+  }
+  const liveShot = story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === shotId);
+  const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: true };
+  const plateTakes = [...(liveShot?.plateTakes || []).map((t) => ({ ...t, approved: false })), newTake];
+  const plated: CrashStoryDoc = {
+    ...story,
+    scenes: story.scenes.map((sc) => ({
+      ...sc,
+      shots: sc.shots.map((sh) =>
+        sh.id === shotId ? { ...sh, plateFile: fileName, staging, plateTakes } : sh,
+      ),
+    })),
+  };
+  await writeMobileStory(plated, job.folderName);
+  const shots = job.shots.map((s) =>
+    s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
+  );
+  const updated = await patchMobileGenJob(jobId, {
+    shots,
+    error: "",
+    scratchDraw: null,
+    scratchPlate: {
+      ...job.scratchPlate!,
+      speaker,
+      cast,
+      poseId: poseId || job.scratchPlate?.poseId,
+    },
+  });
+  if (!updated) throw new Error("Job vanished");
+  return updated;
+}
+
 async function persistScratch(
   job: MobileGenJob,
   story: CrashStoryDoc,
@@ -159,6 +217,9 @@ async function persistScratch(
  *   — `cast` = everyone on the still (multi lip-sync / pile). Speaker speaks.
  * POST { action: "preset", jobId, poseId, staging?, cast?, speaker? }
  *   — rebuild that same still with a position preset (or typed staging).
+ *     Siray: submit and return `{ pending: true }` — do not wait for the still.
+ * POST { action: "preset-poll", jobId }
+ *   — one Siray tick. `{ pending: true }` until the still lands. Same episode.
  * POST { action: "clip", jobId, beatId?, clipEngine? }
  *   — LTX (default) this scratch plate's Saved mp3, or a Siray i2v
  *     spicy model (`clipEngine: "siray"` = Seedance 2.0 cheap first pass,
@@ -395,58 +456,145 @@ export async function POST(req: Request) {
       await writeMobileStory(nextStory, job.folderName);
       const liveScene = nextStory.scenes.find((sc) => sc.id === scene.id)!;
       const liveShot = liveScene.shots.find((sh) => sh.id === shotId)!;
+
+      if (sirayConfigured()) {
+        const wantDraw = { shotId, staging, speaker, cast: onPad };
+        if (scratchDrawStillInFlight(job.scratchDraw, wantDraw)) {
+          return NextResponse.json({
+            ok: true,
+            pending: true,
+            job,
+            staging,
+            poseId,
+            cast: onPad,
+            backend: "siray-spicy",
+            siray: true,
+          });
+        }
+        const started = await submitSirayScratchPlate(job.styleId, liveScene, liveShot, {
+          silentCast: [],
+          styleRealism: job.styleRealism,
+          job,
+        });
+        const updated = await patchMobileGenJob(jobId, {
+          error: "",
+          scratchPlate: {
+            ...job.scratchPlate,
+            speaker,
+            cast: onPad,
+            poseId: poseId || job.scratchPlate.poseId,
+          },
+          scratchDraw: {
+            taskId: started.taskId,
+            shotId,
+            sceneId: scene.id,
+            staging,
+            poseId: poseId || job.scratchPlate.poseId,
+            speaker,
+            cast: onPad,
+            castNames: started.castNames,
+            placeName: started.placeName,
+            startedAt: new Date().toISOString(),
+          },
+        });
+        return NextResponse.json({
+          ok: true,
+          pending: true,
+          job: updated,
+          staging,
+          poseId,
+          cast: onPad,
+          backend: "siray-spicy",
+          siray: true,
+        });
+      }
+
       const drawn = await compositeShotPlatePreferSiray(job.styleId, liveScene, liveShot, {
         silentCast: [],
         styleRealism: job.styleRealism,
         job,
-        allowFallback: sirayConfigured() ? false : true,
+        allowFallback: true,
       });
-      const fileName = drawn.fileName;
-      try {
-        await uploadMobileMedia({
-          styleId: job.styleId,
-          folderName: job.folderName,
-          kind: "plates",
-          localPath: path.join(CRASH_DIR, "gen", fileName),
-        });
-      } catch {
-        /* still usable this request */
-      }
-      const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: true };
-      const plateTakes = [...(liveShot.plateTakes || []).map((t) => ({ ...t, approved: false })), newTake];
-      const plated = {
-        ...nextStory,
-        scenes: nextStory.scenes.map((sc) => ({
-          ...sc,
-          shots: sc.shots.map((sh) =>
-            sh.id === shotId ? { ...sh, plateFile: fileName, staging, plateTakes } : sh,
-          ),
-        })),
-      };
-      await writeMobileStory(plated, job.folderName);
-      const shots = job.shots.map((s) =>
-        s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
-      );
-      const updated = await patchMobileGenJob(jobId, {
-        shots,
-        error: "",
-        scratchPlate: {
-          ...job.scratchPlate,
-          speaker,
-          cast: onPad,
-          poseId: poseId || job.scratchPlate.poseId,
-        },
+      const landed = await landScratchStill({
+        job,
+        jobId,
+        story: nextStory,
+        shotId,
+        fileName: drawn.fileName,
+        staging,
+        speaker,
+        cast: onPad,
+        poseId: poseId || job.scratchPlate.poseId,
       });
       return NextResponse.json({
         ok: true,
-        job: updated,
-        plateFile: fileName,
+        pending: false,
+        job: landed,
+        plateFile: drawn.fileName,
         staging,
         poseId,
         cast: onPad,
         backend: drawn.backend,
-        siray: sirayConfigured(),
+        siray: false,
       });
+    }
+
+    if (action === "preset-poll") {
+      const task = job.scratchDraw;
+      if (!task?.taskId) {
+        return NextResponse.json(
+          { error: "No Draw in flight — tap Draw again. The episode is still there." },
+          { status: 400 },
+        );
+      }
+      try {
+        const fileName = await finishSirayScratchPlate({
+          taskId: task.taskId,
+          styleId: job.styleId,
+          castNames: task.castNames,
+          placeName: task.placeName,
+        });
+        if (!fileName) {
+          return NextResponse.json({
+            ok: true,
+            pending: true,
+            job,
+            backend: "siray-spicy",
+            siray: true,
+          });
+        }
+        const landed = await landScratchStill({
+          job,
+          jobId,
+          story,
+          shotId: task.shotId,
+          fileName,
+          staging: task.staging,
+          speaker: task.speaker,
+          cast: task.cast,
+          poseId: task.poseId || job.scratchPlate.poseId,
+        });
+        return NextResponse.json({
+          ok: true,
+          pending: false,
+          job: landed,
+          plateFile: fileName,
+          staging: task.staging,
+          poseId: task.poseId,
+          cast: task.cast,
+          backend: "siray-spicy",
+          siray: true,
+        });
+      } catch (e) {
+        const failed = await patchMobileGenJob(jobId, {
+          scratchDraw: null,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : String(e), job: failed || job },
+          { status: 502 },
+        );
+      }
     }
 
     if (action === "clip") {

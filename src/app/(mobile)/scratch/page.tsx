@@ -487,11 +487,12 @@ export default function ScratchPage() {
       );
       if (seq !== drawSeq.current) return;
       setJob(ensured.job);
-      const drawn = await postJson<{
+      let drawn = await postJson<{
         job: MobileGenJob;
         staging?: string;
         backend?: ScratchBackendId;
         siray?: boolean;
+        pending?: boolean;
       }>(
         "/api/crash/mobile/scratch",
         {
@@ -503,6 +504,27 @@ export default function ScratchPage() {
           staging: nextStaging || undefined,
         },
       );
+      if (seq !== drawSeq.current) return;
+      if (drawn.job) setJob(drawn.job);
+      if (drawn.pending) {
+        const started = Date.now();
+        while (drawn.pending) {
+          if (Date.now() - started > 240_000) {
+            throw new Error(
+              "Siray is still drawing. The episode is still there — tap Draw again. Don't start a new episode.",
+            );
+          }
+          await new Promise((r) => setTimeout(r, 3500));
+          if (seq !== drawSeq.current) return;
+          drawn = await postJson<{
+            job: MobileGenJob;
+            staging?: string;
+            backend?: ScratchBackendId;
+            siray?: boolean;
+            pending?: boolean;
+          }>("/api/crash/mobile/scratch", { action: "preset-poll", jobId: job.id });
+        }
+      }
       if (seq !== drawSeq.current) return;
       setJob(drawn.job);
       if (drawn.backend) setStillBackend(drawn.backend);

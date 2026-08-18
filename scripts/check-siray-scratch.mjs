@@ -9,6 +9,7 @@ import {
   scratchWantsNude,
   stripSpeechForSirayMotion,
 } from "../src/lib/sirayI2v.ts";
+import { studioFetchError } from "../src/lib/studioFetchError.ts";
 
 assert.equal(SIRAY_I2V_DEFAULT, "seedance-20");
 assert.equal(sirayI2vSpec("seedance-20").model, "bytedance/seedance-2.0-i2v-spicy");
@@ -73,5 +74,14 @@ const nudeClip = buildSirayI2vPrompt({
 assert.match(nudeClip, /bare body/);
 assert.match(nudeClip, /Do not add clothes/);
 assert.doesNotMatch(nudeClip, /wardrobe and body/);
+
+assert.match(
+  studioFetchError(new TypeError("Failed to fetch"), "Request failed"),
+  /episode is still there/i,
+);
+assert.doesNotMatch(
+  studioFetchError(new TypeError("Failed to fetch"), "Request failed"),
+  /Check the signal/i,
+);
 
 console.log("check-siray-scratch: ok");

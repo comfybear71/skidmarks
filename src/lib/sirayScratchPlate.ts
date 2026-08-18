@@ -23,6 +23,7 @@ import {
   SIRAY_SEEDREAM_45_SIZE,
   sirayConfigured,
   sirayDownloadUrl,
+  sirayPollImageTask,
   siraySubmitImageAsync,
   sirayWaitImageOutputs,
 } from "./sirayClient";
@@ -125,7 +126,7 @@ export async function compositeShotPlatePreferSiray(
   }
 }
 
-export async function compositeShotPlateSiray(
+async function startSirayScratchPlate(
   styleId: ShowStyleId,
   scene: CrashStoryScene,
   shot: CrashStoryShot,
@@ -134,7 +135,7 @@ export async function compositeShotPlateSiray(
     styleRealism?: number;
     job?: PlateJobRef;
   } = {},
-): Promise<string> {
+): Promise<{ taskId: string; castNames: string[]; placeName: string }> {
   if (!sirayConfigured()) {
     throw new Error("Missing SIRAY_API_KEY — https://console.siray.ai/keys");
   }
@@ -205,18 +206,69 @@ export async function compositeShotPlateSiray(
     size: SIRAY_SEEDREAM_45_SIZE,
     images,
   });
-  const urls = await sirayWaitImageOutputs(taskId);
-  const buffer = await sirayDownloadUrl(urls[0]);
+  return { taskId, castNames, placeName: scene.placeName };
+}
 
-  const id = sortableId("cplate");
-  const fileName = `${id}.png`;
+export async function submitSirayScratchPlate(
+  styleId: ShowStyleId,
+  scene: CrashStoryScene,
+  shot: CrashStoryShot,
+  opts: {
+    silentCast?: string[];
+    styleRealism?: number;
+    job?: PlateJobRef;
+  } = {},
+): Promise<{ taskId: string; castNames: string[]; placeName: string }> {
+  return startSirayScratchPlate(styleId, scene, shot, opts);
+}
+
+/** One poll. `null` = still cooking. */
+export async function finishSirayScratchPlate(opts: {
+  taskId: string;
+  styleId: ShowStyleId;
+  castNames: string[];
+  placeName: string;
+}): Promise<string | null> {
+  const tick = await sirayPollImageTask(opts.taskId);
+  if (tick.status === "FAILURE") {
+    throw new Error(tick.failReason || "Siray generation failed");
+  }
+  if (tick.status !== "SUCCESS") return null;
+  if (!tick.outputs.length) throw new Error("Siray SUCCESS but no output URLs");
+  const buffer = await sirayDownloadUrl(tick.outputs[0]);
+  const fileName = `${sortableId("cplate")}.png`;
+  fs.writeFileSync(path.join(genDir(), fileName), buffer);
+  saveCplateMeta({
+    fileName,
+    styleId: opts.styleId,
+    castNames: opts.castNames,
+    placeName: opts.placeName,
+    people: opts.castNames.length,
+  });
+  return fileName;
+}
+
+export async function compositeShotPlateSiray(
+  styleId: ShowStyleId,
+  scene: CrashStoryScene,
+  shot: CrashStoryShot,
+  opts: {
+    silentCast?: string[];
+    styleRealism?: number;
+    job?: PlateJobRef;
+  } = {},
+): Promise<string> {
+  const started = await startSirayScratchPlate(styleId, scene, shot, opts);
+  const urls = await sirayWaitImageOutputs(started.taskId);
+  const buffer = await sirayDownloadUrl(urls[0]);
+  const fileName = `${sortableId("cplate")}.png`;
   fs.writeFileSync(path.join(genDir(), fileName), buffer);
   saveCplateMeta({
     fileName,
     styleId,
-    castNames,
-    placeName: scene.placeName,
-    people: castNames.length,
+    castNames: started.castNames,
+    placeName: started.placeName,
+    people: started.castNames.length,
   });
   return fileName;
 }

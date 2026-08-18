@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { clipsUnderPlate, rememberClipTake, stackedClipFiles } from "../src/lib/mobilePlateClips.ts";
-import { episodeJobShots, isOffEpisodeDeskShot, isScratchShotTitle, scratchPadClips } from "../src/lib/mobileScratch.ts";
+import {
+  episodeJobShots,
+  isOffEpisodeDeskShot,
+  isScratchShotTitle,
+  scratchDrawStillInFlight,
+  scratchPadClips,
+} from "../src/lib/mobileScratch.ts";
 import { isCampaignShotId, isCampaignShotTitle } from "../src/lib/mobilePlateLtxCampaign.ts";
 import { jobDeskId, normalizeDeskId } from "../src/lib/mobileDesk.ts";
 
@@ -68,6 +74,48 @@ const stacked = {
 assert.deepEqual(
   scratchPadClips(stacked).map((c) => c.beatId),
   ["b-t"],
+);
+
+const drawTask = {
+  taskId: "siray-1",
+  shotId: "scr1",
+  sceneId: "sc1",
+  staging: "Adult TEE, fully nude at the bar",
+  speaker: "TEE",
+  cast: ["TEE"],
+  castNames: ["TEE"],
+  placeName: "the bar",
+  startedAt: new Date().toISOString(),
+};
+assert.equal(
+  scratchDrawStillInFlight(drawTask, {
+    shotId: "scr1",
+    staging: "Adult TEE, fully nude at the bar",
+    speaker: "TEE",
+    cast: ["TEE"],
+  }),
+  true,
+);
+assert.equal(
+  scratchDrawStillInFlight(drawTask, {
+    shotId: "scr1",
+    staging: "Adult TEE, fully nude at the bar",
+    speaker: "TEE",
+    cast: ["BEX"],
+  }),
+  false,
+);
+assert.equal(
+  scratchDrawStillInFlight(
+    { ...drawTask, startedAt: new Date(Date.now() - 241_000).toISOString() },
+    {
+      shotId: "scr1",
+      staging: "Adult TEE, fully nude at the bar",
+      speaker: "TEE",
+      cast: ["TEE"],
+    },
+  ),
+  false,
 );
 
 console.log("check-mobile-scratch: ok");
