@@ -905,6 +905,51 @@ export function StudioTree({
         </a>
       </TreeBranch>
 
+      {job.phase === "review" ? (
+        <div style={{ margin: "0 0 22px", display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
+            {plated.length}/{episodeShots.length} plated · {queued.length}{" "}
+            {queued.length === 1 ? "line queued" : "lines queued"}
+            {queued.length === 0 && plated.length
+              ? " — Save the spoken line (Play appears) before Generate video"
+              : queued.length
+                ? ` — Generate sends Saved mp3s (stacks under the plate; tap again to render again)`
+                : ""}
+          </div>
+          {job.error ? (
+            <div style={{ color: "var(--magenta-hot)", fontSize: "13px" }}>{job.error}</div>
+          ) : null}
+          {job.clips.some((c) => c.clipStatus === "error" && c.error) ? (
+            <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>
+              {job.clips
+                .filter((c) => c.clipStatus === "error" && c.error)
+                .map((c) => c.error)
+                .join(" · ")}
+            </div>
+          ) : null}
+          {episodeShots.length ? (
+            <MobilePrimaryButton
+              disabled={busy || plating || !unplated}
+              onClick={() => void plateTheEpisode()}
+            >
+              {plating
+                ? plateGraphHint || "Plating…"
+                : unplated
+                  ? `Plate the episode (${unplated} left)`
+                  : "Plate the episode — all plated"}
+            </MobilePrimaryButton>
+          ) : null}
+          {plateGraphHint && !plating ? (
+            <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>{plateGraphHint}</div>
+          ) : null}
+          {plated.length || busy ? (
+            <MobilePrimaryButton disabled={busy || plating || !plated.length} onClick={onGenerateVideo}>
+              {busy ? "Sending…" : "Generate video"}
+            </MobilePrimaryButton>
+          ) : null}
+        </div>
+      ) : null}
+
       <TreeBranch label="Cast" headerRight={<CollapseToggle open={castOpen} onToggle={() => setCastOpen((v) => !v)} />}>
         <div
           style={{
@@ -1157,55 +1202,6 @@ export function StudioTree({
             collapsed={!platesOpen}
             onExpand={() => setPlatesOpen(true)}
           />
-        ) : null}
-
-        {job.phase === "review" ? (
-          <div style={{ marginTop: "12px" }}>
-            <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "10px" }}>
-              {plated.length}/{episodeShots.length} plated · {queued.length}{" "}
-              {queued.length === 1 ? "line queued" : "lines queued"}
-              {queued.length === 0 && plated.length
-                ? " — Save the spoken line (Play appears) before Generate video"
-                : queued.length
-                  ? ` — Generate sends Saved mp3s (stacks under the plate; tap again to render again)`
-                  : ""}
-            </div>
-            {job.error ? (
-              <div style={{ color: "var(--magenta-hot)", fontSize: "13px", marginBottom: "10px" }}>
-                {job.error}
-              </div>
-            ) : null}
-            {job.clips.some((c) => c.clipStatus === "error" && c.error) ? (
-              <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginBottom: "10px" }}>
-                {job.clips
-                  .filter((c) => c.clipStatus === "error" && c.error)
-                  .map((c) => c.error)
-                  .join(" · ")}
-              </div>
-            ) : null}
-            {episodeShots.length ? (
-              <MobilePrimaryButton
-                disabled={busy || plating || !unplated}
-                onClick={() => void plateTheEpisode()}
-              >
-                {plating
-                  ? plateGraphHint || "Plating…"
-                  : unplated
-                    ? `Plate the episode (${unplated} left)`
-                    : "Plate the episode — all plated"}
-              </MobilePrimaryButton>
-            ) : null}
-            {plateGraphHint && !plating ? (
-              <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "8px 0" }}>
-                {plateGraphHint}
-              </div>
-            ) : null}
-            {plated.length || busy ? (
-              <MobilePrimaryButton disabled={busy || plating || !plated.length} onClick={onGenerateVideo}>
-                {busy ? "Sending…" : "Generate video"}
-              </MobilePrimaryButton>
-            ) : null}
-          </div>
         ) : null}
 
         {platesOpen && job.phase === "animate" ? (
