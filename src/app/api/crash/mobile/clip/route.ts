@@ -23,22 +23,26 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  // runLtxSmoke writes here (ltxOutDir) — not the plates "gen" dir, which
-  // holds still images, not clips. Older takes may be parked in _cleared/
-  // when a beat was re-rendered locally.
+  // LTX clips land in ltx/; Siray Scratch clips land in gen/ as sclip_*.mp4.
   const localPath = path.join(CRASH_DIR, "ltx", fileName);
   const clearedPath = path.join(CRASH_DIR, "ltx", "_cleared", fileName);
-  const filePath = fs.existsSync(localPath)
+  const genPath = path.join(CRASH_DIR, "gen", fileName);
+  let filePath: string | null = fs.existsSync(localPath)
     ? localPath
     : fs.existsSync(clearedPath)
       ? clearedPath
-      : await resolveMobileMedia({
-          styleId,
-          folderName,
-          kind: "mp4",
-          fileName,
-          destPath: localPath,
-        });
+      : fileName.startsWith("sclip_") && fs.existsSync(genPath)
+        ? genPath
+        : null;
+  if (!filePath) {
+    filePath = await resolveMobileMedia({
+      styleId,
+      folderName,
+      kind: "mp4",
+      fileName,
+      destPath: fileName.startsWith("sclip_") ? genPath : localPath,
+    });
+  }
   if (filePath && fs.existsSync(filePath)) {
     return serveMediaFile(req, filePath, "video/mp4", {
       "Cache-Control": "private, max-age=120",

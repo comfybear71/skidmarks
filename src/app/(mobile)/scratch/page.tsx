@@ -8,7 +8,7 @@ import {
   mobileCard,
 } from "@/components/mobile/MobileUi";
 import { CastVoiceRow } from "@/components/mobile/CastVoiceRow";
-import { PlateClipThumbs, clipsUnderPlate } from "@/components/mobile/PlateClipThumbs";
+import { PlateClipThumbs, clipsUnderPlate, mobileClipSrc } from "@/components/mobile/PlateClipThumbs";
 import { OpenEpisodePicker } from "@/components/mobile/OpenEpisodePicker";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId, clearResumedJobId } from "@/lib/mobileJobResume";
@@ -278,6 +278,7 @@ export default function ScratchPage() {
   const [clipEngine, setClipEngine] = useState<ScratchClipPick>("ltx");
   const [stillBackend, setStillBackend] = useState<ScratchBackendId>("unknown");
   const [clipStamp, setClipStamp] = useState("");
+  const [clipPhase, setClipPhase] = useState<"" | "sending" | "siray">("");
   const [joPhone, setJoPhone] = useState(true);
   const [sirayReady, setSirayReady] = useState(false);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
@@ -286,6 +287,7 @@ export default function ScratchPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const padSurfaceRef = useRef<HTMLDivElement | null>(null);
   const drawSeq = useRef(0);
+  const clipPollSeq = useRef(0);
   const drawStartedAt = useRef(0);
   const [drawTick, setDrawTick] = useState(0);
 
@@ -1031,6 +1033,77 @@ export default function ScratchPage() {
     }
   }
 
+  async function pollSirayClipUntilDone(
+    jobId: string,
+    beatId: string,
+    onTick?: (next: MobileGenJob) => void,
+  ) {
+    type ClipPollResult = {
+      job?: MobileGenJob;
+      backend?: ScratchBackendId;
+      siray?: boolean;
+      clipLabel?: string;
+      i2v?: SirayI2vId;
+      pending?: boolean;
+    };
+    let data: ClipPollResult = { pending: true };
+    const started = Date.now();
+    while (data.pending) {
+      if (Date.now() - started > 720_000) {
+        throw new Error(
+          "Siray is still making the clip. The episode is still there — tap Generate again. Don't start a new episode.",
+        );
+      }
+      await new Promise((r) => setTimeout(r, 5000));
+      data = await postJson<ClipPollResult>("/api/crash/mobile/scratch", {
+        action: "clip-poll",
+        jobId,
+        beatId,
+      });
+      if (data.job) {
+        onTick?.(data.job);
+      }
+    }
+    return data;
+  }
+
+  function logClipBenchRun(data: {
+    job?: MobileGenJob;
+    backend?: ScratchBackendId;
+    clipLabel?: string;
+  }) {
+    if (!job || !beat) return;
+    const ranLabel =
+      data.clipLabel ||
+      (clipEngine === "ltx" ? "LTX (mp3)" : sirayI2vSpec(clipEngine).label);
+    setClipStamp(ranLabel);
+    const clipFile =
+      data.job?.clips?.filter((c) => c.beatId === beat.id && c.clipFile).at(-1)?.clipFile || "";
+    const clipUrl = clipFile && data.job ? mobileClipSrc(data.job, clipFile) : undefined;
+    let loggedId: string | null = null;
+    setBench((prev) => {
+      const next = appendBenchRun(prev, {
+        kind: "clip",
+        backend: data.backend || (clipEngine === "ltx" ? "ltx" : "siray-i2v"),
+        chaosId: prev.chaosId,
+        positionPrompt: staging || undefined,
+        plateUrl: plateSrc || undefined,
+        clipUrl,
+        styleId: data.job?.styleId || job.styleId,
+        mediaFolder: mobileMediaFolder(data.job || job),
+        plateFile: plateFile && plateFile !== "__error__" ? plateFile : undefined,
+        clipFile: clipFile || undefined,
+        tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
+        placements: placements.length ? placements : undefined,
+        environment: placeName || undefined,
+        dialogue: line.trim() || undefined,
+      });
+      loggedId = next.runs[0]?.id || null;
+      return next;
+    });
+    setSelectedRunId(loggedId);
+  }
+
   async function makeClip() {
     if (!job || !beat) return;
     setBusy("clip");
@@ -1038,6 +1111,10 @@ export default function ScratchPage() {
     try {
       if (motionBody.trim()) {
         await persistMotion(motionBody);
+      }
+      if (clipEngine !== "ltx") {
+        setClipPhase("sending");
+        setClipStamp("Sending to Siray…");
       }
       let data = await postJson<{
         job?: MobileGenJob;
@@ -1052,68 +1129,55 @@ export default function ScratchPage() {
         beatId: beat.id,
         clipEngine,
       });
-      if (data.pending) {
-        const started = Date.now();
-        while (data.pending) {
-          if (Date.now() - started > 720_000) {
-            throw new Error(
-              "Siray is still making the clip. The episode is still there — tap Generate again. Don't start a new episode.",
-            );
-          }
-          await new Promise((r) => setTimeout(r, 5000));
-          data = await postJson<{
-            job?: MobileGenJob;
-            backend?: ScratchBackendId;
-            siray?: boolean;
-            clipLabel?: string;
-            i2v?: SirayI2vId;
-            pending?: boolean;
-          }>("/api/crash/mobile/scratch", {
-            action: "clip-poll",
-            jobId: job.id,
-            beatId: beat.id,
-          });
+      if (typeof data.siray === "boolean") setSirayReady(data.siray);
+      if (data.job) setJob(data.job);
+      if (clipEngine !== "ltx" && data.pending) {
+        if (!data.job?.scratchClip?.taskId) {
+          throw new Error("Siray did not confirm the clip — wait a moment, then tap Generate once.");
         }
+        setClipPhase("siray");
+        setClipStamp("Siray confirmed — cooking (~3 min). Don't tap Generate again.");
+        data = await pollSirayClipUntilDone(job.id, beat.id, setJob);
       }
       if (typeof data.siray === "boolean") setSirayReady(data.siray);
       if (data.job) setJob(data.job);
-      const ranLabel =
-        data.clipLabel ||
-        (clipEngine === "ltx" ? "LTX (mp3)" : sirayI2vSpec(clipEngine).label);
-      setClipStamp(ranLabel);
-      const clipFile =
-        data.job?.clips?.filter((c) => c.beatId === beat.id && c.clipFile).at(-1)?.clipFile || "";
-      const clipUrl = clipFile
-        ? `/api/crash/gen/file?name=${encodeURIComponent(clipFile)}`
-        : undefined;
-      let loggedId: string | null = null;
-      setBench((prev) => {
-        const next = appendBenchRun(prev, {
-          kind: "clip",
-          backend: data.backend || (clipEngine === "ltx" ? "ltx" : "siray-i2v"),
-          chaosId: prev.chaosId,
-          positionPrompt: staging || undefined,
-          plateUrl: plateSrc || undefined,
-          clipUrl,
-          styleId: data.job?.styleId || job.styleId,
-          mediaFolder: mobileMediaFolder(data.job || job),
-          plateFile: plateFile && plateFile !== "__error__" ? plateFile : undefined,
-          clipFile: clipFile || undefined,
-          tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
-          placements: placements.length ? placements : undefined,
-          environment: placeName || undefined,
-          dialogue: line.trim() || undefined,
-        });
-        loggedId = next.runs[0]?.id || null;
-        return next;
-      });
-      setSelectedRunId(loggedId);
+      logClipBenchRun(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't send the clip");
     } finally {
+      setClipPhase("");
       setBusy("");
     }
   }
+
+  useEffect(() => {
+    if (!job?.scratchClip?.taskId || !beat || clipEngine === "ltx") return;
+    if (clipPhase || busy) return;
+    const seq = ++clipPollSeq.current;
+    setClipPhase("siray");
+    setClipStamp("Siray cooking — ~3 min. Don't tap Generate again.");
+    setBusy("clip");
+    setError("");
+    void pollSirayClipUntilDone(job.id, beat.id, (next) => {
+      if (seq !== clipPollSeq.current) return;
+      setJob(next);
+    })
+      .then((data) => {
+        if (seq !== clipPollSeq.current) return;
+        if (typeof data.siray === "boolean") setSirayReady(data.siray);
+        if (data.job) setJob(data.job);
+        logClipBenchRun(data);
+      })
+      .catch((e) => {
+        if (seq !== clipPollSeq.current) return;
+        setError(e instanceof Error ? e.message : "Couldn't finish the clip");
+      })
+      .finally(() => {
+        if (seq !== clipPollSeq.current) return;
+        setClipPhase("");
+        setBusy("");
+      });
+  }, [job?.scratchClip?.taskId, beat?.id, clipEngine, clipPhase, busy]);
 
   const playable = Boolean(effectiveVoiceFile && isMobileSavedVoiceFile(effectiveVoiceFile));
   const clipPlayable = Boolean(
@@ -1124,8 +1188,12 @@ export default function ScratchPage() {
   );
   const canGenerate = playable || clipPlayable;
   const canSirayGenerate = Boolean(plateSrc && beat && job);
-  const generateReady = clipEngine === "ltx" ? canGenerate : canSirayGenerate && sirayReady;
   const sirayClip = clipEngine !== "ltx";
+  const sirayCooking = Boolean(sirayClip && job?.scratchClip?.taskId);
+  const generateLocked =
+    Boolean(busy) || clipPhase !== "" || sirayCooking;
+  const generateReady =
+    (clipEngine === "ltx" ? canGenerate : canSirayGenerate && sirayReady) && !generateLocked;
   const selectedSiray = sirayClip ? sirayI2vSpec(clipEngine) : sirayI2vSpec(SIRAY_I2V_DEFAULT);
 
   useScratchPadHotkeys({
@@ -1139,7 +1207,7 @@ export default function ScratchPage() {
       });
     },
     onGenerate: () => {
-      if (busy || !generateReady) return;
+      if (generateLocked || !generateReady) return;
       void makeClip();
     },
     onArchive: () => {
@@ -1414,9 +1482,23 @@ export default function ScratchPage() {
               </div>
             </div>
 
-            {job.folderName && stackClips.length ? (
+            {stackClips.length || sirayCooking ? (
               <div className="scratch-clip-rail">
-                <PlateClipThumbs job={job} clips={stackClips} poster={plateSrc || undefined} preload />
+                {stackClips.length ? (
+                  <PlateClipThumbs
+                    job={job}
+                    clips={stackClips}
+                    poster={plateSrc || undefined}
+                    preload
+                    layout="strip"
+                  />
+                ) : null}
+                {sirayCooking || clipPhase === "siray" ? (
+                  <div className="scratch-clip-cooking" aria-live="polite">
+                    <span className="scratch-clip-cooking-label">Siray</span>
+                    <span className="scratch-clip-cooking-hint">Cooking…</span>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -1570,8 +1652,18 @@ export default function ScratchPage() {
                 <div style={{ flex: "1 1 auto" }} />
               )}
               <div style={{ flex: "0 0 auto" }}>
-                <MobilePrimaryButton disabled={!generateReady || Boolean(busy)} onClick={() => void makeClip()} tone="ghost">
-                  {busy === "clip" ? "Sending…" : "Generate"}
+                <MobilePrimaryButton
+                  disabled={!generateReady}
+                  onClick={() => void makeClip()}
+                  tone="ghost"
+                >
+                  {clipPhase === "sending"
+                    ? "Sending…"
+                    : clipPhase === "siray" || sirayCooking
+                      ? "Siray cooking…"
+                      : busy === "clip"
+                        ? "Working…"
+                        : "Generate"}
                 </MobilePrimaryButton>
               </div>
             </div>

@@ -1,14 +1,16 @@
 import path from "path";
 import type { MobileClipUnit } from "./mobileGenJob";
+import { mobileMediaFolder } from "./mobileJobFolder";
 
 export function mobileClipSrc(
-  job: { styleId: string; folderName: string },
+  job: { id: string; styleId: string; folderName: string },
   clipFile: string,
 ): string {
   const fileName = path.basename(clipFile.split(/[\\/]/).pop() || clipFile);
+  const folderName = mobileMediaFolder(job);
   return (
     `/api/crash/mobile/clip?styleId=${encodeURIComponent(job.styleId)}` +
-    `&folderName=${encodeURIComponent(job.folderName)}` +
+    `&folderName=${encodeURIComponent(folderName)}` +
     `&fileName=${encodeURIComponent(fileName)}`
   );
 }

@@ -10,6 +10,7 @@ export const PLATE_TILE_PX = 160;
 
 /**
  * /m strip: square plate, then 16:9 players stacked under it — same width.
+ * Scratch pad uses `layout="strip"` — oldest take left, newest right, swipe sideways.
  * Every Generate take stays. Empty pending slots stay hidden.
  */
 export function PlateClipThumbs({
@@ -17,12 +18,14 @@ export function PlateClipThumbs({
   clips,
   preload,
   poster,
+  layout = "stack",
 }: {
-  job: { styleId: string; folderName: string };
+  job: { id: string; styleId: string; folderName: string };
   clips: MobileClipUnit[];
   preload?: boolean;
   /** Plate still — first frame stand-in so the box is not black before play. */
   poster?: string;
+  layout?: "stack" | "strip";
 }) {
   const files = clips.flatMap((clip, i) => {
     const stacked = stackedClipFiles(clip);
@@ -34,13 +37,14 @@ export function PlateClipThumbs({
     }));
   });
   if (!files.length) return null;
+  const row = layout === "strip";
   return (
     <div
       style={{
         display: "flex",
-        flexDirection: "column",
+        flexDirection: row ? "row" : "column",
         gap: "6px",
-        width: `${PLATE_TILE_PX}px`,
+        width: row ? "auto" : `${PLATE_TILE_PX}px`,
         flex: "0 0 auto",
       }}
     >

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { clipsUnderPlate, rememberClipTake, stackedClipFiles } from "../src/lib/mobilePlateClips.ts";
+import { clipsUnderPlate, mobileClipSrc, rememberClipTake, stackedClipFiles } from "../src/lib/mobilePlateClips.ts";
 import {
   episodeJobShots,
   isOffEpisodeDeskShot,
@@ -246,5 +246,16 @@ const goneId = bench.runs[0].id;
 bench = removeBenchRun(bench, goneId);
 assert.equal(bench.runs.length, 0);
 assert.equal(removeBenchRun(bench, goneId).runs.length, 0);
+
+assert.match(
+  mobileClipSrc({ id: "mgen_test", styleId: "skidmarks", folderName: "" }, "sclip_abc.mp4"),
+  /folderName=mgen_test/,
+);
+assert.deepEqual(
+  stackedClipFiles(
+    rememberClipTake({ clipFile: "sclip_one.mp4", priorClipFiles: [] }, "sclip_two.mp4"),
+  ),
+  ["sclip_one.mp4", "sclip_two.mp4"],
+);
 
 console.log("check-mobile-scratch: ok");
