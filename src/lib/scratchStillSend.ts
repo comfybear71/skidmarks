@@ -3,9 +3,8 @@
  * If a layer is not in this list, it is not sent.
  */
 
-import { buildCrashGenLook } from "./imageGen";
+import { buildCrashGenLook } from "./crashGenLook";
 import type { ShowStyleId } from "./showStylePresets";
-import { getShowStylePreset } from "./showStylePresets";
 import { isJoKeyboardWarrior } from "./mobileImageMotion";
 import { plateCastStagingNote } from "./mobilePlateLines";
 import { withScratchEmptyHands } from "./mobileImageMotion";
@@ -83,10 +82,9 @@ export function buildScratchStillSend(opts: {
   joPhone: boolean;
 }): ScratchStillSend {
   const speakers = [...new Set(opts.speakers.map((s) => s.trim()).filter(Boolean))];
-  const preset = getShowStylePreset(opts.styleId);
   const styleRealism = Number.isFinite(opts.styleRealism)
     ? Math.max(0, Math.min(100, Math.round(opts.styleRealism as number)))
-    : preset.defaultRealism;
+    : 60;
   const joOnPad = padHasJo(speakers);
   const joPhone = joOnPad && opts.joPhone;
   const looks = looksLineForSpeakers(speakers, opts.looksByName);
