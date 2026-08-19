@@ -176,9 +176,12 @@ body {
   aspect-ratio: 1;
   min-height: 180px;
   max-height: min(42dvh, 360px);
-  object-fit: cover;
+  /* contain = same framing as Enlarge; cover was cropping heads on tall full-body stills */
+  object-fit: contain;
+  object-position: center center;
   display: block;
   margin: 0 auto;
+  background: var(--void);
 }
 
 /* Stage tight under the title — prompt + knobs share the console under Draw. */
@@ -631,9 +634,10 @@ span.scratch-history-blob {
 .scratch-history-thumb {
   width: 100%;
   aspect-ratio: 1;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center center;
   display: block;
-  background: var(--panel);
+  background: var(--void);
 }
 
 .scratch-history-thumb-empty {
