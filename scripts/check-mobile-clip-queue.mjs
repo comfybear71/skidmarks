@@ -242,6 +242,49 @@ const keptPending = mergeClipsFromStory(
 assert.equal(keptPending.length, 1, "Generate must not drop a Saved take if hydrate still shows leftover pack");
 assert.equal(keptPending[0].clipStatus, "pending");
 
+const savedMp3 = "01_01_LADDER_ONE_her-line_mjx8k2.mp3";
+const hydratedScratchStory = {
+  ...savedStory,
+  scenes: [
+    {
+      ...savedStory.scenes[0],
+      shots: [
+        {
+          id: "scr1",
+          title: "Scratch",
+          summary: "",
+          staging: "",
+          plateFile: "p.png",
+          beats: [{ id: "b1", speaker: "LADDER ONE", text: "Hi", voiceFile: "" }],
+        },
+      ],
+    },
+  ],
+};
+const scratchClipJob = {
+  ...job,
+  speakers: ["LADDER ONE"],
+  shots: [{ shotId: "scr1", sceneId: "sc1", plateFile: "p.png" }],
+  clips: [
+    {
+      beatId: "b1",
+      shotId: "scr1",
+      sceneId: "sc1",
+      clipFile: "",
+      clipStatus: "pending",
+      error: "",
+      speaker: "LADDER ONE",
+      line: "Hi",
+      voiceFile: savedMp3,
+    },
+  ],
+};
+assert.equal(
+  mergeClipsFromStory(scratchClipJob, hydratedScratchStory).find((c) => c.beatId === "b1")?.voiceFile,
+  savedMp3,
+  "hydrated story must not wipe the Saved mp3 on the clip row",
+);
+
 const alreadyDone = mergeClipsFromStory(
   {
     ...job,

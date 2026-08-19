@@ -23,7 +23,13 @@ import {
   looksLikePlatePositionPrompt,
 } from "./mobileImageMotion";
 import { campaignImageMotionForId } from "./mobilePlateLtxCampaign";
-import { patchMobileGenJob, type MobileClipUnit, type MobileGenJob } from "./mobileGenJob";
+import {
+  mobileCandidateFolders,
+  mobileMediaFolder,
+  patchMobileGenJob,
+  type MobileClipUnit,
+  type MobileGenJob,
+} from "./mobileGenJob";
 import type { CrashStoryDoc } from "./crashStoryTypes";
 
 async function ensureComfyReady(): Promise<string> {
@@ -64,28 +70,37 @@ export async function runScratchLtxClip(opts: {
   if (!shot.plateFile) throw new Error("Draw the still first");
   if (!storyShot || !beat) throw new Error("That line is missing from the scratch plate");
 
+  const mediaFolder = mobileMediaFolder(job);
   const defaultPlatePath =
     resolveGenOrPackPlate(shot.plateFile) ||
     (await resolveMobileMedia({
       styleId: job.styleId,
-      folderName: job.folderName,
+      folderName: mediaFolder,
       kind: "plates",
       fileName: shot.plateFile,
       destPath: path.join(CRASH_DIR, "gen", shot.plateFile),
     }));
   if (!defaultPlatePath) throw new Error("Plate file missing on disk");
 
-  const voiceFile = (beat.voiceFile || "").trim();
-  const speaker = (beat.speaker || "").trim();
-  const line = (beat.text || "").trim();
+  const clipRow = (job.clips || []).find((c) => c.beatId === beatId);
+  // Cloud story hydrate can blank beat.voiceFile on read while the queued
+  // clip still holds the Save take — same fix as /m step/route.ts.
+  const voiceFile = (clipRow?.voiceFile || beat.voiceFile || "").trim();
+  const speaker = (clipRow?.speaker || beat.speaker || "").trim();
+  const line = (clipRow?.line || beat.text || "").trim();
   const audioPath = await resolveMobileBeatAudio({
     styleId: job.styleId,
-    folderName: job.folderName,
+    folderName: mediaFolder,
+    folderCandidates: mobileCandidateFolders(job),
     beatId: beat.id,
     voiceFile,
   });
   if (!audioPath) {
-    throw new Error("Save the spoken line first — Play appears when the mp3 is ready.");
+    throw new Error(
+      voiceFile
+        ? `Beat mp3 not reachable — voiceFile="${voiceFile}" folderName="${mediaFolder}" beatId=${beat.id}`
+        : "Save the spoken line first — Play appears when the mp3 is ready.",
+    );
   }
   if (looksLikePlatePositionPrompt(line)) {
     throw new Error("That's the still position, not speech. Wipe the line box, type what they say, then Save.");
@@ -168,7 +183,7 @@ export async function runScratchLtxClip(opts: {
 
   const startStill = await startStillForNextClip({
     styleId: job.styleId,
-    folderName: job.folderName,
+    folderName: mediaFolder,
     clips: job.clips,
     next: { beatId, shotId },
     defaultPlatePath,
@@ -190,7 +205,7 @@ export async function runScratchLtxClip(opts: {
     try {
       await uploadMobileMedia({
         styleId: job.styleId,
-        folderName: job.folderName,
+        folderName: mediaFolder,
         kind: "mp4",
         localPath: result.localMp4,
       });

@@ -141,8 +141,8 @@ export function mergeClipsFromStory(
       shotId: row.shotId,
       sceneId: row.sceneId,
       speaker: row.speaker,
-      line: row.line,
-      voiceFile: row.voiceFile,
+      line: row.line || prev.line,
+      voiceFile: row.voiceFile || prev.voiceFile,
       ...(requeue && prev.clipStatus !== "pending"
         ? { clipStatus: "pending" as const, error: "" }
         : {}),
