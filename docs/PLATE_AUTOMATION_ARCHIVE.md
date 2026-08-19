@@ -2,6 +2,17 @@
 
 Logged **2026-08-19**. Living list of what we can know before send. Append when Scratch or `/m` proves a new Pass or Fail.
 
+## Owner intent — Scratch first, then `/m` (2026-08-19)
+
+Stuie's goal: **lessons from Scratch testing** should feed a **simple-prompt path on `/m`**, not the other way around.
+
+- **Do not** batch 100 LTX / Generate runs on untested still prompts or scenarios — artifacts and hallucination already ruined too much art.
+- **Do** hammer stills on `/scratch` (cheap Draw, history restore to pad, Pass/Fail score, CSV export) until a prompt + pose + wardrobe combo **passes**.
+- **Only then** use that proven still + gold IMAGE MOTION wording on `/m` for speech / lip-sync.
+- Scratch = identity, pose, wardrobe, style slip, place lock. `/m` = mp3, speaking motion, rant split, clip chain — **not** a place to discover whether the still prompt works.
+
+Better end state (not built yet): promote Scratch **Pass** rows into Prompt bible chips + a small `/m` “use proven kit” picker — never auto-run LTX on un scored prompts.
+
 **Go (2026-08-19):** wire these into `/m` send and still Draw. Do **not** rewrite live pack `story_json` (First Fleet gold stays as logged). Never Close / New episode / clear Story.
 
 Wired now:
