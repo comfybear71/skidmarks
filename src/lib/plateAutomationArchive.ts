@@ -150,6 +150,24 @@ export const PLATE_AUTOMATION_ENTRIES: ArchiveEntry[] = [
     why: "Re-using the original plate for every rant chunk snaps the mouth/pose back to T=0. FLF2V / Director overlap the same way: the last frame of clip N is the start still of clip N+1.",
     fix: "nextClipToAnimate waits on earlier same-shot takes. startStillForNextClip extracts the previous mp4's last frame with ffmpeg and hands it to Cloud IA2V. First chunk still uses the plate.",
   },
+  {
+    id: "ltx-25-flf2v-not-speech",
+    surface: "mobile",
+    layer: "speech",
+    verdict: "fails",
+    title: "Official LTX-2.5 FLF2V is not /m speech",
+    why: "Hub graph d78377cf53f4 interpolates two stills and invents audio from the Audio VAE. There is no LoadAudio. Pointing Generate at it would drop Stuie's mp3.",
+    fix: "Keep /m on LTX-2.3 IA2V (plate + mp3). FLF2V is two scored stills → silent/camera move later. See docs/LTX_25_FLF2V_RESEARCH.md.",
+  },
+  {
+    id: "ltx-25-flf2v-two-guides",
+    surface: "both",
+    layer: "speech",
+    verdict: "works",
+    title: "FLF2V locks start at frame 0 and end at frame -1",
+    why: "Official subgraph uses two LTXVAddGuide nodes, strength 0.7, CRF 18 preprocess, duration×fps+1 frames, distilled CFG 1. That is first+last still interpolation, not one-plate lip-sync.",
+    fix: "If we ever test pose-to-pose on Scratch: two same-aspect stills, start+end prompt lock, no mp3. Do not use the original plate as the last frame of a talking chunk (snaps the mouth back).",
+  },
 ];
 
 export type SpeechClipAdvice = {
