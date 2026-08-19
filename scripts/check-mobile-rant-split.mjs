@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   LTX_RANT_HOLD_SEC,
   LTX_RANT_MAX_WORDS,
+  insertBeatAfter,
   splitSpokenRant,
   wordCount,
 } from "../src/lib/mobileRantSplit.ts";
@@ -30,5 +31,23 @@ const runParts = splitSpokenRant(runOn);
 assert.ok(runParts.length >= 2, `run-on should split, got ${runParts.length}`);
 assert.ok(runParts.every((p) => wordCount(p) <= LTX_RANT_MAX_WORDS));
 assert.equal(runParts.join(" "), runOn.replace(/\s+/g, " ").trim());
+
+const beats = [
+  { id: "a", text: "chunk 1" },
+  { id: "other", text: "someone else" },
+];
+const withChunk2 = insertBeatAfter(beats, "a", { id: "a2", text: "chunk 2" });
+assert.deepEqual(
+  withChunk2.map((b) => b.id),
+  ["a", "a2", "other"],
+  "rant extras sit next to the original line, not at the end of the shot",
+);
+const withChunk3 = insertBeatAfter(withChunk2, "a2", { id: "a3", text: "chunk 3" });
+assert.deepEqual(withChunk3.map((b) => b.id), ["a", "a2", "a3", "other"]);
+assert.deepEqual(insertBeatAfter(beats, "missing", { id: "z", text: "z" }).map((b) => b.id), [
+  "a",
+  "other",
+  "z",
+]);
 
 console.log("check-mobile-rant-split: ok");
