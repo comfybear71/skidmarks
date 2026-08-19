@@ -2,6 +2,7 @@
  * Scratch pad clip via Siray Seedance 2.0 i2v Spicy.
  * Start image is the plate. Motion prompt drives the take.
  * Does not lip-sync the Saved mp3 — that stays LTX / Comfy.
+ * Submit returns a task_id; the browser polls so Vercel does not drop the wait.
  */
 
 import fs from "fs";
@@ -13,16 +14,15 @@ import { rememberClipTake } from "./mobilePlateClips";
 import { probeDurationSeconds } from "./mediaDuration";
 import { CRASH_DIR } from "./paths";
 import { stripLtxLipSyncLead } from "./mobileImageMotion";
-import { patchMobileGenJob, type MobileClipUnit, type MobileGenJob } from "./mobileGenJob";
+import { patchMobileGenJob, readMobileGenJob, type MobileClipUnit, type MobileGenJob } from "./mobileGenJob";
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import { sortableId } from "./types";
 import { fileToSirayVideoDataUrl } from "./sirayScratchPlate";
 import {
-  clampSirayI2vDurationSec,
   sirayConfigured,
   sirayDownloadUrl,
+  sirayPollVideoTask,
   siraySubmitVideoAsync,
-  sirayWaitVideoOutputs,
 } from "./sirayClient";
 import {
   buildSirayI2vPrompt,
@@ -31,6 +31,7 @@ import {
   snapSirayI2vDurationSec,
   type SirayI2vId,
 } from "./sirayI2v";
+import type { ScratchClipTask } from "./mobileScratch";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
@@ -40,18 +41,32 @@ function genDir() {
 
 export { buildSirayI2vPrompt } from "./sirayI2v";
 
+async function markClipError(jobId: string, beatId: string, message: string): Promise<MobileGenJob> {
+  const job = await readMobileGenJob(jobId);
+  if (!job) throw new Error(message);
+  const next = (job.clips || []).map((c) =>
+    c.beatId === beatId ? { ...c, clipStatus: "error" as const, error: message } : c,
+  );
+  return (await patchMobileGenJob(jobId, { clips: next, scratchClip: null, error: message }))!;
+}
+
 /**
- * One Seedance spicy clip for the scratch plate. Does not flip job.phase.
- * /m stays on review. Patches only this beat's clip row.
+ * Submit only. Caller stores scratchClip and returns `{ pending: true }`.
  */
-export async function runScratchSirayClip(opts: {
+export async function submitScratchSirayClip(opts: {
   job: MobileGenJob;
   story: CrashStoryDoc;
   shotId: string;
   sceneId: string;
   beatId: string;
   i2v?: SirayI2vId;
-}): Promise<{ job: MobileGenJob; i2v: SirayI2vId; model: string; label: string }> {
+}): Promise<{
+  job: MobileGenJob;
+  task: ScratchClipTask;
+  i2v: SirayI2vId;
+  model: string;
+  label: string;
+}> {
   if (!sirayConfigured()) {
     throw new Error("Missing SIRAY_API_KEY — https://console.siray.ai/keys");
   }
@@ -148,35 +163,62 @@ export async function runScratchSirayClip(opts: {
       ...(spec.id === "wan-27" ? { prompt_expansion_enable: false } : {}),
       audio_enable: false,
     });
-    const urls = await sirayWaitVideoOutputs(taskId);
-    const buffer = await sirayDownloadUrl(urls[0]);
-    const fileName = `${sortableId("sclip")}.mp4`;
-    const localMp4 = path.join(genDir(), fileName);
-    fs.writeFileSync(localMp4, buffer);
-    try {
-      await uploadMobileMedia({
-        styleId: job.styleId,
-        folderName: job.folderName,
-        kind: "mp4",
-        localPath: localMp4,
-      });
-    } catch {
-      /* clip still usable this request */
-    }
-    const next = job.clips.map((c) =>
-      c.beatId === beatId
-        ? { ...c, ...rememberClipTake(c, localMp4), clipStatus: "done" as const }
-        : c,
-    );
-    job = (await patchMobileGenJob(jobId, { clips: next }))!;
+    const task: ScratchClipTask = {
+      taskId,
+      shotId,
+      sceneId,
+      beatId,
+      i2v,
+      model: spec.model,
+      label: spec.label,
+      startedAt: new Date().toISOString(),
+    };
+    job = (await patchMobileGenJob(jobId, { scratchClip: task, error: "" }))!;
+    return { job, task, i2v, model: spec.model, label: spec.label };
   } catch (e) {
-    const next = job.clips.map((c) =>
-      c.beatId === beatId
-        ? { ...c, clipStatus: "error" as const, error: e instanceof Error ? e.message : String(e) }
-        : c,
-    );
-    job = (await patchMobileGenJob(jobId, { clips: next }))!;
+    const message = e instanceof Error ? e.message : String(e);
+    job = await markClipError(jobId, beatId, message);
     throw e;
   }
-  return { job, i2v, model: spec.model, label: spec.label };
+}
+
+/** One poll. `null` job pending = still cooking. */
+export async function finishScratchSirayClip(opts: {
+  job: MobileGenJob;
+  task: ScratchClipTask;
+}): Promise<{ pending: true; job: MobileGenJob } | { pending: false; job: MobileGenJob }> {
+  const { task } = opts;
+  const jobId = opts.job.id;
+  const tick = await sirayPollVideoTask(task.taskId);
+  if (tick.status === "FAILURE") {
+    const message = tick.failReason || "Siray video generation failed";
+    const job = await markClipError(jobId, task.beatId, message);
+    throw new Error(message);
+  }
+  if (tick.status !== "SUCCESS") {
+    return { pending: true, job: opts.job };
+  }
+  if (!tick.outputs.length) throw new Error("Siray video SUCCESS but no output URLs");
+  const buffer = await sirayDownloadUrl(tick.outputs[0]);
+  const fileName = `${sortableId("sclip")}.mp4`;
+  const localMp4 = path.join(genDir(), fileName);
+  fs.writeFileSync(localMp4, buffer);
+  try {
+    await uploadMobileMedia({
+      styleId: opts.job.styleId,
+      folderName: opts.job.folderName,
+      kind: "mp4",
+      localPath: localMp4,
+    });
+  } catch {
+    /* clip still usable this request */
+  }
+  const live = (await readMobileGenJob(jobId)) || opts.job;
+  const next = (live.clips || []).map((c) =>
+    c.beatId === task.beatId
+      ? { ...c, ...rememberClipTake(c, localMp4), clipStatus: "done" as const, error: "" }
+      : c,
+  );
+  const job = (await patchMobileGenJob(jobId, { clips: next, scratchClip: null, error: "" }))!;
+  return { pending: false, job };
 }

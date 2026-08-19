@@ -1,5 +1,6 @@
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileClipUnit, MobileGenJob, MobileShotUnit } from "./mobileGenJob";
+import type { SirayI2vId } from "./sirayI2v";
 import { isCampaignShotId, campaignStagingForId } from "./mobilePlateLtxCampaign";
 import { newId } from "./types";
 import { defaultSoloStaging } from "./mobileImageMotion";
@@ -34,6 +35,33 @@ export type ScratchDrawTask = {
 
 /** Reuse the same Siray task if Draw dropped after submit (do not mint a new episode). */
 export const SCRATCH_DRAW_RESUME_MS = 240_000;
+
+/** In-flight Siray i2v clip — browser polls so Vercel does not drop an 8-minute POST. */
+export type ScratchClipTask = {
+  taskId: string;
+  shotId: string;
+  sceneId: string;
+  beatId: string;
+  i2v: SirayI2vId;
+  model: string;
+  label: string;
+  startedAt: string;
+};
+
+export const SCRATCH_CLIP_RESUME_MS = 720_000;
+
+export function scratchClipStillInFlight(
+  task: ScratchClipTask | null | undefined,
+  want: { shotId: string; beatId: string; i2v: SirayI2vId },
+  nowMs = Date.now(),
+): boolean {
+  if (!task?.taskId) return false;
+  const started = Date.parse(task.startedAt);
+  if (!Number.isFinite(started) || nowMs - started > SCRATCH_CLIP_RESUME_MS) return false;
+  if (task.shotId !== want.shotId) return false;
+  if (task.beatId !== want.beatId) return false;
+  return task.i2v === want.i2v;
+}
 
 export function scratchDrawStillInFlight(
   task: ScratchDrawTask | null | undefined,

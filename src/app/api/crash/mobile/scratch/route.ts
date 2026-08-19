@@ -5,7 +5,7 @@ import {
   finishSirayScratchPlate,
   submitSirayScratchPlate,
 } from "@/lib/sirayScratchPlate";
-import { runScratchSirayClip } from "@/lib/sirayScratchClip";
+import { finishScratchSirayClip, submitScratchSirayClip } from "@/lib/sirayScratchClip";
 import { sirayConfigured } from "@/lib/sirayClient";
 import {
   parseScratchClipEngine,
@@ -33,6 +33,7 @@ import {
   isScratchShotTitle,
   normalizeScratchCast,
   scratchBeatsForCast,
+  scratchClipStillInFlight,
   scratchDrawStillInFlight,
   scratchStagingForCast,
   type ScratchPlateRef,
@@ -304,9 +305,9 @@ async function restoreScratchPlate(opts: {
  * POST { action: "select-place", jobId, sceneId }
  *   — park a place on the pad. Hides the last composite. Faces stay.
  * POST { action: "clip", jobId, beatId?, clipEngine? }
- *   — LTX (default) this scratch plate's Saved mp3, or a Siray i2v
- *     spicy model (`clipEngine: "siray"` = Seedance 2.0 cheap first pass,
- *     or seedance-20 / seedance-25 / wan-27 / wan-30). Does not queue the episode.
+ *   — LTX waits on this request. Siray i2v submits and returns `{ pending: true }`.
+ * POST { action: "clip-poll", jobId }
+ *   — one Siray video tick. `{ pending: true }` until the mp4 lands. Same episode.
  * GET — whether SIRAY_API_KEY is on this process (no secrets).
  */
 export async function GET() {
@@ -842,7 +843,20 @@ export async function POST(req: Request) {
             siray: sirayConfigured(),
           });
         }
-        const drawn = await runScratchSirayClip({
+        const want = { shotId, beatId, i2v: clipPick };
+        if (scratchClipStillInFlight(job.scratchClip, want)) {
+          return NextResponse.json({
+            ok: true,
+            pending: true,
+            job,
+            backend: "siray-i2v",
+            clipModel: job.scratchClip?.model,
+            clipLabel: job.scratchClip?.label,
+            i2v: clipPick,
+            siray: true,
+          });
+        }
+        const drawn = await submitScratchSirayClip({
           job,
           story,
           shotId,
@@ -852,12 +866,60 @@ export async function POST(req: Request) {
         });
         return NextResponse.json({
           ok: true,
+          pending: true,
           job: drawn.job,
           backend: "siray-i2v",
           clipModel: drawn.model,
           clipLabel: drawn.label,
           i2v: drawn.i2v,
           siray: sirayConfigured(),
+        });
+      } catch (e) {
+        const latest = await readMobileGenJob(jobId);
+        return NextResponse.json(
+          {
+            error: e instanceof Error ? e.message : String(e),
+            job: latest || job,
+          },
+          { status: 502 },
+        );
+      }
+    }
+
+    if (action === "clip-poll") {
+      const task = job.scratchClip;
+      if (!task?.taskId) {
+        const beatId = (body.beatId || "").trim();
+        const landed = beatId
+          ? (job.clips || []).find((c) => c.beatId === beatId && c.clipFile && c.clipStatus === "done")
+          : (job.clips || []).find((c) => c.clipFile && c.clipStatus === "done");
+        if (landed?.clipFile) {
+          return NextResponse.json({
+            ok: true,
+            pending: false,
+            recovered: true,
+            job,
+            backend: "siray-i2v",
+            clipLabel: sirayI2vSpec(SIRAY_I2V_DEFAULT).label,
+            siray: true,
+          });
+        }
+        return NextResponse.json(
+          { error: "No clip in flight — tap Generate again. The episode is still there." },
+          { status: 400 },
+        );
+      }
+      try {
+        const tick = await finishScratchSirayClip({ job, task });
+        return NextResponse.json({
+          ok: true,
+          pending: tick.pending,
+          job: tick.job,
+          backend: "siray-i2v",
+          clipModel: task.model,
+          clipLabel: task.label,
+          i2v: task.i2v,
+          siray: true,
         });
       } catch (e) {
         const latest = await readMobileGenJob(jobId);
