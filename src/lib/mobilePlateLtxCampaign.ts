@@ -100,15 +100,14 @@ function alone(name: string, place: string, body: string): string {
 const SCENARIOS: Scenario[] = [
   {
     id: "mcu-phone",
-    label: "01 Closer MCU + phone",
+    label: "01 Closer MCU",
     staging: (n, p) =>
       alone(
         n,
         p,
-        `MEDIUM CLOSE-UP, head and shoulders fill the frame, crop the waist and legs, ${n} is huge and near the camera. Sitting, mobile phone right under the chin, both thumbs on the glass, staring at the screen like a crazed maniac. Not a distant full-body. Not a wide of the place.`,
+        `MEDIUM CLOSE-UP, head and shoulders fill the frame, crop the waist and legs, ${n} is huge and near the camera. Not a distant full-body. Not a wide of the place.`,
       ),
-    action: () =>
-      "holding a mobile phone close to the face, texting, staring at the screen like a crazed maniac",
+    action: () => "head and shoulders, mouth and head move naturally while speaking",
   },
   {
     id: "wide-full",
