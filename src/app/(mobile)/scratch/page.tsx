@@ -1614,10 +1614,10 @@ export default function ScratchPage() {
               multiline
               rows={2}
             />
-            {canGenerate && effectiveVoiceFile && beat && job.folderName ? (
+            {canGenerate && effectiveVoiceFile && beat && job ? (
               <MobileAudioPlayer
                 src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}&folderName=${encodeURIComponent(
-                  job.folderName,
+                  mobileMediaFolder(job),
                 )}&beatId=${encodeURIComponent(beat.id)}&fileName=${encodeURIComponent(effectiveVoiceFile)}`}
               />
             ) : line.trim() && beat ? (

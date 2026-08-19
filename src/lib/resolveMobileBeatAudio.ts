@@ -15,6 +15,8 @@ import type { ShowStyleId } from "./showStylePresets";
 export async function resolveMobileBeatAudio(opts: {
   styleId: ShowStyleId;
   folderName: string;
+  /** Extra Blob folders to try (job id before pack exists, etc.). */
+  folderCandidates?: string[];
   beatId: string;
   voiceFile?: string;
 }): Promise<string | null> {
@@ -25,20 +27,28 @@ export async function resolveMobileBeatAudio(opts: {
       ),
     ),
   ];
+  const folders = [
+    ...new Set(
+      [opts.folderName, ...(opts.folderCandidates || [])]
+        .map((f) => f.trim())
+        .filter(Boolean),
+    ),
+  ];
   for (const fileName of names) {
     if (!isSafeMediaName(fileName)) continue;
     const destPath = path.join(storyDialogueDir(opts.styleId), fileName);
     const onDisk = resolveBeatAudioPath(opts.styleId, opts.beatId, fileName);
     if (onDisk) return onDisk;
-    if (!opts.folderName) continue;
-    const fromFolder = await resolveMobileMedia({
-      styleId: opts.styleId,
-      folderName: opts.folderName,
-      kind: "audio",
-      fileName,
-      destPath,
-    });
-    if (fromFolder) return fromFolder;
+    for (const folderName of folders) {
+      const fromFolder = await resolveMobileMedia({
+        styleId: opts.styleId,
+        folderName,
+        kind: "audio",
+        fileName,
+        destPath,
+      });
+      if (fromFolder) return fromFolder;
+    }
     const byName = await resolveMobileMediaByFilename({
       kind: "audio",
       fileName,
