@@ -18,11 +18,9 @@ import {
   buildGlobalPrompt,
   ltxSendPrompt,
   stripLtxLipSyncLead,
-  imageMotionUsableForLine,
   looksLikePlatePositionPrompt,
   scratchLtxMotionNeedsRebuild,
 } from "./mobileImageMotion";
-import { campaignImageMotionForId } from "./mobilePlateLtxCampaign";
 import {
   mobileCandidateFolders,
   mobileMediaFolder,
@@ -54,9 +52,8 @@ export async function runScratchLtxClip(opts: {
   shotId: string;
   sceneId: string;
   beatId: string;
-  poseId?: string;
 }): Promise<MobileGenJob> {
-  const { story, shotId, sceneId, beatId, poseId } = opts;
+  const { story, shotId, sceneId, beatId } = opts;
   let job = opts.job;
   const jobId = job.id;
   const shot = job.shots.find((s) => s.shotId === shotId);
@@ -121,23 +118,13 @@ export async function runScratchLtxClip(opts: {
     beats: storyShot.beats,
   });
   const stored = stripLtxLipSyncLead(beat.imageMotion || "");
-  const fromPose =
-    poseId && line
-      ? campaignImageMotionForId({
-          id: poseId,
-          styleId: job.styleId,
-          speaker,
-          line,
-        })
-      : "";
   const storedOk =
-    stored &&
+    Boolean(stored) &&
     !imageMotionNamesLeftovers(stored, leftovers) &&
-    imageMotionUsableForLine(stored, line, storyShot.staging) &&
+    !looksLikePlatePositionPrompt(stored) &&
     !scratchLtxMotionNeedsRebuild(stored);
   const body =
     (storedOk ? stored : "") ||
-    fromPose ||
     buildScratchPadLtxMotion({
       styleId: job.styleId,
       speaker,
