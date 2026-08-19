@@ -9,7 +9,7 @@ import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import { candidateLookPrompt } from "./mobileJobReady";
-import { plateCastStagingNote, shotSpeakersOnCard } from "./mobilePlateLines";
+import { shotSpeakersOnCard } from "./mobilePlateLines";
 import {
   compositeShotPlate,
   resolvePlateBackground,
@@ -27,16 +27,8 @@ import {
   siraySubmitImageAsync,
   sirayWaitImageOutputs,
 } from "./sirayClient";
-import { buildCrashGenLook } from "./imageGen";
 import { saveCplateMeta } from "./cplateManifest";
-import {
-  scratchWantsNude,
-  scratchNudeStillLock,
-  SCRATCH_SINGLE_FRAME_LOCK,
-  scratchStartImageLock,
-} from "./sirayI2v";
-import { withScratchEmptyHands } from "./mobileImageMotion";
-import { stripScratchLayoutMarks } from "./scratchBench/padDrop";
+import { buildScratchStillSend, padHasJo, type ScratchStillSend } from "./scratchStillSend";
 import { resolveGenOrPackPlate } from "./crashActivePack";
 
 function genDir() {
@@ -66,47 +58,27 @@ export function buildSirayScratchPrompt(opts: {
   placeLook: string;
   staging: string;
   refineFromStill?: boolean;
+  joPhone?: boolean;
 }): string {
-  const look = buildCrashGenLook(opts.styleId, opts.styleRealism);
-  const n = opts.speakers.length;
-  const nudeText = `${opts.staging} ${opts.looks}`;
-  const nude = scratchWantsNude(nudeText);
-  const who =
-    n === 1
-      ? `Image 2 is ${opts.speakers[0]}'s face card. Copy that face exactly — same face, hair, age, skin and body. Do not invent a new face. Place them IN image 1. One person only. One photograph.`
-      : opts.speakers
-          .map(
-            (name, i) =>
-              `Image ${i + 2} is ${name}'s face card. Copy that face exactly — same face, hair, age, skin. Do not invent a new face for ${name}.`,
-          )
-          .concat(
-            `Put all of them INTO image 1 as people in that room. Never merge faces. Exactly ${n} people. Not a panel per person.`,
-          )
-          .join(" ");
-  const looks = [
-    nude ? "Ignore clothes on the face cards. Keep each face from its card." : "",
-    opts.looks ? `Looks: ${opts.looks}` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-  return [
-    look,
-    scratchStartImageLock(Boolean(opts.refineFromStill)),
-    SCRATCH_SINGLE_FRAME_LOCK,
-    who,
-    nude ? scratchNudeStillLock(nudeText, opts.speakers) : "",
-    nude && n > 1
-      ? "Only undress who the staging names as nude. Everyone else keeps their clothes. No floating name labels."
-      : "",
-    looks,
-    opts.placeLook ? `Place look: ${opts.placeLook}` : "",
-    opts.staging
-      ? `Staging / position: ${opts.staging}`
-      : `Staging: ${opts.speakers.join(" and ")} naturally in ${opts.placeName || "this place"}.`,
-    "No writing, no signage text, no captions, no watermarks.",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const looksByName: Record<string, string> = {};
+  for (const name of opts.speakers) {
+    const prefix = `${name} looks like: `;
+    if (opts.looks.includes(prefix)) {
+      const rest = opts.looks.slice(opts.looks.indexOf(prefix) + prefix.length);
+      looksByName[name] = rest.split(". ")[0] || rest;
+    }
+  }
+  return buildScratchStillSend({
+    styleId: opts.styleId,
+    styleRealism: opts.styleRealism,
+    placeName: opts.placeName,
+    speakers: opts.speakers,
+    looksByName,
+    placeLook: opts.placeLook,
+    staging: opts.staging,
+    refineFromStill: Boolean(opts.refineFromStill),
+    joPhone: padHasJo(opts.speakers) ? opts.joPhone !== false : false,
+  }).prompt;
 }
 
 /**
@@ -159,8 +131,9 @@ async function startSirayScratchPlate(
     job?: PlateJobRef;
     /** Edit the last Draw. False after Clear plate (empty room again). */
     useLastStill?: boolean;
+    joPhone?: boolean;
   } = {},
-): Promise<{ taskId: string; castNames: string[]; placeName: string }> {
+): Promise<{ taskId: string; castNames: string[]; placeName: string; send: ScratchStillSend }> {
   if (!sirayConfigured()) {
     throw new Error("Missing SIRAY_API_KEY — https://console.siray.ai/keys");
   }
@@ -214,31 +187,23 @@ async function startSirayScratchPlate(
   const styleRealism = Number.isFinite(opts.styleRealism)
     ? Math.max(0, Math.min(100, Math.round(opts.styleRealism as number)))
     : preset.defaultRealism;
-  const looks = castNames
-    .map((name) => {
-      const look = opts.job ? candidateLookPrompt(opts.job.castCandidates, name) : "";
-      return look ? `${name} looks like: ${look}` : "";
-    })
-    .filter(Boolean)
-    .join(". ");
+  const looksByName: Record<string, string> = {};
+  for (const name of castNames) {
+    looksByName[name] = opts.job ? candidateLookPrompt(opts.job.castCandidates, name) : "";
+  }
   const placeLook = opts.job ? candidateLookPrompt(opts.job.locationCandidates, scene.id) : "";
-  const staging = plateCastStagingNote({
-    speakers: castNames,
-    staging: withScratchEmptyHands(stripScratchLayoutMarks(shot.staging || "")),
-    looks,
-    placeLook,
-  });
-
-  const prompt = buildSirayScratchPrompt({
+  const send = buildScratchStillSend({
     styleId,
     styleRealism,
     placeName: scene.placeName,
     speakers: castNames,
-    looks,
+    looksByName,
     placeLook,
-    staging,
+    staging: shot.staging || "",
     refineFromStill,
+    joPhone: padHasJo(castNames) ? opts.joPhone !== false : false,
   });
+  const prompt = send.prompt;
 
   const images = [fileToDataUrl(bgPath), ...castPaths.map(fileToDataUrl)];
   const taskId = await siraySubmitImageAsync({
@@ -247,7 +212,7 @@ async function startSirayScratchPlate(
     size: SIRAY_SEEDREAM_45_SIZE,
     images,
   });
-  return { taskId, castNames, placeName: scene.placeName };
+  return { taskId, castNames, placeName: scene.placeName, send };
 }
 
 export async function submitSirayScratchPlate(
@@ -259,8 +224,9 @@ export async function submitSirayScratchPlate(
     styleRealism?: number;
     job?: PlateJobRef;
     useLastStill?: boolean;
+    joPhone?: boolean;
   } = {},
-): Promise<{ taskId: string; castNames: string[]; placeName: string }> {
+): Promise<{ taskId: string; castNames: string[]; placeName: string; send: ScratchStillSend }> {
   return startSirayScratchPlate(styleId, scene, shot, opts);
 }
 

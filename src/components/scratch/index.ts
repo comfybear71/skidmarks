@@ -6,4 +6,5 @@ export { ScratchScoreToggles } from "./ScratchScoreToggles";
 export { ScratchHistoryStrip } from "./ScratchHistoryStrip";
 export { ScratchCanvasOverlay } from "./ScratchCanvasOverlay";
 export { ScratchPromptBible } from "./ScratchPromptBible";
+export { ScratchFloorPanel } from "./ScratchFloorPanel";
 export type { ScratchBiblePickMode } from "./ScratchPromptBible";

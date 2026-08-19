@@ -29,6 +29,7 @@ import { campaignImageMotionForId } from "@/lib/mobilePlateLtxCampaign";
 import {
   SCRATCH_SHOT_TITLE,
   findScratchShot,
+  isScratchShotTitle,
   normalizeScratchCast,
   scratchBeatsForCast,
   scratchDrawStillInFlight,
@@ -262,6 +263,7 @@ export async function POST(req: Request) {
       staging?: string;
       beatId?: string;
       clipEngine?: string;
+      joPhone?: boolean;
     };
     const jobId = (body.jobId || "").trim();
     const action = (body.action || "ensure").trim().toLowerCase();
@@ -448,6 +450,12 @@ export async function POST(req: Request) {
     if (!scene || !shot) {
       return NextResponse.json({ error: "Scratch plate is missing — tap Draw again" }, { status: 404 });
     }
+    if (!isScratchShotTitle(shot.title)) {
+      return NextResponse.json(
+        { error: "Scratch will not rewrite a live episode shot. Park on the Scratch plate." },
+        { status: 400 },
+      );
+    }
 
     if (action === "preset") {
       const poseId = (body.poseId || "").trim();
@@ -476,6 +484,7 @@ export async function POST(req: Request) {
       if (!staging) {
         return NextResponse.json({ error: "Pick a position preset" }, { status: 400 });
       }
+      const joPhone = body.joPhone !== false;
       const nextStory: CrashStoryDoc = {
         ...story,
         scenes: story.scenes.map((sc) => ({
@@ -525,6 +534,7 @@ export async function POST(req: Request) {
           styleRealism: job.styleRealism,
           job,
           useLastStill: !job.scratchPadCleared,
+          joPhone,
         });
         const updated = await patchMobileGenJob(jobId, {
           error: "",
@@ -545,6 +555,8 @@ export async function POST(req: Request) {
             castNames: started.castNames,
             placeName: started.placeName,
             startedAt: new Date().toISOString(),
+            joPhone,
+            sendPrompt: started.send.prompt,
           },
         });
         return NextResponse.json({
@@ -556,6 +568,7 @@ export async function POST(req: Request) {
           cast: onPad,
           backend: "siray-spicy",
           siray: true,
+          send: started.send,
         });
       }
 
@@ -634,6 +647,7 @@ export async function POST(req: Request) {
           cast: task.cast,
           backend: "siray-spicy",
           siray: true,
+          sendPrompt: task.sendPrompt || "",
         });
       } catch (e) {
         const failed = await patchMobileGenJob(jobId, {

@@ -147,9 +147,9 @@ export function directorWantsEmptyHands(text: string): boolean {
 }
 
 /** Scratch letter that never named a phone — do not inject JO's keyboard-warrior default. */
-export function withScratchEmptyHands(staging: string): string {
+export function withScratchEmptyHands(staging: string, skip = false): string {
   const t = (staging || "").trim();
-  if (!t) return t;
+  if (!t || skip) return t;
   if (directorWantsEmptyHands(t)) return t;
   if (/\b(phone|mobile)\b/i.test(t)) return t;
   return `${t}\n\nEmpty hands. Arms down at her sides. No phone. Do not copy a phone from the face card.`;
@@ -164,7 +164,12 @@ function stagingAlreadyNamesHeldProp(staging: string): boolean {
 }
 
 /** Extra sentence for the plate still when Jo is on the card and no other prop is named. */
-export function joPhoneStagingExtra(speakers: string[], staging: string): string {
+export function joPhoneStagingExtra(
+  speakers: string[],
+  staging: string,
+  allow = true,
+): string {
+  if (!allow) return "";
   if (!speakers.some((n) => isJoKeyboardWarrior(n))) return "";
   if (directorWantsEmptyHands(staging)) return "";
   if (stagingAlreadyNamesHeldProp(staging)) return "";

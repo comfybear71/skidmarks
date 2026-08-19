@@ -28,6 +28,8 @@ export type ScratchDrawTask = {
   castNames: string[];
   placeName: string;
   startedAt: string;
+  joPhone?: boolean;
+  sendPrompt?: string;
 };
 
 /** Reuse the same Siray task if Draw dropped after submit (do not mint a new episode). */
