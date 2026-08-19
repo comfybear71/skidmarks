@@ -205,7 +205,9 @@ async function startSirayScratchPlate(
   });
   const prompt = send.prompt;
 
-  const images = [fileToDataUrl(bgPath), ...castPaths.map(fileToDataUrl)];
+  const images = refineFromStill
+    ? [fileToDataUrl(bgPath)]
+    : [fileToDataUrl(bgPath), ...castPaths.map(fileToDataUrl)];
   const taskId = await siraySubmitImageAsync({
     model: SIRAY_SEEDREAM_45_REF2I_SPICY,
     prompt,

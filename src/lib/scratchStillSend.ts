@@ -13,6 +13,7 @@ import {
   scratchNudeStillLock,
   scratchStartImageLock,
   scratchWantsNude,
+  SCRATCH_REFINE_IMAGE_ONLY_LOCK,
   SCRATCH_SINGLE_FRAME_LOCK,
 } from "./sirayI2v";
 import { candidateLookPrompt } from "./mobileJobReady";
@@ -36,6 +37,8 @@ export type ScratchStillSend = {
   joPhone: boolean;
   faces: ScratchFaceRecord[];
   placeLook: string;
+  /** Siray gets one image only — no face cards on the wire. */
+  imageOnlyRefine?: boolean;
 };
 
 export function padHasJo(speakers: string[]): boolean {
@@ -69,6 +72,40 @@ export function faceRecordsFromJob(
   });
 }
 
+/** Refine from a pass still — one image, user staging only. No face/place/show stacks. */
+export function buildScratchRefineSend(opts: {
+  staging: string;
+  speakers?: string[];
+}): ScratchStillSend {
+  const raw = stripScratchLayoutMarks(opts.staging || "").trim();
+  const speakers = [...new Set((opts.speakers || []).map((s) => s.trim()).filter(Boolean))];
+  const nude = scratchWantsNude(raw);
+  const nudeLock = nude
+    ? "Same bare body, skin, and wardrobe as the attached image. Do not add clothes. Do not censor anatomy already visible in the image."
+    : "";
+  const watermark = "No writing, no signage text, no captions, no watermarks.";
+  const layers: ScratchSendLayer[] = [
+    { id: "refine", label: "Image only", text: SCRATCH_REFINE_IMAGE_ONLY_LOCK },
+    ...(nudeLock ? [{ id: "nude", label: "Nude lock", text: nudeLock }] : []),
+    {
+      id: "staging",
+      label: "Change only",
+      text: raw ? `Change only: ${raw}` : "No staging — return the same image.",
+    },
+    { id: "watermark", label: "No text in picture", text: watermark },
+  ];
+  const prompt = layers.map((l) => l.text).filter(Boolean).join("\n\n");
+  return {
+    layers,
+    prompt,
+    nude,
+    joPhone: false,
+    faces: [],
+    placeLook: "",
+    imageOnlyRefine: true,
+  };
+}
+
 export function buildScratchStillSend(opts: {
   styleId: ShowStyleId;
   styleRealism?: number;
@@ -81,6 +118,10 @@ export function buildScratchStillSend(opts: {
   /** When Jo is on the pad: phone/maniac layer. Ignored if Jo is not on the pad. */
   joPhone: boolean;
 }): ScratchStillSend {
+  if (opts.refineFromStill) {
+    return buildScratchRefineSend({ staging: opts.staging, speakers: opts.speakers });
+  }
+
   const speakers = [...new Set(opts.speakers.map((s) => s.trim()).filter(Boolean))];
   const styleRealism = Number.isFinite(opts.styleRealism)
     ? Math.max(0, Math.min(100, Math.round(opts.styleRealism as number)))
@@ -120,7 +161,7 @@ export function buildScratchStillSend(opts: {
     .filter(Boolean)
     .join(" ");
   const style = buildCrashGenLook(opts.styleId, styleRealism);
-  const startLock = scratchStartImageLock(Boolean(opts.refineFromStill));
+  const startLock = scratchStartImageLock(false);
   const nudeLock = nude ? scratchNudeStillLock(nudeText, speakers) : "";
   const multiNude =
     nude && n > 1
@@ -133,7 +174,7 @@ export function buildScratchStillSend(opts: {
 
   const layers: ScratchSendLayer[] = [
     { id: "style", label: "Show look (slider)", text: style },
-    { id: "start", label: opts.refineFromStill ? "Last still lock" : "Place lock", text: startLock },
+    { id: "start", label: "Place lock", text: startLock },
     { id: "frame", label: "One photograph", text: SCRATCH_SINGLE_FRAME_LOCK },
     { id: "face", label: "Face card", text: who },
     ...(nudeLock ? [{ id: "nude", label: "Nude lock", text: nudeLock }] : []),
