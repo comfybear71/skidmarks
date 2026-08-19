@@ -16,6 +16,7 @@ import {
   phaseAfterErrorResume,
 } from "@/lib/mobilePipeline";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { mobileCandidateFolders, mobileMediaFolder } from "@/lib/mobileJobFolder";
 import { rememberClipTake, stackedClipFiles } from "@/lib/mobilePlateClips";
 import {
   clipNeedsAnimate,
@@ -176,7 +177,14 @@ export async function POST(req: Request) {
         if (isOffEpisodeDeskShot(live, shotId, story)) return [c];
         const hasTakes = stackedClipFiles(c).length > 0;
         if (!isMobileSavedVoiceFile(c.voiceFile) && !hasTakes) return [];
-        const voiceFile = home?.voiceFile || c.voiceFile;
+        // Prefer the clip's Saved take — cloud story hydrate often blanks
+        // beat.voiceFile while the queue still holds the real mp3 name.
+        const voiceFile =
+          (isMobileSavedVoiceFile(c.voiceFile) && c.voiceFile) ||
+          (isMobileSavedVoiceFile(home?.voiceFile) && home?.voiceFile) ||
+          c.voiceFile ||
+          home?.voiceFile ||
+          "";
         if (!isMobileSavedVoiceFile(voiceFile) && !hasTakes) return [];
         return [
           {
@@ -369,20 +377,20 @@ export async function POST(req: Request) {
         const voiceFile = (next.voiceFile || beat.voiceFile || "").trim();
         const speaker = (next.speaker || beat.speaker || "").trim();
         const line = (next.line || beat.text || "").trim();
+        // Same lookup Scratch / Play use: pack folder + job-id shelf + Neon
+        // by filename. Save can land under the job id before folderName is set.
+        const mediaFolder = mobileMediaFolder(job);
         const audioPath = await resolveMobileBeatAudio({
           styleId: job.styleId,
-          folderName: job.folderName,
+          folderName: mediaFolder,
+          folderCandidates: mobileCandidateFolders(job),
           beatId: beat.id,
           voiceFile,
         });
         if (!audioPath) {
-          // The generic "GEN MP3 first" from runLtxCloudIa2v gives no way to
-          // tell "never voiced" apart from "voiced but unreachable from this
-          // request" — say exactly which file, whose story beat, and whether
-          // the queued clip even agrees with the story on what that file is.
           throw new Error(
             `Beat mp3 not reachable — story.voiceFile="${beat.voiceFile || "(empty)"}" ` +
-              `clip.voiceFile="${next.voiceFile || "(empty)"}" folderName="${job.folderName}" beatId=${beat.id}`,
+              `clip.voiceFile="${next.voiceFile || "(empty)"}" folderName="${mediaFolder}" beatId=${beat.id}`,
           );
         }
 
