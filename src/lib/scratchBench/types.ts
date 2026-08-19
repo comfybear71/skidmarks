@@ -75,6 +75,10 @@ export type ScratchBenchRun = {
   placements?: { name: string; xPercent: number; yPercent: number }[];
   environment?: string;
   dialogue?: string;
+  /** Full Draw send — sealed with the run. */
+  sendPrompt?: string;
+  sendLayers?: { id: string; label: string; text: string }[];
+  faceLooks?: { name: string; look: string }[];
 };
 
 export type ScratchBenchSession = {

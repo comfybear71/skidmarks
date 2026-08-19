@@ -629,6 +629,59 @@ body {
   color: var(--acid);
 }
 
+/* Studio floor — face record + visible Draw send */
+.scratch-floor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-2);
+}
+
+.scratch-floor-lead {
+  margin: 0;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.scratch-floor-face {
+  font-size: 12px;
+  color: var(--chrome);
+}
+
+.scratch-floor-face p {
+  margin: 4px 0 0;
+  color: var(--chrome-dim);
+  white-space: pre-wrap;
+}
+
+.scratch-floor-jo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--chrome);
+}
+
+.scratch-floor-layer {
+  font-size: 12px;
+}
+
+.scratch-floor-layer summary {
+  cursor: pointer;
+  color: var(--acid);
+}
+
+.scratch-floor-layer pre {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  font-size: 11px;
+  color: var(--chrome-dim);
+}
+
 /* Prompt bible — 3-col accordion; titles only until one opens */
 .scratch-bible {
   display: flex;

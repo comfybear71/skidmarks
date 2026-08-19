@@ -202,10 +202,13 @@ export function plateCastStagingNote(opts: {
   staging?: string;
   looks?: string;
   placeLook?: string;
+  /** False = never inject Jo phone. Default true (Jo on pad still uses the extra). */
+  joPhone?: boolean;
 }): string {
   const speakers = [...new Set(opts.speakers.map((s) => s.trim()).filter(Boolean))];
   const solo = speakers.length === 1;
   const name = speakers[0] || "The character";
+  const joPhone = opts.joPhone !== false;
   const staging =
     (opts.staging || "").trim() ||
     (solo
@@ -213,7 +216,7 @@ export function plateCastStagingNote(opts: {
       : "People inhabit the place — sitting, leaning, presenting, using the furniture.");
   return [
     staging,
-    joPhoneStagingExtra(speakers, staging),
+    joPhoneStagingExtra(speakers, staging, joPhone),
     directorWantsEmptyHands(staging) ? "Empty hands. No phone in anyone's hands." : "",
     opts.looks,
     opts.placeLook ? `This place: ${opts.placeLook}` : "",

@@ -119,10 +119,11 @@ export function scratchNudeLooksMale(text: string, speakers: string[] = []): boo
 }
 
 export function scratchNudeStillLock(text: string, speakers: string[] = []): string {
-  const lock = scratchNudeLooksMale(text, speakers)
-    ? SCRATCH_NUDE_STILL_LOCK_MALE
-    : SCRATCH_NUDE_STILL_LOCK;
-  return scratchWantsNude(text) ? `${lock} ${SCRATCH_NUDE_MALE_ANATOMY}` : lock;
+  if (!scratchWantsNude(text)) return "";
+  if (scratchNudeLooksMale(text, speakers)) {
+    return `${SCRATCH_NUDE_STILL_LOCK_MALE} ${SCRATCH_NUDE_MALE_ANATOMY}`;
+  }
+  return SCRATCH_NUDE_STILL_LOCK;
 }
 
 export function scratchNudeI2vLock(text: string, speakers: string[] = []): string {

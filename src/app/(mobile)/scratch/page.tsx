@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import {
   MobileAudioPlayer,
   MobilePrimaryButton,
@@ -18,11 +18,7 @@ import { approvedCandidateFileName, preferredCandidate, candidateLookPrompt } fr
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { findScratchShot, scratchPadClips } from "@/lib/mobileScratch";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
-import {
-  buildDefaultBeatMotion,
-  LTX_LIP_SYNC_LEAD,
-  stripLtxLipSyncLead,
-} from "@/lib/mobileImageMotion";
+import { buildDefaultBeatMotion, LTX_LIP_SYNC_LEAD, stripLtxLipSyncLead } from "@/lib/mobileImageMotion";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   SCRATCH_PRESET_GROUPS,
@@ -38,6 +34,7 @@ import {
   ScratchChaosSelect,
   ScratchHistoryStrip,
   ScratchPromptBible,
+  ScratchFloorPanel,
   ScratchScoreToggles,
   type ScratchBiblePickMode,
 } from "@/components/scratch";
@@ -71,6 +68,7 @@ import {
   type ScratchBackendId,
   type ScratchScoreTag,
 } from "@/lib/scratchBench";
+import { buildScratchStillSend, faceRecordsFromJob, padHasJo } from "@/lib/scratchStillSend";
 import { useScratchPadHotkeys } from "@/hooks/useScratchPadHotkeys";
 import {
   SIRAY_I2V_DEFAULT,
@@ -277,6 +275,7 @@ export default function ScratchPage() {
   const [clipEngine, setClipEngine] = useState<ScratchClipPick>("ltx");
   const [stillBackend, setStillBackend] = useState<ScratchBackendId>("unknown");
   const [clipStamp, setClipStamp] = useState("");
+  const [joPhone, setJoPhone] = useState(true);
   const [sirayReady, setSirayReady] = useState(false);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   /** Which beat the draft belongs to — ignore draft after mouth / beat switch. */
@@ -344,6 +343,23 @@ export default function ScratchPage() {
     beat && motionEditBeatId.current === beat.id ? motionDraft : null;
   const motionBody = activeMotionDraft ?? (storedMotion || defaultMotionBody);
   const motionDirty = activeMotionDraft !== null;
+  const floorFaces = job ? faceRecordsFromJob(padCast.length ? padCast : speaker ? [speaker] : [], job.castCandidates) : [];
+  const looksByName = Object.fromEntries(floorFaces.map((f) => [f.name, f.look]));
+  const joOnPad = padHasJo(padCast.length ? padCast : speaker ? [speaker] : []);
+  const floorSend = useMemo(() => {
+    if (!job || !(padCast.length || speaker)) return null;
+    return buildScratchStillSend({
+      styleId: job.styleId,
+      styleRealism: job.styleRealism,
+      placeName,
+      speakers: padCast.length ? padCast : [speaker],
+      looksByName,
+      placeLook: sceneId ? candidateLookPrompt(job.locationCandidates, sceneId) : "",
+      staging,
+      refineFromStill: Boolean(plateSrc),
+      joPhone,
+    });
+  }, [job, padCast, speaker, looksByName, placeName, sceneId, staging, plateSrc, joPhone]);
 
   useEffect(() => {
     setPresets(loadScratchPresets());
@@ -598,6 +614,8 @@ export default function ScratchPage() {
         backend?: ScratchBackendId;
         siray?: boolean;
         pending?: boolean;
+        send?: { prompt: string; layers: { id: string; label: string; text: string }[] };
+        sendPrompt?: string;
       }>(
         "/api/crash/mobile/scratch",
         {
@@ -607,6 +625,7 @@ export default function ScratchPage() {
           cast: nextCast,
           poseId: nextPose,
           staging: nextStaging || undefined,
+          joPhone,
         },
       );
       if (seq !== drawSeq.current) return;
@@ -653,6 +672,9 @@ export default function ScratchPage() {
           backend: drawn.backend || "unknown",
           chaosId: prev.chaosId,
           positionPrompt: nextStaging || undefined,
+          sendPrompt: drawn.send?.prompt || drawn.sendPrompt || floorSend?.prompt,
+          sendLayers: drawn.send?.layers || floorSend?.layers,
+          faceLooks: floorFaces.map((f) => ({ name: f.name, look: f.look })),
           plateUrl,
           tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
           placements: placements.length ? placements : undefined,
@@ -1597,6 +1619,15 @@ export default function ScratchPage() {
                 </div>
               </div>
             </div>
+
+            <ScratchFloorPanel
+              faces={floorFaces}
+              layers={floorSend?.layers || []}
+              joOnPad={joOnPad}
+              joPhone={joPhone}
+              onJoPhone={setJoPhone}
+              disabled={Boolean(busy)}
+            />
 
             <ScratchPromptBible
               activeId={bibleActiveId}

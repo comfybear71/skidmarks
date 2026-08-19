@@ -77,7 +77,7 @@ assert.equal(
   true,
 );
 assert.match(scratchNudeStillLock("Adult man TEE, fully nude at the bar"), /adult male body/i);
-assert.match(scratchNudeStillLock("Adult TEE, fully nude at the bar"), /ken doll/i);
+assert.doesNotMatch(scratchNudeStillLock("Adult TEE, fully nude at the bar"), /ken doll/i);
 assert.doesNotMatch(scratchNudeStillLock("Adult woman TEE, fully nude at the bar"), /adult male body/i);
 assert.equal(scratchNudeLooksMale("Adult MATTY, fully nude at THE DONGA", ["LADDER ONE", "LAND LANDY", "MATTY"]), true);
 assert.match(
