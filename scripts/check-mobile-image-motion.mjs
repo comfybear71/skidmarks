@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   LTX_LIP_SYNC_LEAD,
   buildDefaultBeatMotion,
@@ -196,15 +199,23 @@ const scratchPad = buildScratchPadLtxMotion({
   speaker: "LADDER ONE",
   line: "[slow][seductive]Are you going to keep staring?",
 });
-assert.match(scratchPad, /WIDE full-body framing/);
-assert.match(scratchPad, /Do not zoom in/);
-assert.match(scratchPad, /Empty hands/);
-assert.match(scratchPad, /Do not sit in a chair/);
 assert.match(scratchPad, /LADDER ONE says:/);
+assert.match(scratchPad, /mouth and head move naturally while speaking/);
+assert.doesNotMatch(scratchPad, /Do not sit in a chair/);
+assert.doesNotMatch(scratchPad, /WIDE full-body framing stays/);
 assert.doesNotMatch(scratchPad, /Feet stay planted/);
 
 assert.equal(scratchLtxMotionNeedsRebuild("MEDIUM SHOT framing stays as the start image"), true);
 assert.equal(scratchLtxMotionNeedsRebuild(scratchPad), false);
 assert.equal(scratchLtxMotionNeedsRebuild("Feet stay planted in the same spot"), true);
+assert.equal(
+  scratchLtxMotionNeedsRebuild("WIDE full-body framing stays as the start image. Do not sit in a chair. No mug, no coffee."),
+  true,
+);
+
+const ia2v = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../workflow/LTX_2.3_IA2V_Cloud.json"), "utf8"),
+);
+assert.equal(ia2v["340:349"].inputs.value, false);
 
 console.log("check-mobile-image-motion: ok");

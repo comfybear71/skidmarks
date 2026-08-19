@@ -903,7 +903,6 @@ export async function POST(req: Request) {
             shotId,
             sceneId: scene.id,
             beatId,
-            poseId: job.scratchPlate.poseId,
           });
           return NextResponse.json({
             ok: true,

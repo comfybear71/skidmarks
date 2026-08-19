@@ -451,31 +451,23 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
   return clean([LTX_LIP_SYNC_LEAD, motionStyleLock(styleId)].join(" "));
 }
 
-/** Wide full-body ladder stills — MEDIUM SHOT wording makes LTX zoom/crop. */
-export const SCRATCH_WIDE_FRAMING =
-  "WIDE full-body framing stays as the start image from first frame to last. Head to toe visible throughout. Full head and hair visible, do not crop the forehead or crown, keep the same headroom as the start image. Do not zoom in. Do not cut to close-up.";
-
-/** Stop LTX inventing sit/phone/coffee from bedroom staging. */
-export const SCRATCH_STANDING_LOCK =
-  "Standing exactly as the start image. Empty hands. No phone, no mug, no coffee. Do not sit in a chair or on furniture.";
-
-/** Bad experiment locks from failed ladder runs — force a fresh Image motion body. */
+/**
+ * First Fleet speaking shape. #194 WIDE / do-not-sit / no-mug is not gold — discard it.
+ */
 export function scratchLtxMotionNeedsRebuild(motion: string | undefined): boolean {
   const t = stripLtxLipSyncLead(motion || "").toLowerCase();
   if (!t) return false;
   if (/feet stay planted|stepping sideways|leaving the frame|no drifting left or right/.test(t)) {
     return true;
   }
-  if (/medium shot|medium close-up|mcu framing/.test(t) && !/wide full-body/.test(t)) {
-    return true;
-  }
-  if (/\bsit(ting)?\b|\bchair\b|\bcoffee\b|\bmug\b/.test(t) && !/do not sit/.test(t)) {
+  if (/medium shot|medium close-up|mcu framing/.test(t)) return true;
+  if (/do not sit in a chair|no mug, no coffee|wide full-body framing stays/.test(t)) {
     return true;
   }
   return false;
 }
 
-/** Scratch pad LTX default — wide still + empty hands + lip-sync line. */
+/** Scratch LTX default — gold speaking plate only. */
 export function buildScratchPadLtxMotion(opts: {
   styleId: ShowStyleId;
   speaker: string;
@@ -484,20 +476,15 @@ export function buildScratchPadLtxMotion(opts: {
   shotSpeakers?: string[];
 }): string {
   const name = clean(opts.speaker) || "The character";
-  const line = clean(opts.line);
   const look = shortLtxLookLock(opts.lookLock || "");
   const who = look ? `${name}, ${look}` : name;
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} is prominent, ${SCRATCH_WIDE_FRAMING} ${SCRATCH_STANDING_LOCK} Mouth and head move naturally while speaking, subtle gesture.`,
-      onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
+      `${who} is prominent, mouth and head move naturally while speaking, subtle gesture.`,
       "Props and background stay exactly as the start image, nothing new enters frame.",
-      GOLD_NO_TEXT,
-      `${name} says: "${line}".`,
+      `${name} says: "${clean(opts.line)}".`,
       "Camera holds. Same person and objects as the start image.",
-      "No new people enter the frame.",
-      GOLD_NO_LINE_EXTRAS,
       motionStyleLock(opts.styleId),
     ].join(" "),
   );
