@@ -25,6 +25,12 @@ export const SCRATCH_SCORE_OPTIONS: ScratchScoreOption[] = [
   { id: "face", label: "Face", group: "fail-why" },
   { id: "place", label: "Place", group: "fail-why" },
   { id: "speech", label: "Speech", group: "fail-why" },
+  {
+    id: "style",
+    label: "Style slip",
+    hint: "Still turned cartoon, human, or photoreal — not the start plate",
+    group: "fail-why",
+  },
   { id: "chaos", label: "Chaos hit", group: "meta" },
 ];
 

@@ -14,6 +14,7 @@ export type ScratchScoreTag =
   | "face"
   | "place"
   | "speech"
+  | "style"
   | "chaos"
   | "eye"
   | "fingers"

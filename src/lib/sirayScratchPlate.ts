@@ -191,11 +191,20 @@ async function startSirayScratchPlate(
 
   const castPaths: string[] = [];
   const castNames: string[] = [];
+  const missing: string[] = [];
   for (const name of speakers) {
     const p = await resolvePlateCastPath(styleId, name, opts.job);
-    if (!p) continue;
+    if (!p) {
+      missing.push(name);
+      continue;
+    }
     castPaths.push(p);
     castNames.push(name);
+  }
+  if (missing.length) {
+    throw new Error(
+      `No face still for ${missing.join(", ")} — approve that face or drop them from the shot. Will not plate a partial cast.`,
+    );
   }
   if (!castPaths.length) {
     throw new Error("No matching cast faces for Siray — approve a face first");

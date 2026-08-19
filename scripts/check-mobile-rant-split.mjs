@@ -24,4 +24,11 @@ for (const part of parts) {
 }
 assert.ok(parts.every((p) => p.length > 0));
 
+const runOn =
+  "I'll be moving out as soon as I can that will make you happy no more cats hey land lady just drug addicts and mentally ill unemployed drop kicks you will have to buy kitchen shit for your drug addict tenants";
+const runParts = splitSpokenRant(runOn);
+assert.ok(runParts.length >= 2, `run-on should split, got ${runParts.length}`);
+assert.ok(runParts.every((p) => wordCount(p) <= LTX_RANT_MAX_WORDS));
+assert.equal(runParts.join(" "), runOn.replace(/\s+/g, " ").trim());
+
 console.log("check-mobile-rant-split: ok");
