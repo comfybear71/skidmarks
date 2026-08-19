@@ -25,6 +25,7 @@ export function ScratchHistoryStrip({
   onRemove,
   onClear,
   onExportCsv,
+  disabled,
 }: {
   runs: ScratchBenchRun[];
   selectedId?: string | null;
@@ -35,6 +36,7 @@ export function ScratchHistoryStrip({
   onRemove?: (run: ScratchBenchRun) => void;
   onClear?: () => void;
   onExportCsv?: () => void;
+  disabled?: boolean;
 }) {
   if (!runs.length) {
     return (
@@ -79,6 +81,7 @@ export function ScratchHistoryStrip({
               <button
                 type="button"
                 className="scratch-history-pick"
+                disabled={disabled}
                 onClick={() => onSelect?.(run)}
                 title={
                   run.plateFile
