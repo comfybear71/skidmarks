@@ -19,7 +19,7 @@ import {
   leftoverHydrateSpeakers,
   shotSpeakersOnCard,
 } from "@/lib/mobilePlateLines";
-import { splitSpokenRant } from "@/lib/mobileRantSplit";
+import { insertBeatAfter, splitSpokenRant } from "@/lib/mobileRantSplit";
 import { newId } from "@/lib/types";
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import type { ShowStyleId } from "@/lib/showStylePresets";
@@ -194,6 +194,7 @@ export async function POST(req: Request) {
     );
     const addedBeats: { id: string; text: string; voiceFile: string }[] = [];
     if (shotId && chunks.length > 1) {
+      let afterId = beatId;
       for (const chunk of chunks.slice(1)) {
         const extraId = newId("beat");
         working = {
@@ -202,11 +203,19 @@ export async function POST(req: Request) {
             ...sc,
             shots: sc.shots.map((sh) =>
               sh.id === shotId
-                ? { ...sh, beats: [...sh.beats, { id: extraId, speaker, text: chunk }] }
+                ? {
+                    ...sh,
+                    beats: insertBeatAfter(sh.beats, afterId, {
+                      id: extraId,
+                      speaker,
+                      text: chunk,
+                    }),
+                  }
                 : sh,
             ),
           })),
         };
+        afterId = extraId;
         await writeMobileStory(working, job.folderName);
         const extra = await synthesizeStoryBeat({
           styleId: job.styleId,

@@ -65,7 +65,9 @@ export type MobileShotUnit = {
   error?: string;
 };
 
-/** One per dialogue beat — the LTX/Comfy pipeline animates per-line, not per-shot (a shot's plate is shared across its beats, but each line gets its own short clip matched to its own audio). */
+/** One per dialogue beat — LTX animates per-line, not per-shot. The first
+ * clip on a shot uses the plate; later clips on that shot start from the
+ * previous take's last frame so a split rant does not snap back to T=0. */
 export type MobileClipUnit = {
   beatId: string;
   shotId: string;

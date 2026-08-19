@@ -1,9 +1,11 @@
 import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import type { MobileClipUnit, MobileGenJob } from "./mobileGenJob";
-import { stackedClipFiles } from "./mobilePlateClips";
+import { clipFileBasename, stackedClipFiles } from "./mobilePlateClips";
 import { isLeftoverPackVoiceFile } from "./mobileSavedVoice";
 import { voiceNamesMatch } from "./voiceNameMatch";
+
+type ClipQueueRow = Pick<MobileClipUnit, "beatId" | "shotId" | "clipStatus" | "clipFile">;
 
 export function findBeatHome(story: CrashStoryDoc, beatId: string): {
   sceneId: string;
@@ -229,6 +231,62 @@ export function queuedSavedClips(clips: MobileClipUnit[]): MobileClipUnit[] {
 /** Still waiting on LTX (queued or this worker owns it). */
 export function clipNeedsAnimate(clip: Pick<MobileClipUnit, "clipStatus">): boolean {
   return clip.clipStatus === "pending" || clip.clipStatus === "running";
+}
+
+function hasPlayableTake(clip: Pick<MobileClipUnit, "clipStatus" | "clipFile">): boolean {
+  return clip.clipStatus === "done" && Boolean(clipFileBasename(clip.clipFile));
+}
+
+/**
+ * Later rant chunks must not start until earlier same-shot clips finish —
+ * clip N's last frame is clip N+1's start still. Error does not block:
+ * there is no last frame, so the next chunk falls back to the original plate.
+ */
+export function earlierSameShotIncomplete(
+  clips: ClipQueueRow[],
+  candidate: Pick<MobileClipUnit, "beatId" | "shotId">,
+  skip?: (clip: ClipQueueRow) => boolean,
+): boolean {
+  const idx = clips.findIndex((c) => c.beatId === candidate.beatId);
+  const end = idx < 0 ? clips.length : idx;
+  for (let i = 0; i < end; i++) {
+    const c = clips[i];
+    if (skip?.(c)) continue;
+    if (c.shotId !== candidate.shotId) continue;
+    if (c.clipStatus === "pending" || c.clipStatus === "running") return true;
+  }
+  return false;
+}
+
+/** First pending clip that is not waiting on an earlier same-shot take. */
+export function nextClipToAnimate<T extends ClipQueueRow>(
+  clips: T[],
+  skip?: (clip: ClipQueueRow) => boolean,
+): T | null {
+  for (const c of clips) {
+    if (c.clipStatus !== "pending") continue;
+    if (skip?.(c)) continue;
+    if (earlierSameShotIncomplete(clips, c, skip)) continue;
+    return c;
+  }
+  return null;
+}
+
+/** Nearest earlier finished take on the same shot — that mp4's last frame seeds this clip. */
+export function previousDoneClipOnShot<T extends ClipQueueRow>(
+  clips: T[],
+  next: Pick<MobileClipUnit, "beatId" | "shotId">,
+  skip?: (clip: ClipQueueRow) => boolean,
+): T | null {
+  const idx = clips.findIndex((c) => c.beatId === next.beatId);
+  const start = idx < 0 ? clips.length - 1 : idx - 1;
+  for (let i = start; i >= 0; i--) {
+    const c = clips[i];
+    if (skip?.(c)) continue;
+    if (c.shotId !== next.shotId) continue;
+    if (hasPlayableTake(c)) return c;
+  }
+  return null;
 }
 
 export function clipQueueError(clips: MobileClipUnit[]): string {

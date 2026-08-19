@@ -12,6 +12,7 @@ import {
   shotSpeakersOnCard,
 } from "./mobilePlateLines";
 import { CRASH_DIR } from "./paths";
+import { dropTailStill, startStillForNextClip } from "./clipTailFrame";
 import {
   buildDefaultBeatMotion,
   buildSegmentText,
@@ -63,7 +64,7 @@ export async function runScratchLtxClip(opts: {
   if (!shot.plateFile) throw new Error("Draw the still first");
   if (!storyShot || !beat) throw new Error("That line is missing from the scratch plate");
 
-  const platePath =
+  const defaultPlatePath =
     resolveGenOrPackPlate(shot.plateFile) ||
     (await resolveMobileMedia({
       styleId: job.styleId,
@@ -72,7 +73,7 @@ export async function runScratchLtxClip(opts: {
       fileName: shot.plateFile,
       destPath: path.join(CRASH_DIR, "gen", shot.plateFile),
     }));
-  if (!platePath) throw new Error("Plate file missing on disk");
+  if (!defaultPlatePath) throw new Error("Plate file missing on disk");
 
   const voiceFile = (beat.voiceFile || "").trim();
   const speaker = (beat.speaker || "").trim();
@@ -165,6 +166,15 @@ export async function runScratchLtxClip(opts: {
 
   job = (await patchMobileGenJob(jobId, { clips, error: "" }))!;
 
+  const startStill = await startStillForNextClip({
+    styleId: job.styleId,
+    folderName: job.folderName,
+    clips: job.clips,
+    next: { beatId, shotId },
+    defaultPlatePath,
+  });
+  const platePath = startStill.platePath;
+
   try {
     const comfyUrl = await ensureComfyReady();
     const result = await runLtxSmoke({
@@ -201,6 +211,8 @@ export async function runScratchLtxClip(opts: {
     );
     job = (await patchMobileGenJob(jobId, { clips: next }))!;
     throw e;
+  } finally {
+    dropTailStill(startStill.tailStillPath);
   }
   return job;
 }

@@ -29,6 +29,8 @@ assert.equal(archiveEntry("speech-rant-unsplit")?.surface, "mobile");
 assert.equal(archiveEntry("gold-speaking-motion")?.surface, "mobile");
 assert.equal(archiveEntry("ltx-25-flf2v-not-speech")?.surface, "mobile");
 assert.equal(archiveEntry("ltx-25-flf2v-two-guides")?.verdict, "works");
+assert.equal(archiveEntry("speech-clip-chain")?.surface, "mobile");
+assert.match(archiveEntry("speech-clip-chain")?.fix || "", /last frame/);
 
 const still = oneCharacterStillPrompt("JO", "the kitchen");
 assert.equal(still, compileScriptedPosition({ name: "JO", place: "the kitchen" }));
