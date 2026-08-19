@@ -81,3 +81,5 @@ The still turning cartoon or “a real human” is a **Scratch Draw** failure (s
 1. Scratch Draw → score Pass / Fail / Style slip → CSV.
 2. `/m` Save line → Generate on Cloud IA2V → note short / ok / rant-split.
 3. Append a row here (and in `src/lib/plateAutomationArchive.ts`) only when a result is proven. Do not rewrite a live pack's `story_json`.
+
+Comfy Cloud animation map (Wan-Move, Wan Animate, AnimateDiff, FLF2V, SCAIL2, LTX Director vs our IA2V): [`COMFY_ANIMATION_RESEARCH.md`](./COMFY_ANIMATION_RESEARCH.md).
