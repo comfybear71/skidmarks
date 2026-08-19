@@ -14,6 +14,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scratchPage = readFileSync(join(repoRoot, "src/app/(mobile)/scratch/page.tsx"), "utf8");
 assert.doesNotMatch(scratchPage, /JO on her back/);
 assert.doesNotMatch(scratchPage, /fillJoMattyBedroom/);
+assert.match(scratchPage, /clip-poll/);
 const floorPanel = readFileSync(join(repoRoot, "src/components/scratch/ScratchFloorPanel.tsx"), "utf8");
 assert.match(floorPanel, /<details className="scratch-floor">/);
 assert.match(floorPanel, /<summary>Studio floor<\/summary>/);

@@ -4,6 +4,7 @@ import {
   episodeJobShots,
   isOffEpisodeDeskShot,
   isScratchShotTitle,
+  scratchClipStillInFlight,
   scratchDrawStillInFlight,
   scratchPadClips,
 } from "../src/lib/mobileScratch.ts";
@@ -131,6 +132,25 @@ assert.equal(
       cast: ["TEE"],
     },
   ),
+  false,
+);
+
+const clipTask = {
+  taskId: "vid-1",
+  shotId: "scr1",
+  sceneId: "sc1",
+  beatId: "b1",
+  i2v: "seedance-20",
+  model: "bytedance/seedance-2.0-i2v-spicy",
+  label: "Seedance 2.0 Spicy",
+  startedAt: new Date().toISOString(),
+};
+assert.equal(
+  scratchClipStillInFlight(clipTask, { shotId: "scr1", beatId: "b1", i2v: "seedance-20" }),
+  true,
+);
+assert.equal(
+  scratchClipStillInFlight(clipTask, { shotId: "scr1", beatId: "b1", i2v: "seedance-25" }),
   false,
 );
 

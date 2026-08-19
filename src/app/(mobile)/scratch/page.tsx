@@ -1036,21 +1036,45 @@ export default function ScratchPage() {
     setBusy("clip");
     setError("");
     try {
-      if (clipEngine === "ltx" && motionBody.trim()) {
+      if (motionBody.trim()) {
         await persistMotion(motionBody);
       }
-      const data = await postJson<{
+      let data = await postJson<{
         job?: MobileGenJob;
         backend?: ScratchBackendId;
         siray?: boolean;
         clipLabel?: string;
         i2v?: SirayI2vId;
+        pending?: boolean;
       }>("/api/crash/mobile/scratch", {
         action: "clip",
         jobId: job.id,
         beatId: beat.id,
         clipEngine,
       });
+      if (data.pending) {
+        const started = Date.now();
+        while (data.pending) {
+          if (Date.now() - started > 720_000) {
+            throw new Error(
+              "Siray is still making the clip. The episode is still there — tap Generate again. Don't start a new episode.",
+            );
+          }
+          await new Promise((r) => setTimeout(r, 5000));
+          data = await postJson<{
+            job?: MobileGenJob;
+            backend?: ScratchBackendId;
+            siray?: boolean;
+            clipLabel?: string;
+            i2v?: SirayI2vId;
+            pending?: boolean;
+          }>("/api/crash/mobile/scratch", {
+            action: "clip-poll",
+            jobId: job.id,
+            beatId: beat.id,
+          });
+        }
+      }
       if (typeof data.siray === "boolean") setSirayReady(data.siray);
       if (data.job) setJob(data.job);
       const ranLabel =
