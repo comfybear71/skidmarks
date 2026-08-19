@@ -10,18 +10,18 @@ import {
 export type ScratchBiblePickMode = "replace" | "append";
 
 /**
- * Prompt bible — six category titles in a 3-col accordion.
- * Titles only by default. Click title → chips slide down.
- * Pick a chip → insert + panel slides shut. One open at a time.
- * Append keeps yellow on every chip you stacked so the stack is visible.
+ * Prompt bible — two-column accordion. Titles only until one opens.
+ * Pick a chip → insert text (Draw is separate). Highlights every picked chip.
  */
 export function ScratchPromptBible({
+  activeIds = [],
   activeId,
   mode,
   onModeChange,
   onPick,
   disabled,
 }: {
+  activeIds?: string[];
   activeId?: string | null;
   mode: ScratchBiblePickMode;
   onModeChange: (mode: ScratchBiblePickMode) => void;
@@ -29,20 +29,14 @@ export function ScratchPromptBible({
   disabled?: boolean;
 }) {
   const [openId, setOpenId] = useState<ScratchBibleSectionId | null>(null);
-  const [stackedIds, setStackedIds] = useState<string[]>([]);
+  const highlighted = new Set([...activeIds, ...(activeId ? [activeId] : [])]);
 
   function setMode(next: ScratchBiblePickMode) {
     onModeChange(next);
-    if (next === "replace") setStackedIds([]);
   }
 
   function pick(sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) {
     onPick(sectionId, entry);
-    if (mode === "replace") {
-      setStackedIds([entry.id]);
-    } else {
-      setStackedIds((prev) => (prev.includes(entry.id) ? prev : [...prev, entry.id]));
-    }
     setOpenId(null);
   }
 
@@ -75,10 +69,11 @@ export function ScratchPromptBible({
         {SCRATCH_PROMPT_BIBLE.map((section) => {
           const open = openId === section.id;
           const panelId = `scratch-bible-panel-${section.id}`;
+          const sectionActive = section.entries.some((entry) => highlighted.has(entry.id));
           return (
             <section
               key={section.id}
-              className={`scratch-bible-section${open ? " is-open" : ""}`}
+              className={`scratch-bible-section${open ? " is-open" : ""}${sectionActive ? " has-picks" : ""}`}
               role="listitem"
             >
               <button
@@ -94,17 +89,12 @@ export function ScratchPromptBible({
                 </span>
                 <span className="scratch-bible-acc-label">{section.label}</span>
               </button>
-              <div
-                id={panelId}
-                className="scratch-bible-panel"
-                aria-hidden={!open}
-              >
+              <div id={panelId} className="scratch-bible-panel" aria-hidden={!open}>
                 <div className="scratch-bible-panel-inner">
                   <p className="scratch-bible-section-hint">{section.hint}</p>
                   <div className="scratch-bible-chips">
                     {section.entries.map((entry) => {
-                      const on =
-                        stackedIds.includes(entry.id) || activeId === entry.id;
+                      const on = highlighted.has(entry.id);
                       return (
                         <button
                           key={entry.id}

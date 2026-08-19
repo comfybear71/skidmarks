@@ -1,8 +1,10 @@
 /**
- * Scratch /m prompt bible — six tidy banks for still Draw.
+ * Scratch /m prompt bible — banks for still Draw (includes every old preset dropdown).
  * Accordion UI shows titles only; chips live under one open panel.
- * Append order that works: Composition → Pose → Wardrobe → Props → Drama → Atmosphere.
+ * Append order that works: Composition → Pose → Wardrobe → Props → Drama → Atmosphere → Crowd.
  */
+
+import { campaignStagingForId, plateLtxCampaignScenarios } from "../mobilePlateLtxCampaign";
 
 export type ScratchBibleSectionId =
   | "composition"
@@ -10,7 +12,8 @@ export type ScratchBibleSectionId =
   | "wardrobe"
   | "props"
   | "drama"
-  | "atmosphere";
+  | "atmosphere"
+  | "crowd";
 
 export type ScratchBibleEntry = {
   id: string;
@@ -26,7 +29,96 @@ export type ScratchBibleSection = {
   entries: ScratchBibleEntry[];
 };
 
-export const SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
+/** Every id that lived in the old Frame / Body / … dropdown rows (built-ins only). */
+export const SCRATCH_DROPDOWN_PRESET_IDS = [
+  "mcu-phone",
+  "wide-full",
+  "tight-face",
+  "over-shoulder",
+  "walk-in",
+  "sitting",
+  "standing",
+  "running",
+  "sprawl",
+  "dance",
+  "leaning",
+  "steps",
+  "crouch",
+  "handstand",
+  "beer-cig",
+  "pie",
+  "clothes-dress",
+  "clothes-underwear",
+  "clothes-partial",
+  "clothes-nude",
+  "clothes-man-partial",
+  "clothes-man-nude",
+  "raining",
+  "wash-hair",
+  "crowd-two-shot",
+  "crowd-surround",
+  "crowd-pile",
+] as const;
+
+const DROPDOWN_WEARING: Record<string, { label: string; template: string }> = {
+  "clothes-partial": {
+    label: "Partial nude",
+    template:
+      "Adult {{name}}, partial nudity at {{place}} — topless or underwear only. Change the clothes from the face card. Same face, this body, not the outfit on the reference. Natural body, not a catalogue pose.",
+  },
+  "clothes-nude": {
+    label: "Nude",
+    template:
+      "Adult {{name}}, fully nude at {{place}}. {{cast}} together in ONE photograph of that room — full bodies in their marked positions, not a collage, not a picture-in-picture. Change the clothes from the face card. Same face, hair, age and body. Ignore the outfit on the face card. Human anatomy, two feet on the floor. No text or watermarks.",
+  },
+  "clothes-man-partial": {
+    label: "Man partial",
+    template:
+      "Adult man {{name}}, partial nudity at {{place}} — shirtless, underwear only or bare. Adult male chest. Change the clothes from the face card. Same face, this male body, not the tee. Do not redraw as a woman. Natural body, not a catalogue pose.",
+  },
+  "clothes-man-nude": {
+    label: "Man nude",
+    template:
+      "Adult man {{name}}, fully nude at {{place}}. {{cast}} together in ONE photograph of that room — full bodies in their marked positions, not a collage, not a picture-in-picture. Adult male body — bare chest, visible human penis and scrotum, two feet on the floor, no clothes. Not a Ken doll, not a mutation, no extra limbs. Same face, hair, age and build as the face card. Ignore the tee, shorts and undies on the face card. Do not redraw as a woman. Adults only, no one under 21. No text or watermarks.",
+  },
+};
+
+const DROPDOWN_CROWD: Record<string, { label: string; template: string }> = {
+  "crowd-two-shot": {
+    label: "Two-shot",
+    template:
+      "{{cast}} in a tight two-shot at {{place}}. Only {{cast}} in frame, no one else appears. {{name}} is nearest the camera, speaking. Others stay in frame beside them, reacting. Same faces as the face cards. Do not invent extras.",
+  },
+  "crowd-surround": {
+    label: "Surround",
+    template:
+      "{{cast}} crowded around each other at {{place}}. Only {{cast}} in frame, no one else appears. {{name}} is in the middle, prominent. Others flank and lean in — hands, shoulders, close. Same faces as the face cards. Do not invent extras.",
+  },
+  "crowd-pile": {
+    label: "Pile / tangle",
+    template:
+      "{{cast}} piled together at {{place}}. Only {{cast}} in frame, no one else appears. {{name}} is prominent in the pile. Others are pressed in close — tangled bodies, using each other and the place. Same faces as the face cards. Do not invent extras.",
+  },
+};
+
+const DROPDOWN_BY_SECTION: Record<ScratchBibleSectionId, readonly string[]> = {
+  composition: ["mcu-phone", "wide-full", "tight-face", "over-shoulder", "walk-in"],
+  pose: ["sitting", "standing", "running", "sprawl", "dance", "leaning", "steps", "crouch", "handstand", "wash-hair"],
+  props: ["beer-cig", "pie"],
+  wardrobe: [
+    "clothes-dress",
+    "clothes-underwear",
+    "clothes-partial",
+    "clothes-nude",
+    "clothes-man-partial",
+    "clothes-man-nude",
+  ],
+  drama: [],
+  atmosphere: ["raining"],
+  crowd: ["crowd-two-shot", "crowd-surround", "crowd-pile"],
+};
+
+const BASE_SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
   {
     id: "composition",
     label: "Composition",
@@ -615,7 +707,52 @@ export const SCRATCH_PROMPT_BIBLE: ScratchBibleSection[] = [
       },
     ],
   },
+  {
+    id: "crowd",
+    label: "Crowd / multi",
+    hint: "Two or more faces on the pad",
+    entries: [],
+  },
 ];
+
+function stripCampaignLabel(label: string): string {
+  return label.replace(/^\d+\s+/, "");
+}
+
+function mergeDropdownPresets(sections: ScratchBibleSection[]): ScratchBibleSection[] {
+  const labels = new Map(plateLtxCampaignScenarios().map((s) => [s.id, stripCampaignLabel(s.label)]));
+  return sections.map((section) => {
+    const presetIds = DROPDOWN_BY_SECTION[section.id] || [];
+    if (!presetIds.length) return section;
+    const seen = new Set(section.entries.map((e) => e.id));
+    const appended: ScratchBibleEntry[] = [];
+    for (const id of presetIds) {
+      if (seen.has(id)) continue;
+      const wearing = DROPDOWN_WEARING[id];
+      const crowd = DROPDOWN_CROWD[id];
+      if (wearing) {
+        appended.push({ id, label: wearing.label, template: wearing.template });
+        continue;
+      }
+      if (crowd) {
+        appended.push({ id, label: crowd.label, template: crowd.template });
+        continue;
+      }
+      try {
+        appended.push({
+          id,
+          label: labels.get(id) || id,
+          template: campaignStagingForId(id, "{{name}}", "{{place}}"),
+        });
+      } catch {
+        /* unknown campaign id */
+      }
+    }
+    return appended.length ? { ...section, entries: [...section.entries, ...appended] } : section;
+  });
+}
+
+export const SCRATCH_PROMPT_BIBLE = mergeDropdownPresets(BASE_SCRATCH_PROMPT_BIBLE);
 
 export function applyBibleTokens(
   template: string,

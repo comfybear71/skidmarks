@@ -46,6 +46,7 @@ export type { ScratchDictHit } from "./dictionary";
 
 export {
   SCRATCH_BIBLE_DEFAULT_STYLE,
+  SCRATCH_DROPDOWN_PRESET_IDS,
   SCRATCH_PROMPT_BIBLE,
   applyBibleTokens,
   composeBibleBlocks,

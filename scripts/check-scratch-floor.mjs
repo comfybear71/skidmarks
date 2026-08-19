@@ -8,6 +8,7 @@ import { SCRATCH_FLOOR_LAWS, SCRATCH_JO_BLEED } from "../src/lib/scratchFloor.ts
 import { buildScratchStillSend, padHasJo } from "../src/lib/scratchStillSend.ts";
 import { scratchNudeStillLock } from "../src/lib/sirayI2v.ts";
 import { isScratchShotTitle } from "../src/lib/mobileScratch.ts";
+import { SCRATCH_DROPDOWN_PRESET_IDS, SCRATCH_PROMPT_BIBLE } from "../src/lib/scratchBench/promptBible.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scratchPage = readFileSync(join(repoRoot, "src/app/(mobile)/scratch/page.tsx"), "utf8");
@@ -110,5 +111,10 @@ assert.match(joOff.prompt, /empty hands/i);
 
 assert.equal(isScratchShotTitle("Scratch"), true);
 assert.equal(isScratchShotTitle("01 Closer MCU + phone"), false);
+
+const bibleIds = new Set(SCRATCH_PROMPT_BIBLE.flatMap((s) => s.entries.map((e) => e.id)));
+for (const id of SCRATCH_DROPDOWN_PRESET_IDS) {
+  assert.ok(bibleIds.has(id), `prompt bible missing old dropdown preset: ${id}`);
+}
 
 console.log("check-scratch-floor: ok");
