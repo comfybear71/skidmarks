@@ -62,7 +62,7 @@ assert.equal(normalizeDeskId("Mum"), "mum");
 assert.equal(jobDeskId({}), "stuie");
 assert.equal(jobDeskId({ deskId: "mum" }), "mum");
 
-assert.equal(isCampaignShotTitle("01 Closer MCU + phone"), true);
+assert.equal(isCampaignShotTitle("01 Closer MCU"), true);
 assert.equal(isCampaignShotTitle("CRAZY BIG HOLE JO"), false);
 const campaignJob = {
   shots: [

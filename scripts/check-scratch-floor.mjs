@@ -36,7 +36,9 @@ assert.doesNotMatch(wide, SCRATCH_JO_BLEED);
 assert.doesNotMatch(wide, /\bphone\b/i);
 
 const mcu = campaignStagingForId("mcu-phone", "LADDER ONE", "her room");
-assert.match(mcu, /phone/i);
+assert.match(mcu, /MEDIUM CLOSE-UP/i);
+assert.doesNotMatch(mcu, /\bphone\b/i);
+assert.doesNotMatch(mcu, SCRATCH_JO_BLEED);
 
 const dressMotion = campaignImageMotionForId({
   id: "clothes-dress",
@@ -109,6 +111,6 @@ assert.doesNotMatch(joOff.prompt, SCRATCH_JO_BLEED);
 assert.match(joOff.prompt, /empty hands/i);
 
 assert.equal(isScratchShotTitle("Scratch"), true);
-assert.equal(isScratchShotTitle("01 Closer MCU + phone"), false);
+assert.equal(isScratchShotTitle("01 Closer MCU"), false);
 
 console.log("check-scratch-floor: ok");
