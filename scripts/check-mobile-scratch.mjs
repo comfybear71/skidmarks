@@ -15,6 +15,16 @@ import {
   stripScratchLayoutMarks,
 } from "../src/lib/scratchBench/padDrop.ts";
 import { mergePlacementsIntoStaging } from "../src/lib/scratchBench/promptFormatter.ts";
+import {
+  appendBenchRun,
+  emptyBenchSession,
+  removeBenchRun,
+} from "../src/lib/scratchBench/runLog.ts";
+import {
+  scratchBlobFolderForRun,
+  scratchBlobFolderPath,
+  scratchMediaFileFromUrl,
+} from "../src/lib/scratchBench/blobFolder.ts";
 
 assert.equal(isScratchShotTitle("Scratch"), true);
 assert.equal(isScratchShotTitle("Jo sitting"), false);
@@ -183,5 +193,38 @@ assert.equal(mergePlacementsIntoStaging(polluted, [
   { name: "MATTY", xPercent: 74, yPercent: 68 },
   { name: "CRAZY BIG HOLE JO TOO", xPercent: 28, yPercent: 48 },
 ], "the bedroom"), letter);
+
+assert.equal(
+  scratchBlobFolderPath("skidmarks", "mgen_abc", "plates"),
+  "shows/skidmarks/episodes/mgen_abc/plates/",
+);
+assert.equal(
+  scratchMediaFileFromUrl("/api/crash/gen/file?name=cplate_1.png"),
+  "cplate_1.png",
+);
+const blob = scratchBlobFolderForRun(
+  {
+    kind: "still",
+    styleId: "skidmarks",
+    mediaFolder: "CRAZY_PACK",
+    plateUrl: "/api/crash/gen/file?name=cplate_1.png",
+  },
+);
+assert.ok(blob);
+assert.equal(blob.path, "shows/skidmarks/episodes/CRAZY_PACK/plates/");
+assert.equal(blob.href, "/api/crash/gen/file?name=cplate_1.png");
+
+let bench = emptyBenchSession();
+bench = appendBenchRun(bench, {
+  kind: "still",
+  backend: "xai",
+  chaosId: "none",
+  tags: [],
+});
+assert.equal(bench.runs.length, 1);
+const goneId = bench.runs[0].id;
+bench = removeBenchRun(bench, goneId);
+assert.equal(bench.runs.length, 0);
+assert.equal(removeBenchRun(bench, goneId).runs.length, 0);
 
 console.log("check-mobile-scratch: ok");

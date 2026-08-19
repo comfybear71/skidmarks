@@ -6,6 +6,7 @@ import {
   scoreSummary,
   stressFailCount,
 } from "@/lib/scratchBench/scorecard";
+import { scratchBlobFolderForRun } from "@/lib/scratchBench/blobFolder";
 import type { ScratchBenchRun, ScratchScoreTag } from "@/lib/scratchBench/types";
 
 const STRESS_LABEL: Partial<Record<ScratchScoreTag, string>> = {
@@ -18,13 +19,17 @@ const STRESS_LABEL: Partial<Record<ScratchScoreTag, string>> = {
 export function ScratchHistoryStrip({
   runs,
   selectedId,
+  blobFallback,
   onSelect,
+  onRemove,
   onClear,
   onExportCsv,
 }: {
   runs: ScratchBenchRun[];
   selectedId?: string | null;
+  blobFallback?: { styleId?: string; folder?: string };
   onSelect?: (run: ScratchBenchRun) => void;
+  onRemove?: (run: ScratchBenchRun) => void;
   onClear?: () => void;
   onExportCsv?: () => void;
 }) {
@@ -59,42 +64,78 @@ export function ScratchHistoryStrip({
           const selected = selectedId === run.id;
           const verdict = runVerdict(run.tags);
           const fails = stressFailCount(run.tags);
+          const blob = scratchBlobFolderForRun(run, blobFallback);
           return (
-            <button
+            <div
               key={run.id}
-              type="button"
               className={`scratch-history-card${selected ? " is-selected" : ""}`}
-              onClick={() => onSelect?.(run)}
-              title={scoreSummary(run.tags)}
             >
-              {thumb ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={thumb} alt="" className="scratch-history-thumb" />
-              ) : (
-                <div className="scratch-history-thumb scratch-history-thumb-empty">{run.kind}</div>
-              )}
-              <span className="scratch-history-meta">
-                {run.kind}
-                {run.chaosId !== "none" ? ` · ${run.chaosId}` : ""}
-                {run.environment ? ` · ${run.environment}` : ""}
-              </span>
-              {run.dialogue ? (
-                <span className="scratch-history-dialogue">“{run.dialogue}”</span>
-              ) : null}
-              <span className="scratch-history-badges">
-                {SCRATCH_STRESS_TAGS.map((tag) => {
-                  const on = run.tags.includes(tag);
-                  return (
-                    <span key={tag} className={`scratch-history-badge${on ? " is-flag" : ""}`}>
-                      {STRESS_LABEL[tag] || tag}
-                    </span>
-                  );
-                })}
-                <span className={`scratch-history-verdict is-${verdict}`}>
-                  {verdict === "open" ? (fails ? `${fails} bugs` : "—") : verdict}
+              <button
+                type="button"
+                className="scratch-history-pick"
+                onClick={() => onSelect?.(run)}
+                title={scoreSummary(run.tags)}
+              >
+                {thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={thumb} alt="" className="scratch-history-thumb" />
+                ) : (
+                  <div className="scratch-history-thumb scratch-history-thumb-empty">{run.kind}</div>
+                )}
+                <span className="scratch-history-meta">
+                  {run.kind}
+                  {run.chaosId !== "none" ? ` · ${run.chaosId}` : ""}
+                  {run.environment ? ` · ${run.environment}` : ""}
                 </span>
-              </span>
-            </button>
+                {run.dialogue ? (
+                  <span className="scratch-history-dialogue">“{run.dialogue}”</span>
+                ) : null}
+                <span className="scratch-history-badges">
+                  {SCRATCH_STRESS_TAGS.map((tag) => {
+                    const on = run.tags.includes(tag);
+                    return (
+                      <span key={tag} className={`scratch-history-badge${on ? " is-flag" : ""}`}>
+                        {STRESS_LABEL[tag] || tag}
+                      </span>
+                    );
+                  })}
+                  <span className={`scratch-history-verdict is-${verdict}`}>
+                    {verdict === "open" ? (fails ? `${fails} bugs` : "—") : verdict}
+                  </span>
+                </span>
+              </button>
+              {onRemove ? (
+                <button
+                  type="button"
+                  className="scratch-history-remove"
+                  title="Remove from history. The file stays in Blob."
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(run);
+                  }}
+                >
+                  Remove
+                </button>
+              ) : null}
+              {blob ? (
+                blob.href ? (
+                  <a
+                    className="scratch-history-blob"
+                    href={blob.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={blob.path}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {blob.path}
+                  </a>
+                ) : (
+                  <span className="scratch-history-blob" title={blob.path}>
+                    {blob.path}
+                  </span>
+                )
+              ) : null}
+            </div>
           );
         })}
       </div>
