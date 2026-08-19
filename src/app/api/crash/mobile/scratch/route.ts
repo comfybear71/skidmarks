@@ -23,6 +23,7 @@ import {
 } from "@/lib/mobileGenJob";
 import { importPastedStory } from "@/lib/mobilePasteScript";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
+import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
 import { CRASH_DIR } from "@/lib/paths";
 import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 import { campaignImageMotionForId } from "@/lib/mobilePlateLtxCampaign";
@@ -212,6 +213,78 @@ async function persistScratch(
   return updated;
 }
 
+/** Put an older still back on the Scratch pad so the next Draw refines it. */
+async function restoreScratchPlate(opts: {
+  job: MobileGenJob;
+  jobId: string;
+  story: CrashStoryDoc;
+  shotId: string;
+  plateFile: string;
+  staging?: string;
+}): Promise<{ job: MobileGenJob; story: CrashStoryDoc; staging: string }> {
+  const plateFile = opts.plateFile.trim();
+  if (!plateFile || plateFile === "__error__") throw new Error("Need a plate file to restore");
+  try {
+    resolveGenOrPackPlate(plateFile);
+  } catch {
+    throw new Error("That still file is missing — Draw it again or pick another history thumb.");
+  }
+
+  const liveShot = opts.story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === opts.shotId);
+  if (!liveShot) throw new Error("Scratch plate is missing — tap Draw again");
+
+  const stagingHint = (opts.staging || "").trim();
+  const prevTakes = liveShot.plateTakes || [];
+  const hit = prevTakes.find((t) => t.fileName === plateFile);
+  let plateTakes: PlateTake[];
+  let staging: string;
+  if (hit) {
+    plateTakes = prevTakes.map((t) => ({ ...t, approved: t.fileName === plateFile }));
+    staging = stagingHint || hit.staging || liveShot.staging || "";
+  } else if (prevTakes.length) {
+    const take: PlateTake = {
+      id: newId("take"),
+      fileName: plateFile,
+      staging: stagingHint || liveShot.staging || "",
+      approved: true,
+    };
+    plateTakes = [...prevTakes.map((t) => ({ ...t, approved: false })), take];
+    staging = take.staging;
+  } else {
+    plateTakes = [
+      {
+        id: newId("take"),
+        fileName: plateFile,
+        staging: stagingHint || liveShot.staging || "",
+        approved: true,
+      },
+    ];
+    staging = plateTakes[0]!.staging;
+  }
+
+  const nextStory: CrashStoryDoc = {
+    ...opts.story,
+    scenes: opts.story.scenes.map((sc) => ({
+      ...sc,
+      shots: sc.shots.map((sh) =>
+        sh.id === opts.shotId ? { ...sh, plateFile, staging, plateTakes } : sh,
+      ),
+    })),
+  };
+  await writeMobileStory(nextStory, opts.job.folderName);
+  const shots = opts.job.shots.map((s) =>
+    s.shotId === opts.shotId ? { ...s, plateFile, error: "" } : s,
+  );
+  const updated = await patchMobileGenJob(opts.jobId, {
+    shots,
+    scratchPadCleared: false,
+    scratchDraw: null,
+    error: "",
+  });
+  if (!updated) throw new Error("Job vanished");
+  return { job: updated, story: nextStory, staging };
+}
+
 /**
  * POST { action: "ensure", jobId, speaker, cast?, sceneId, poseId? }
  *   — one Scratch shot on this job. Mints a scratch pack if the episode
@@ -222,6 +295,8 @@ async function persistScratch(
  *     Siray: submit and return `{ pending: true }` — do not wait for the still.
  * POST { action: "preset-poll", jobId }
  *   — one Siray tick. `{ pending: true }` until the still lands. Same episode.
+ * POST { action: "restore-plate", jobId, plateFile, staging? }
+ *   — put an older still back on the pad. Next Draw refines that image.
  * POST { action: "clear-plate", jobId }
  *   — hide the last still. Does not delete the plate or the episode.
  * POST { action: "clear-pad", jobId }
@@ -264,6 +339,7 @@ export async function POST(req: Request) {
       beatId?: string;
       clipEngine?: string;
       joPhone?: boolean;
+      plateFile?: string;
     };
     const jobId = (body.jobId || "").trim();
     const action = (body.action || "ensure").trim().toLowerCase();
@@ -292,6 +368,48 @@ export async function POST(req: Request) {
       });
       if (!updated) return NextResponse.json({ error: "Job vanished" }, { status: 404 });
       return NextResponse.json({ ok: true, job: updated, sceneId });
+    }
+
+    if (action === "restore-plate") {
+      const plateFile = (body.plateFile || "").trim();
+      if (!plateFile) {
+        return NextResponse.json({ error: "Need plateFile — pick a history still." }, { status: 400 });
+      }
+      const shotId = job.scratchPlate?.shotId || "";
+      if (!shotId) {
+        return NextResponse.json({ error: "Draw once first — then history can restore a still." }, { status: 400 });
+      }
+      if (!job.folderName) {
+        return NextResponse.json({ error: "Episode pack missing" }, { status: 400 });
+      }
+      await hydrateMobilePackOnDisk(job.styleId, job.folderName);
+      let story = await readMobileStory(job.styleId, job.folderName);
+      if (!story) return NextResponse.json({ error: "Story missing" }, { status: 404 });
+      const scratch = findScratchShot(story);
+      if (!scratch || scratch.shot.id !== shotId) {
+        return NextResponse.json({ error: "Scratch shot missing" }, { status: 404 });
+      }
+      try {
+        const restored = await restoreScratchPlate({
+          job,
+          jobId,
+          story,
+          shotId,
+          plateFile,
+          staging: body.staging,
+        });
+        return NextResponse.json({
+          ok: true,
+          job: restored.job,
+          plateFile,
+          staging: restored.staging,
+        });
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "Couldn't restore that still" },
+          { status: 400 },
+        );
+      }
     }
 
     if (action === "clear-plate" || action === "clear-pad") {
