@@ -52,6 +52,7 @@ import {
   updateBenchRunTags,
   upsertPlacement,
   type ScratchBenchSession,
+  type ScratchBenchRun,
   type ScratchBibleEntry,
   type ScratchBibleSectionId,
   type ScratchPadPlacement,
@@ -828,6 +829,47 @@ export default function ScratchPage() {
     parkPlace(id);
   }
 
+  async function restoreHistoryPlate(run: ScratchBenchRun) {
+    if (!job) return;
+    setSelectedRunId(run.id);
+    if (run.positionPrompt) setStaging(stripScratchLayoutMarks(run.positionPrompt));
+    if (run.placements?.length) {
+      setPlacements(run.placements);
+      setPadCast(run.placements.map((p) => p.name));
+      setSpeaker(run.placements[0]?.name || speaker);
+    }
+    if (run.dialogue) setLine(run.dialogue);
+    if (run.environment) {
+      const match = job.scenes.find(
+        (s) => s.placeName.trim().toLowerCase() === run.environment!.trim().toLowerCase(),
+      );
+      if (match) setSceneId(match.id);
+    }
+    if (!run.plateFile) {
+      if (run.plateUrl) setLightbox(run.plateUrl);
+      return;
+    }
+    setError("");
+    try {
+      const data = await postJson<{ job: MobileGenJob; staging?: string; plateFile?: string }>(
+        "/api/crash/mobile/scratch",
+        {
+          action: "restore-plate",
+          jobId: job.id,
+          plateFile: run.plateFile,
+          staging: run.positionPrompt,
+        },
+      );
+      if (data.job) setJob(data.job);
+      if (data.staging) setStaging(stripScratchLayoutMarks(data.staging));
+      setPadCleared(false);
+      writeLocalPadCleared(job.id, false);
+      await loadStory(data.job, { keepStaging: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't put that still on the pad");
+    }
+  }
+
   function pickBibleEntry(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) {
     if (entry.id.startsWith("crowd-") && padCast.length < 2) {
       setError("Put at least two faces on the pad for crowd chips");
@@ -1365,7 +1407,7 @@ export default function ScratchPage() {
               {padIsPlaceOnly
                 ? "Place still is on the pad. Drag faces onto the furniture, then Draw. Tapping the picture only enlarges it."
                 : plateSrc
-                  ? "Last Draw. Clear plate keeps this room so you can park faces again."
+                  ? "Last Draw. Clear plate hides it — tap a history still to put an older one back on the pad."
                   : "Drop a place first. The room stays so you can park people."}
             </div>
             <div style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
@@ -1604,28 +1646,14 @@ export default function ScratchPage() {
             <ScratchHistoryStrip
               runs={bench.runs}
               selectedId={selectedRunId}
+              padPlateFile={!padCleared ? plateFile : ""}
               blobFallback={
                 job
                   ? { styleId: job.styleId, folder: mobileMediaFolder(job) }
                   : undefined
               }
               onSelect={(run) => {
-                setSelectedRunId(run.id);
-                if (run.positionPrompt) setStaging(run.positionPrompt);
-                if (run.plateUrl) setLightbox(run.plateUrl);
-                if (run.placements?.length) {
-                  setPlacements(run.placements);
-                  setPadCast(run.placements.map((p) => p.name));
-                  setSpeaker(run.placements[0]?.name || speaker);
-                  setPadCleared(false);
-                }
-                if (run.dialogue) setLine(run.dialogue);
-                if (run.environment && job) {
-                  const match = job.scenes.find(
-                    (s) => s.placeName.trim().toLowerCase() === run.environment!.trim().toLowerCase(),
-                  );
-                  if (match) setSceneId(match.id);
-                }
+                void restoreHistoryPlate(run);
               }}
               onRemove={(run) => {
                 setBench((prev) => removeBenchRun(prev, run.id));

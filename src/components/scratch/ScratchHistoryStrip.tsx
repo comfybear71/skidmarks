@@ -19,6 +19,7 @@ const STRESS_LABEL: Partial<Record<ScratchScoreTag, string>> = {
 export function ScratchHistoryStrip({
   runs,
   selectedId,
+  padPlateFile,
   blobFallback,
   onSelect,
   onRemove,
@@ -27,6 +28,8 @@ export function ScratchHistoryStrip({
 }: {
   runs: ScratchBenchRun[];
   selectedId?: string | null;
+  /** Current plate on the pad — highlights matching history still. */
+  padPlateFile?: string;
   blobFallback?: { styleId?: string; folder?: string };
   onSelect?: (run: ScratchBenchRun) => void;
   onRemove?: (run: ScratchBenchRun) => void;
@@ -44,7 +47,7 @@ export function ScratchHistoryStrip({
   return (
     <div className="scratch-history">
       <div className="scratch-history-head">
-        <span>History ({runs.length})</span>
+        <span>History ({runs.length}) — tap a still to put it back on the pad</span>
         <div className="scratch-history-actions">
           {onExportCsv ? (
             <button type="button" className="scratch-history-clear" onClick={onExportCsv}>
@@ -62,19 +65,26 @@ export function ScratchHistoryStrip({
         {runs.map((run) => {
           const thumb = run.plateUrl || run.clipUrl;
           const selected = selectedId === run.id;
+          const onPad = Boolean(
+            padPlateFile && run.plateFile && padPlateFile === run.plateFile && run.kind === "still",
+          );
           const verdict = runVerdict(run.tags);
           const fails = stressFailCount(run.tags);
           const blob = scratchBlobFolderForRun(run, blobFallback);
           return (
             <div
               key={run.id}
-              className={`scratch-history-card${selected ? " is-selected" : ""}`}
+              className={`scratch-history-card${selected ? " is-selected" : ""}${onPad ? " is-on-pad" : ""}`}
             >
               <button
                 type="button"
                 className="scratch-history-pick"
                 onClick={() => onSelect?.(run)}
-                title={scoreSummary(run.tags)}
+                title={
+                  run.plateFile
+                    ? "Put this still on the pad — next Draw refines it"
+                    : scoreSummary(run.tags)
+                }
               >
                 {thumb ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -82,6 +92,7 @@ export function ScratchHistoryStrip({
                 ) : (
                   <div className="scratch-history-thumb scratch-history-thumb-empty">{run.kind}</div>
                 )}
+                {onPad ? <span className="scratch-history-on-pad">On pad</span> : null}
                 <span className="scratch-history-meta">
                   {run.kind}
                   {run.chaosId !== "none" ? ` · ${run.chaosId}` : ""}
