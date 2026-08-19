@@ -67,6 +67,7 @@ import {
   SIRAY_I2V_MODELS,
   scratchWantsMaleNude,
   scratchWantsNude,
+  scratchWantsUndressFromStill,
   sirayI2vSpec,
   type SirayI2vId,
 } from "@/lib/sirayI2v";
@@ -1606,9 +1607,11 @@ export default function ScratchPage() {
               </span>
               {scratchWantsMaleNude(staging)
                 ? " — wardrobe override: adult man, drop the shorts, keep human anatomy."
-                : scratchWantsNude(staging)
-                  ? " — wardrobe override: drop the face-card clothes."
-                  : ""}
+                : scratchWantsUndressFromStill(staging)
+                  ? " — Change only is undress from this still. Nude lock stays off until the pad is already bare."
+                  : scratchWantsNude(staging)
+                    ? " — wardrobe override: drop the face-card clothes."
+                    : ""}
             </div>
 
             {padCast.length > 1 ? (

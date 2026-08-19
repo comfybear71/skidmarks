@@ -109,6 +109,25 @@ assert.match(refineSend.prompt, /blowing a kiss/i);
 assert.equal(refineSend.imageOnlyRefine, true);
 assert.ok(refineSend.layers.some((l) => l.id === "refine"));
 assert.equal(refineSend.layers.find((l) => l.id === "style"), undefined);
+assert.ok(refineSend.layers.some((l) => l.id === "nude"));
+
+const undressRefine = buildScratchStillSend({
+  styleId: "skidmarks",
+  styleRealism: 60,
+  placeName: "her room",
+  speakers: ["LADDER ONE"],
+  looksByName: { "LADDER ONE": "Thai lady" },
+  placeLook: "",
+  staging:
+    "She is undressing: the cream knit mini-dress is pulled down around her waist, torso bare. Empty hands, no phone.",
+  refineFromStill: true,
+  joPhone: false,
+});
+assert.equal(undressRefine.layers.find((l) => l.id === "nude"), undefined);
+assert.ok(undressRefine.layers.some((l) => l.id === "undress"));
+assert.doesNotMatch(undressRefine.prompt, /Same bare body, skin, and wardrobe as the attached image/);
+assert.match(undressRefine.prompt, /attached image is clothed/i);
+assert.match(undressRefine.prompt, /undress as written/i);
 
 const joSend = buildScratchStillSend({
   styleId: "skidmarks",

@@ -99,6 +99,17 @@ export function scratchWantsNude(text: string): boolean {
   );
 }
 
+/** Staging is taking clothes off a clothed still — not "keep the attached image nude". */
+export function scratchWantsUndressFromStill(text: string): boolean {
+  const t = (text || "").toLowerCase();
+  return (
+    /\bundress/.test(t) ||
+    /\bpull(ed|ing)? down\b/.test(t) ||
+    /\btake[ns]? off\b/.test(t) ||
+    /\bremove (the )?(dress|skirt|top|clothes|outfit)\b/.test(t)
+  );
+}
+
 /** Nude + the pad/look says this is a man — Seedream otherwise draws a woman. */
 export function scratchWantsMaleNude(text: string): boolean {
   if (!scratchWantsNude(text)) return false;
