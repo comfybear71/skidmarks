@@ -12,8 +12,6 @@ import { jobDeskId, normalizeDeskId } from "../src/lib/mobileDesk.ts";
 import {
   expandScratchLayoutMarks,
   keepScratchPositionLines,
-  pickJoAndMattyNames,
-  scratchJoMattyBedroomPrompt,
   stripScratchLayoutMarks,
 } from "../src/lib/scratchBench/padDrop.ts";
 import { mergePlacementsIntoStaging } from "../src/lib/scratchBench/promptFormatter.ts";
@@ -155,11 +153,12 @@ assert.match(expanded, /share the same room/i);
 assert.match(expanded, /not a floating bust/i);
 assert.equal(expandScratchLayoutMarks(expanded), expanded);
 
-const pair = pickJoAndMattyNames(["CRAZY BIG HOLE JO TOO", "MATTY", "TEE"]);
-assert.ok(pair);
-assert.equal(pair.jo, "CRAZY BIG HOLE JO TOO");
-assert.equal(pair.matty, "MATTY");
-const letter = scratchJoMattyBedroomPrompt("COMFY AND THE LAND LADY'S BEDROOM", pair.jo, pair.matty);
+const letter = [
+  "ONE photograph, ONE camera, ONE room: COMFY AND THE LAND LADY'S BEDROOM. Not a collage, not a comic page, not three panels, not inset portraits.",
+  "Adult CRAZY BIG HOLE JO TOO is fully nude on the bed, left of frame — on her back on the quilt, shoulders and head on the mattress, looking toward MATTY. Empty hands, arms down at her sides, no phone — do not copy a phone from the face card. Same face as her face card. Ignore face-card clothes. Full body lying on the mattress — not sitting up, not leaning forward, not a floating bust, not framed in a window.",
+  "Adult man MATTY is fully nude on the sofa / armchair, right of frame, lower — sitting back, head tipped up, eyes closed. Same face, tattoos and build as his face card. Visible human penis, two human feet on the floor. Not a Ken doll. No extra limbs. Full body in the seat — not a floating bust, not framed in a window.",
+  "Only CRAZY BIG HOLE JO TOO and MATTY in frame. Full people using the furniture. No picture-in-picture. No text. Adults only, no one under 21.",
+].join("\n\n");
 assert.match(letter, /CRAZY BIG HOLE JO TOO is fully nude on the bed/i);
 assert.match(letter, /on her back/i);
 assert.match(letter, /MATTY is fully nude on the sofa/i);

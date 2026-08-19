@@ -51,9 +51,7 @@ import {
   mergePlacementsIntoStaging,
   stripScratchLayoutMarks,
   loadBenchSession,
-  pickJoAndMattyNames,
   saveBenchSession,
-  scratchJoMattyBedroomPrompt,
   setBenchChaos,
   setScratchDrag,
   readScratchDrag,
@@ -584,7 +582,7 @@ export default function ScratchPage() {
       return;
     }
     if (!nextSpeaker || !nextCast.length) {
-      setError("Park faces on the place still, tap JO on her back · MATTY sofa, then Draw.");
+      setError("Park faces on the place still, then Draw.");
       return;
     }
     const seq = ++drawSeq.current;
@@ -776,33 +774,6 @@ export default function ScratchPage() {
     setStaging(composed);
     setBibleActiveId(null);
     setPoseId("");
-  }
-
-  function fillJoMattyBedroom() {
-    if (!job) return;
-    const pair =
-      pickJoAndMattyNames(padCast) ||
-      pickJoAndMattyNames(job.speakers) ||
-      { jo: "JO TOO", matty: "MATTY" };
-    const joOnDesk = job.speakers.find((n) => n === pair.jo) || job.speakers.find((n) => /\bjo\b/i.test(n));
-    const mattyOnDesk = job.speakers.find((n) => n === pair.matty) || job.speakers.find((n) => /matt/i.test(n));
-    if (!joOnDesk || !mattyOnDesk) {
-      setError("Need JO TOO and MATTY on this episode — approve both faces, then tap this again.");
-      return;
-    }
-    setPadCast((prev) => {
-      const next = prev.filter((n) => n !== joOnDesk && n !== mattyOnDesk);
-      return [joOnDesk, mattyOnDesk, ...next];
-    });
-    setSpeaker(joOnDesk);
-    setPlacements([
-      { name: joOnDesk, xPercent: 28, yPercent: 48 },
-      { name: mattyOnDesk, xPercent: 74, yPercent: 68 },
-    ]);
-    setStaging(scratchJoMattyBedroomPrompt(placeName, joOnDesk, mattyOnDesk));
-    setPoseId("");
-    setBibleActiveId(null);
-    setError("");
   }
 
   /** Hide the composite — keep the place still so they can park faces. */
@@ -1452,14 +1423,6 @@ export default function ScratchPage() {
               <button
                 type="button"
                 style={ghostBtn}
-                onClick={fillJoMattyBedroom}
-                disabled={!job}
-              >
-                JO on her back · MATTY sofa
-              </button>
-              <button
-                type="button"
-                style={ghostBtn}
                 onClick={clearPlate}
                 disabled={!job || !padImage}
               >
@@ -1471,7 +1434,7 @@ export default function ScratchPage() {
             </div>
             <div style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
               {padIsPlaceOnly
-                ? "Place still is on the pad. Drag faces onto the furniture, tap JO on her back · MATTY sofa, then Draw. Tapping the picture only enlarges it."
+                ? "Place still is on the pad. Drag faces onto the furniture, then Draw. Tapping the picture only enlarges it."
                 : plateSrc
                   ? "Last Draw. Clear plate keeps this room so you can park faces again."
                   : "Drop a place first. The room stays so you can park people."}
@@ -1498,8 +1461,7 @@ export default function ScratchPage() {
               <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
                 On pad: {padCast.join(" · ")}. Speaks:{" "}
                 <span style={{ color: "var(--acid)" }}>{speaker || padCast[0]}</span>
-                . Park them on the place still — JO TOO on her back on the bed, MATTY on the sofa.
-                Nude keeps those marks. Do not leave extras as a corner inset.
+                . Park them on the place still. Nude keeps those marks. Do not leave extras as a corner inset.
               </div>
             ) : null}
 
@@ -1516,9 +1478,6 @@ export default function ScratchPage() {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
                   <button type="button" style={ghostBtn} onClick={compilePrompt}>
                     Compile layout
-                  </button>
-                  <button type="button" style={ghostBtn} onClick={fillJoMattyBedroom}>
-                    JO on her back · MATTY sofa
                   </button>
                   <button type="button" style={ghostBtn} onClick={clearPrompt}>
                     Clear prompt
