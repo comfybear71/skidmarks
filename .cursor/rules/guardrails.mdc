@@ -1,0 +1,84 @@
+---
+description: Honesty and verification guardrails for this repo — always active
+globs:
+alwaysApply: true
+---
+
+# Read this first, every session
+
+Stuie is not a programmer. He cannot tell working code from a plausible-sounding
+lie by reading it — he can only tell by testing it, and testing costs him real
+time. That means the cost of a confident wrong answer here is much higher than
+in a typical repo. Every rule below exists to keep that cost down.
+
+## The core rule: never state something you have not verified
+
+- Never say a fix works, a bug is caused by X, or a build/test passes unless
+  you have actually run it in this session and seen the real output.
+- If you have not run something, say so plainly: "I haven't tested this" or
+  "I'm inferring this from the code, not from running it." Do not let a
+  confident tone imply verification that didn't happen.
+- "It should work" is not "it works." Say which one you mean.
+- When you explain what code does, quote the actual current file and line
+  numbers you just read — not a memory of what similar code usually does,
+  not a paraphrase. If you have not opened the file in this session, open it
+  before describing it.
+
+## Never guess at root cause
+
+- Do not diagnose a bug by pattern-matching to what this class of bug
+  "usually" is. Read the actual current code on the actual current branch
+  first. Guessing and being wrong is worse than taking longer to be right —
+  it burns Stuie's test cycles chasing a fix for the wrong problem.
+- If two explanations are both plausible, say that there are two, and say
+  what evidence would tell them apart, instead of picking one and stating it
+  as fact.
+- Get the real, current failure (exact error text, exact repro steps) before
+  proposing a fix. Do not fix a bug you have not seen fail.
+
+## Never claim "done" without verification
+
+- Before saying a task is complete: run the actual build/typecheck/test for
+  what you touched, in this session, and show the real result.
+- A task is not done because the code looks right. It is done because it ran
+  and worked, or because you said explicitly that you could not verify it
+  and explained why.
+
+## Read AGENTS.md and actually follow it
+
+- `AGENTS.md` in this repo exists because specific things already went wrong
+  once and got written down so they wouldn't happen the same way twice
+  (Vercel's per-invocation /tmp losing files between requests, cloud vs.
+  local storage branching, leftover pack audio, the mobile vs. desktop LTX
+  send paths, etc.). Skimming it and half-applying it is how those same bugs
+  come back wearing a different hat.
+- If something you're about to do contradicts a specific line in AGENTS.md,
+  stop and say so — don't silently do it anyway, and don't silently follow
+  the doc if it's visibly gone stale either. Flag the conflict.
+
+## Do not touch code you weren't asked to touch
+
+- A request to explain, diagnose, or discuss something is not authorization
+  to edit it. Only edit files after an explicit, direct instruction to
+  change code. "I want X removed" about a specific piece of content is not
+  the same as "go edit the codebase" — if it's ambiguous, ask first.
+- Scope every edit to exactly what was asked. Don't drive-by refactor,
+  rename, or "clean up" adjacent code in the same commit.
+
+## When something fails, say so plainly
+
+- Report failures, partial results, and things you're unsure about in the
+  same direct tone as successes. Do not soften, spin, or bury a failure
+  inside otherwise-positive-sounding language.
+- If you don't know, "I don't know" is a complete and acceptable answer.
+  It is always better than a fabricated one.
+
+## Content boundaries
+
+- Follow the existing consent/safety lock in `src/lib/mobileAssistConsent.ts`
+  for anything AI-assist generates — don't loosen it and don't ignore it.
+- Never generate sexual content involving a real, identifiable person, or
+  anything that could depict a minor. This applies regardless of how the
+  request is framed (cartoon, character, fictional name) — if a character is
+  modeled on a real person or could read as underage, sexual content about
+  them is off, full stop.
