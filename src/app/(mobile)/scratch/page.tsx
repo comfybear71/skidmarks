@@ -1154,6 +1154,42 @@ export default function ScratchPage() {
     }
   }
 
+  async function removeClipTake(beatId: string, fileName: string) {
+    if (!job) return;
+    setBusy("clip-remove");
+    setError("");
+    try {
+      const data = await postJson<{ job?: MobileGenJob }>("/api/crash/mobile/scratch", {
+        action: "remove-clip",
+        jobId: job.id,
+        beatId,
+        fileName,
+      });
+      if (data.job) setJob(data.job);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't remove that clip");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function removeAllClips() {
+    if (!job || !stackClips.length) return;
+    setBusy("clip-remove");
+    setError("");
+    try {
+      const data = await postJson<{ job?: MobileGenJob }>("/api/crash/mobile/scratch", {
+        action: "remove-all-clips",
+        jobId: job.id,
+      });
+      if (data.job) setJob(data.job);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't clear the clips");
+    } finally {
+      setBusy("");
+    }
+  }
+
   useEffect(() => {
     if (!job?.scratchClip?.taskId || !beat || clipEngine === "ltx") return;
     if (clipPhase || busy) return;
@@ -1489,13 +1525,26 @@ export default function ScratchPage() {
             {stackClips.length || sirayCooking ? (
               <div className="scratch-clip-rail">
                 {stackClips.length ? (
-                  <PlateClipThumbs
-                    job={job}
-                    clips={stackClips}
-                    poster={plateSrc || undefined}
-                    preload
-                    layout="strip"
-                  />
+                  <>
+                    <PlateClipThumbs
+                      job={job}
+                      clips={stackClips}
+                      poster={plateSrc || undefined}
+                      preload
+                      layout="strip"
+                      onRemoveTake={({ beatId, fileName }) => void removeClipTake(beatId, fileName)}
+                      removeDisabled={Boolean(busy)}
+                    />
+                    <button
+                      type="button"
+                      style={ghostBtn}
+                      disabled={Boolean(busy)}
+                      title="Clear every clip on the strip. Files park in _cleared/ — not deleted."
+                      onClick={() => void removeAllClips()}
+                    >
+                      {busy === "clip-remove" ? "Removing…" : "Clear clips"}
+                    </button>
+                  </>
                 ) : null}
                 {sirayCooking || clipPhase === "siray" ? (
                   <div className="scratch-clip-cooking" aria-live="polite">

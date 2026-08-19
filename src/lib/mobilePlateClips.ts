@@ -1,6 +1,8 @@
+import fs from "fs";
 import path from "path";
 import type { MobileClipUnit } from "./mobileGenJob";
 import { mobileMediaFolder } from "./mobileJobFolder";
+import { CRASH_DIR } from "./paths";
 
 export function mobileClipSrc(
   job: { id: string; styleId: string; folderName: string },
@@ -69,4 +71,64 @@ export function clipsUnderPlate(
     }
   }
   return out;
+}
+
+/** Move one mp4 off the playable shelf — local disk only; Blob rows stay. */
+export function parkMobileClipFile(fileName: string): string | null {
+  const file = clipFileBasename(fileName);
+  if (!file || file.includes("..") || file.includes("/") || file.includes("\\")) {
+    return null;
+  }
+  const pairs = [
+    { dir: path.join(CRASH_DIR, "ltx"), cleared: path.join(CRASH_DIR, "ltx", "_cleared") },
+    { dir: path.join(CRASH_DIR, "gen"), cleared: path.join(CRASH_DIR, "gen", "_cleared") },
+  ];
+  for (const { dir, cleared } of pairs) {
+    const src = path.join(dir, file);
+    if (!fs.existsSync(src)) continue;
+    fs.mkdirSync(cleared, { recursive: true });
+    let dest = path.join(cleared, file);
+    if (fs.existsSync(dest)) dest = path.join(cleared, `${Date.now()}_${file}`);
+    fs.renameSync(src, dest);
+    return path.basename(dest);
+  }
+  return null;
+}
+
+/** Drop one take from a clip row — newest remaining take becomes clipFile. */
+export function dropClipTakeFromRow(clip: MobileClipUnit, fileName: string): MobileClipUnit {
+  const want = clipFileBasename(fileName);
+  if (!want) return clip;
+  const stacked = stackedClipFiles(clip);
+  if (!stacked.includes(want)) return clip;
+  const remaining = stacked.filter((f) => f !== want);
+  if (!remaining.length) {
+    return {
+      ...clip,
+      clipFile: "",
+      priorClipFiles: [],
+      clipStatus: "pending",
+      error: "",
+    };
+  }
+  const prior = remaining.slice(0, -1);
+  const latest = remaining[remaining.length - 1]!;
+  return {
+    ...clip,
+    clipFile: latest,
+    priorClipFiles: prior,
+    clipStatus: "done",
+    error: "",
+  };
+}
+
+/** Clear every take on one clip row. */
+export function clearClipRowTakes(clip: MobileClipUnit): MobileClipUnit {
+  return {
+    ...clip,
+    clipFile: "",
+    priorClipFiles: [],
+    clipStatus: "pending",
+    error: "",
+  };
 }
