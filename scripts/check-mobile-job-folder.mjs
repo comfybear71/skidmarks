@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "../src/lib/mobileJobFolder.ts";
 import { mobileLocationStillUrl, mobileMediaFolderName } from "../src/lib/mobileCandidateUrls.ts";
 import {
@@ -74,6 +75,28 @@ assert.equal(
 assert.deepEqual(mobileCandidateFolders(firstJob), [firstJob.id]);
 assert.deepEqual(mobileCandidateFolders(jobIdAsFolder), [firstJob.id]);
 assert.deepEqual(mobileCandidateFolders(packed), [firstJob.id, "CURSOR_THE_PROJECT_PITCH"]);
+
+const spacedPack = { id: "mgen_20260816055919862_906", folderName: "CRAZY BIG HOLE JO 62_906" };
+assert.equal(mobileMediaFolder(spacedPack), "CRAZY BIG HOLE JO 62_906");
+assert.deepEqual(mobileCandidateFolders(spacedPack), [
+  "mgen_20260816055919862_906",
+  "CRAZY BIG HOLE JO 62_906",
+]);
+
+const stepSrc = fs.readFileSync(
+  new URL("../src/app/api/crash/mobile/step/route.ts", import.meta.url),
+  "utf8",
+);
+assert.match(stepSrc, /folderCandidates:\s*mobileCandidateFolders\(job\)/);
+assert.match(stepSrc, /mobileMediaFolder\(job\)/);
+assert.match(stepSrc, /isMobileSavedVoiceFile\(c\.voiceFile\) && c\.voiceFile/);
+
+const beatAudioSrc = fs.readFileSync(
+  new URL("../src/app/api/crash/mobile/beat-audio/route.ts", import.meta.url),
+  "utf8",
+);
+assert.match(beatAudioSrc, /folderName:\s*mediaFolder/);
+assert.match(beatAudioSrc, /mobileCandidateFolders\(job\)/);
 
 const tomatoFace = "face_tomato.png";
 const holeStill = "mloc_hole.png";

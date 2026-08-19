@@ -4,6 +4,7 @@ import { compositeShotPlate } from "@/lib/mobilePlates";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { patchMobileGenJob, readMobileGenJob, type MobileClipUnit } from "@/lib/mobileGenJob";
+import { mobileCandidateFolders, mobileMediaFolder } from "@/lib/mobileJobFolder";
 import { synthesizeStoryBeat } from "@/lib/crashStorySpeak";
 import { resolveMobileBeatAudio } from "@/lib/resolveMobileBeatAudio";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
@@ -415,9 +416,11 @@ export async function POST(req: Request) {
         })),
       };
       await writeMobileStory(story, job.folderName);
+      const mediaFolder = mobileMediaFolder(job);
       const localPath = await resolveMobileBeatAudio({
         styleId: job.styleId,
-        folderName: job.folderName,
+        folderName: mediaFolder,
+        folderCandidates: mobileCandidateFolders(job),
         beatId,
         voiceFile: result.voiceFile,
       });
@@ -425,14 +428,14 @@ export async function POST(req: Request) {
         try {
           await uploadMobileMedia({
             styleId: job.styleId,
-            folderName: job.folderName,
+            folderName: mediaFolder,
             kind: "audio",
             localPath,
           });
         } catch {
           await uploadMobileMedia({
             styleId: job.styleId,
-            folderName: job.folderName,
+            folderName: mediaFolder,
             kind: "audio",
             localPath,
           });

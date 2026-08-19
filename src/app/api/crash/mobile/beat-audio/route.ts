@@ -5,6 +5,7 @@ import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { isSafeMediaName } from "@/lib/cloudMedia";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { mobileCandidateFolders, mobileMediaFolder } from "@/lib/mobileJobFolder";
 import { upsertPendingClip } from "@/lib/mobileClipQueue";
 import { serveMediaFile } from "@/lib/serveMediaFile";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
@@ -264,9 +265,12 @@ export async function POST(req: Request) {
         await writeMobileStory(working, job.folderName);
         clips = upsertPendingClip({ ...job, clips }, working, extraId);
         addedBeats.push({ id: extraId, text: chunk, voiceFile: extra.voiceFile });
+        const mediaFolder = mobileMediaFolder(job);
+        const folderCandidates = mobileCandidateFolders(job);
         const extraPath = await resolveMobileBeatAudio({
           styleId: job.styleId,
-          folderName: job.folderName,
+          folderName: mediaFolder,
+          folderCandidates,
           beatId: extraId,
           voiceFile: extra.voiceFile,
         });
@@ -274,14 +278,14 @@ export async function POST(req: Request) {
           try {
             await uploadMobileMedia({
               styleId: job.styleId,
-              folderName: job.folderName,
+              folderName: mediaFolder,
               kind: "audio",
               localPath: extraPath,
             });
           } catch {
             await uploadMobileMedia({
               styleId: job.styleId,
-              folderName: job.folderName,
+              folderName: mediaFolder,
               kind: "audio",
               localPath: extraPath,
             });
@@ -301,9 +305,12 @@ export async function POST(req: Request) {
     // as "Cloud IA2V needs the beat mp3" several steps later at Generate,
     // with no link back to the real cause. Retry once for a network blip,
     // then fail Save loudly so the line gets re-Saved while it's still fixable.
+    const mediaFolder = mobileMediaFolder(job);
+    const folderCandidates = mobileCandidateFolders(job);
     const localPath = await resolveMobileBeatAudio({
       styleId: job.styleId,
-      folderName: job.folderName,
+      folderName: mediaFolder,
+      folderCandidates,
       beatId,
       voiceFile: result.voiceFile,
     });
@@ -311,7 +318,7 @@ export async function POST(req: Request) {
       try {
         await uploadMobileMedia({
           styleId: job.styleId,
-          folderName: job.folderName,
+          folderName: mediaFolder,
           kind: "audio",
           localPath,
         });
@@ -319,7 +326,7 @@ export async function POST(req: Request) {
         try {
           await uploadMobileMedia({
             styleId: job.styleId,
-            folderName: job.folderName,
+            folderName: mediaFolder,
             kind: "audio",
             localPath,
           });
