@@ -19,6 +19,7 @@ import { sortableId } from "./types";
 import { loadWorkflowTemplate } from "./workflowTemplates";
 import { ltxFollowsMp3DurationSec, LTX_MAX_DURATION_SEC } from "./ltxDuration";
 import { ltxSendPrompt } from "./mobileImageMotion";
+import { letterboxPlateForCloudIa2v } from "./ltxCloudPlate";
 
 function estimateMp3DurationSec(filePath: string): number {
   try {
@@ -204,13 +205,17 @@ export async function runLtxCloudIa2v(
   });
   const durationSec = ltxFollowsMp3DurationSec(estimateMp3DurationSec(input.audioPath));
 
+  const framed = await letterboxPlateForCloudIa2v(input.platePath);
+
   progress({
     step: "uploading",
-    message: "Uploading plate + mp3 → Cloud",
+    message: framed.letterboxed
+      ? "Letterboxing pad still to 16:9 (keeps head) → Cloud"
+      : "Uploading plate + mp3 → Cloud",
     comfyUrl: COMFY_CLOUD_BASE,
     comfySource: "cloud",
   });
-  const plateUp = await cloudUploadInput(input.platePath);
+  const plateUp = await cloudUploadInput(framed.path);
   const audioUp = await cloudUploadInput(input.audioPath);
 
   progress({
@@ -306,11 +311,19 @@ export async function runLtxCloudIa2v(
     comfySource: "cloud",
   });
 
+  if (framed.letterboxed && framed.path !== input.platePath) {
+    try {
+      fs.unlinkSync(framed.path);
+    } catch {
+      /* scratch copy in data/ltx/plates if delete fails */
+    }
+  }
+
   return {
     ok: true,
     comfyUrl: COMFY_CLOUD_BASE,
     comfySource: "cloud",
-    convertVia: "cloud-ia2v-template",
+    convertVia: framed.letterboxed ? "cloud-ia2v-letterbox" : "cloud-ia2v-template",
     promptId,
     uploadedPlate: plateUp.name,
     uploadedAudio: audioUp.name,
