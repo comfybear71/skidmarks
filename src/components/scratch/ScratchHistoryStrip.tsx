@@ -5,6 +5,7 @@ import {
   runVerdict,
   scoreSummary,
   stressFailCount,
+  toggleScoreTag,
 } from "@/lib/scratchBench/scorecard";
 import { scratchBlobFolderForRun } from "@/lib/scratchBench/blobFolder";
 import type { ScratchBenchRun, ScratchScoreTag } from "@/lib/scratchBench/types";
@@ -22,6 +23,7 @@ export function ScratchHistoryStrip({
   padPlateFile,
   blobFallback,
   onSelect,
+  onVerdict,
   onRemove,
   onClear,
   onExportCsv,
@@ -33,6 +35,8 @@ export function ScratchHistoryStrip({
   padPlateFile?: string;
   blobFallback?: { styleId?: string; folder?: string };
   onSelect?: (run: ScratchBenchRun) => void;
+  /** Tap Pass/Fail on a card without putting that still on the pad. */
+  onVerdict?: (run: ScratchBenchRun, tag: "pass" | "fail") => void;
   onRemove?: (run: ScratchBenchRun) => void;
   onClear?: () => void;
   onExportCsv?: () => void;
@@ -49,7 +53,7 @@ export function ScratchHistoryStrip({
   return (
     <div className="scratch-history">
       <div className="scratch-history-head">
-        <span>History ({runs.length}) — tap a still to put it back on the pad</span>
+        <span>History ({runs.length}) — tap still to restore · Pass/Fail on card</span>
         <div className="scratch-history-actions">
           {onExportCsv ? (
             <button type="button" className="scratch-history-clear" onClick={onExportCsv}>
@@ -113,9 +117,33 @@ export function ScratchHistoryStrip({
                       </span>
                     );
                   })}
-                  <span className={`scratch-history-verdict is-${verdict}`}>
-                    {verdict === "open" ? (fails ? `${fails} bugs` : "—") : verdict}
-                  </span>
+                  {onVerdict ? (
+                    <span className="scratch-history-verdict-row">
+                      {(["pass", "fail"] as const).map((tag) => {
+                        const on = run.tags.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            className={`scratch-history-verdict-btn is-${tag}${on ? " is-on" : ""}`}
+                            disabled={disabled}
+                            aria-pressed={on}
+                            title={tag === "pass" ? "Mark Pass — does not change the pad" : "Mark Fail — does not change the pad"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onVerdict(run, tag);
+                            }}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </span>
+                  ) : (
+                    <span className={`scratch-history-verdict is-${verdict}`}>
+                      {verdict === "open" ? (fails ? `${fails} bugs` : "—") : verdict}
+                    </span>
+                  )}
                 </span>
               </button>
               {onRemove ? (

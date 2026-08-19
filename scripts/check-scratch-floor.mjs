@@ -82,6 +82,31 @@ assert.doesNotMatch(ladderSend.prompt, SCRATCH_JO_BLEED);
 assert.ok(ladderSend.layers.some((l) => l.id === "looks"));
 assert.ok(ladderSend.layers.every((l) => l.text.trim()));
 
+const refineSend = buildScratchStillSend({
+  styleId: "skidmarks",
+  styleRealism: 60,
+  placeName: "her room",
+  speakers: ["LADDER ONE"],
+  looksByName: {
+    "LADDER ONE":
+      "She is not photorealistic, she is more of a 3d model not photo, not cartoon",
+  },
+  placeLook: "patchwork quilt bedroom",
+  staging: "Same as image 1. Only change: right hand at lips, blowing a kiss. Same topless body.",
+  refineFromStill: true,
+  joPhone: false,
+});
+assert.doesNotMatch(refineSend.prompt, /stylised 3D animated feature render/i);
+assert.doesNotMatch(refineSend.prompt, /3d model not photo/i);
+assert.doesNotMatch(refineSend.prompt, /patchwork quilt bedroom/i);
+assert.doesNotMatch(refineSend.prompt, /Image 2/i);
+assert.doesNotMatch(refineSend.prompt, /face card/i);
+assert.match(refineSend.prompt, /attached image is the only reference/i);
+assert.match(refineSend.prompt, /blowing a kiss/i);
+assert.equal(refineSend.imageOnlyRefine, true);
+assert.ok(refineSend.layers.some((l) => l.id === "refine"));
+assert.equal(refineSend.layers.find((l) => l.id === "style"), undefined);
+
 const joSend = buildScratchStillSend({
   styleId: "skidmarks",
   styleRealism: 60,

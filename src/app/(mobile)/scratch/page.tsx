@@ -49,6 +49,7 @@ import {
   readScratchDrag,
   stagingActionBody,
   stagingCameraBlock,
+  toggleScoreTag,
   updateBenchRunTags,
   upsertPlacement,
   type ScratchBenchSession,
@@ -869,8 +870,6 @@ export default function ScratchPage() {
       );
       if (data.job) setJob(data.job);
       setSelectedRunId(run.id);
-      if (data.staging) setStaging(stripScratchLayoutMarks(data.staging));
-      else if (run.positionPrompt) setStaging(stripScratchLayoutMarks(run.positionPrompt));
       if (run.placements?.length) {
         setPlacements(run.placements);
         setPadCast(run.placements.map((p) => p.name));
@@ -1679,6 +1678,12 @@ export default function ScratchPage() {
               }
               onSelect={(run) => {
                 void restoreHistoryPlate(run);
+              }}
+              onVerdict={(run, tag) => {
+                setSelectedRunId(run.id);
+                setBench((prev) =>
+                  updateBenchRunTags(prev, run.id, toggleScoreTag(run.tags, tag)),
+                );
               }}
               disabled={Boolean(busy)}
               onRemove={(run) => {

@@ -682,6 +682,42 @@ span.scratch-history-blob {
   color: var(--chrome);
 }
 
+.scratch-history-verdict-row {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.scratch-history-verdict-btn {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  color: var(--chrome-dim);
+  background: transparent;
+  cursor: pointer;
+}
+
+.scratch-history-verdict-btn.is-pass.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+  background: color-mix(in srgb, var(--acid) 12%, transparent);
+}
+
+.scratch-history-verdict-btn.is-fail.is-on {
+  border-color: color-mix(in srgb, var(--magenta-hot) 55%, var(--line));
+  color: var(--magenta-hot);
+  background: color-mix(in srgb, var(--magenta-hot) 12%, transparent);
+}
+
+.scratch-history-verdict-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .scratch-canvas-overlay {
   position: absolute;
   inset: 0;
