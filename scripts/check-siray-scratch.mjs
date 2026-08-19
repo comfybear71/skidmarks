@@ -6,6 +6,7 @@ import {
   SIRAY_I2V_DEFAULT,
   SIRAY_I2V_MODELS,
   sirayI2vSpec,
+  snapSirayI2vDurationSec,
   scratchWantsNude,
   scratchWantsMaleNude,
   scratchNudeLooksMale,
@@ -44,6 +45,9 @@ assert.equal(clampSirayI2vDurationSec(3, 4, 30), 4);
 assert.equal(clampSirayI2vDurationSec(22, 4, 30), 22);
 assert.equal(clampSirayI2vDurationSec(40, 2, 30), 30);
 assert.equal(clampSirayI2vDurationSec(3, 2, 15), 3);
+assert.equal(snapSirayI2vDurationSec(3.2, sirayI2vSpec("seedance-20")), 4);
+assert.equal(snapSirayI2vDurationSec(22, sirayI2vSpec("seedance-25")), 22);
+assert.equal(snapSirayI2vDurationSec(40, sirayI2vSpec("seedance-25")), 30);
 
 const stripped = stripSpeechForSirayMotion(
   'Use the provided start image as the first frame. TEE says: "I am so incredibly frustrated, I want to scream back!" mouth and head move naturally while speaking, subtle lean.',
@@ -103,6 +107,19 @@ assert.match(manClip, /adult male body/i);
 assert.match(manClip, /visible human penis/i);
 assert.match(manClip, /two feet on the floor/i);
 assert.match(manClip, /Do not redraw as a woman/);
+
+const silentScratch = buildSirayI2vPrompt({
+  speaker: "LADDER ONE",
+  motion: "She leans forward slowly, skirt hem shifts.",
+  staging: "LADDER ONE in her room.",
+  lookLock: "black tee from face card",
+  styleLock: "stylised 3D feature render",
+  imageOnly: true,
+});
+assert.match(silentScratch, /attached image is the only reference/i);
+assert.match(silentScratch, /leans forward slowly/i);
+assert.doesNotMatch(silentScratch, /black tee from face card/);
+assert.doesNotMatch(silentScratch, /stylised 3D feature render/);
 
 assert.match(
   studioFetchError(new TypeError("Failed to fetch"), "Request failed"),

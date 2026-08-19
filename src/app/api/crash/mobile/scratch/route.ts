@@ -798,22 +798,29 @@ export async function POST(req: Request) {
     }
 
     if (action === "clip") {
-      const beatId =
-        (body.beatId || "").trim() ||
-        shot.beats.find((b) => isMobileSavedVoiceFile(b.voiceFile))?.id ||
-        "";
-      if (!beatId) {
-        return NextResponse.json(
-          { error: "Save the spoken line first — Play appears next to the name when the mp3 is ready." },
-          { status: 400 },
-        );
-      }
       let clipPick: ReturnType<typeof parseScratchClipEngine>;
       try {
         clipPick = parseScratchClipEngine(body.clipEngine);
       } catch (e) {
         return NextResponse.json(
           { error: e instanceof Error ? e.message : String(e) },
+          { status: 400 },
+        );
+      }
+      const beatId =
+        (body.beatId || "").trim() ||
+        (clipPick === "ltx"
+          ? shot.beats.find((b) => isMobileSavedVoiceFile(b.voiceFile))?.id
+          : shot.beats[0]?.id) ||
+        "";
+      if (!beatId) {
+        return NextResponse.json(
+          {
+            error:
+              clipPick === "ltx"
+                ? "Save the spoken line first — Play appears next to the name when the mp3 is ready."
+                : "Pick someone on the pad first.",
+          },
           { status: 400 },
         );
       }

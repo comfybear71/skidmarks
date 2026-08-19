@@ -71,28 +71,61 @@ type SubmitBody = {
   images?: string[];
 };
 
+function parseSirayTaskId(raw: Record<string, unknown>): string {
+  const data = raw.data;
+  if (data && typeof data === "object") {
+    const nested = data as Record<string, unknown>;
+    const fromNested = String(nested.task_id || nested.taskId || nested.id || "").trim();
+    if (fromNested) return fromNested;
+  }
+  if (typeof data === "string" && data.trim()) return data.trim();
+  return String(raw.task_id || raw.taskId || raw.id || "").trim();
+}
+
+function siraySubmitFailure(
+  raw: Record<string, unknown>,
+  res: Response,
+  fallback: string,
+): string {
+  const code = String(raw.code || "").trim();
+  const msg =
+    (typeof raw.error === "string" ? raw.error : (raw.error as { message?: string })?.message) ||
+    String(raw.message || "").trim() ||
+    fallback;
+  if (code && code.toLowerCase() !== "success") {
+    return msg && msg !== code ? `${code}: ${msg}` : code;
+  }
+  return msg || fallback;
+}
+
+function assertSirayTaskId(raw: Record<string, unknown>, res: Response, label: string): string {
+  const code = String(raw.code || "").trim().toLowerCase();
+  if (code && code !== "success") {
+    throw new Error(siraySubmitFailure(raw, res, `Siray ${label} submit rejected`));
+  }
+  const taskId = parseSirayTaskId(raw);
+  if (taskId) return taskId;
+  const snippet = JSON.stringify(raw).slice(0, 280);
+  throw new Error(
+    siraySubmitFailure(
+      raw,
+      res,
+      `Siray did not return a ${label} task_id (${res.status})${snippet ? `: ${snippet}` : ""}`,
+    ),
+  );
+}
+
 export async function siraySubmitImageAsync(body: SubmitBody): Promise<string> {
   const res = await fetch(`${SIRAY_API_BASE}/v1/images/generations/async`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify(body),
   });
-  const raw = (await res.json().catch(() => ({}))) as {
-    code?: string;
-    message?: string;
-    data?: { task_id?: string };
-    error?: string | { message?: string };
-  };
+  const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    const msg =
-      (typeof raw.error === "string" ? raw.error : raw.error?.message) ||
-      raw.message ||
-      `Siray submit failed (${res.status})`;
-    throw new Error(msg);
+    throw new Error(siraySubmitFailure(raw, res, `Siray submit failed (${res.status})`));
   }
-  const taskId = (raw.data?.task_id || "").trim();
-  if (!taskId) throw new Error(raw.message || "Siray did not return a task_id");
-  return taskId;
+  return assertSirayTaskId(raw, res, "image");
 }
 
 export type SirayPollResult = {
@@ -162,27 +195,20 @@ type VideoSubmitBody = {
 };
 
 export async function siraySubmitVideoAsync(body: VideoSubmitBody): Promise<string> {
+  const payload: VideoSubmitBody = {
+    ...body,
+    duration: Math.round(body.duration),
+  };
   const res = await fetch(`${SIRAY_API_BASE}/v1/video/generations`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
-  const raw = (await res.json().catch(() => ({}))) as {
-    code?: string;
-    message?: string;
-    data?: { task_id?: string };
-    error?: string | { message?: string };
-  };
+  const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    const msg =
-      (typeof raw.error === "string" ? raw.error : raw.error?.message) ||
-      raw.message ||
-      `Siray video submit failed (${res.status})`;
-    throw new Error(msg);
+    throw new Error(siraySubmitFailure(raw, res, `Siray video submit failed (${res.status})`));
   }
-  const taskId = (raw.data?.task_id || "").trim();
-  if (!taskId) throw new Error(raw.message || "Siray did not return a video task_id");
-  return taskId;
+  return assertSirayTaskId(raw, res, "video");
 }
 
 export async function sirayPollVideoTask(taskId: string): Promise<SirayPollResult> {

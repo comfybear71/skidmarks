@@ -189,6 +189,14 @@ export function clampSirayI2vDurationSec(
   return Math.max(minSec, Math.min(maxSec, Math.round(sec)));
 }
 
+/** Siray video models only accept fixed integer seconds from their OpenAPI enums. */
+export function snapSirayI2vDurationSec(
+  sec: number,
+  spec: SirayI2vSpec = sirayI2vSpec(SIRAY_I2V_DEFAULT),
+): number {
+  return clampSirayI2vDurationSec(sec, spec.minSec, spec.maxSec);
+}
+
 /**
  * LTX Image motion is a speaking prompt. Seedance/Wan chew the plate if we
  * send "says" / lip-sync / mouth while speaking — melted mouth, new face,
@@ -215,10 +223,10 @@ export function buildSirayI2vPrompt(opts: {
   staging: string;
   lookLock?: string;
   styleLock?: string;
+  /** Scratch silent clip — motion only from the pad still, no face-card look or show style. */
+  imageOnly?: boolean;
 }): string {
   const who = (opts.speaker || "").trim();
-  const look = (opts.lookLock || "").trim();
-  const style = (opts.styleLock || "").trim();
   const motion = stripSpeechForSirayMotion(opts.motion || "");
   const staging = stripSpeechForSirayMotion(opts.staging || "");
   const action =
@@ -226,6 +234,26 @@ export function buildSirayI2vPrompt(opts: {
     (staging
       ? staging
       : `${who || "The person"} holds their pose, subtle idle motion, weight shift, breathing.`);
+
+  if (opts.imageOnly) {
+    const nudeText = `${opts.staging} ${opts.motion}`;
+    const nude = scratchWantsNude(nudeText);
+    return [
+      "Use the provided start image as the first frame.",
+      SCRATCH_REFINE_IMAGE_ONLY_LOCK,
+      nude ? scratchNudeI2vLock(nudeText, who ? [who] : []) : "",
+      action,
+      "No dialogue. Mouth stays closed. Do not invent a new take or a new face.",
+      "Props and background stay exactly as the start image, nothing new enters frame.",
+      "Camera holds, no cuts. Same person and objects as the start image. No new people.",
+      "No text, no captions, no watermarks.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  const look = (opts.lookLock || "").trim();
+  const style = (opts.styleLock || "").trim();
   const whoLook = [who, look].filter(Boolean).join(", ");
   const nudeText = `${opts.staging} ${opts.motion} ${opts.lookLock || ""}`;
   const nude = scratchWantsNude(nudeText);
