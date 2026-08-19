@@ -65,10 +65,8 @@ export {
   isScratchBedroomPlace,
   keepScratchPositionLines,
   mergePositionIntoStaging,
-  pickJoAndMattyNames,
   positionPromptLine,
   readScratchDrag,
-  scratchJoMattyBedroomPrompt,
   setScratchDrag,
   upsertPlacement,
 } from "./padDrop";

@@ -1,10 +1,22 @@
 /** Run: npx tsx scripts/check-scratch-floor.mjs */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { campaignStagingForId, campaignImageMotionForId } from "../src/lib/mobilePlateLtxCampaign.ts";
 import { SCRATCH_FLOOR_LAWS, SCRATCH_JO_BLEED } from "../src/lib/scratchFloor.ts";
 import { buildScratchStillSend, padHasJo } from "../src/lib/scratchStillSend.ts";
 import { scratchNudeStillLock } from "../src/lib/sirayI2v.ts";
 import { isScratchShotTitle } from "../src/lib/mobileScratch.ts";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const scratchPage = readFileSync(join(repoRoot, "src/app/(mobile)/scratch/page.tsx"), "utf8");
+assert.doesNotMatch(scratchPage, /JO on her back/);
+assert.doesNotMatch(scratchPage, /fillJoMattyBedroom/);
+const floorPanel = readFileSync(join(repoRoot, "src/components/scratch/ScratchFloorPanel.tsx"), "utf8");
+assert.match(floorPanel, /<details className="scratch-floor">/);
+assert.match(floorPanel, /<summary>Studio floor<\/summary>/);
+assert.doesNotMatch(floorPanel, /scratch-floor"[^>]*\sopen\b/);
 
 assert.equal(SCRATCH_FLOOR_LAWS.length, 5);
 assert.equal(padHasJo(["LADDER ONE"]), false);

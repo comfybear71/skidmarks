@@ -629,15 +629,43 @@ body {
   color: var(--acid);
 }
 
-/* Studio floor — face record + visible Draw send */
+/* Studio floor — one-line heading, closed until opened */
 .scratch-floor {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--panel-2);
+}
+
+.scratch-floor > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 10px;
+  color: var(--chrome);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.scratch-floor > summary::-webkit-details-marker {
+  display: none;
+}
+
+.scratch-floor > summary::before {
+  content: "▸ ";
+  color: var(--acid);
+}
+
+.scratch-floor[open] > summary::before {
+  content: "▾ ";
+}
+
+.scratch-floor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 8px 8px;
+  border-top: 1px solid var(--line);
 }
 
 .scratch-floor-lead {
