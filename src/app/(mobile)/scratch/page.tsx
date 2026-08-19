@@ -19,7 +19,7 @@ import { approvedCandidateFileName, preferredCandidate, candidateLookPrompt } fr
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { findScratchShot, scratchPadClips } from "@/lib/mobileScratch";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
-import { buildScratchPadLtxMotion, LTX_LIP_SYNC_LEAD, stripLtxLipSyncLead, scratchLtxMotionNeedsRebuild } from "@/lib/mobileImageMotion";
+import { buildScratchPadLtxMotion, LTX_LIP_SYNC_LEAD, stripLtxLipSyncLead } from "@/lib/mobileImageMotion";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   ScratchChaosSelect,
@@ -343,11 +343,9 @@ export default function ScratchPage() {
         )
       : "";
   const storedMotionRaw = stripLtxLipSyncLead(beat?.imageMotion || "");
-  const storedMotion =
-    storedMotionRaw && !scratchLtxMotionNeedsRebuild(storedMotionRaw) ? storedMotionRaw : "";
   const activeMotionDraft =
     beat && motionEditBeatId.current === beat.id ? motionDraft : null;
-  const motionBody = activeMotionDraft ?? (storedMotion || defaultMotionBody);
+  const motionBody = activeMotionDraft ?? (storedMotionRaw || defaultMotionBody);
   const motionDirty = activeMotionDraft !== null;
   const floorFaces = job ? faceRecordsFromJob(padCast.length ? padCast : speaker ? [speaker] : [], job.castCandidates) : [];
   const looksByName = Object.fromEntries(floorFaces.map((f) => [f.name, f.look]));

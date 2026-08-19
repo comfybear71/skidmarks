@@ -19,7 +19,6 @@ import {
   ltxSendPrompt,
   stripLtxLipSyncLead,
   looksLikePlatePositionPrompt,
-  scratchLtxMotionNeedsRebuild,
 } from "./mobileImageMotion";
 import {
   mobileCandidateFolders,
@@ -121,8 +120,7 @@ export async function runScratchLtxClip(opts: {
   const storedOk =
     Boolean(stored) &&
     !imageMotionNamesLeftovers(stored, leftovers) &&
-    !looksLikePlatePositionPrompt(stored) &&
-    !scratchLtxMotionNeedsRebuild(stored);
+    !looksLikePlatePositionPrompt(stored);
   const body =
     (storedOk ? stored : "") ||
     buildScratchPadLtxMotion({

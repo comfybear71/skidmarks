@@ -451,23 +451,7 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
   return clean([LTX_LIP_SYNC_LEAD, motionStyleLock(styleId)].join(" "));
 }
 
-/**
- * First Fleet speaking shape. #194 WIDE / do-not-sit / no-mug is not gold — discard it.
- */
-export function scratchLtxMotionNeedsRebuild(motion: string | undefined): boolean {
-  const t = stripLtxLipSyncLead(motion || "").toLowerCase();
-  if (!t) return false;
-  if (/feet stay planted|stepping sideways|leaving the frame|no drifting left or right/.test(t)) {
-    return true;
-  }
-  if (/medium shot|medium close-up|mcu framing/.test(t)) return true;
-  if (/do not sit in a chair|no mug, no coffee|wide full-body framing stays/.test(t)) {
-    return true;
-  }
-  return false;
-}
-
-/** Scratch LTX default — gold speaking plate only. */
+/** Scratch LTX default — gold speaking plate only. Empty stored motion only. */
 export function buildScratchPadLtxMotion(opts: {
   styleId: ShowStyleId;
   speaker: string;
