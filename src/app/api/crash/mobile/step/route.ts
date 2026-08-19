@@ -21,6 +21,7 @@ import {
   clipNeedsAnimate,
   clipQueueError,
   findBeatHome,
+  nextClipToAnimate,
 } from "@/lib/mobileClipQueue";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { isOffEpisodeDeskShot } from "@/lib/mobileScratch";
@@ -32,6 +33,7 @@ import {
   shotSpeakersOnCard,
 } from "@/lib/mobilePlateLines";
 import { CRASH_DIR } from "@/lib/paths";
+import { dropTailStill, startStillForNextClip } from "@/lib/clipTailFrame";
 import {
   buildDefaultBeatMotion,
   buildSegmentText,
@@ -243,15 +245,15 @@ export async function POST(req: Request) {
           story = null;
         }
       }
-      const next = live.clips.find(
-        (c) =>
-          c.clipStatus === "pending" && !isOffEpisodeDeskShot(live, c.shotId, story),
-      );
+      const skipOffDesk = (c: { shotId: string }) =>
+        isOffEpisodeDeskShot(live, c.shotId, story);
+      const next = nextClipToAnimate(live.clips, skipOffDesk);
       if (!next) {
         const deskClips = live.clips.filter(
           (c) => !isOffEpisodeDeskShot(live, c.shotId, story),
         );
-        // Another invoke still owns a render — don't mark the phase done yet.
+        // Chunk 2 of a rant stays pending until chunk 1 is done (so we can
+        // pull its last frame). Another invoke may still own that render.
         if (deskClips.some((c) => c.clipStatus === "running")) {
           return NextResponse.json({ ok: true, job: live, advanced: false });
         }
@@ -316,6 +318,7 @@ export async function POST(req: Request) {
       const scene = story.scenes.find((sc) => sc.id === next.sceneId);
       const storyShot = scene?.shots.find((sh) => sh.id === next.shotId);
       const beat = storyShot?.beats.find((b) => b.id === next.beatId);
+      let tailStillPath: string | null = null;
       try {
         // One message for three different failures told us nothing about
         // which. They need separate answers: a failed plate is a cast/location
@@ -336,7 +339,7 @@ export async function POST(req: Request) {
         if (!storyShot || !beat) {
           throw new Error(`Line ${next.beatId} is missing from the story for shot ${next.shotId}`);
         }
-        const platePath =
+        const defaultPlatePath =
           resolveGenOrPackPlate(shot.plateFile) ||
           (await resolveMobileMedia({
             styleId: job.styleId,
@@ -345,7 +348,19 @@ export async function POST(req: Request) {
             fileName: shot.plateFile,
             destPath: path.join(CRASH_DIR, "gen", shot.plateFile),
           }));
-        if (!platePath) throw new Error("Plate file missing on disk");
+        if (!defaultPlatePath) throw new Error("Plate file missing on disk");
+        // Split rants share a shot. Clip 1 uses this plate; clip 2+ use the
+        // previous take's last frame so the mouth/pose does not snap back.
+        const startStill = await startStillForNextClip({
+          styleId: job.styleId,
+          folderName: job.folderName,
+          clips: job.clips,
+          next,
+          defaultPlatePath,
+          skip: skipOffDesk,
+        });
+        tailStillPath = startStill.tailStillPath;
+        const platePath = startStill.platePath;
         // /crash Send uses the beat you picked (plate + that mp3 + Image
         // motion). The queued clip is that pick. Hydrate can blank
         // story.voiceFile on a read (leftover strip / older snapshot) while
@@ -468,6 +483,8 @@ export async function POST(req: Request) {
             : c,
         );
         job = (await patchMobileGenJob(jobId, { clips }))!;
+      } finally {
+        dropTailStill(tailStillPath);
       }
       return NextResponse.json({ ok: true, job, advanced: true });
     }

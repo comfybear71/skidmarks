@@ -139,7 +139,16 @@ export const PLATE_AUTOMATION_ENTRIES: ArchiveEntry[] = [
     verdict: "fails",
     title: "Rant on one clip hallucinates (/m)",
     why: "LTX holds the solo plate ~6s then walkers enter (logged on a 39s rant). Same still, extras invented.",
-    fix: "splitSpokenRant at sentence ends so each clip stays ≤15 words / ~6s. Same plate, new mp3 per chunk. Words stay Stuie's.",
+    fix: "splitSpokenRant at sentence ends so each clip stays ≤15 words / ~6s. Insert chunks next to each other. Clip 1 uses the plate; clip 2+ uses the previous take's last frame. Words stay Stuie's.",
+  },
+  {
+    id: "speech-clip-chain",
+    surface: "mobile",
+    layer: "speech",
+    verdict: "works",
+    title: "Split speech chains last frame → next first frame (/m)",
+    why: "Re-using the original plate for every rant chunk snaps the mouth/pose back to T=0. FLF2V / Director overlap the same way: the last frame of clip N is the start still of clip N+1.",
+    fix: "nextClipToAnimate waits on earlier same-shot takes. startStillForNextClip extracts the previous mp4's last frame with ffmpeg and hands it to Cloud IA2V. First chunk still uses the plate.",
   },
 ];
 
@@ -181,7 +190,7 @@ export function adviseSpeechClip(text: string, durationSec?: number): SpeechClip
       estimatedSec,
       chunks,
       entryId: "speech-rant-unsplit",
-      fix: `Rant is ~${estimatedSec.toFixed(1)}s / ${words} words. Split into ${chunks.length} clips on the same plate (≤${SPEECH_QUALITY_MAX_WORDS} words / ~${SPEECH_QUALITY_MAX_SEC}s each) or LTX will invent walkers.`,
+      fix: `Rant is ~${estimatedSec.toFixed(1)}s / ${words} words. Split into ${chunks.length} clips (≤${SPEECH_QUALITY_MAX_WORDS} words / ~${SPEECH_QUALITY_MAX_SEC}s each). Clip 1 starts on the plate; each later clip starts on the previous clip's last frame.`,
     };
   }
   return {

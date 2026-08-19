@@ -9,6 +9,7 @@ Wired now:
 - Missing face → refuse the plate (no partial cast).
 - `/m` Save still splits rants, including run-on sentences with no period (≤15 words per clip).
 - Cloud IA2V pads speaking clips to **4s** so short gold lines (Fair call) keep their words and still have mouth frames.
+- Split speech: clip 1 uses the plate; clip 2+ uses the **previous clip's last frame** as the start still.
 
 Scratch stays stills-only. Speech stays on `/m`.
 
@@ -64,7 +65,7 @@ Lip-sync lead is prepended on send. No `[VISUAL]`. No `[SPEECH]`. Look lock = ha
 |---|---|---|
 | Too short (~&lt;4s, tiny “yes” / “oi” / gold “Fair call”) | Mouth starved of frames if the clip follows the mp3. | Keep the words. Cloud IA2V pads to **4s** (camera holds). Prefer 4–6s when writing new lines. |
 | Sweet | **4–6s / ≤15 words** on one still | Send gold speaking motion. |
-| Rant on one clip (~&gt;6s / &gt;15 words) | LTX holds the plate then **walkers enter** (logged ~7s into a 39s rant) | `splitSpokenRant` — same plate, new mp3 per chunk (sentences, then word cap). Words stay Stuie's. |
+| Rant on one clip (~&gt;6s / &gt;15 words) | LTX holds the plate then **walkers enter** (logged ~7s into a 39s rant) | `splitSpokenRant` — new mp3 per chunk (sentences, then word cap). Clip 1 = plate; next clips = previous last frame. Words stay Stuie's. |
 
 180s is a safety ceiling, not a quality window.
 
@@ -79,5 +80,7 @@ The still turning cartoon or “a real human” is a **Scratch Draw** failure (s
 ## How we keep building this
 
 1. Scratch Draw → score Pass / Fail / Style slip → CSV.
-2. `/m` Save line → Generate on Cloud IA2V → note short / ok / rant-split.
+2. `/m` Save line → Generate on Cloud IA2V → note short / ok / rant-split (last frame chains).
 3. Append a row here (and in `src/lib/plateAutomationArchive.ts`) only when a result is proven. Do not rewrite a live pack's `story_json`.
+
+Comfy Cloud animation map (Wan-Move, Wan Animate, AnimateDiff, FLF2V, SCAIL2, LTX Director vs our IA2V): [`COMFY_ANIMATION_RESEARCH.md`](./COMFY_ANIMATION_RESEARCH.md).
