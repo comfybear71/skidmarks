@@ -723,6 +723,24 @@ export async function POST(req: Request) {
     if (action === "preset-poll") {
       const task = job.scratchDraw;
       if (!task?.taskId) {
+        const shotId = job.scratchPlate?.shotId || "";
+        const plateFile =
+          job.shots.find((s) => s.shotId === shotId)?.plateFile ||
+          story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === shotId)?.plateFile ||
+          "";
+        if (plateFile && plateFile !== "__error__") {
+          const refreshed = (await readMobileGenJob(jobId)) || job;
+          return NextResponse.json({
+            ok: true,
+            pending: false,
+            recovered: true,
+            job: refreshed,
+            plateFile,
+            staging: story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === shotId)?.staging,
+            backend: "siray-spicy",
+            siray: true,
+          });
+        }
         return NextResponse.json(
           { error: "No Draw in flight — tap Draw again. The episode is still there." },
           { status: 400 },

@@ -72,6 +72,21 @@ import {
 
 type ScratchClipPick = "ltx" | SirayI2vId;
 
+function plateFileFromHistoryRun(run: ScratchBenchRun): string {
+  const direct = (run.plateFile || "").trim();
+  if (direct) return direct;
+  const url = (run.plateUrl || "").trim();
+  if (!url) return "";
+  try {
+    const q = url.includes("?") ? url.slice(url.indexOf("?")) : "";
+    const name = new URLSearchParams(q).get("name");
+    return name ? decodeURIComponent(name) : "";
+  } catch {
+    const m = url.match(/[?&]name=([^&]+)/);
+    return m?.[1] ? decodeURIComponent(m[1]) : "";
+  }
+}
+
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
   try {
@@ -547,6 +562,7 @@ export default function ScratchPage() {
     sceneId?: string;
   }) {
     if (!job) return;
+    if (busy === "restore") return;
     const rawStaging = opts?.staging ?? staging;
     const laidOut = mergePlacementsIntoStaging(rawStaging || "", placements, placeName);
     const nextStaging = injectChaosStill(laidOut, bench.chaosId);
@@ -831,42 +847,49 @@ export default function ScratchPage() {
 
   async function restoreHistoryPlate(run: ScratchBenchRun) {
     if (!job) return;
-    setSelectedRunId(run.id);
-    if (run.positionPrompt) setStaging(stripScratchLayoutMarks(run.positionPrompt));
-    if (run.placements?.length) {
-      setPlacements(run.placements);
-      setPadCast(run.placements.map((p) => p.name));
-      setSpeaker(run.placements[0]?.name || speaker);
-    }
-    if (run.dialogue) setLine(run.dialogue);
-    if (run.environment) {
-      const match = job.scenes.find(
-        (s) => s.placeName.trim().toLowerCase() === run.environment!.trim().toLowerCase(),
-      );
-      if (match) setSceneId(match.id);
-    }
-    if (!run.plateFile) {
+    drawSeq.current += 1;
+    setBusy("restore");
+    setError("");
+    const plateFile = plateFileFromHistoryRun(run);
+    if (!plateFile) {
+      setBusy("");
       if (run.plateUrl) setLightbox(run.plateUrl);
+      setError("That history row has no still file — pick a still thumb, not a clip.");
       return;
     }
-    setError("");
     try {
       const data = await postJson<{ job: MobileGenJob; staging?: string; plateFile?: string }>(
         "/api/crash/mobile/scratch",
         {
           action: "restore-plate",
           jobId: job.id,
-          plateFile: run.plateFile,
+          plateFile,
           staging: run.positionPrompt,
         },
       );
       if (data.job) setJob(data.job);
+      setSelectedRunId(run.id);
       if (data.staging) setStaging(stripScratchLayoutMarks(data.staging));
+      else if (run.positionPrompt) setStaging(stripScratchLayoutMarks(run.positionPrompt));
+      if (run.placements?.length) {
+        setPlacements(run.placements);
+        setPadCast(run.placements.map((p) => p.name));
+        setSpeaker(run.placements[0]?.name || speaker);
+      }
+      if (run.dialogue) setLine(run.dialogue);
+      if (run.environment) {
+        const match = job.scenes.find(
+          (s) => s.placeName.trim().toLowerCase() === run.environment!.trim().toLowerCase(),
+        );
+        if (match) setSceneId(match.id);
+      }
       setPadCleared(false);
       writeLocalPadCleared(job.id, false);
       await loadStory(data.job, { keepStaging: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't put that still on the pad");
+    } finally {
+      setBusy("");
     }
   }
 
@@ -1377,7 +1400,7 @@ export default function ScratchPage() {
             <div style={{ display: "flex", gap: "8px", alignItems: "stretch", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 160px" }}>
                 <MobilePrimaryButton
-                  disabled={!job}
+                  disabled={!job || Boolean(busy)}
                   onClick={() =>
                     void draw({
                       cast: padCast,
@@ -1386,9 +1409,11 @@ export default function ScratchPage() {
                     })
                   }
                 >
-                  {busy === "draw"
-                    ? `Drawing… ${drawSecs}s — tap to retry`
-                    : "Draw"}
+                  {busy === "restore"
+                    ? "Restoring still…"
+                    : busy === "draw"
+                      ? `Drawing… ${drawSecs}s — tap to retry`
+                      : "Draw"}
                 </MobilePrimaryButton>
               </div>
               <button
@@ -1655,6 +1680,7 @@ export default function ScratchPage() {
               onSelect={(run) => {
                 void restoreHistoryPlate(run);
               }}
+              disabled={Boolean(busy)}
               onRemove={(run) => {
                 setBench((prev) => removeBenchRun(prev, run.id));
                 setSelectedRunId((id) => (id === run.id ? null : id));
