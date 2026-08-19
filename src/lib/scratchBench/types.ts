@@ -68,6 +68,11 @@ export type ScratchBenchRun = {
   motionPrompt?: string;
   plateUrl?: string;
   clipUrl?: string;
+  /** Show id + pack/job folder so history can print the Blob path. */
+  styleId?: string;
+  mediaFolder?: string;
+  plateFile?: string;
+  clipFile?: string;
   tags: ScratchScoreTag[];
   note?: string;
   overlays?: ScratchOverlay[];

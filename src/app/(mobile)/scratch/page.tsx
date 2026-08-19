@@ -13,6 +13,7 @@ import { OpenEpisodePicker } from "@/components/mobile/OpenEpisodePicker";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId, clearResumedJobId } from "@/lib/mobileJobResume";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
+import { mobileMediaFolder } from "@/lib/mobileJobFolder";
 import type { CrashStoryBeat, CrashStoryDoc } from "@/lib/crashStoryTypes";
 import { approvedCandidateFileName, preferredCandidate, candidateLookPrompt } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
@@ -42,6 +43,7 @@ import {
   appendBenchRun,
   applyBibleTokens,
   clearBenchRuns,
+  removeBenchRun,
   downloadScratchRunsCsv,
   dropPercents,
   emptyBenchSession,
@@ -674,6 +676,9 @@ export default function ScratchPage() {
           sendLayers: drawn.send?.layers || floorSend?.layers,
           faceLooks: floorFaces.map((f) => ({ name: f.name, look: f.look })),
           plateUrl,
+          styleId: drawn.job.styleId,
+          mediaFolder: mobileMediaFolder(drawn.job),
+          plateFile: plateFileName || undefined,
           tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
           placements: placements.length ? placements : undefined,
           environment: placeName || undefined,
@@ -1082,6 +1087,10 @@ export default function ScratchPage() {
           positionPrompt: staging || undefined,
           plateUrl: plateSrc || undefined,
           clipUrl,
+          styleId: data.job?.styleId || job.styleId,
+          mediaFolder: mobileMediaFolder(data.job || job),
+          plateFile: plateFile && plateFile !== "__error__" ? plateFile : undefined,
+          clipFile: clipFile || undefined,
           tags: prev.chaosId !== "none" ? (["chaos"] as ScratchScoreTag[]) : [],
           placements: placements.length ? placements : undefined,
           environment: placeName || undefined,
@@ -1765,6 +1774,11 @@ export default function ScratchPage() {
             <ScratchHistoryStrip
               runs={bench.runs}
               selectedId={selectedRunId}
+              blobFallback={
+                job
+                  ? { styleId: job.styleId, folder: mobileMediaFolder(job) }
+                  : undefined
+              }
               onSelect={(run) => {
                 setSelectedRunId(run.id);
                 if (run.positionPrompt) setStaging(run.positionPrompt);
@@ -1782,6 +1796,10 @@ export default function ScratchPage() {
                   );
                   if (match) setSceneId(match.id);
                 }
+              }}
+              onRemove={(run) => {
+                setBench((prev) => removeBenchRun(prev, run.id));
+                setSelectedRunId((id) => (id === run.id ? null : id));
               }}
               onClear={() => {
                 setBench((prev) => clearBenchRuns(prev));

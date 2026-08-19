@@ -84,3 +84,15 @@ export function clearBenchRuns(session: ScratchBenchSession): ScratchBenchSessio
   saveBenchSession(next);
   return next;
 }
+
+/** Drop one history card. Does not delete Blob / Neon media. */
+export function removeBenchRun(session: ScratchBenchSession, runId: string): ScratchBenchSession {
+  const id = (runId || "").trim();
+  if (!id) return session;
+  const next: ScratchBenchSession = {
+    ...session,
+    runs: session.runs.filter((r) => r.id !== id),
+  };
+  saveBenchSession(next);
+  return next;
+}

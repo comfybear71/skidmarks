@@ -15,6 +15,7 @@ export {
   SCRATCH_BENCH_STORAGE_KEY,
   appendBenchRun,
   clearBenchRuns,
+  removeBenchRun,
   emptyBenchSession,
   loadBenchSession,
   saveBenchSession,
@@ -86,3 +87,9 @@ export {
 export type { ScratchPromptFormatConfig } from "./promptFormatter";
 
 export { downloadScratchRunsCsv, scratchRunsToCsv } from "./csvExport";
+export {
+  scratchBlobFolderForRun,
+  scratchBlobFolderPath,
+  scratchMediaFileFromUrl,
+} from "./blobFolder";
+export type { ScratchBlobKind } from "./blobFolder";
