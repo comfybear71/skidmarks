@@ -13,6 +13,7 @@ import {
   scratchNudeStillLock,
   scratchStartImageLock,
   scratchWantsNude,
+  scratchWantsUndressFromStill,
   SCRATCH_REFINE_IMAGE_ONLY_LOCK,
   SCRATCH_SINGLE_FRAME_LOCK,
 } from "./sirayI2v";
@@ -79,14 +80,19 @@ export function buildScratchRefineSend(opts: {
 }): ScratchStillSend {
   const raw = stripScratchLayoutMarks(opts.staging || "").trim();
   const speakers = [...new Set((opts.speakers || []).map((s) => s.trim()).filter(Boolean))];
-  const nude = scratchWantsNude(raw);
-  const nudeLock = nude
+  const undressFromStill = scratchWantsUndressFromStill(raw);
+  const nudeKeep = scratchWantsNude(raw) && !undressFromStill;
+  const nudeLock = nudeKeep
     ? "Same bare body, skin, and wardrobe as the attached image. Do not add clothes. Do not censor anatomy already visible in the image."
+    : "";
+  const undressLock = undressFromStill
+    ? "The attached image is clothed. Follow Change only — undress as written. Do not keep the outfit if Change only removes it. Do not invent a second person."
     : "";
   const watermark = "No writing, no signage text, no captions, no watermarks.";
   const layers: ScratchSendLayer[] = [
     { id: "refine", label: "Image only", text: SCRATCH_REFINE_IMAGE_ONLY_LOCK },
     ...(nudeLock ? [{ id: "nude", label: "Nude lock", text: nudeLock }] : []),
+    ...(undressLock ? [{ id: "undress", label: "Undress from still", text: undressLock }] : []),
     {
       id: "staging",
       label: "Change only",
@@ -98,7 +104,7 @@ export function buildScratchRefineSend(opts: {
   return {
     layers,
     prompt,
-    nude,
+    nude: nudeKeep || undressFromStill,
     joPhone: false,
     faces: [],
     placeLook: "",
