@@ -11,13 +11,12 @@ import { resolveMobileBeatAudio } from "./resolveMobileBeatAudio";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
 import { rememberClipTake } from "./mobilePlateClips";
 import { probeDurationSeconds } from "./mediaDuration";
-import { candidateLookPrompt } from "./mobileJobReady";
 import { CRASH_DIR } from "./paths";
-import { motionStyleLock, stripLtxLipSyncLead } from "./mobileImageMotion";
+import { stripLtxLipSyncLead } from "./mobileImageMotion";
 import { patchMobileGenJob, type MobileClipUnit, type MobileGenJob } from "./mobileGenJob";
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import { sortableId } from "./types";
-import { fileToDataUrl } from "./sirayScratchPlate";
+import { fileToSirayVideoDataUrl } from "./sirayScratchPlate";
 import {
   clampSirayI2vDurationSec,
   sirayConfigured,
@@ -29,6 +28,7 @@ import {
   buildSirayI2vPrompt,
   SIRAY_I2V_DEFAULT,
   sirayI2vSpec,
+  snapSirayI2vDurationSec,
   type SirayI2vId,
 } from "./sirayI2v";
 
@@ -94,18 +94,13 @@ export async function runScratchSirayClip(opts: {
   const i2v = opts.i2v || SIRAY_I2V_DEFAULT;
   const spec = sirayI2vSpec(i2v);
   const probed = audioPath ? probeDurationSeconds(audioPath) : undefined;
-  const duration = clampSirayI2vDurationSec(probed ?? 5, spec.minSec, spec.maxSec);
-  const lookLock =
-    candidateLookPrompt(job.castCandidates, speaker) ||
-    job.roster.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())?.appearance ||
-    "";
+  const duration = snapSirayI2vDurationSec(probed ?? 5, spec);
   const motion = stripLtxLipSyncLead(beat.imageMotion || "");
   const prompt = buildSirayI2vPrompt({
     speaker,
     motion,
     staging: storyShot.staging || "",
-    lookLock,
-    styleLock: motionStyleLock(job.styleId),
+    imageOnly: true,
   });
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
@@ -146,7 +141,7 @@ export async function runScratchSirayClip(opts: {
     const taskId = await siraySubmitVideoAsync({
       model: spec.model,
       prompt,
-      image: fileToDataUrl(platePath),
+      image: await fileToSirayVideoDataUrl(platePath),
       duration,
       size: spec.size,
       ...(spec.aspectRatio ? { aspect_ratio: spec.aspectRatio } : {}),

@@ -49,6 +49,21 @@ export function fileToDataUrl(filePath: string): string {
   return `data:${mime};base64,${buf.toString("base64")}`;
 }
 
+/** Siray i2v accepts data URLs but large 2k PNGs can be rejected — downscale for video submit. */
+export async function fileToSirayVideoDataUrl(filePath: string): Promise<string> {
+  try {
+    const sharp = (await import("sharp")).default;
+    const buf = await sharp(filePath)
+      .rotate()
+      .resize({ width: 1280, height: 1280, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 88 })
+      .toBuffer();
+    return `data:image/jpeg;base64,${buf.toString("base64")}`;
+  } catch {
+    return fileToDataUrl(filePath);
+  }
+}
+
 export function buildSirayScratchPrompt(opts: {
   styleId: ShowStyleId;
   styleRealism: number;
