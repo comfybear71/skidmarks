@@ -15,6 +15,7 @@ import { probeDurationSeconds } from "./mediaDuration";
 import { CRASH_DIR } from "./paths";
 import { stripLtxLipSyncLead } from "./mobileImageMotion";
 import { patchMobileGenJob, readMobileGenJob, type MobileClipUnit, type MobileGenJob } from "./mobileGenJob";
+import { mobileMediaFolder } from "./mobileJobFolder";
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import { sortableId } from "./types";
 import { fileToSirayVideoDataUrl } from "./sirayScratchPlate";
@@ -206,7 +207,7 @@ export async function finishScratchSirayClip(opts: {
   try {
     await uploadMobileMedia({
       styleId: opts.job.styleId,
-      folderName: opts.job.folderName,
+      folderName: mobileMediaFolder(opts.job),
       kind: "mp4",
       localPath: localMp4,
     });
