@@ -70,3 +70,41 @@ export function clipsUnderPlate(
   }
   return out;
 }
+
+/** Drop one take from a clip row — newest remaining take becomes clipFile. */
+export function dropClipTakeFromRow(clip: MobileClipUnit, fileName: string): MobileClipUnit {
+  const want = clipFileBasename(fileName);
+  if (!want) return clip;
+  const stacked = stackedClipFiles(clip);
+  if (!stacked.includes(want)) return clip;
+  const remaining = stacked.filter((f) => f !== want);
+  if (!remaining.length) {
+    return {
+      ...clip,
+      clipFile: "",
+      priorClipFiles: [],
+      clipStatus: "pending",
+      error: "",
+    };
+  }
+  const prior = remaining.slice(0, -1);
+  const latest = remaining[remaining.length - 1]!;
+  return {
+    ...clip,
+    clipFile: latest,
+    priorClipFiles: prior,
+    clipStatus: "done",
+    error: "",
+  };
+}
+
+/** Clear every take on one clip row. */
+export function clearClipRowTakes(clip: MobileClipUnit): MobileClipUnit {
+  return {
+    ...clip,
+    clipFile: "",
+    priorClipFiles: [],
+    clipStatus: "pending",
+    error: "",
+  };
+}

@@ -30,14 +30,23 @@ import { campaignImageMotionForId } from "@/lib/mobilePlateLtxCampaign";
 import {
   SCRATCH_SHOT_TITLE,
   findScratchShot,
+  isOffEpisodeDeskShot,
   isScratchShotTitle,
   normalizeScratchCast,
   scratchBeatsForCast,
   scratchClipStillInFlight,
   scratchDrawStillInFlight,
+  scratchPadClips,
   scratchStagingForCast,
   type ScratchPlateRef,
 } from "@/lib/mobileScratch";
+import { parkMobileClipFile } from "@/lib/mobileClipPark";
+import {
+  clearClipRowTakes,
+  clipFileBasename,
+  dropClipTakeFromRow,
+  stackedClipFiles,
+} from "@/lib/mobilePlateClips";
 import { runScratchLtxClip } from "@/lib/mobileScratchClip";
 import { deskLabel, jobDeskId } from "@/lib/mobileDesk";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
@@ -308,6 +317,10 @@ async function restoreScratchPlate(opts: {
  *   — LTX waits on this request. Siray i2v submits and returns `{ pending: true }`.
  * POST { action: "clip-poll", jobId }
  *   — one Siray video tick. `{ pending: true }` until the mp4 lands. Same episode.
+ * POST { action: "remove-clip", jobId, beatId, fileName }
+ *   — drop one bad take from the strip. Local mp4 parks in _cleared/; Blob stays.
+ * POST { action: "remove-all-clips", jobId }
+ *   — clear every Scratch pad clip row. Same park rules.
  * GET — whether SIRAY_API_KEY is on this process (no secrets).
  */
 export async function GET() {
@@ -341,6 +354,7 @@ export async function POST(req: Request) {
       clipEngine?: string;
       joPhone?: boolean;
       plateFile?: string;
+      fileName?: string;
     };
     const jobId = (body.jobId || "").trim();
     const action = (body.action || "ensure").trim().toLowerCase();
@@ -578,6 +592,7 @@ export async function POST(req: Request) {
 
     if (action === "preset") {
       const poseId = (body.poseId || "").trim();
+      const jobStyleId = job.styleId;
       const placeName = scene.placeName || "this place";
       const speaker =
         (body.speaker || job.scratchPlate.speaker || shot.beats[0]?.speaker || "").trim();
@@ -619,7 +634,7 @@ export async function POST(req: Request) {
                       ...b,
                       imageMotion: campaignImageMotionForId({
                         id: poseId,
-                        styleId: job.styleId,
+                        styleId: jobStyleId,
                         speaker: b.speaker,
                         line: b.text,
                       }),
@@ -796,6 +811,61 @@ export async function POST(req: Request) {
           { status: 502 },
         );
       }
+    }
+
+    if (action === "remove-clip" || action === "remove-all-clips") {
+      let padJob = job;
+      const story =
+        padJob.folderName
+          ? await readMobileStory(padJob.styleId, padJob.folderName).catch(() => null)
+          : null;
+      const padBeatIds = new Set(scratchPadClips(padJob, story).map((c) => c.beatId));
+      const onPad = (clip: { beatId: string; shotId: string }) =>
+        padBeatIds.has(clip.beatId) || isOffEpisodeDeskShot(padJob, clip.shotId, story);
+
+      if (action === "remove-all-clips") {
+        const parked: string[] = [];
+        const next = (padJob.clips || []).map((clip) => {
+          if (!onPad(clip)) return clip;
+          for (const file of stackedClipFiles(clip)) {
+            const moved = parkMobileClipFile(file);
+            if (moved) parked.push(moved);
+          }
+          return clearClipRowTakes(clip);
+        });
+        const updatedAll = await patchMobileGenJob(jobId, {
+          clips: next,
+          scratchClip: null,
+          error: "",
+        });
+        if (updatedAll) padJob = updatedAll;
+        return NextResponse.json({ ok: true, job: padJob, removed: parked.length, parkedIn: "_cleared/" });
+      }
+
+      const beatId = (body.beatId || "").trim();
+      const fileName = clipFileBasename(body.fileName || "");
+      if (!beatId || !fileName) {
+        return NextResponse.json({ error: "Need beatId and fileName" }, { status: 400 });
+      }
+      const clip = (padJob.clips || []).find((c) => c.beatId === beatId);
+      if (!clip || !onPad(clip)) {
+        return NextResponse.json({ error: "That clip is not on the Scratch pad" }, { status: 404 });
+      }
+      if (!stackedClipFiles(clip).includes(fileName)) {
+        return NextResponse.json({ error: "Clip take not found on this beat" }, { status: 404 });
+      }
+      const parked = parkMobileClipFile(fileName);
+      const next = (padJob.clips || []).map((c) =>
+        c.beatId === beatId ? dropClipTakeFromRow(c, fileName) : c,
+      );
+      const updatedOne = await patchMobileGenJob(jobId, { clips: next, error: "" });
+      if (updatedOne) padJob = updatedOne;
+      return NextResponse.json({
+        ok: true,
+        job: padJob,
+        parked: parked || null,
+        parkedIn: parked ? "_cleared/" : null,
+      });
     }
 
     if (action === "clip") {

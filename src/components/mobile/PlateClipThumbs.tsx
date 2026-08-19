@@ -19,6 +19,8 @@ export function PlateClipThumbs({
   preload,
   poster,
   layout = "stack",
+  onRemoveTake,
+  removeDisabled,
 }: {
   job: { id: string; styleId: string; folderName: string };
   clips: MobileClipUnit[];
@@ -26,12 +28,16 @@ export function PlateClipThumbs({
   /** Plate still — first frame stand-in so the box is not black before play. */
   poster?: string;
   layout?: "stack" | "strip";
+  /** Scratch — park one bad take off the strip (mp4 stays in _cleared/ or Blob). */
+  onRemoveTake?: (opts: { beatId: string; fileName: string }) => void;
+  removeDisabled?: boolean;
 }) {
   const files = clips.flatMap((clip, i) => {
     const stacked = stackedClipFiles(clip);
     return stacked.map((file, n) => ({
       key: `${clip.beatId}-${n}-${file}`,
       file,
+      beatId: clip.beatId,
       takeLabel: stacked.length > 1 ? `${n + 1}/${stacked.length}` : "",
       preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
     }));
@@ -55,6 +61,12 @@ export function PlateClipThumbs({
           poster={poster}
           preload={row.preload}
           takeLabel={row.takeLabel}
+          onRemove={
+            onRemoveTake
+              ? () => onRemoveTake({ beatId: row.beatId, fileName: row.file })
+              : undefined
+          }
+          removeDisabled={removeDisabled}
         />
       ))}
     </div>
@@ -77,11 +89,15 @@ function ClipPlayer({
   poster,
   preload,
   takeLabel,
+  onRemove,
+  removeDisabled,
 }: {
   src: string;
   poster?: string;
   preload?: boolean;
   takeLabel?: string;
+  onRemove?: () => void;
+  removeDisabled?: boolean;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [open, setOpen] = useState(false);
@@ -149,7 +165,7 @@ function ClipPlayer({
           style={{
             position: "absolute",
             top: "4px",
-            right: "4px",
+            right: onRemove ? "30px" : "4px",
             width: "22px",
             height: "22px",
             padding: 0,
@@ -164,6 +180,36 @@ function ClipPlayer({
         >
           ⤢
         </button>
+        {onRemove ? (
+          <button
+            type="button"
+            aria-label="Remove clip"
+            title="Remove from strip. File parks in _cleared/ — not deleted."
+            disabled={removeDisabled}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            style={{
+              position: "absolute",
+              top: "4px",
+              right: "4px",
+              width: "22px",
+              height: "22px",
+              padding: 0,
+              borderRadius: "2px",
+              border: "1px solid var(--acid)",
+              background: "rgba(0,0,0,0.72)",
+              color: "var(--acid)",
+              fontSize: "11px",
+              lineHeight: 1,
+              cursor: removeDisabled ? "not-allowed" : "pointer",
+              opacity: removeDisabled ? 0.45 : 1,
+            }}
+          >
+            ✕
+          </button>
+        ) : null}
       </div>
       {open ? (
         <div
