@@ -81,3 +81,17 @@ When we slim the UI later (see §1), these fields are candidates to hide or gut 
 Plate still drops onto the beat (from image gen / own still) — not built from PLATE PROMPT AI anymore.
 
 **No code yet** — when we slim the UI, keep these; cut §3–§4 junk.
+
+---
+
+## 6. Scratch — add your own Prompt bible chips (rapid iteration)
+
+**Logged 2026-08-19.** PR **#185** removed the Frame / Body / Holding / … dropdowns from `/scratch`. **Prompt bible only** now — chips edit the prompt box; **Draw** is separate (~60s). Every old built-in dropdown preset was merged into the bible (Composition, Pose, Wardrobe, Props, Drama, Atmosphere, Crowd / multi).
+
+| Need | Why |
+|------|-----|
+| **Add new chips** to the Prompt bible while Stuie rapid-iterates | Winners from the prompt box (undress ladder, pose locks, wardrobe lines) should be one tap next time — not retyped. Built-ins are frozen in code until we ship this. |
+| **Save under a section** (Composition, Pose, Wardrobe, …) | Same accordion, same Append / Replace flow. Highlight picked chips like today. |
+| **No auto-Draw on save** | Picking or saving a chip must **not** fire Draw — only edit the prompt until Stuie taps Draw. |
+
+**Not now:** Stuie said he will concern himself with this later; keep testing bible-only `/scratch` first. When we build it, prefer browser-local or Neon-backed customs — not a return to dropdown rows that burn a draw per pick.

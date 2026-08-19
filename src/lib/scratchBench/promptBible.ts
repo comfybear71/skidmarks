@@ -1,7 +1,6 @@
 /**
  * Scratch /m prompt bible — banks for still Draw (includes every old preset dropdown).
- * Accordion UI shows titles only; chips live under one open panel.
- * Append order that works: Composition → Pose → Wardrobe → Props → Drama → Atmosphere → Crowd.
+ * Accordion UI: pick chips to edit the prompt; Draw is separate. Future: user-added chips — see docs/FUTURE.md §6.
  */
 
 import { campaignStagingForId, plateLtxCampaignScenarios } from "../mobilePlateLtxCampaign";
