@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import {
   clearAllStoryShots,
   mergeClipsFromStory,
+  nextClipToAnimate,
+  previousDoneClipOnShot,
   queueableStoryBeats,
   queuedSavedClips,
   upsertPendingClip,
@@ -248,5 +250,74 @@ const alreadyDone = mergeClipsFromStory(
   savedStory,
 );
 assert.equal(alreadyDone[0].clipStatus, "done");
+
+const a1 = {
+  beatId: "a1",
+  shotId: "shot_jo",
+  clipStatus: "done",
+  clipFile: "a1.mp4",
+};
+const a2 = {
+  beatId: "a2",
+  shotId: "shot_jo",
+  clipStatus: "pending",
+  clipFile: "",
+};
+const b1 = {
+  beatId: "b1",
+  shotId: "shot_other",
+  clipStatus: "pending",
+  clipFile: "",
+};
+
+assert.equal(nextClipToAnimate([a1, a2]).beatId, "a2");
+assert.equal(previousDoneClipOnShot([a1, a2], a2)?.beatId, "a1");
+assert.equal(
+  previousDoneClipOnShot([a1, a2], a2)?.clipFile,
+  "a1.mp4",
+  "chunk 2 must chain from chunk 1's mp4",
+);
+
+const waiting = [
+  { ...a1, clipStatus: "running", clipFile: "" },
+  a2,
+];
+assert.equal(nextClipToAnimate(waiting), null, "do not start chunk 2 while chunk 1 is still rendering");
+
+const firstPending = [
+  { ...a1, clipStatus: "pending", clipFile: "" },
+  a2,
+];
+assert.equal(nextClipToAnimate(firstPending)?.beatId, "a1");
+
+const parallelOtherShot = [
+  { ...a1, clipStatus: "running", clipFile: "" },
+  a2,
+  b1,
+];
+assert.equal(
+  nextClipToAnimate(parallelOtherShot)?.beatId,
+  "b1",
+  "a different shot can still start while this rant is rendering",
+);
+assert.equal(previousDoneClipOnShot([a1, b1], b1), null, "other shot uses its own plate");
+
+const afterError = [
+  { ...a1, clipStatus: "error", clipFile: "" },
+  a2,
+];
+assert.equal(nextClipToAnimate(afterError)?.beatId, "a2");
+assert.equal(
+  previousDoneClipOnShot(afterError, a2),
+  null,
+  "failed chunk has no last frame — next clip falls back to the plate",
+);
+
+const three = [
+  a1,
+  { beatId: "a2done", shotId: "shot_jo", clipStatus: "done", clipFile: "a2.mp4" },
+  { beatId: "a3", shotId: "shot_jo", clipStatus: "pending", clipFile: "" },
+];
+assert.equal(previousDoneClipOnShot(three, three[2])?.clipFile, "a2.mp4");
 
 console.log("check-mobile-clip-queue: ok");

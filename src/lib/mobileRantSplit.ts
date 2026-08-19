@@ -52,3 +52,14 @@ export function splitSpokenRant(text: string): string[] {
   }
   return pieces.flatMap(splitOverlongChunk);
 }
+
+/** Keep rant chunks next to each other so clip N's last frame can seed clip N+1. */
+export function insertBeatAfter<T extends { id: string }>(
+  beats: T[],
+  afterId: string,
+  beat: T,
+): T[] {
+  const i = beats.findIndex((b) => b.id === afterId);
+  if (i < 0) return [...beats, beat];
+  return [...beats.slice(0, i + 1), beat, ...beats.slice(i + 1)];
+}
