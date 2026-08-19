@@ -68,6 +68,8 @@ Lip-sync lead is prepended on send. No `[VISUAL]`. No `[SPEECH]`. Look lock = ha
 
 180s is a safety ceiling, not a quality window.
 
+Official Comfy **LTX-2.5 FLF2V** ([Hub d78377cf53f4](https://comfy.org/workflows/d78377cf53f4-d78377cf53f4/)) is **two stills → in-betweens + invented audio**. It is not `/m` Generate. Full node map: `docs/LTX_25_FLF2V_RESEARCH.md`.
+
 ---
 
 ## Character slipping (the worry)
@@ -81,3 +83,5 @@ The still turning cartoon or “a real human” is a **Scratch Draw** failure (s
 1. Scratch Draw → score Pass / Fail / Style slip → CSV.
 2. `/m` Save line → Generate on Cloud IA2V → note short / ok / rant-split.
 3. Append a row here (and in `src/lib/plateAutomationArchive.ts`) only when a result is proven. Do not rewrite a live pack's `story_json`.
+
+LTX-2.5 FLF2V research (knowledge, no send-path change): `docs/LTX_25_FLF2V_RESEARCH.md`.

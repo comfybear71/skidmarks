@@ -141,6 +141,24 @@ export const PLATE_AUTOMATION_ENTRIES: ArchiveEntry[] = [
     why: "LTX holds the solo plate ~6s then walkers enter (logged on a 39s rant). Same still, extras invented.",
     fix: "splitSpokenRant at sentence ends so each clip stays ≤15 words / ~6s. Same plate, new mp3 per chunk. Words stay Stuie's.",
   },
+  {
+    id: "ltx-25-flf2v-not-speech",
+    surface: "mobile",
+    layer: "speech",
+    verdict: "fails",
+    title: "Official LTX-2.5 FLF2V is not /m speech",
+    why: "Hub graph d78377cf53f4 interpolates two stills and invents audio from the Audio VAE. There is no LoadAudio. Pointing Generate at it would drop Stuie's mp3.",
+    fix: "Keep /m on LTX-2.3 IA2V (plate + mp3). FLF2V is two scored stills → silent/camera move later. See docs/LTX_25_FLF2V_RESEARCH.md.",
+  },
+  {
+    id: "ltx-25-flf2v-two-guides",
+    surface: "both",
+    layer: "speech",
+    verdict: "works",
+    title: "FLF2V locks start at frame 0 and end at frame -1",
+    why: "Official subgraph uses two LTXVAddGuide nodes, strength 0.7, CRF 18 preprocess, duration×fps+1 frames, distilled CFG 1. That is first+last still interpolation, not one-plate lip-sync.",
+    fix: "If we ever test pose-to-pose on Scratch: two same-aspect stills, start+end prompt lock, no mp3. Do not use the original plate as the last frame of a talking chunk (snaps the mouth back).",
+  },
 ];
 
 export type SpeechClipAdvice = {
