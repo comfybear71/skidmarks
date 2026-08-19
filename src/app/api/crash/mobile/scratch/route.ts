@@ -40,11 +40,11 @@ import {
   scratchStagingForCast,
   type ScratchPlateRef,
 } from "@/lib/mobileScratch";
+import { parkMobileClipFile } from "@/lib/mobileClipPark";
 import {
   clearClipRowTakes,
   clipFileBasename,
   dropClipTakeFromRow,
-  parkMobileClipFile,
   stackedClipFiles,
 } from "@/lib/mobilePlateClips";
 import { runScratchLtxClip } from "@/lib/mobileScratchClip";
@@ -592,6 +592,7 @@ export async function POST(req: Request) {
 
     if (action === "preset") {
       const poseId = (body.poseId || "").trim();
+      const jobStyleId = job.styleId;
       const placeName = scene.placeName || "this place";
       const speaker =
         (body.speaker || job.scratchPlate.speaker || shot.beats[0]?.speaker || "").trim();
@@ -633,7 +634,7 @@ export async function POST(req: Request) {
                       ...b,
                       imageMotion: campaignImageMotionForId({
                         id: poseId,
-                        styleId: job.styleId,
+                        styleId: jobStyleId,
                         speaker: b.speaker,
                         line: b.text,
                       }),
@@ -813,15 +814,18 @@ export async function POST(req: Request) {
     }
 
     if (action === "remove-clip" || action === "remove-all-clips") {
+      let padJob = job;
       const story =
-        job.folderName ? await readMobileStory(job.styleId, job.folderName).catch(() => null) : null;
-      const padBeatIds = new Set(scratchPadClips(job, story).map((c) => c.beatId));
+        padJob.folderName
+          ? await readMobileStory(padJob.styleId, padJob.folderName).catch(() => null)
+          : null;
+      const padBeatIds = new Set(scratchPadClips(padJob, story).map((c) => c.beatId));
       const onPad = (clip: { beatId: string; shotId: string }) =>
-        padBeatIds.has(clip.beatId) || isOffEpisodeDeskShot(job, clip.shotId, story);
+        padBeatIds.has(clip.beatId) || isOffEpisodeDeskShot(padJob, clip.shotId, story);
 
       if (action === "remove-all-clips") {
         const parked: string[] = [];
-        const next = (job.clips || []).map((clip) => {
+        const next = (padJob.clips || []).map((clip) => {
           if (!onPad(clip)) return clip;
           for (const file of stackedClipFiles(clip)) {
             const moved = parkMobileClipFile(file);
@@ -829,13 +833,13 @@ export async function POST(req: Request) {
           }
           return clearClipRowTakes(clip);
         });
-        job =
-          (await patchMobileGenJob(jobId, {
-            clips: next,
-            scratchClip: null,
-            error: "",
-          })) || job;
-        return NextResponse.json({ ok: true, job, removed: parked.length, parkedIn: "_cleared/" });
+        const updatedAll = await patchMobileGenJob(jobId, {
+          clips: next,
+          scratchClip: null,
+          error: "",
+        });
+        if (updatedAll) padJob = updatedAll;
+        return NextResponse.json({ ok: true, job: padJob, removed: parked.length, parkedIn: "_cleared/" });
       }
 
       const beatId = (body.beatId || "").trim();
@@ -843,7 +847,7 @@ export async function POST(req: Request) {
       if (!beatId || !fileName) {
         return NextResponse.json({ error: "Need beatId and fileName" }, { status: 400 });
       }
-      const clip = (job.clips || []).find((c) => c.beatId === beatId);
+      const clip = (padJob.clips || []).find((c) => c.beatId === beatId);
       if (!clip || !onPad(clip)) {
         return NextResponse.json({ error: "That clip is not on the Scratch pad" }, { status: 404 });
       }
@@ -851,13 +855,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Clip take not found on this beat" }, { status: 404 });
       }
       const parked = parkMobileClipFile(fileName);
-      const next = (job.clips || []).map((c) =>
+      const next = (padJob.clips || []).map((c) =>
         c.beatId === beatId ? dropClipTakeFromRow(c, fileName) : c,
       );
-      job = (await patchMobileGenJob(jobId, { clips: next, error: "" })) || job;
+      const updatedOne = await patchMobileGenJob(jobId, { clips: next, error: "" });
+      if (updatedOne) padJob = updatedOne;
       return NextResponse.json({
         ok: true,
-        job,
+        job: padJob,
         parked: parked || null,
         parkedIn: parked ? "_cleared/" : null,
       });

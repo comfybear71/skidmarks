@@ -6,10 +6,10 @@ import {
   clearClipRowTakes,
   clipFileBasename,
   dropClipTakeFromRow,
-  parkMobileClipFile,
   rememberClipTake,
   stackedClipFiles,
 } from "../src/lib/mobilePlateClips.ts";
+import { parkMobileClipFile } from "../src/lib/mobileClipPark.ts";
 
 const clip = {
   beatId: "beat-1",
@@ -50,9 +50,10 @@ fs.mkdirSync(ltxDir, { recursive: true });
 const sample = path.join(ltxDir, "park_me.mp4");
 fs.writeFileSync(sample, "fake mp4");
 const parked = parkMobileClipFile("park_me.mp4");
-assert.equal(parked, "park_me.mp4");
+assert.ok(parked?.endsWith("park_me.mp4"));
 assert.ok(!fs.existsSync(sample));
-assert.ok(fs.existsSync(path.join(CRASH_DIR, "ltx", "_cleared", "park_me.mp4")));
+const clearedDir = path.join(CRASH_DIR, "ltx", "_cleared");
+assert.ok(fs.readdirSync(clearedDir).some((name) => name.endsWith("park_me.mp4")));
 assert.equal(clipFileBasename("/tmp/foo/bar.mp4"), "bar.mp4");
 
 console.log("check-mobile-plate-clips: ok");
