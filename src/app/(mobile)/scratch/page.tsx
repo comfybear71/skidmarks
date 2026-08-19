@@ -22,16 +22,6 @@ import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { buildDefaultBeatMotion, LTX_LIP_SYNC_LEAD, stripLtxLipSyncLead } from "@/lib/mobileImageMotion";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
-  SCRATCH_PRESET_GROUPS,
-  applyScratchPresetTemplate,
-  deleteScratchPreset,
-  loadScratchPresets,
-  newScratchPresetId,
-  saveScratchPresetFromPrompt,
-  type ScratchPreset,
-  type ScratchPresetGroup,
-} from "@/lib/scratchPresets";
-import {
   ScratchChaosSelect,
   ScratchHistoryStrip,
   ScratchPromptBible,
@@ -251,7 +241,6 @@ export default function ScratchPage() {
   const [speaker, setSpeaker] = useState("");
   const [padCast, setPadCast] = useState<string[]>([]);
   const [sceneId, setSceneId] = useState("");
-  const [poseId, setPoseId] = useState("");
   const [staging, setStaging] = useState("");
   const [line, setLine] = useState("");
   const [busy, setBusy] = useState("");
@@ -260,13 +249,10 @@ export default function ScratchPage() {
   const [resumeError, setResumeError] = useState("");
   const [lightbox, setLightbox] = useState("");
   const [padCleared, setPadCleared] = useState(false);
-  const [presets, setPresets] = useState<ScratchPreset[]>([]);
-  const [editLabel, setEditLabel] = useState("");
-  const [editGroup, setEditGroup] = useState<ScratchPresetGroup>("Mine");
   const [bench, setBench] = useState<ScratchBenchSession>(() => emptyBenchSession());
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
-  const [bibleActiveId, setBibleActiveId] = useState<string | null>(null);
+  const [bibleActiveIds, setBibleActiveIds] = useState<string[]>([]);
   const [placements, setPlacements] = useState<ScratchPadPlacement[]>([]);
   const [padDragOver, setPadDragOver] = useState(false);
   /** Last successful Save — unlocks Generate even if story GET lags. */
@@ -319,7 +305,6 @@ export default function ScratchPage() {
     : [];
   const stackClips = [...underClips.filter((c) => c.clipFile), ...padStack];
   const placeName = job?.scenes.find((s) => s.id === sceneId)?.placeName || "this place";
-  const activePreset = presets.find((p) => p.id === poseId) || null;
   const lookLock =
     (job && speaker
       ? candidateLookPrompt(job.castCandidates, speaker) ||
@@ -360,10 +345,6 @@ export default function ScratchPage() {
       joPhone,
     });
   }, [job, padCast, speaker, looksByName, placeName, sceneId, staging, plateSrc, joPhone]);
-
-  useEffect(() => {
-    setPresets(loadScratchPresets());
-  }, []);
 
   useEffect(() => {
     setBench(loadBenchSession());
@@ -559,7 +540,6 @@ export default function ScratchPage() {
   );
 
   async function draw(opts?: {
-    poseId?: string;
     staging?: string;
     speaker?: string;
     cast?: string[];
@@ -567,13 +547,6 @@ export default function ScratchPage() {
   }) {
     if (!job) return;
     const rawStaging = opts?.staging ?? staging;
-    const requestedPose = opts?.poseId ?? poseId;
-    const nextPose =
-      requestedPose === "mcu-phone" &&
-      (rawStaging || "").trim() &&
-      !/\b(phone|mobile)\b/i.test(rawStaging)
-        ? ""
-        : requestedPose;
     const laidOut = mergePlacementsIntoStaging(rawStaging || "", placements, placeName);
     const nextStaging = injectChaosStill(laidOut, bench.chaosId);
     const nextSpeaker = opts?.speaker ?? speaker;
@@ -603,7 +576,6 @@ export default function ScratchPage() {
           speaker: nextSpeaker,
           cast: nextCast,
           sceneId: nextScene,
-          poseId: nextPose,
         },
       );
       if (seq !== drawSeq.current) return;
@@ -623,7 +595,6 @@ export default function ScratchPage() {
           jobId: job.id,
           speaker: nextSpeaker,
           cast: nextCast,
-          poseId: nextPose,
           staging: nextStaging || undefined,
           joPhone,
         },
@@ -765,7 +736,7 @@ export default function ScratchPage() {
 
   function clearPrompt() {
     setStaging("");
-    setBibleActiveId(null);
+    setBibleActiveIds([]);
   }
 
   function compilePrompt() {
@@ -777,8 +748,7 @@ export default function ScratchPage() {
       dialogue: line,
     });
     setStaging(composed);
-    setBibleActiveId(null);
-    setPoseId("");
+    setBibleActiveIds([]);
   }
 
   /** Hide the composite — keep the place still so they can park faces. */
@@ -803,9 +773,8 @@ export default function ScratchPage() {
     setPadCast([]);
     setSpeaker("");
     setStaging("");
-    setPoseId("");
     setPlacements([]);
-    setBibleActiveId(null);
+    setBibleActiveIds([]);
     setSavedTake(null);
     setError("");
     if (!job) return;
@@ -859,74 +828,25 @@ export default function ScratchPage() {
     parkPlace(id);
   }
 
-  function fillFromPreset(preset: ScratchPreset): string {
-    const who = speaker || padCast[0] || "Character";
-    const text = applyScratchPresetTemplate(preset.template, {
-      name: who,
-      place: placeName,
-      cast: padCast.length ? padCast : [who],
-    });
-    const kept = keepScratchPositionLines(staging, text);
-    setPoseId(preset.id);
-    setStaging(kept);
-    setEditLabel(preset.label);
-    setEditGroup(preset.group);
-    setBibleActiveId(null);
-    return kept;
-  }
-
   function pickBibleEntry(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) {
+    if (entry.id.startsWith("crowd-") && padCast.length < 2) {
+      setError("Put at least two faces on the pad for crowd chips");
+      return;
+    }
     const who = speaker || padCast[0] || "Character";
     const text = applyBibleTokens(entry.template, {
       name: who,
       place: placeName,
       cast: padCast.length ? padCast : [who],
     });
-    setBibleActiveId(entry.id);
-    setPoseId("");
+    setBibleActiveIds((prev) =>
+      bibleMode === "append" ? (prev.includes(entry.id) ? prev : [...prev, entry.id]) : [entry.id],
+    );
     if (bibleMode === "append" && staging.trim()) {
       setStaging(`${staging.trim()}\n\n${text}`);
     } else {
       setStaging(keepScratchPositionLines(staging, text));
     }
-  }
-
-  function pickPreset(preset: ScratchPreset) {
-    const crowd = preset.id.startsWith("crowd-");
-    if (crowd && padCast.length < 2) {
-      setError("Put at least two faces on the pad for crowd presets");
-      return;
-    }
-    const kept = fillFromPreset(preset);
-    void draw({
-      poseId: preset.id,
-      staging: kept,
-      speaker: speaker || padCast[0],
-      cast: padCast,
-      sceneId,
-    });
-  }
-
-  function saveCurrentPreset(asNew: boolean) {
-    const template = staging.trim();
-    if (!template) {
-      setError("Write a prompt before saving a preset");
-      return;
-    }
-    const label = (editLabel || activePreset?.label || "Custom").trim() || "Custom";
-    const group = editGroup || activePreset?.group || "Mine";
-    const id = asNew ? newScratchPresetId() : activePreset?.id || newScratchPresetId();
-    const next = saveScratchPresetFromPrompt({ id, group, label, template });
-    setPresets(next);
-    setPoseId(id);
-    setEditLabel(label);
-    setEditGroup(group);
-  }
-
-  function removeCurrentPreset() {
-    if (!activePreset || activePreset.builtin) return;
-    setPresets(deleteScratchPreset(activePreset.id));
-    setPoseId("");
   }
 
   async function persistMotion(body?: string): Promise<string> {
@@ -1491,101 +1411,19 @@ export default function ScratchPage() {
                   <button type="button" style={ghostBtn} onClick={clearPrompt}>
                     Clear prompt
                   </button>
-                  <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(false)} disabled={!staging.trim()}>
-                    {activePreset?.builtin ? "Save override" : "Save preset"}
-                  </button>
-                  <button type="button" style={ghostBtn} onClick={() => saveCurrentPreset(true)} disabled={!staging.trim()}>
-                    Save as new
-                  </button>
-                  {activePreset && !activePreset.builtin ? (
-                    <button type="button" style={ghostBtn} onClick={removeCurrentPreset}>
-                      Delete preset
-                    </button>
-                  ) : null}
                 </div>
               </div>
 
-              <div className="scratch-preset-stack">
-                {SCRATCH_PRESET_GROUPS.filter((g) => g !== "Mine").map((group) => {
-                  const rows = presets.filter((p) => p.group === group);
-                  if (!rows.length) return null;
-                  const selectedInGroup = rows.some((p) => p.id === poseId) ? poseId : "";
-                  return (
-                    <label key={group} className="scratch-preset-row">
-                      <span className="scratch-group-label">{group}</span>
-                      <select
-                        value={selectedInGroup}
-                        disabled={Boolean(busy) || !padCast.length || !sceneId}
-                        onChange={(e) => {
-                          const preset = presets.find((p) => p.id === e.target.value);
-                          if (preset) pickPreset(preset);
-                        }}
-                        style={selectStyle}
-                      >
-                        <option value="">Choose…</option>
-                        {rows.map((p) => (
-                          <option key={p.id} value={p.id} disabled={p.id.startsWith("crowd-") && padCast.length < 2}>
-                            {p.label}
-                            {p.builtin ? "" : " ★"}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  );
-                })}
-                {presets.some((p) => p.group === "Mine") ? (
-                  <label className="scratch-preset-row">
-                    <span className="scratch-group-label">Mine</span>
-                    <select
-                      value={presets.some((p) => p.group === "Mine" && p.id === poseId) ? poseId : ""}
-                      disabled={Boolean(busy) || !padCast.length || !sceneId}
-                      onChange={(e) => {
-                        const preset = presets.find((p) => p.id === e.target.value);
-                        if (preset) pickPreset(preset);
-                      }}
-                      style={selectStyle}
-                    >
-                      <option value="">Choose…</option>
-                      {presets
-                        .filter((p) => p.group === "Mine")
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.label} ★
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                ) : null}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px", marginTop: "2px" }}>
-                  <label style={{ display: "block" }}>
-                    <span className="scratch-group-label" style={{ display: "block" }}>
-                      Name
-                    </span>
-                    <input
-                      value={editLabel}
-                      onChange={(e) => setEditLabel(e.target.value)}
-                      placeholder="Label"
-                      style={{ ...selectStyle, backgroundImage: "none", paddingRight: "8px" }}
-                    />
-                  </label>
-                  <label style={{ display: "block" }}>
-                    <span className="scratch-group-label" style={{ display: "block" }}>
-                      Save under
-                    </span>
-                    <select
-                      value={editGroup}
-                      onChange={(e) => setEditGroup(e.target.value as ScratchPresetGroup)}
-                      style={selectStyle}
-                    >
-                      {SCRATCH_PRESET_GROUPS.map((g) => (
-                        <option key={g} value={g}>
-                          {g}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </div>
+              <ScratchPromptBible
+                activeIds={bibleActiveIds}
+                mode={bibleMode}
+                onModeChange={(mode) => {
+                  setBibleMode(mode);
+                  if (mode === "replace") setBibleActiveIds([]);
+                }}
+                onPick={pickBibleEntry}
+                disabled={Boolean(busy) || !padCast.length}
+              />
             </div>
 
             <ScratchFloorPanel
@@ -1595,14 +1433,6 @@ export default function ScratchPage() {
               joPhone={joPhone}
               onJoPhone={setJoPhone}
               disabled={Boolean(busy)}
-            />
-
-            <ScratchPromptBible
-              activeId={bibleActiveId}
-              mode={bibleMode}
-              onModeChange={setBibleMode}
-              onPick={pickBibleEntry}
-              disabled={Boolean(busy) || !padCast.length}
             />
 
             <MobileTextInput

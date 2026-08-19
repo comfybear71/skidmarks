@@ -751,7 +751,7 @@ span.scratch-history-blob {
   color: var(--chrome-dim);
 }
 
-/* Prompt bible — 3-col accordion; titles only until one opens */
+/* Prompt bible — 2-col accordion; titles only until one opens */
 .scratch-bible {
   display: flex;
   flex-direction: column;
@@ -800,22 +800,18 @@ span.scratch-history-blob {
 
 .scratch-bible-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   width: 100%;
   align-items: start;
 }
 
-@media (min-width: 520px) {
-  .scratch-bible-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.scratch-bible-section.has-picks {
+  border-color: color-mix(in srgb, var(--acid) 45%, var(--line));
 }
 
-@media (min-width: 780px) {
-  .scratch-bible-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+.scratch-bible-section.has-picks .scratch-bible-acc-label {
+  color: var(--acid);
 }
 
 .scratch-bible-section {
