@@ -29,9 +29,15 @@ import {
 } from "./sirayClient";
 import { buildCrashGenLook } from "./imageGen";
 import { saveCplateMeta } from "./cplateManifest";
-import { scratchWantsNude, scratchNudeStillLock, SCRATCH_SINGLE_FRAME_LOCK } from "./sirayI2v";
+import {
+  scratchWantsNude,
+  scratchNudeStillLock,
+  SCRATCH_SINGLE_FRAME_LOCK,
+  scratchStartImageLock,
+} from "./sirayI2v";
 import { withScratchEmptyHands } from "./mobileImageMotion";
 import { stripScratchLayoutMarks } from "./scratchBench/padDrop";
+import { resolveGenOrPackPlate } from "./crashActivePack";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
@@ -59,6 +65,7 @@ export function buildSirayScratchPrompt(opts: {
   looks: string;
   placeLook: string;
   staging: string;
+  refineFromStill?: boolean;
 }): string {
   const look = buildCrashGenLook(opts.styleId, opts.styleRealism);
   const n = opts.speakers.length;
@@ -84,7 +91,7 @@ export function buildSirayScratchPrompt(opts: {
     .join(" ");
   return [
     look,
-    "Image 1 is the LOCKED place — keep that exact location, lighting and materials. Do not replace the place.",
+    scratchStartImageLock(Boolean(opts.refineFromStill)),
     SCRATCH_SINGLE_FRAME_LOCK,
     who,
     nude ? scratchNudeStillLock(nudeText, opts.speakers) : "",
@@ -150,13 +157,21 @@ async function startSirayScratchPlate(
     silentCast?: string[];
     styleRealism?: number;
     job?: PlateJobRef;
+    /** Edit the last Draw. False after Clear plate (empty room again). */
+    useLastStill?: boolean;
   } = {},
 ): Promise<{ taskId: string; castNames: string[]; placeName: string }> {
   if (!sirayConfigured()) {
     throw new Error("Missing SIRAY_API_KEY — https://console.siray.ai/keys");
   }
 
-  const bgPath = await resolvePlateBackground(styleId, scene, opts.job);
+  const lastName = (shot.plateFile || "").trim();
+  const lastPath =
+    opts.useLastStill !== false && lastName && lastName !== "__error__"
+      ? resolveGenOrPackPlate(lastName)
+      : null;
+  const refineFromStill = Boolean(lastPath);
+  const bgPath = lastPath || (await resolvePlateBackground(styleId, scene, opts.job));
   const silent = (opts.silentCast || []).map((n) => n.trim()).filter(Boolean);
   const speakers = [
     ...new Set([
@@ -213,6 +228,7 @@ async function startSirayScratchPlate(
     looks,
     placeLook,
     staging,
+    refineFromStill,
   });
 
   const images = [fileToDataUrl(bgPath), ...castPaths.map(fileToDataUrl)];
@@ -233,6 +249,7 @@ export async function submitSirayScratchPlate(
     silentCast?: string[];
     styleRealism?: number;
     job?: PlateJobRef;
+    useLastStill?: boolean;
   } = {},
 ): Promise<{ taskId: string; castNames: string[]; placeName: string }> {
   return startSirayScratchPlate(styleId, scene, shot, opts);
