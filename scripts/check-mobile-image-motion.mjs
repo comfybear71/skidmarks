@@ -15,6 +15,8 @@ import {
   shortLtxLookLock,
   stripLtxLipSyncLead,
   withLtxLipSyncLead,
+  buildScratchPadLtxMotion,
+  scratchLtxMotionNeedsRebuild,
 } from "../src/lib/mobileImageMotion.ts";
 
 assert.match(LTX_LIP_SYNC_LEAD, /dication is perfect/);
@@ -188,5 +190,21 @@ assert.equal(
   ),
   true,
 );
+
+const scratchPad = buildScratchPadLtxMotion({
+  styleId: "skidmarks",
+  speaker: "LADDER ONE",
+  line: "[slow][seductive]Are you going to keep staring?",
+});
+assert.match(scratchPad, /WIDE full-body framing/);
+assert.match(scratchPad, /Do not zoom in/);
+assert.match(scratchPad, /Empty hands/);
+assert.match(scratchPad, /Do not sit in a chair/);
+assert.match(scratchPad, /LADDER ONE says:/);
+assert.doesNotMatch(scratchPad, /Feet stay planted/);
+
+assert.equal(scratchLtxMotionNeedsRebuild("MEDIUM SHOT framing stays as the start image"), true);
+assert.equal(scratchLtxMotionNeedsRebuild(scratchPad), false);
+assert.equal(scratchLtxMotionNeedsRebuild("Feet stay planted in the same spot"), true);
 
 console.log("check-mobile-image-motion: ok");

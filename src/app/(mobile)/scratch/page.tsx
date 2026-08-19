@@ -19,7 +19,7 @@ import { approvedCandidateFileName, preferredCandidate, candidateLookPrompt } fr
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { findScratchShot, scratchPadClips } from "@/lib/mobileScratch";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
-import { buildDefaultBeatMotion, LTX_LIP_SYNC_LEAD, stripLtxLipSyncLead } from "@/lib/mobileImageMotion";
+import { buildScratchPadLtxMotion, LTX_LIP_SYNC_LEAD, stripLtxLipSyncLead, imageMotionUsableForLine, scratchLtxMotionNeedsRebuild } from "@/lib/mobileImageMotion";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   ScratchChaosSelect,
@@ -332,17 +332,21 @@ export default function ScratchPage() {
   const defaultMotionBody =
     job && speaker && line.trim()
       ? stripLtxLipSyncLead(
-          buildDefaultBeatMotion({
+          buildScratchPadLtxMotion({
             styleId: job.styleId,
             speaker,
             line: line.trim(),
             lookLock,
             shotSpeakers: padCast.length ? padCast : [speaker],
-            staging,
           }),
         )
       : "";
-  const storedMotion = stripLtxLipSyncLead(beat?.imageMotion || "");
+  const storedMotionRaw = stripLtxLipSyncLead(beat?.imageMotion || "");
+  const storedMotionUsable =
+    Boolean(storedMotionRaw) &&
+    !scratchLtxMotionNeedsRebuild(storedMotionRaw) &&
+    imageMotionUsableForLine(storedMotionRaw, line.trim(), staging);
+  const storedMotion = storedMotionUsable ? storedMotionRaw : "";
   const activeMotionDraft =
     beat && motionEditBeatId.current === beat.id ? motionDraft : null;
   const motionBody = activeMotionDraft ?? (storedMotion || defaultMotionBody);

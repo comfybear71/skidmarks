@@ -12,15 +12,15 @@ import {
   shotSpeakersOnCard,
 } from "./mobilePlateLines";
 import { CRASH_DIR } from "./paths";
-import { dropTailStill, startStillForNextClip } from "./clipTailFrame";
 import {
-  buildDefaultBeatMotion,
+  buildScratchPadLtxMotion,
   buildSegmentText,
   buildGlobalPrompt,
   ltxSendPrompt,
   stripLtxLipSyncLead,
   imageMotionUsableForLine,
   looksLikePlatePositionPrompt,
+  scratchLtxMotionNeedsRebuild,
 } from "./mobileImageMotion";
 import { campaignImageMotionForId } from "./mobilePlateLtxCampaign";
 import {
@@ -130,20 +130,20 @@ export async function runScratchLtxClip(opts: {
           line,
         })
       : "";
-  const body =
-    (stored &&
+  const storedOk =
+    stored &&
     !imageMotionNamesLeftovers(stored, leftovers) &&
-    imageMotionUsableForLine(stored, line, storyShot.staging)
-      ? stored
-      : "") ||
+    imageMotionUsableForLine(stored, line, storyShot.staging) &&
+    !scratchLtxMotionNeedsRebuild(stored);
+  const body =
+    (storedOk ? stored : "") ||
     fromPose ||
-    buildDefaultBeatMotion({
+    buildScratchPadLtxMotion({
       styleId: job.styleId,
       speaker,
       line,
       lookLock,
       shotSpeakers: shotCast,
-      staging: storyShot.staging,
     });
   const imageMotion = ltxSendPrompt(body, storyShot.staging);
 
@@ -181,14 +181,9 @@ export async function runScratchLtxClip(opts: {
 
   job = (await patchMobileGenJob(jobId, { clips, error: "" }))!;
 
-  const startStill = await startStillForNextClip({
-    styleId: job.styleId,
-    folderName: mediaFolder,
-    clips: job.clips,
-    next: { beatId, shotId },
-    defaultPlatePath,
-  });
-  const platePath = startStill.platePath;
+  // Scratch retries always start from the pad still — never the last frame of a
+  // prior clip (that chains bad poses: sitting, phone, cropped head, walkers).
+  const platePath = defaultPlatePath;
 
   try {
     const comfyUrl = await ensureComfyReady();
@@ -226,8 +221,6 @@ export async function runScratchLtxClip(opts: {
     );
     job = (await patchMobileGenJob(jobId, { clips: next }))!;
     throw e;
-  } finally {
-    dropTailStill(startStill.tailStillPath);
   }
   return job;
 }
