@@ -1,6 +1,16 @@
 # Plate / clip automation archive
 
-Logged **2026-08-19**. Living list of what we can know before send. Append when Scratch or `/m` proves a new Pass or Fail. Do **not** write these onto a live pack unless Stuie says **go**.
+Logged **2026-08-19**. Living list of what we can know before send. Append when Scratch or `/m` proves a new Pass or Fail.
+
+**Go (2026-08-19):** wire these into `/m` send and still Draw. Do **not** rewrite live pack `story_json` (First Fleet gold stays as logged). Never Close / New episode / clear Story.
+
+Wired now:
+
+- Missing face → refuse the plate (no partial cast).
+- `/m` Save still splits rants, including run-on sentences with no period (≤15 words per clip).
+- Cloud IA2V pads speaking clips to **4s** so short gold lines (Fair call) keep their words and still have mouth frames.
+
+Scratch stays stills-only. Speech stays on `/m`.
 
 No prompt template makes the image model succeed 100% of the time. Unattended 100% means: **fail closed** on known-bad kit, **Scratch Pass** before promoting a still prompt, **`/m` Pass** before promoting a speaking clip.
 
@@ -52,9 +62,9 @@ Lip-sync lead is prepended on send. No `[VISUAL]`. No `[SPEECH]`. Look lock = ha
 
 | Line | What happens | Fix |
 |---|---|---|
-| Too short (~&lt;4s, tiny “yes” / “oi”) | Mouth never really lip-syncs. LTX floor is 2s — that is a clamp, not a quality window. | Write a full sentence that lands **4–6s** (~10–15 words at 2.5 wps). |
+| Too short (~&lt;4s, tiny “yes” / “oi” / gold “Fair call”) | Mouth starved of frames if the clip follows the mp3. | Keep the words. Cloud IA2V pads to **4s** (camera holds). Prefer 4–6s when writing new lines. |
 | Sweet | **4–6s / ≤15 words** on one still | Send gold speaking motion. |
-| Rant on one clip (~&gt;6s / &gt;15 words) | LTX holds the plate then **walkers enter** (logged ~7s into a 39s rant) | `splitSpokenRant` — same plate, new mp3 per sentence chunk. Words stay Stuie's. |
+| Rant on one clip (~&gt;6s / &gt;15 words) | LTX holds the plate then **walkers enter** (logged ~7s into a 39s rant) | `splitSpokenRant` — same plate, new mp3 per chunk (sentences, then word cap). Words stay Stuie's. |
 
 180s is a safety ceiling, not a quality window.
 
@@ -70,4 +80,4 @@ The still turning cartoon or “a real human” is a **Scratch Draw** failure (s
 
 1. Scratch Draw → score Pass / Fail / Style slip → CSV.
 2. `/m` Save line → Generate on Cloud IA2V → note short / ok / rant-split.
-3. Append a row here (and in `src/lib/plateAutomationArchive.ts`) only when a result is proven. No live-pack rewrite.
+3. Append a row here (and in `src/lib/plateAutomationArchive.ts`) only when a result is proven. Do not rewrite a live pack's `story_json`.

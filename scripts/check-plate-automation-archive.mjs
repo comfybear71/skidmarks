@@ -12,9 +12,12 @@ import {
 } from "../src/lib/plateAutomationArchive.ts";
 import { compileScriptedPosition } from "../src/lib/mobilePlateScript.ts";
 import { LTX_RANT_HOLD_SEC, LTX_RANT_MAX_WORDS } from "../src/lib/mobileRantSplit.ts";
+import { ltxFollowsMp3DurationSec, LTX_LIPSYNC_MIN_SEC } from "../src/lib/ltxDuration.ts";
 import { toggleScoreTag } from "../src/lib/scratchBench/scorecard.ts";
 
-assert.equal(SPEECH_QUALITY_MIN_SEC, 4);
+assert.equal(SPEECH_QUALITY_MIN_SEC, LTX_LIPSYNC_MIN_SEC);
+assert.equal(ltxFollowsMp3DurationSec(1), 4);
+assert.equal(ltxFollowsMp3DurationSec(12), 13);
 assert.equal(SPEECH_QUALITY_MAX_SEC, LTX_RANT_HOLD_SEC);
 assert.equal(SPEECH_QUALITY_MAX_WORDS, LTX_RANT_MAX_WORDS);
 

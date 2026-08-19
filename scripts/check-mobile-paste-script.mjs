@@ -5,7 +5,12 @@ import {
   parseMobilePaste,
   storyHasSpokenLine,
 } from "../src/lib/mobilePasteParse.ts";
-import { clampLtxDurationSec, LTX_MAX_DURATION_SEC } from "../src/lib/ltxDuration.ts";
+import {
+  clampLtxDurationSec,
+  ltxFollowsMp3DurationSec,
+  LTX_LIPSYNC_MIN_SEC,
+  LTX_MAX_DURATION_SEC,
+} from "../src/lib/ltxDuration.ts";
 import { isAssistKind } from "../src/lib/mobileAssist.ts";
 
 const job = {
@@ -77,7 +82,9 @@ assert.equal(normalizePlaceKey("Matty bar"), "matty bar");
 
 assert.equal(clampLtxDurationSec(1), 2);
 assert.equal(clampLtxDurationSec(12), 12);
-assert.equal(clampLtxDurationSec(40), LTX_MAX_DURATION_SEC);
+assert.equal(clampLtxDurationSec(400), LTX_MAX_DURATION_SEC);
+assert.equal(ltxFollowsMp3DurationSec(1), LTX_LIPSYNC_MIN_SEC);
+assert.equal(ltxFollowsMp3DurationSec(12), 13);
 assert.equal(isAssistKind("episode"), true);
 assert.equal(isAssistKind("screenplay"), false);
 

@@ -12,7 +12,11 @@
  * docs/SUNNY_BANKS_IMAGE_MOTION_STANDARD.md.
  */
 
-import { LTX_MAX_DURATION_SEC, LTX_MIN_DURATION_SEC } from "./ltxDuration";
+import {
+  LTX_LIPSYNC_MIN_SEC,
+  LTX_MAX_DURATION_SEC,
+  LTX_MIN_DURATION_SEC,
+} from "./ltxDuration";
 import {
   LTX_RANT_HOLD_SEC,
   LTX_RANT_MAX_WORDS,
@@ -25,8 +29,8 @@ import { buildSpeakingMotion } from "./mobileImageMotion";
 import type { ShowStyleId } from "./showStylePresets";
 import { SIRAY_I2V_MODELS } from "./sirayI2v";
 
-/** Seedance 2.0 min — short mp3s below this fail to lip-sync on /m. */
-export const SPEECH_QUALITY_MIN_SEC = 4;
+/** Seedance 2.0 / Cloud IA2V quality floor — short mp3s pad to this, words stay. */
+export const SPEECH_QUALITY_MIN_SEC = LTX_LIPSYNC_MIN_SEC;
 /** Walker / hallucinate cliff logged on LTX rants (same still, extras enter). */
 export const SPEECH_QUALITY_MAX_SEC = LTX_RANT_HOLD_SEC;
 export const SPEECH_QUALITY_MAX_WORDS = LTX_RANT_MAX_WORDS;
@@ -125,8 +129,8 @@ export const PLATE_AUTOMATION_ENTRIES: ArchiveEntry[] = [
     layer: "speech",
     verdict: "fails",
     title: "Line too short to lip-sync (/m)",
-    why: "Sub-4s mp3s (one-word / tiny lines) do not give the mouth enough frames. LTX clamps at 2s; that is a floor, not a quality window.",
-    fix: "Write a sentence that lands ~4–6s (~10–15 words at 2.5 wps). Pad the line, do not pad silence.",
+    why: "Sub-4s mp3s (one-word / tiny lines) do not give the mouth enough frames. Gold still has short lines like Fair call — do not rewrite the words.",
+    fix: "Keep Stuie's line. Cloud IA2V pads clip length to 4s (camera holds, nothing new). Prefer ~4–6s / 10–15 words when writing new lines.",
   },
   {
     id: "speech-rant-unsplit",
@@ -167,7 +171,7 @@ export function adviseSpeechClip(text: string, durationSec?: number): SpeechClip
       estimatedSec,
       chunks,
       entryId: "speech-too-short",
-      fix: `Line is ~${estimatedSec.toFixed(1)}s / ${words} words. Write a full sentence that lands ${SPEECH_QUALITY_MIN_SEC}–${SPEECH_QUALITY_MAX_SEC}s (~${SPEECH_QUALITY_MAX_WORDS} words). Short "yes" / "oi" will not lip-sync on /m.`,
+      fix: `Line is ~${estimatedSec.toFixed(1)}s / ${words} words. Keep the words. /m Cloud IA2V pads the clip to ${SPEECH_QUALITY_MIN_SEC}s so the mouth has frames. Prefer ${SPEECH_QUALITY_MIN_SEC}–${SPEECH_QUALITY_MAX_SEC}s (~${SPEECH_QUALITY_MAX_WORDS} words) when writing new lines.`,
     };
   }
   if (chunks.length > 1 || words > SPEECH_QUALITY_MAX_WORDS) {

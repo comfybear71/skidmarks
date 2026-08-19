@@ -194,6 +194,19 @@ export async function compositeShotPlate(
   if (!speakers.length) throw new Error("Shot has no cast to composite");
 
   const manifest = readStyleCardManifest(styleId);
+  const resolved: { name: string; path: string }[] = [];
+  const missing: string[] = [];
+  for (const name of speakers) {
+    const p = await resolvePlateCastPath(styleId, name, opts.job);
+    if (!p) missing.push(name);
+    else resolved.push({ name, path: p });
+  }
+  if (missing.length) {
+    throw new Error(
+      `No face still for ${missing.join(", ")} — approve that face or drop them from the shot. Will not plate a partial cast.`,
+    );
+  }
+
   const preset = getShowStylePreset(styleId);
   const looks = speakers
     .map((name) => {
@@ -215,18 +228,19 @@ export async function compositeShotPlate(
   let currentBg = bgPath;
   let chainPass = false;
   let fileName = "";
-  const remaining = [...speakers];
+  const remaining = [...resolved];
 
   while (remaining.length) {
     const batch = remaining.splice(0, PLATE_FACES_PER_PASS);
     const castFiles: { buf: Buffer; ext: string }[] = [];
     const castNames: string[] = [];
-    for (const name of batch) {
-      const p = await resolvePlateCastPath(styleId, name, opts.job);
-      if (!p) continue;
-      const key = resolveCastKeyByName(manifest, name);
-      castNames.push((key && manifest[key]?.name) || name);
-      castFiles.push({ buf: fs.readFileSync(p), ext: path.extname(p).toLowerCase() || ".png" });
+    for (const row of batch) {
+      const key = resolveCastKeyByName(manifest, row.name);
+      castNames.push((key && manifest[key]?.name) || row.name);
+      castFiles.push({
+        buf: fs.readFileSync(row.path),
+        ext: path.extname(row.path).toLowerCase() || ".png",
+      });
     }
     if (!castFiles.length) continue;
 
