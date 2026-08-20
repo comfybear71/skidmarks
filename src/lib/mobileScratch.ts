@@ -23,6 +23,8 @@ export type ScratchDrawTask = {
   shotId: string;
   sceneId: string;
   staging: string;
+  /** Prompt-bible chip ids used for this Draw — kept after plate. */
+  bibleIds?: string[];
   poseId?: string;
   speaker: string;
   cast: string[];

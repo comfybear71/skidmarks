@@ -25,6 +25,7 @@ import {
   ScratchChaosSelect,
   ScratchHistoryStrip,
   ScratchPromptBible,
+  ScratchGoldPrompts,
   ScratchFloorPanel,
   ScratchScoreToggles,
   type ScratchBiblePickMode,
@@ -32,6 +33,7 @@ import {
 import {
   appendBenchRun,
   applyBibleTokens,
+  applyGoldTokens,
   clearBenchRuns,
   removeBenchRun,
   downloadScratchRunsCsv,
@@ -41,6 +43,7 @@ import {
   injectChaosStill,
   keepScratchPositionLines,
   mergePlacementsIntoStaging,
+  resolveShotBibleIds,
   stripScratchLayoutMarks,
   loadBenchSession,
   saveBenchSession,
@@ -56,6 +59,7 @@ import {
   type ScratchBenchRun,
   type ScratchBibleEntry,
   type ScratchBibleSectionId,
+  type ScratchGoldScenario,
   type ScratchPadPlacement,
   type ScratchBackendId,
   type ScratchScoreTag,
@@ -392,7 +396,10 @@ export default function ScratchPage() {
       const data = (await res.json().catch(() => ({}))) as { story?: CrashStoryDoc };
       setStory(data.story || null);
       const found = findScratchShot(data.story || null);
-      if (!opts?.keepStaging && found?.shot.staging) setStaging(found.shot.staging);
+      if (!opts?.keepStaging && found?.shot.staging) {
+        setStaging(found.shot.staging);
+        setBibleActiveIds(resolveShotBibleIds(found.shot));
+      }
       if (opts?.keepLine != null) {
         setLine(opts.keepLine);
         return;
@@ -618,6 +625,7 @@ export default function ScratchPage() {
           speaker: nextSpeaker,
           cast: nextCast,
           staging: nextStaging || undefined,
+          bibleIds: bibleActiveIds,
           joPhone,
         },
       );
@@ -915,6 +923,35 @@ export default function ScratchPage() {
     } else {
       setStaging(keepScratchPositionLines(staging, text));
     }
+  }
+
+  function pickGoldScenario(scenario: ScratchGoldScenario) {
+    const who = speaker || padCast[0] || "Character";
+    const spoken =
+      line.trim() ||
+      (scenario.defaultLine || "").trim() ||
+      "…";
+    const text = applyGoldTokens(scenario.template, {
+      name: who,
+      place: placeName,
+      line: spoken === "…" && scenario.defaultLine ? scenario.defaultLine : spoken,
+    });
+    setError("");
+    if (scenario.defaultLine && !line.trim()) {
+      setLine(scenario.defaultLine);
+    }
+    if (scenario.target === "motion") {
+      if (!beat) {
+        setError("Draw a still first — then Gold clip fills LTX Image motion.");
+        return;
+      }
+      motionEditBeatId.current = beat.id;
+      setMotionDraft(text);
+      setLtxOpen(true);
+      return;
+    }
+    setStaging(text);
+    setBibleActiveIds([]);
   }
 
   async function persistMotion(body?: string): Promise<string> {
@@ -1698,6 +1735,10 @@ export default function ScratchPage() {
                   <button type="button" style={ghostBtn} onClick={clearPrompt}>
                     Clear prompt
                   </button>
+                  <ScratchGoldPrompts
+                    disabled={Boolean(busy)}
+                    onPick={pickGoldScenario}
+                  />
                 </div>
               </div>
 

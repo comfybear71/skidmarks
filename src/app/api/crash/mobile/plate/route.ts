@@ -16,7 +16,13 @@ export const maxDuration = 300;
 function patchShotFields(
   story: CrashStoryDoc,
   shotId: string,
-  patch: { staging?: string; summary?: string; plateFile?: string; plateTakes?: PlateTake[] },
+  patch: {
+    staging?: string;
+    summary?: string;
+    plateFile?: string;
+    plateTakes?: PlateTake[];
+    bibleIds?: string[];
+  },
 ): CrashStoryDoc {
   return {
     ...story,
@@ -69,6 +75,7 @@ export async function POST(req: Request) {
       sceneId?: string;
       speaker?: string;
       staging?: string;
+      bibleIds?: string[];
       summary?: string;
       action?: string;
       shot?: CrashStoryShot;
@@ -83,6 +90,9 @@ export async function POST(req: Request) {
     const takeIdIn = (body.takeId || "").trim();
     const beatIdIn = (body.beatId || "").trim();
     const stagingIn = body.staging !== undefined ? String(body.staging) : undefined;
+    const bibleIdsIn = Array.isArray(body.bibleIds)
+      ? [...new Set(body.bibleIds.map((id) => String(id || "").trim()).filter(Boolean))]
+      : undefined;
     const summaryIn = body.summary !== undefined ? String(body.summary) : undefined;
     const action = (body.action || "rebuild").trim().toLowerCase();
     const drop = action === "drop";
@@ -323,6 +333,7 @@ export async function POST(req: Request) {
       const picked = patchShotFields(story, shotId, {
         plateFile: take.fileName,
         staging: take.staging,
+        bibleIds: take.bibleIds,
         plateTakes,
       });
       await writeMobileStory(picked, job.folderName);
@@ -330,7 +341,13 @@ export async function POST(req: Request) {
         s.shotId === shotId ? { ...s, plateFile: take.fileName, error: "" } : s,
       );
       const updated = await patchMobileGenJob(jobId, { shots, error: "" });
-      return NextResponse.json({ ok: true, job: updated, plateFile: take.fileName, staging: take.staging });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        plateFile: take.fileName,
+        staging: take.staging,
+        bibleIds: take.bibleIds || [],
+      });
     }
 
     if (remove) {
@@ -393,9 +410,10 @@ export async function POST(req: Request) {
     }
 
     if (saveOnly) {
-      const patch: { staging?: string; summary?: string } = {};
+      const patch: { staging?: string; summary?: string; bibleIds?: string[] } = {};
       if (stagingIn !== undefined) patch.staging = stagingIn;
       if (summaryIn !== undefined) patch.summary = summaryIn;
+      if (bibleIdsIn !== undefined) patch.bibleIds = bibleIdsIn;
       const saved = patchShotFields(story, shotId, patch);
       await writeMobileStory(saved, job.folderName);
       const next = saved.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === shotId);
@@ -404,6 +422,7 @@ export async function POST(req: Request) {
         job,
         staging: next?.staging,
         summary: next?.summary,
+        bibleIds: next?.bibleIds || [],
       });
     }
 
@@ -412,6 +431,7 @@ export async function POST(req: Request) {
       story,
       shotId,
       stagingIn,
+      bibleIdsIn,
       qa: body.qa,
     });
     return NextResponse.json({
@@ -420,6 +440,7 @@ export async function POST(req: Request) {
       plateFile: rebuilt.plateFile,
       plateTakes: rebuilt.plateTakes,
       staging: rebuilt.staging,
+      bibleIds: rebuilt.bibleIds,
       qa: rebuilt.qa,
       qaAttempts: rebuilt.qaAttempts,
     });

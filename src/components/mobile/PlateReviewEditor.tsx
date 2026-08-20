@@ -10,8 +10,10 @@ import {
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "./PlateClipThumbs";
 import { useMobileAssist } from "./useMobileAssist";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
+import { PositionPromptPanel, LtxImageMotionPanel } from "@/components/mobile/ShotPromptPanels";
 import {
   applyBibleTokens,
+  resolveShotBibleIds,
   type ScratchBibleEntry,
   type ScratchBibleSectionId,
 } from "@/lib/scratchBench";
@@ -35,7 +37,6 @@ import { lineVoiceLabel, type JobSpeakerVoice } from "@/lib/mobileJobVoices";
 import { shownVoiceId } from "@/lib/mobileVoicePick";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import {
-  LTX_LIP_SYNC_LEAD,
   buildDefaultBeatMotion,
   looksLikePlatePositionPrompt,
   storedMotionNeedsRebuild,
@@ -743,7 +744,7 @@ export function PlateReviewEditor({
             shots.find((s) => s.shotId === openShotId)?.plateFile &&
               shots.find((s) => s.shotId === openShotId)?.plateFile !== "__error__",
           )}
-          onPlateRebuilt={(plateFile, staging, summary, plateTakes) => {
+          onPlateRebuilt={(plateFile, staging, summary, plateTakes, bibleIds) => {
             setStory((cur) => {
               if (!cur || !openShotId) return cur;
               return {
@@ -758,6 +759,7 @@ export function PlateReviewEditor({
                           ...(staging !== undefined ? { staging } : {}),
                           ...(summary !== undefined ? { summary } : {}),
                           ...(plateTakes !== undefined ? { plateTakes } : {}),
+                          ...(bibleIds !== undefined ? { bibleIds } : {}),
                         }
                       : sh,
                   ),
@@ -1423,6 +1425,7 @@ function ShotLineEditor({
     staging: string,
     summary: string,
     plateTakes?: PlateTake[],
+    bibleIds?: string[],
   ) => void;
 }) {
   if (loading) {
@@ -1490,12 +1493,14 @@ function ShotLineEditor({
             placeName={placeName || "this place"}
             beat={beat}
             positionPrompt={shot.staging || ""}
+            positionBibleIds={resolveShotBibleIds(shot)}
             onPositionSaved={(staging, plate) =>
               onPlateRebuilt(
                 plate?.plateFile !== undefined ? plate.plateFile : shot.plateFile,
                 staging,
                 shot.summary,
                 plate?.plateTakes !== undefined ? plate.plateTakes : shot.plateTakes,
+                plate?.bibleIds !== undefined ? plate.bibleIds : shot.bibleIds,
               )
             }
             onSaved={(text, voiceFile, imageMotion, nextJob, addedBeats) => {
@@ -1600,6 +1605,7 @@ function BeatLineEditor({
   placeName,
   beat,
   positionPrompt,
+  positionBibleIds,
   onPositionSaved,
   onSaved,
   onRemoved,
@@ -1614,9 +1620,10 @@ function BeatLineEditor({
   placeName?: string;
   beat: CrashStoryBeat;
   positionPrompt: string;
+  positionBibleIds?: string[];
   onPositionSaved: (
     staging: string,
-    plate?: { plateFile?: string; plateTakes?: PlateTake[] },
+    plate?: { plateFile?: string; plateTakes?: PlateTake[]; bibleIds?: string[] },
   ) => void;
   onSaved: (
     text: string,
@@ -1649,7 +1656,9 @@ function BeatLineEditor({
   const [positionDraft, setPositionDraft] = useState<string | null>(null);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
-  const [bibleActiveId, setBibleActiveId] = useState<string | null>(null);
+  const [bibleActiveIds, setBibleActiveIds] = useState<string[]>(() =>
+    (positionBibleIds || []).filter(Boolean),
+  );
   const lineAssist = useMobileAssist("line", styleId, () => text, setText, beat.speaker);
   const dirty = text.trim() !== beat.text.trim() || voiceFile !== (beat.voiceFile || "");
   const positionAsLine = looksLikePlatePositionPrompt(text);
@@ -1666,7 +1675,8 @@ function BeatLineEditor({
 
   useEffect(() => {
     setPositionDraft(null);
-  }, [shotId, positionPrompt]);
+    setBibleActiveIds((positionBibleIds || []).filter(Boolean));
+  }, [shotId, positionPrompt, positionBibleIds]);
 
   // Sticky voice like Scratch — survive take switches / parent story rewrites.
   useEffect(() => {
@@ -1685,15 +1695,27 @@ function BeatLineEditor({
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, shotId, action: "save", staging: body }),
+        body: JSON.stringify({
+          jobId,
+          shotId,
+          action: "save",
+          staging: body,
+          bibleIds: bibleActiveIds,
+        }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; staging?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        staging?: string;
+        bibleIds?: string[];
+      };
       if (!res.ok) throw new Error(data.error || "Couldn't keep position prompt");
       const saved = (data.staging ?? body).trim();
-      onPositionSaved(saved);
+      const ids = Array.isArray(data.bibleIds) ? data.bibleIds : bibleActiveIds;
+      setBibleActiveIds(ids);
+      onPositionSaved(saved, { bibleIds: ids });
       return saved;
     },
-    [jobId, onPositionSaved, shotId],
+    [bibleActiveIds, jobId, onPositionSaved, shotId],
   );
 
   const redrawPosition = useCallback(
@@ -1708,6 +1730,7 @@ function BeatLineEditor({
           shotId,
           staging,
           summary: staging,
+          bibleIds: bibleActiveIds,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -1715,14 +1738,18 @@ function BeatLineEditor({
         plateFile?: string;
         plateTakes?: PlateTake[];
         staging?: string;
+        bibleIds?: string[];
         qa?: { ok?: boolean; fails?: string[] };
         qaAttempts?: number;
       };
       if (!res.ok) throw new Error(data.error || "Couldn't redraw that still");
       const saved = (data.staging ?? staging).trim();
+      const ids = Array.isArray(data.bibleIds) ? data.bibleIds : bibleActiveIds;
+      setBibleActiveIds(ids);
       onPositionSaved(saved, {
         plateFile: data.plateFile,
         plateTakes: data.plateTakes,
+        bibleIds: ids,
       });
       if (data.qa && data.qa.ok === false) {
         const n = data.qaAttempts || 3;
@@ -1731,7 +1758,7 @@ function BeatLineEditor({
       }
       return saved;
     },
-    [jobId, onPositionSaved, shotId],
+    [bibleActiveIds, jobId, onPositionSaved, shotId],
   );
 
   const positionAssist = useMobileAssist(
@@ -2007,144 +2034,81 @@ function BeatLineEditor({
         {error ? <span style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</span> : null}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setPositionOpen((open) => !open)}
-        style={{
-          width: "100%",
-          padding: "8px 0",
-          border: 0,
-          background: "transparent",
-          color: "var(--chrome-dim)",
-          fontSize: "12px",
-          fontWeight: 700,
-          textAlign: "left",
+      <PositionPromptPanel
+        open={positionOpen}
+        onToggle={() => setPositionOpen((open) => !open)}
+        body={positionBody}
+        onChange={(v) => setPositionDraft(v)}
+        bibleMode={bibleMode}
+        onBibleModeChange={(mode) => {
+          setBibleMode(mode);
+          if (mode === "replace") setBibleActiveIds([]);
         }}
-      >
-        {positionOpen ? "▾ Position prompt (Redo still)" : "▸ Position prompt (Redo still)"}
-      </button>
-      {positionOpen ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <p style={{ margin: 0, color: "var(--chrome-dim)", fontSize: "11px", lineHeight: 1.45 }}>
-            Optional — bible already filled this on Draw. Open only to tweak, Keep, then Redo still.
-          </p>
-          <ScratchPromptBible
-            activeId={bibleActiveId}
-            mode={bibleMode}
-            onModeChange={setBibleMode}
-            disabled={saving || redrawing}
-            onPick={(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => {
-              const text = applyBibleTokens(entry.template, {
-                name: beat.speaker,
-                place: placeName || "this place",
-                cast: shotSpeakers.length ? shotSpeakers : [beat.speaker],
-              });
-              setBibleActiveId(entry.id);
-              if (bibleMode === "append" && positionBody.trim()) {
-                setPositionDraft(`${positionBody.trim()}\n\n${text}`);
-              } else {
-                setPositionDraft(text);
-              }
-            }}
-          />
-          <MobileTextInput
-            value={positionBody}
-            onChange={(v) => setPositionDraft(v)}
-            placeholder="Position, emotion, holding, wearing, who is where…"
-            multiline
-            rows={5}
-            onAi={() => void positionAssist.runAssist()}
-            aiBusy={positionAssist.aiBusy}
-          />
-          {positionAssist.aiError ? (
-            <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{positionAssist.aiError}</div>
-          ) : null}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-            <MobilePrimaryButton
-              size="chip"
-              tone="ghost"
-              disabled={saving || redrawing || !positionDirty}
-              onClick={() => {
-                setSaving(true);
-                setError("");
-                void persistPosition(positionBody)
-                  .then(() => setPositionDraft(null))
-                  .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep position prompt"))
-                  .finally(() => setSaving(false));
-              }}
-            >
-              {saving ? "…" : "Keep position"}
-            </MobilePrimaryButton>
-            <MobilePrimaryButton
-              size="chip"
-              disabled={saving || redrawing || !positionBody.trim()}
-              onClick={() => {
-                setRedrawing(true);
-                setError("");
-                void redrawPosition(positionBody)
-                  .then(() => setPositionDraft(null))
-                  .catch((e) => setError(e instanceof Error ? e.message : "Couldn't redraw that still"))
-                  .finally(() => setRedrawing(false));
-              }}
-            >
-              {redrawing ? "Drawing + checking…" : "Redo still"}
-            </MobilePrimaryButton>
-          </div>
-        </div>
-      ) : null}
+        bibleActiveIds={bibleActiveIds}
+        bibleDisabled={saving || redrawing}
+        onBiblePick={(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => {
+          const text = applyBibleTokens(entry.template, {
+            name: beat.speaker,
+            place: placeName || "this place",
+            cast: shotSpeakers.length ? shotSpeakers : [beat.speaker],
+          });
+          setBibleActiveIds((prev) =>
+            bibleMode === "append"
+              ? prev.includes(entry.id)
+                ? prev
+                : [...prev, entry.id]
+              : [entry.id],
+          );
+          if (bibleMode === "append" && positionBody.trim()) {
+            setPositionDraft(`${positionBody.trim()}\n\n${text}`);
+          } else {
+            setPositionDraft(text);
+          }
+        }}
+        keepDisabled={saving || redrawing || !positionDirty}
+        redoDisabled={saving || redrawing || !positionBody.trim()}
+        keeping={saving && !redrawing}
+        redrawing={redrawing}
+        onKeep={() => {
+          setSaving(true);
+          setError("");
+          void persistPosition(positionBody)
+            .then(() => setPositionDraft(null))
+            .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep position prompt"))
+            .finally(() => setSaving(false));
+        }}
+        onRedo={() => {
+          setRedrawing(true);
+          setError("");
+          void redrawPosition(positionBody)
+            .then(() => setPositionDraft(null))
+            .catch((e) => setError(e instanceof Error ? e.message : "Couldn't redraw that still"))
+            .finally(() => setRedrawing(false));
+        }}
+        onAi={() => void positionAssist.runAssist()}
+        aiBusy={positionAssist.aiBusy}
+        aiError={positionAssist.aiError}
+      />
 
-      <button
-        type="button"
-        onClick={() => setLtxOpen((open) => !open)}
-        style={{
-          width: "100%",
-          padding: "8px 0",
-          border: 0,
-          background: "transparent",
-          color: "var(--chrome-dim)",
-          fontSize: "12px",
-          fontWeight: 700,
-          textAlign: "left",
+      <LtxImageMotionPanel
+        open={ltxOpen}
+        onToggle={() => setLtxOpen((open) => !open)}
+        body={motionBody}
+        onChange={(v) => setMotionDraft(v)}
+        keepDisabled={saving}
+        keeping={saving}
+        onKeep={() => {
+          setSaving(true);
+          setError("");
+          void persistMotion(motionBody)
+            .then(() => setMotionDraft(null))
+            .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep Image motion"))
+            .finally(() => setSaving(false));
         }}
-      >
-        {ltxOpen ? "▾ LTX Image motion" : "▸ LTX Image motion"}
-      </button>
-      {ltxOpen ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <p style={{ margin: 0, color: "var(--chrome-dim)", fontSize: "11px", lineHeight: 1.45 }}>
-            {LTX_LIP_SYNC_LEAD}
-          </p>
-          <MobileTextInput
-            value={motionBody}
-            onChange={(v) => setMotionDraft(v)}
-            placeholder="Held prop + action — phone, pie, racket. This is the one LTX prompt."
-            multiline
-            rows={8}
-            onAi={() => void motionAssist.runAssist()}
-            aiBusy={motionAssist.aiBusy}
-          />
-          {motionAssist.aiError ? (
-            <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{motionAssist.aiError}</div>
-          ) : null}
-          <div>
-            <MobilePrimaryButton
-              size="chip"
-              tone="ghost"
-              disabled={saving}
-              onClick={() => {
-                setSaving(true);
-                setError("");
-                void persistMotion(motionBody)
-                  .then(() => setMotionDraft(null))
-                  .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep Image motion"))
-                  .finally(() => setSaving(false));
-              }}
-            >
-              Keep Image motion
-            </MobilePrimaryButton>
-          </div>
-        </div>
-      ) : null}
+        onAi={() => void motionAssist.runAssist()}
+        aiBusy={motionAssist.aiBusy}
+        aiError={motionAssist.aiError}
+      />
     </div>
   );
 }

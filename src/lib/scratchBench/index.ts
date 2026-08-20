@@ -50,12 +50,21 @@ export {
   SCRATCH_PROMPT_BIBLE,
   applyBibleTokens,
   composeBibleBlocks,
+  inferBibleIdsFromPrompt,
+  resolveShotBibleIds,
 } from "./promptBible";
 export type {
   ScratchBibleEntry,
   ScratchBibleSection,
   ScratchBibleSectionId,
 } from "./promptBible";
+
+export {
+  SCRATCH_GOLD_SCENARIOS,
+  applyGoldTokens,
+  scratchGoldById,
+} from "./goldScenarios";
+export type { ScratchGoldScenario, ScratchGoldTarget } from "./goldScenarios";
 
 export {
   SCRATCH_DND_MIME,

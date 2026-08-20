@@ -783,3 +783,51 @@ export function composeBibleBlocks(parts: {
 
 export const SCRATCH_BIBLE_DEFAULT_STYLE =
   "Stylized cinematic composition, sharp focus, consistent character identity with the face card.";
+
+/** Fingerprint a bible template for fuzzy restore on older plates. */
+function bibleFingerprint(template: string): string {
+  return template
+    .replace(/\{\{[^}]+\}\}/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Guess which bible chips were used from the position prompt text.
+ * Used when a plated shot has no stored bibleIds (older takes).
+ */
+export function inferBibleIdsFromPrompt(prompt: string): string[] {
+  const text = bibleFingerprint(prompt);
+  if (text.length < 12) return [];
+  const hits: string[] = [];
+  for (const section of SCRATCH_PROMPT_BIBLE) {
+    for (const entry of section.entries) {
+      const fp = bibleFingerprint(entry.template);
+      if (fp.length < 18) continue;
+      const needle = fp.slice(0, Math.min(56, fp.length));
+      if (text.includes(needle)) hits.push(entry.id);
+    }
+  }
+  return [...new Set(hits)];
+}
+
+/** Approved take ids first, then shot-level, then infer from staging text. */
+export function resolveShotBibleIds(shot: {
+  staging?: string;
+  bibleIds?: string[];
+  plateFile?: string;
+  plateTakes?: { fileName: string; staging: string; bibleIds?: string[]; approved: boolean }[];
+}): string[] {
+  const takes = shot.plateTakes || [];
+  const approved =
+    takes.find((t) => t.approved) ||
+    takes.find((t) => t.fileName === (shot.plateFile || "").trim()) ||
+    null;
+  const fromTake = (approved?.bibleIds || []).map((id) => id.trim()).filter(Boolean);
+  if (fromTake.length) return [...new Set(fromTake)];
+  const fromShot = (shot.bibleIds || []).map((id) => id.trim()).filter(Boolean);
+  if (fromShot.length) return [...new Set(fromShot)];
+  const staging = (approved?.staging || shot.staging || "").trim();
+  return staging ? inferBibleIdsFromPrompt(staging) : [];
+}
