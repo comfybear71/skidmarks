@@ -50,6 +50,8 @@ export {
   SCRATCH_PROMPT_BIBLE,
   applyBibleTokens,
   composeBibleBlocks,
+  inferBibleIdsFromPrompt,
+  resolveShotBibleIds,
 } from "./promptBible";
 export type {
   ScratchBibleEntry,

@@ -32,6 +32,8 @@ export type PlateTake = {
   fileName: string;
   /** The position tweak that drew this specific take. */
   staging: string;
+  /** Prompt-bible chip ids used to build staging — stay lit after plate. */
+  bibleIds?: string[];
   /** The take currently mirrored onto plateFile/staging below. */
   approved: boolean;
 };
@@ -45,6 +47,8 @@ export type CrashStoryShot = {
    * e.g. "Sharon prominent · cafe table · Kim secondary back"
    */
   staging?: string;
+  /** Prompt-bible chip ids for the current staging / approved take. */
+  bibleIds?: string[];
   /** cplate_*.png under data/crash/gen/ — always mirrors the approved take. */
   plateFile: string;
   /** Every still drawn for this shot. Older shots have none — plateFile is

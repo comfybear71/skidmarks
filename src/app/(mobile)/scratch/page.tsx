@@ -43,6 +43,7 @@ import {
   injectChaosStill,
   keepScratchPositionLines,
   mergePlacementsIntoStaging,
+  resolveShotBibleIds,
   stripScratchLayoutMarks,
   loadBenchSession,
   saveBenchSession,
@@ -395,7 +396,10 @@ export default function ScratchPage() {
       const data = (await res.json().catch(() => ({}))) as { story?: CrashStoryDoc };
       setStory(data.story || null);
       const found = findScratchShot(data.story || null);
-      if (!opts?.keepStaging && found?.shot.staging) setStaging(found.shot.staging);
+      if (!opts?.keepStaging && found?.shot.staging) {
+        setStaging(found.shot.staging);
+        setBibleActiveIds(resolveShotBibleIds(found.shot));
+      }
       if (opts?.keepLine != null) {
         setLine(opts.keepLine);
         return;
@@ -621,6 +625,7 @@ export default function ScratchPage() {
           speaker: nextSpeaker,
           cast: nextCast,
           staging: nextStaging || undefined,
+          bibleIds: bibleActiveIds,
           joPhone,
         },
       );
