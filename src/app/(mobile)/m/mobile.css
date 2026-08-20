@@ -116,6 +116,47 @@ body {
   outline-color: var(--acid);
 }
 
+.scratch-mp3-drop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px dashed color-mix(in srgb, var(--chrome-dim) 70%, transparent);
+  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+  color: var(--chrome-dim);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  outline: 1px dashed transparent;
+  outline-offset: 2px;
+  transition: outline-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.scratch-mp3-drop.is-drop-target {
+  border-color: var(--acid);
+  outline-color: var(--acid);
+  color: var(--acid);
+}
+
+.scratch-mp3-drop.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.scratch-mp3-drop-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scratch-mp3-drop-label {
+  pointer-events: none;
+}
+
 .scratch-pad-markers {
   position: absolute;
   inset: 0;
