@@ -460,6 +460,8 @@ function CandidatePicker({
   onApprove,
   onUpload,
   onRemove,
+  onDropFromJob,
+  dropFromJobLabel,
 }: {
   styleId: string;
   label: string;
@@ -479,6 +481,9 @@ function CandidatePicker({
   onApprove: (candidateId: string) => void;
   onUpload: (file: File) => void;
   onRemove?: (candidateId: string) => void;
+  /** Pull this person/place off the job (not just one still take). */
+  onDropFromJob?: () => void;
+  dropFromJobLabel?: string;
 }) {
   const takes = faceCandidateTakes(candidates);
   const seed = preferredCandidate(takes);
@@ -539,8 +544,21 @@ function CandidatePicker({
             }
       }
     >
-      <div style={{ color: "var(--acid)", fontWeight: 700, fontSize: "13px", marginBottom: "8px" }}>
-        {label}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          marginBottom: "8px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ color: "var(--acid)", fontWeight: 700, fontSize: "13px", flex: 1 }}>{label}</div>
+        {onDropFromJob ? (
+          <MobilePrimaryButton size="chip" disabled={busy} onClick={onDropFromJob}>
+            {dropFromJobLabel || "Remove"}
+          </MobilePrimaryButton>
+        ) : null}
       </div>
       {focused ? (
         <SingleCandidateCard
@@ -733,6 +751,7 @@ export function StudioTree({
   onUploadLocation,
   onRemoveCast,
   onRemoveLocation,
+  onDropCast,
   onDropScript,
   onGenerateVideo,
   onRetryError,
@@ -754,6 +773,8 @@ export function StudioTree({
   onUploadLocation: (sceneId: string, file: File) => void;
   onRemoveCast: (name: string, candidateId: string) => void;
   onRemoveLocation: (sceneId: string, candidateId: string) => void;
+  /** Pull a speaker off this job's CAST row (faces stay parked in Blob). */
+  onDropCast: (name: string) => void;
   onDropScript: (script: string) => void;
   onGenerateVideo: () => void;
   onRetryError: () => void;
@@ -998,6 +1019,20 @@ export function StudioTree({
                   setAdding(null);
                   setOpenCast(name);
                 }}
+                onRemove={
+                  busy
+                    ? undefined
+                    : () => {
+                        if (
+                          typeof window !== "undefined" &&
+                          !window.confirm(`Remove ${name} from this cast?`)
+                        ) {
+                          return;
+                        }
+                        if (openCast === name) setOpenCast(null);
+                        onDropCast(name);
+                      }
+                }
               />
             );
           })}
@@ -1040,6 +1075,17 @@ export function StudioTree({
             }}
             onUpload={(file) => onUploadCast(castFocus, file)}
             onRemove={(id) => onRemoveCast(castFocus, id)}
+            dropFromJobLabel="Remove from cast"
+            onDropFromJob={() => {
+              if (
+                typeof window !== "undefined" &&
+                !window.confirm(`Remove ${castFocus} from this cast?`)
+              ) {
+                return;
+              }
+              setOpenCast(null);
+              onDropCast(castFocus);
+            }}
           />
         ) : null}
       </TreeBranch>

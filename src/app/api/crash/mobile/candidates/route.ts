@@ -24,7 +24,7 @@ type Body = {
   jobId?: string;
   kind?: "cast" | "location";
   target?: string; // speaker name (cast) or scene id (location)
-  action?: "generate" | "approve" | "add" | "remove";
+  action?: "generate" | "approve" | "add" | "remove" | "drop";
   customPrompt?: string;
   candidateId?: string;
   /** action "add" only — new speaker name, or new place name. */
@@ -38,6 +38,10 @@ type Body = {
  * for one speaker/scene, or approve a pick. Never auto-advances the phase
  * on its own; the client checks whether every speaker/scene now has an
  * approved candidate and, once so, calls /step to move the phase forward.
+ *
+ * action "drop" (cast) — remove the whole speaker from this job's CAST.
+ * Face files stay in Blob (park). Takes list and speakerVoices entry go.
+ * action "drop" (location) — remove the place from this job's scenes.
  */
 export async function POST(req: Request) {
   try {
@@ -109,6 +113,32 @@ export async function POST(req: Request) {
     }
 
     if (kind === "cast") {
+      if (action === "drop") {
+        const who = target.trim();
+        if (!who) return NextResponse.json({ error: "Need a cast name" }, { status: 400 });
+        if (!job.speakers.some((s) => s.trim().toLowerCase() === who.toLowerCase())) {
+          return NextResponse.json({ error: `${who} is not in this cast` }, { status: 404 });
+        }
+        const speakers = job.speakers.filter(
+          (s) => s.trim().toLowerCase() !== who.toLowerCase(),
+        );
+        const castCandidates = { ...job.castCandidates };
+        for (const key of Object.keys(castCandidates)) {
+          if (key.trim().toLowerCase() === who.toLowerCase()) delete castCandidates[key];
+        }
+        const speakerVoices = { ...(job.speakerVoices || {}) };
+        for (const key of Object.keys(speakerVoices)) {
+          if (key.trim().toLowerCase() === who.toLowerCase()) delete speakerVoices[key];
+        }
+        const updated = await patchMobileGenJob(jobId, {
+          speakers,
+          castCandidates,
+          speakerVoices,
+          error: "",
+        });
+        return NextResponse.json({ ok: true, job: updated });
+      }
+
       if (action === "remove") {
         const candidateId = (body.candidateId || "").trim();
         if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
