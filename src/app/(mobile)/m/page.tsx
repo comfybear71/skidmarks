@@ -336,6 +336,40 @@ export default function MobileHomePage() {
           if (!res.ok || !data.job) throw new Error(data.error || "Couldn't use that photo");
           setJob(data.job);
         }
+        if (file && kind === "location") {
+          const scene =
+            added.scenes.find((s) => s.placeName.trim().toLowerCase() === name.trim().toLowerCase()) ||
+            added.scenes[added.scenes.length - 1];
+          if (!scene) throw new Error("Couldn't find that place after add");
+          const form = new FormData();
+          form.set("jobId", added.id);
+          form.set("kind", "location");
+          form.set("target", scene.id);
+          form.set("file", file);
+          const res = await fetch("/api/crash/mobile/candidate-upload", {
+            method: "POST",
+            body: form,
+          });
+          const data = (await res.json()) as { job?: MobileGenJob; error?: string };
+          if (!res.ok || !data.job) throw new Error(data.error || "Couldn't use that photo");
+          const takes = data.job.locationCandidates[scene.id] || [];
+          const newest = takes[takes.length - 1];
+          if (newest?.id) {
+            const approved = await postJson<{ job: MobileGenJob }>(
+              "/api/crash/mobile/candidates",
+              {
+                jobId: data.job.id,
+                kind: "location",
+                target: scene.id,
+                action: "approve",
+                candidateId: newest.id,
+              },
+            );
+            setJob(approved.job);
+          } else {
+            setJob(data.job);
+          }
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't add that");
       } finally {
@@ -647,7 +681,7 @@ export default function MobileHomePage() {
           onUploadCast={(name, file) => uploadCandidate("cast", name, file)}
           onGenerateLocation={(id, customPrompt) => genCandidates("location", id, customPrompt)}
           onApproveLocation={(id, candidateId) => approveCandidate("location", id, candidateId)}
-          onAddLocation={(name) => addRosterItem("location", name)}
+          onAddLocation={(name, file) => void addRosterItem("location", name, undefined, file)}
           onAddWorldLocation={(thumbKey, name) => void addWorldLocation(thumbKey, name)}
           onUploadLocation={(id, file) => uploadCandidate("location", id, file)}
           onRemoveCast={(name, candidateId) => void removeCandidate("cast", name, candidateId)}

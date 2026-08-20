@@ -317,7 +317,7 @@ function AddForm({
   const [photoUrl, setPhotoUrl] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const acceptPhoto = nameKind === "cast_look";
+  const acceptPhoto = true;
   const nameAssist = useMobileAssist(
     nameKind === "location" ? "location" : "cast_look",
     styleId,
@@ -430,10 +430,20 @@ function AddForm({
                     flex: "0 0 auto",
                   }}
                 />
-                <span>This still is them. Add puts it in the tree — More nudges it.</span>
+                <span>
+                  {nameKind === "location"
+                    ? "This still is the place. Add puts it on Locations."
+                    : "This still is them. Add puts it in the tree — More nudges it."}
+                </span>
               </>
             ) : (
-              <span>{dragOver ? "Drop it here" : "Drop their photo — or tap to choose"}</span>
+              <span>
+                {dragOver
+                  ? "Drop it here"
+                  : nameKind === "location"
+                    ? "Drop a place photo — or tap to choose"
+                    : "Drop their photo — or tap to choose"}
+              </span>
             )}
           </button>
         </div>
@@ -771,7 +781,7 @@ export function StudioTree({
   onUploadCast: (name: string, file: File) => void;
   onGenerateLocation: (sceneId: string, customPrompt?: string) => void;
   onApproveLocation: (sceneId: string, candidateId: string) => void;
-  onAddLocation: (name: string) => void;
+  onAddLocation: (name: string, file?: File) => void;
   /** World gallery thumb → Locations row (drag or tap). */
   onAddWorldLocation: (thumbKey: string, name?: string) => void;
   onUploadLocation: (sceneId: string, file: File) => void;
@@ -879,6 +889,16 @@ export function StudioTree({
     e.preventDefault();
     setWorldDropOver(false);
     if (busy) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      const base = (file.name || "place")
+        .replace(/\.[^.]+$/, "")
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      onAddLocation(base || "Place", file);
+      return;
+    }
     const payload = readPlateDrag(e) || peekLivePlateDrag();
     clearLivePlateDrag();
     if (!payload || payload.kind !== "world") return;
@@ -1160,6 +1180,12 @@ export function StudioTree({
             );
           })}
         </div>
+        {locationsOpen ? (
+          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
+            Drop a place photo onto the row above
+            {worldDropOver ? " — release to add" : ""}
+          </div>
+        ) : null}
         {locationsOpen && worldShelf.length ? (
           <div style={{ marginTop: "8px" }}>
             <div
@@ -1171,7 +1197,7 @@ export function StudioTree({
                 marginBottom: "6px",
               }}
             >
-              World gallery — drag onto Locations, or tap to add
+              World places — drag or tap onto Locations. Or drop any photo on the row above.
             </div>
             <div
               style={{
@@ -1255,8 +1281,8 @@ export function StudioTree({
             nameKind="location"
             namePlaceholder="e.g. a desert base camp"
             busy={busy}
-            onAdd={(name) => {
-              onAddLocation(name);
+            onAdd={(name, _description, file) => {
+              onAddLocation(name, file);
               setAdding(null);
             }}
             onCancel={() => setAdding(null)}
@@ -1273,9 +1299,9 @@ export function StudioTree({
             error={error}
             promptPlaceholder="e.g. Mars, a dive bar, outer space"
             promptLabel="Place"
-            hideUpload
             skipAutoGenerate={Boolean(
-              job.scenes.find((s) => s.id === placeFocus)?.worldThumbKey?.trim(),
+              job.scenes.find((s) => s.id === placeFocus)?.worldThumbKey?.trim() ||
+                (job.locationCandidates[placeFocus] || []).some((c) => c.approved),
             )}
             extra={
               <>
@@ -1297,7 +1323,7 @@ export function StudioTree({
                       }}
                     />
                     <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "6px" }}>
-                      From World gallery — locked. More still makes a new take if you want.
+                      From World places — locked. More still makes a new take if you want.
                     </div>
                   </div>
                 ) : null}
