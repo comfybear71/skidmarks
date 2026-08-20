@@ -152,11 +152,13 @@ async function landScratchStill(opts: {
   shotId: string;
   fileName: string;
   staging: string;
+  bibleIds?: string[];
   speaker: string;
   cast: string[];
   poseId?: string;
 }): Promise<MobileGenJob> {
   const { job, jobId, story, shotId, fileName, staging, speaker, cast, poseId } = opts;
+  const bibleIds = [...new Set((opts.bibleIds || []).map((id) => id.trim()).filter(Boolean))];
   try {
     await uploadMobileMedia({
       styleId: job.styleId,
@@ -168,14 +170,28 @@ async function landScratchStill(opts: {
     /* still usable this request */
   }
   const liveShot = story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === shotId);
-  const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: true };
+  const newTake: PlateTake = {
+    id: newId("take"),
+    fileName,
+    staging,
+    bibleIds: bibleIds.length ? bibleIds : undefined,
+    approved: true,
+  };
   const plateTakes = [...(liveShot?.plateTakes || []).map((t) => ({ ...t, approved: false })), newTake];
   const plated: CrashStoryDoc = {
     ...story,
     scenes: story.scenes.map((sc) => ({
       ...sc,
       shots: sc.shots.map((sh) =>
-        sh.id === shotId ? { ...sh, plateFile: fileName, staging, plateTakes } : sh,
+        sh.id === shotId
+          ? {
+              ...sh,
+              plateFile: fileName,
+              staging,
+              bibleIds: bibleIds.length ? bibleIds : undefined,
+              plateTakes,
+            }
+          : sh,
       ),
     })),
   };
@@ -350,6 +366,7 @@ export async function POST(req: Request) {
       sceneId?: string;
       poseId?: string;
       staging?: string;
+      bibleIds?: string[];
       beatId?: string;
       clipEngine?: string;
       joPhone?: boolean;
@@ -618,6 +635,9 @@ export async function POST(req: Request) {
       if (!staging) {
         return NextResponse.json({ error: "Pick a position preset" }, { status: 400 });
       }
+      const bibleIds = [
+        ...new Set((body.bibleIds || []).map((id) => String(id || "").trim()).filter(Boolean)),
+      ];
       const joPhone = body.joPhone !== false;
       const nextStory: CrashStoryDoc = {
         ...story,
@@ -628,6 +648,7 @@ export async function POST(req: Request) {
               ? {
                   ...sh,
                   staging,
+                  bibleIds: bibleIds.length ? bibleIds : undefined,
                   beats: scratchBeatsForCast(onPad, sh.beats).map((b) => {
                     if (!poseId || !b.text.trim() || onPad.length > 1) return b;
                     return {
@@ -683,6 +704,7 @@ export async function POST(req: Request) {
             shotId,
             sceneId: scene.id,
             staging,
+            bibleIds: bibleIds.length ? bibleIds : undefined,
             poseId: poseId || job.scratchPlate.poseId,
             speaker,
             cast: onPad,
@@ -698,6 +720,7 @@ export async function POST(req: Request) {
           pending: true,
           job: updated,
           staging,
+          bibleIds,
           poseId,
           cast: onPad,
           backend: "siray-spicy",
@@ -719,6 +742,7 @@ export async function POST(req: Request) {
         shotId,
         fileName: drawn.fileName,
         staging,
+        bibleIds,
         speaker,
         cast: onPad,
         poseId: poseId || job.scratchPlate.poseId,
@@ -785,6 +809,7 @@ export async function POST(req: Request) {
           shotId: task.shotId,
           fileName,
           staging: task.staging,
+          bibleIds: task.bibleIds,
           speaker: task.speaker,
           cast: task.cast,
           poseId: task.poseId || job.scratchPlate.poseId,
@@ -795,6 +820,7 @@ export async function POST(req: Request) {
           job: landed,
           plateFile: fileName,
           staging: task.staging,
+          bibleIds: task.bibleIds || [],
           poseId: task.poseId,
           cast: task.cast,
           backend: "siray-spicy",

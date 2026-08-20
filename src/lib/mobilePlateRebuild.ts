@@ -21,7 +21,13 @@ import { newId } from "./types";
 function patchShotFields(
   story: CrashStoryDoc,
   shotId: string,
-  patch: { staging?: string; summary?: string; plateFile?: string; plateTakes?: PlateTake[] },
+  patch: {
+    staging?: string;
+    summary?: string;
+    plateFile?: string;
+    plateTakes?: PlateTake[];
+    bibleIds?: string[];
+  },
 ): CrashStoryDoc {
   return {
     ...story,
@@ -37,6 +43,7 @@ export async function rebuildShotPlate(opts: {
   story: CrashStoryDoc;
   shotId: string;
   stagingIn?: string;
+  bibleIdsIn?: string[];
   qa?: boolean;
 }): Promise<{
   job: MobileGenJob;
@@ -44,6 +51,7 @@ export async function rebuildShotPlate(opts: {
   plateFile: string;
   plateTakes: PlateTake[];
   staging: string;
+  bibleIds: string[];
   qa: PlateQaVerdict | null;
   qaAttempts: number;
   speaker: string;
@@ -67,6 +75,9 @@ export async function rebuildShotPlate(opts: {
     });
   }
   if (!staging) throw new Error("Say who sits where — not two people stuck in the front.");
+  const bibleIds = [
+    ...new Set((opts.bibleIdsIn || shot.bibleIds || []).map((id) => id.trim()).filter(Boolean)),
+  ];
 
   const lookLock =
     candidateLookPrompt(job.castCandidates, speaker) ||
@@ -87,7 +98,7 @@ export async function rebuildShotPlate(opts: {
       ...sc,
       shots: sc.shots.map((sh) =>
         sh.id === shotId
-          ? { ...sh, staging, plateFile: "", beats: cleanedBeats }
+          ? { ...sh, staging, bibleIds, plateFile: "", beats: cleanedBeats }
           : sh,
       ),
     })),
@@ -121,10 +132,21 @@ export async function rebuildShotPlate(opts: {
       /* still usable this request */
     }
 
-    const newTake: PlateTake = { id: newId("take"), fileName, staging, approved: false };
+    const newTake: PlateTake = {
+      id: newId("take"),
+      fileName,
+      staging,
+      bibleIds: bibleIds.length ? bibleIds : undefined,
+      approved: false,
+    };
     const prevTakes = shot.plateTakes || [];
     plateTakes = [...prevTakes.map((t) => ({ ...t, approved: false })), newTake];
-    working = patchShotFields(working, shotId, { plateFile: fileName, staging, plateTakes });
+    working = patchShotFields(working, shotId, {
+      plateFile: fileName,
+      staging,
+      bibleIds: bibleIds.length ? bibleIds : undefined,
+      plateTakes,
+    });
     await writeMobileStory(working, job.folderName);
 
     if (!wantQa) {
@@ -179,6 +201,7 @@ export async function rebuildShotPlate(opts: {
     plateFile: fileName,
     plateTakes,
     staging,
+    bibleIds,
     qa,
     qaAttempts,
     speaker,
