@@ -12,6 +12,29 @@ import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { jobHasEpisodePack, mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { dropCandidateTake, keepCandidateTakes, latestCandidate } from "@/lib/mobileJobReady";
 import { newId } from "@/lib/types";
+import { useCloudStore } from "@/lib/cloudEnv";
+import { listWorldCardThumbsWithLabels } from "@/lib/worldCardThumbs";
+import { cloudWorldCardStatus } from "@/lib/cloudShelf";
+import type { ShowStyleId } from "@/lib/showStylePresets";
+
+async function resolveWorldPlaceLabel(
+  styleId: ShowStyleId,
+  thumbKey: string,
+): Promise<{ key: string; name: string } | null> {
+  const key = thumbKey.trim().startsWith("g:")
+    ? thumbKey.trim()
+    : `g:${thumbKey.trim()}`;
+  if (!key || key === "g:") return null;
+  const thumbs = useCloudStore()
+    ? ((await cloudWorldCardStatus()).find((c) => c.id === styleId)?.thumbs ?? [])
+    : listWorldCardThumbsWithLabels(styleId);
+  const hit = thumbs.find((t) => t.key === key);
+  if (!hit) return null;
+  const name =
+    (hit.name || "").trim() ||
+    key.replace(/^g:/, "").replace(/\.[^.]+$/, "").replace(/_/g, " ");
+  return { key, name };
+}
 
 // One new still per tap — but the earlier takes stay on the job so More
 // cannot throw away the one you wanted.
@@ -31,6 +54,8 @@ type Body = {
   name?: string;
   /** action "add", kind "cast" only — the character's look/appearance. */
   description?: string;
+  /** action "add", kind "location" — World gallery thumb (`g:place_….png`). */
+  worldThumbKey?: string;
 };
 
 /**
@@ -69,7 +94,10 @@ export async function POST(req: Request) {
 
     if (action === "add") {
       const name = (body.name || "").trim();
-      if (!name) return NextResponse.json({ error: "Need a name" }, { status: 400 });
+      const worldIn = (body.worldThumbKey || "").trim();
+      if (!name && !(kind === "location" && worldIn)) {
+        return NextResponse.json({ error: "Need a name" }, { status: 400 });
+      }
 
       if (kind === "cast") {
         if (job.speakers.some((s) => s.toLowerCase() === name.toLowerCase())) {
@@ -84,8 +112,27 @@ export async function POST(req: Request) {
       }
 
       // kind === "location"
-      if (job.scenes.some((s) => s.placeName.toLowerCase() === name.toLowerCase())) {
-        return NextResponse.json({ error: `${name} is already in the locations` }, { status: 400 });
+      let worldThumbKey = "";
+      let placeName = name;
+      if (worldIn) {
+        const world = await resolveWorldPlaceLabel(job.styleId, worldIn);
+        if (!world) {
+          return NextResponse.json(
+            { error: "That World gallery place is not on this show" },
+            { status: 404 },
+          );
+        }
+        worldThumbKey = world.key;
+        if (!placeName.trim()) placeName = world.name;
+        if (job.scenes.some((s) => s.worldThumbKey === worldThumbKey)) {
+          return NextResponse.json(
+            { error: `${placeName} is already in the locations` },
+            { status: 400 },
+          );
+        }
+      }
+      if (job.scenes.some((s) => s.placeName.toLowerCase() === placeName.toLowerCase())) {
+        return NextResponse.json({ error: `${placeName} is already in the locations` }, { status: 400 });
       }
       const sceneId = newId("scene");
       // No episode pack exists yet during location_build (folderName is
@@ -100,14 +147,20 @@ export async function POST(req: Request) {
             ...story,
             scenes: [
               ...story.scenes,
-              { id: sceneId, title: name, placeName: name, worldThumbKey: "", shots: [] },
+              {
+                id: sceneId,
+                title: placeName,
+                placeName,
+                worldThumbKey,
+                shots: [],
+              },
             ],
           },
           job.folderName,
         );
       }
       const updated = await patchMobileGenJob(jobId, {
-        scenes: [...job.scenes, { id: sceneId, placeName: name, worldThumbKey: "" }],
+        scenes: [...job.scenes, { id: sceneId, placeName, worldThumbKey }],
       });
       return NextResponse.json({ ok: true, job: updated });
     }
