@@ -1221,6 +1221,71 @@ export function StudioTree({
               />
             );
           })}
+          {worldShelf
+            .filter((t) => !job.scenes.some((s) => s.worldThumbKey === t.key))
+            .map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                disabled={busy}
+                title={t.name || "Place"}
+                onClick={() => {
+                  if (busy) return;
+                  setLocationsOpen(true);
+                  setAdding(null);
+                  onAddWorldLocation(t.key, t.name);
+                }}
+                style={{
+                  flex: "0 0 auto",
+                  width: "72px",
+                  padding: 0,
+                  border: "none",
+                  background: "none",
+                  cursor: busy ? "default" : "grab",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  draggable={!busy}
+                  src={worldGalleryStillUrl(job.styleId, t.key)}
+                  alt=""
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    writePlateDrag(e, {
+                      kind: "world",
+                      styleId: job.styleId,
+                      thumbKey: t.key,
+                      name: t.name,
+                    });
+                  }}
+                  style={{
+                    width: "72px",
+                    height: "72px",
+                    objectFit: "cover",
+                    borderRadius: "10px",
+                    display: "block",
+                    border: "2px solid var(--line)",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--chrome-dim)",
+                    width: "100%",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    textAlign: "center",
+                  }}
+                >
+                  {t.name || "Place"}
+                </span>
+              </button>
+            ))}
         </div>
         {locationsOpen && adding === "location" ? (
           <AddForm
