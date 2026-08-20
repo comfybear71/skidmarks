@@ -32,7 +32,6 @@ import {
   clearLivePlateDrag,
   peekLivePlateDrag,
   readPlateDrag,
-  writePlateDrag,
 } from "@/lib/crashPlateDrag";
 import { queuedSavedClips } from "@/lib/mobileClipQueue";
 import { isJoKeyboardWarrior } from "@/lib/mobileImageMotion";
@@ -783,6 +782,7 @@ export function StudioTree({
   onRemoveCast,
   onRemoveLocation,
   onDropCast,
+  onDropLocation,
   onDropScript,
   onGenerateVideo,
   onRetryError,
@@ -801,13 +801,15 @@ export function StudioTree({
   onGenerateLocation: (sceneId: string, customPrompt?: string) => void;
   onApproveLocation: (sceneId: string, candidateId: string) => void;
   onAddLocation: (name: string, file?: File) => void;
-  /** World gallery thumb → Locations row (drag or tap). */
+  /** World gallery thumb → Locations row (drag from Crash Lab World, or file drop). */
   onAddWorldLocation: (thumbKey: string, name?: string) => void;
   onUploadLocation: (sceneId: string, file: File) => void;
   onRemoveCast: (name: string, candidateId: string) => void;
   onRemoveLocation: (sceneId: string, candidateId: string) => void;
   /** Pull a speaker off this job's CAST row (faces stay parked in Blob). */
   onDropCast: (name: string) => void;
+  /** Pull a place off this job's Locations row (stills stay parked). */
+  onDropLocation: (sceneId: string) => void;
   onDropScript: (script: string) => void;
   onGenerateVideo: () => void;
   onRetryError: () => void;
@@ -827,9 +829,6 @@ export function StudioTree({
   const [plateGraphHint, setPlateGraphHint] = useState("");
   const [deskStory, setDeskStory] = useState<CrashStoryDoc | null>(null);
   const [worldDropOver, setWorldDropOver] = useState(false);
-  const [worldShelf, setWorldShelf] = useState<
-    { key: string; name?: string; placeType?: string }[]
-  >([]);
 
   async function addLocationToPlate(sceneId: string) {
     setAddingPlateFor(sceneId);
@@ -888,23 +887,6 @@ export function StudioTree({
   );
   const castFocus = openCast || firstOpenCast || null;
   const placeFocus = openPlace || firstOpenPlace?.id || null;
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/crash/world-cards")
-      .then((r) => r.json())
-      .then((data: { cards?: { id: string; thumbs?: { key: string; name?: string; placeType?: string }[] }[] }) => {
-        if (cancelled) return;
-        const show = (data.cards || []).find((c) => c.id === job.styleId);
-        setWorldShelf(show?.thumbs || []);
-      })
-      .catch(() => {
-        if (!cancelled) setWorldShelf([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [job.styleId, job.id]);
 
   function takeWorldDrop(e: DragEvent) {
     e.preventDefault();
@@ -1222,74 +1204,23 @@ export function StudioTree({
                   setAdding(null);
                   setOpenPlace(scene.id);
                 }}
+                onRemove={
+                  busy
+                    ? undefined
+                    : () => {
+                        if (
+                          typeof window !== "undefined" &&
+                          !window.confirm(`Remove ${scene.placeName} from locations?`)
+                        ) {
+                          return;
+                        }
+                        if (openPlace === scene.id) setOpenPlace(null);
+                        onDropLocation(scene.id);
+                      }
+                }
               />
             );
           })}
-          {worldShelf
-            .filter((t) => !job.scenes.some((s) => s.worldThumbKey === t.key))
-            .map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                disabled={busy}
-                title={t.name || "Place"}
-                onClick={() => {
-                  if (busy) return;
-                  setLocationsOpen(true);
-                  setAdding(null);
-                  onAddWorldLocation(t.key, t.name);
-                }}
-                style={{
-                  flex: "0 0 auto",
-                  width: "72px",
-                  padding: 0,
-                  border: "none",
-                  background: "none",
-                  cursor: busy ? "default" : "grab",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  draggable={!busy}
-                  src={worldGalleryStillUrl(job.styleId, t.key)}
-                  alt=""
-                  onDragStart={(e) => {
-                    e.stopPropagation();
-                    writePlateDrag(e, {
-                      kind: "world",
-                      styleId: job.styleId,
-                      thumbKey: t.key,
-                      name: t.name,
-                    });
-                  }}
-                  style={{
-                    width: "72px",
-                    height: "72px",
-                    objectFit: "cover",
-                    borderRadius: "10px",
-                    display: "block",
-                    border: "2px solid var(--line)",
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: "11px",
-                    color: "var(--chrome-dim)",
-                    width: "100%",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    textAlign: "center",
-                  }}
-                >
-                  {t.name || "Place"}
-                </span>
-              </button>
-            ))}
         </div>
         {locationsOpen && adding === "location" ? (
           <AddForm
@@ -1369,6 +1300,18 @@ export function StudioTree({
             }}
             onUpload={(file) => onUploadLocation(placeFocus, file)}
             onRemove={(id) => onRemoveLocation(placeFocus, id)}
+            dropFromJobLabel="Remove from locations"
+            onDropFromJob={() => {
+              const scene = job.scenes.find((s) => s.id === placeFocus);
+              if (
+                typeof window !== "undefined" &&
+                !window.confirm(`Remove ${scene?.placeName || "this place"} from locations?`)
+              ) {
+                return;
+              }
+              setOpenPlace(null);
+              onDropLocation(placeFocus);
+            }}
           />
         ) : null}
       </TreeBranch>

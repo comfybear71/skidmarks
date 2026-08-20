@@ -549,6 +549,26 @@ export default function MobileHomePage() {
     [job],
   );
 
+  const dropLocation = useCallback(
+    async (sceneId: string) => {
+      if (!job) return;
+      setBusy(true);
+      setError("");
+      try {
+        const { job: updated } = await postJson<{ job: MobileGenJob }>(
+          "/api/crash/mobile/candidates",
+          { jobId: job.id, kind: "location", target: sceneId, action: "drop" },
+        );
+        setJob(updated);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't remove that location");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [job],
+  );
+
   const vibeAssist = useMobileAssist("vibe", styleId, () => prompt, setPrompt);
 
   const showVibeForm = !resuming && (!job || draftingNew);
@@ -707,6 +727,7 @@ export default function MobileHomePage() {
           onRemoveCast={(name, candidateId) => void removeCandidate("cast", name, candidateId)}
           onRemoveLocation={(id, candidateId) => void removeCandidate("location", id, candidateId)}
           onDropCast={(name) => void dropCast(name)}
+          onDropLocation={(sceneId) => void dropLocation(sceneId)}
           onDropScript={(script) => void runScreenplay(job.id, script)}
           onGenerateVideo={() => void approveReview()}
           onRetryError={() => void retryFromError(job.id)}
