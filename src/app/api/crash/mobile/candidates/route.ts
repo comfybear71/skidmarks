@@ -67,6 +67,7 @@ type Body = {
  * action "drop" (cast) — remove the whole speaker from this job's CAST.
  * Face files stay in Blob (park). Takes list and speakerVoices entry go.
  * action "drop" (location) — remove the place from this job's scenes.
+ * Still files stay in Blob (park). locationCandidates entry goes.
  */
 export async function POST(req: Request) {
   try {
@@ -264,6 +265,32 @@ export async function POST(req: Request) {
     }
 
     // kind === "location"
+    if (action === "drop") {
+      const sceneId = target.trim();
+      if (!sceneId) return NextResponse.json({ error: "Need a location id" }, { status: 400 });
+      const scene = job.scenes.find((s) => s.id === sceneId);
+      if (!scene) return NextResponse.json({ error: `No scene ${sceneId}` }, { status: 404 });
+      const scenes = job.scenes.filter((s) => s.id !== sceneId);
+      const locationCandidates = { ...job.locationCandidates };
+      delete locationCandidates[sceneId];
+      if (jobHasEpisodePack(job)) {
+        const story = await readMobileStory(job.styleId, job.folderName);
+        await writeMobileStory(
+          {
+            ...story,
+            scenes: story.scenes.filter((s) => s.id !== sceneId),
+          },
+          job.folderName,
+        );
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        scenes,
+        locationCandidates,
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
     if (action === "remove") {
       const candidateId = (body.candidateId || "").trim();
       if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
