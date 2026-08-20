@@ -273,6 +273,7 @@ export default function ScratchPage() {
   const [bibleActiveIds, setBibleActiveIds] = useState<string[]>([]);
   const [placements, setPlacements] = useState<ScratchPadPlacement[]>([]);
   const [padDragOver, setPadDragOver] = useState(false);
+  const [mp3DragOver, setMp3DragOver] = useState(false);
   /** Last successful Save — unlocks Generate even if story GET lags. */
   const [savedTake, setSavedTake] = useState<{ beatId: string; voiceFile: string } | null>(null);
   const [ltxOpen, setLtxOpen] = useState(true);
@@ -287,6 +288,7 @@ export default function ScratchPage() {
   const motionEditBeatId = useRef<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const padSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const mp3InputRef = useRef<HTMLInputElement | null>(null);
   const drawSeq = useRef(0);
   const clipPollSeq = useRef(0);
   const drawStartedAt = useRef(0);
@@ -950,6 +952,70 @@ export default function ScratchPage() {
     return saved;
   }
 
+  async function applySavedVoice(opts: {
+    savedVoice: string;
+    text?: string;
+    nextJob?: MobileGenJob;
+  }) {
+    if (!job || !beat) return;
+    const savedVoice = opts.savedVoice.trim();
+    if (!savedVoice) {
+      setError("No mp3 came back — try again.");
+      return;
+    }
+    if (!isMobileSavedVoiceFile(savedVoice)) {
+      setError(
+        `Got an old leftover voice file (${savedVoice}) — Draw again, then Save or drop an mp3.`,
+      );
+      return;
+    }
+    const text = (opts.text ?? line).trim();
+    setSavedTake({ beatId: beat.id, voiceFile: savedVoice });
+    setStory((cur) => {
+      if (!cur) return cur;
+      return {
+        ...cur,
+        scenes: cur.scenes.map((sc) => ({
+          ...sc,
+          shots: sc.shots.map((sh) => ({
+            ...sh,
+            beats: sh.beats.map((b) =>
+              b.id === beat.id
+                ? { ...b, ...(text ? { text } : {}), voiceFile: savedVoice }
+                : b,
+            ),
+          })),
+        })),
+      };
+    });
+    await loadStory(opts.nextJob || job, {
+      preferSpeaker: beat.speaker || speaker,
+      keepLine: text || line,
+      keepStaging: true,
+    });
+    setSavedTake({ beatId: beat.id, voiceFile: savedVoice });
+    setStory((cur) => {
+      if (!cur) return cur;
+      return {
+        ...cur,
+        scenes: cur.scenes.map((sc) => ({
+          ...sc,
+          shots: sc.shots.map((sh) => ({
+            ...sh,
+            beats: sh.beats.map((b) =>
+              b.id === beat.id
+                ? { ...b, ...(text ? { text } : {}), voiceFile: savedVoice }
+                : b,
+            ),
+          })),
+        })),
+      };
+    });
+    if (motionBody.trim()) {
+      await persistMotion(motionBody);
+    }
+  }
+
   async function saveLine() {
     if (!job || !beat) {
       setError(
@@ -973,63 +1039,61 @@ export default function ScratchPage() {
         },
       );
       if (data.job) setJob(data.job);
-      const savedVoice = (data.voiceFile || "").trim();
-      if (!savedVoice) {
-        setError("Save finished but no mp3 came back — tap Save again.");
-        return;
-      }
-      if (!isMobileSavedVoiceFile(savedVoice)) {
-        setError(
-          `Got an old leftover voice file (${savedVoice}) — Draw again, then Save the spoken line.`,
-        );
-        return;
-      }
-      setSavedTake({ beatId: beat.id, voiceFile: savedVoice });
-      setStory((cur) => {
-        if (!cur) return cur;
-        return {
-          ...cur,
-          scenes: cur.scenes.map((sc) => ({
-            ...sc,
-            shots: sc.shots.map((sh) => ({
-              ...sh,
-              beats: sh.beats.map((b) =>
-                b.id === beat.id ? { ...b, text, voiceFile: savedVoice } : b,
-              ),
-            })),
-          })),
-        };
+      await applySavedVoice({
+        savedVoice: data.voiceFile || "",
+        text,
+        nextJob: data.job,
       });
-      await loadStory(data.job || job, {
-        preferSpeaker: beat.speaker || speaker,
-        keepLine: text,
-        keepStaging: true,
-      });
-      setSavedTake({ beatId: beat.id, voiceFile: savedVoice });
-      setStory((cur) => {
-        if (!cur) return cur;
-        return {
-          ...cur,
-          scenes: cur.scenes.map((sc) => ({
-            ...sc,
-            shots: sc.shots.map((sh) => ({
-              ...sh,
-              beats: sh.beats.map((b) =>
-                b.id === beat.id ? { ...b, text, voiceFile: savedVoice } : b,
-              ),
-            })),
-          })),
-        };
-      });
-      // Lock the LTX box onto this beat so Generate uses what's on screen
-      // (mouth/head + NAME says), not a stale leftover motion string.
-      if (motionBody.trim()) {
-        await persistMotion(motionBody);
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save the line");
     } finally {
       setBusy("");
+    }
+  }
+
+  async function dropMp3File(file: File) {
+    if (!job || !beat) {
+      setError(
+        !beat
+          ? "No Scratch beat yet — Draw with a face on the pad first, then drop the mp3."
+          : "Episode not open",
+      );
+      return;
+    }
+    setBusy("voice");
+    setError("");
+    try {
+      const form = new FormData();
+      form.set("jobId", job.id);
+      form.set("beatId", beat.id);
+      form.set("file", file, file.name || "drop.mp3");
+      const text = line.trim();
+      if (text) form.set("text", text);
+      let res: Response;
+      try {
+        res = await fetch("/api/crash/mobile/beat-audio/upload", {
+          method: "POST",
+          body: form,
+        });
+      } catch (e) {
+        throw new Error(studioFetchError(e, "Couldn't take that mp3"));
+      }
+      const data = await readApiJson<{
+        job?: MobileGenJob;
+        voiceFile?: string;
+        error?: string;
+      }>(res);
+      if (data.job) setJob(data.job);
+      await applySavedVoice({
+        savedVoice: data.voiceFile || "",
+        text: text || undefined,
+        nextJob: data.job,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't take that mp3");
+    } finally {
+      setBusy("");
+      setMp3DragOver(false);
     }
   }
 
@@ -1673,13 +1737,89 @@ export default function ScratchPage() {
               />
             ) : line.trim() && beat ? (
               <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
-                Save the spoken line to unlock Generate. The Play beside the voice dropdown is only a library sample — not your line.
+                Save the spoken line, or drop an mp3 below, to unlock Generate. The Play beside the voice dropdown is only a library sample — not your line.
               </div>
             ) : line.trim() && !beat ? (
               <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>
-                No Scratch beat yet — Draw with a face on the pad, then Save the line.
+                No Scratch beat yet — Draw with a face on the pad, then Save or drop an mp3.
+              </div>
+            ) : beat && !canGenerate ? (
+              <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
+                Drop an mp3 below (or type a line and Save) to unlock Generate.
               </div>
             ) : null}
+
+            <div
+              className={`scratch-mp3-drop${mp3DragOver ? " is-drop-target" : ""}${
+                !beat || Boolean(busy) ? " is-disabled" : ""
+              }`}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!busy && beat) setMp3DragOver(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = "copy";
+                if (!busy && beat) setMp3DragOver(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.currentTarget === e.target) setMp3DragOver(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setMp3DragOver(false);
+                if (busy || !beat) return;
+                const file =
+                  Array.from(e.dataTransfer.files || []).find((f) =>
+                    /\.mp3$/i.test(f.name) ||
+                    /audio\/(mpeg|mp3)/i.test(f.type),
+                  ) || null;
+                if (!file) {
+                  setError("Drop an mp3 file");
+                  return;
+                }
+                void dropMp3File(file);
+              }}
+              onClick={() => {
+                if (busy || !beat) return;
+                mp3InputRef.current?.click();
+              }}
+              role="button"
+              tabIndex={beat && !busy ? 0 : -1}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  if (!busy && beat) mp3InputRef.current?.click();
+                }
+              }}
+              aria-label="Drop or choose an mp3 for LTX lip-sync"
+              aria-disabled={!beat || Boolean(busy)}
+            >
+              <input
+                ref={mp3InputRef}
+                type="file"
+                accept="audio/mpeg,audio/mp3,.mp3"
+                className="scratch-mp3-drop-input"
+                disabled={Boolean(busy) || !beat}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void dropMp3File(f);
+                }}
+              />
+              <span className="scratch-mp3-drop-label">
+                {busy === "voice"
+                  ? "Taking mp3…"
+                  : canGenerate
+                    ? "Drop another mp3 to replace the Saved take"
+                    : "Drop mp3 here — or click to choose"}
+              </span>
+            </div>
 
             <div
               style={{
