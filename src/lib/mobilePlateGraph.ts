@@ -51,8 +51,20 @@ export function shotHasPlate(shot: Pick<MobileShotUnit, "plateFile">): boolean {
 export function nextUnplatedEpisodeShot(
   job: Pick<MobileGenJob, "shots" | "scratchPlate" | "plateLtxCampaign">,
   story?: CrashStoryDoc | null,
+  sceneId?: string,
 ): MobileShotUnit | null {
-  return episodeJobShots(job, story).find((s) => !shotHasPlate(s)) || null;
+  const wantScene = (sceneId || "").trim();
+  return (
+    episodeJobShots(job, story).find((s) => {
+      if (shotHasPlate(s)) return false;
+      if (wantScene && s.sceneId !== wantScene) return false;
+      if (!story) return true;
+      const { speaker } = storyShotSpeaker(story, s.shotId);
+      // Empty "Add to plate" location cards have no speaker — Plate the
+      // episode must not stall on them or skip ahead to mint Jo's room.
+      return Boolean(speaker);
+    }) || null
+  );
 }
 
 function speakerNamesMatch(a: string, b: string): boolean {

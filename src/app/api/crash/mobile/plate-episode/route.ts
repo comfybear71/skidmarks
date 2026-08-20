@@ -23,8 +23,13 @@ export const maxDuration = 300;
  */
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => ({}))) as { jobId?: string };
+    const body = (await req.json().catch(() => ({}))) as {
+      jobId?: string;
+      /** Only plate shots at this place — do not mint Jo's room while you stare at Orbiting servo. */
+      sceneId?: string;
+    };
     const jobId = (body.jobId || "").trim();
+    const sceneIdFilter = (body.sceneId || "").trim();
     if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
 
     let job = await readMobileGenJob(jobId);
@@ -36,8 +41,20 @@ export async function POST(req: Request) {
     await hydrateMobilePackOnDisk(job.styleId, job.folderName);
     let story = await readMobileStory(job.styleId, job.folderName);
     const counts = episodePlateCounts(job, story);
-    let next = nextUnplatedEpisodeShot(job, story);
+    let next = nextUnplatedEpisodeShot(job, story, sceneIdFilter || undefined);
     if (!next) {
+      // Place-scoped plate: never invent cast house cards for another room.
+      if (sceneIdFilter) {
+        return NextResponse.json({
+          ok: true,
+          done: true,
+          node: "halt_lines",
+          job,
+          doneCount: counts.done,
+          total: counts.total,
+          sceneId: sceneIdFilter,
+        });
+      }
       const missing = missingCastPlacePlates(job, story);
       const need = missing[0];
       if (!need) {
