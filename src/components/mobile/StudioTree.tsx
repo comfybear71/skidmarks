@@ -1225,102 +1225,72 @@ export function StudioTree({
               />
             );
           })}
+          {worldShelf
+            .filter((t) => !job.scenes.some((s) => s.worldThumbKey === t.key))
+            .map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                disabled={busy}
+                title={t.name || "Place"}
+                onClick={() => {
+                  if (busy) return;
+                  setLocationsOpen(true);
+                  setAdding(null);
+                  onAddWorldLocation(t.key, t.name);
+                }}
+                style={{
+                  flex: "0 0 auto",
+                  width: "72px",
+                  padding: 0,
+                  border: "none",
+                  background: "none",
+                  cursor: busy ? "default" : "grab",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  draggable={!busy}
+                  src={worldGalleryStillUrl(job.styleId, t.key)}
+                  alt=""
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    writePlateDrag(e, {
+                      kind: "world",
+                      styleId: job.styleId,
+                      thumbKey: t.key,
+                      name: t.name,
+                    });
+                  }}
+                  style={{
+                    width: "72px",
+                    height: "72px",
+                    objectFit: "cover",
+                    borderRadius: "10px",
+                    display: "block",
+                    border: "2px solid var(--line)",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--chrome-dim)",
+                    width: "100%",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    textAlign: "center",
+                  }}
+                >
+                  {t.name || "Place"}
+                </span>
+              </button>
+            ))}
         </div>
-        {locationsOpen ? (
-          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
-            Drop a place photo onto the row above
-            {worldDropOver ? " — release to add" : ""}
-          </div>
-        ) : null}
-        {locationsOpen && worldShelf.length ? (
-          <div style={{ marginTop: "8px" }}>
-            <div
-              style={{
-                color: "var(--chrome-dim)",
-                fontSize: "10px",
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                marginBottom: "6px",
-              }}
-            >
-              World places — drag or tap onto Locations. Or drop any photo on the row above.
-            </div>
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                overflowX: "auto",
-                padding: "2px 2px 6px",
-                touchAction: "pan-x pan-y",
-                overscrollBehaviorX: "contain",
-              }}
-            >
-              {worldShelf.map((t) => {
-                const used = job.scenes.some((s) => s.worldThumbKey === t.key);
-                return (
-                  <button
-                    key={t.key}
-                    type="button"
-                    disabled={busy || used}
-                    title={used ? "Already in Locations" : t.name || "Place"}
-                    onClick={() => {
-                      if (busy || used) return;
-                      setLocationsOpen(true);
-                      setAdding(null);
-                      onAddWorldLocation(t.key, t.name);
-                    }}
-                    style={{
-                      flex: "0 0 auto",
-                      width: "72px",
-                      padding: 0,
-                      border: "none",
-                      background: "none",
-                      opacity: used ? 0.45 : 1,
-                      cursor: busy || used ? "default" : "grab",
-                    }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      draggable={!busy && !used}
-                      src={worldGalleryStillUrl(job.styleId, t.key)}
-                      alt=""
-                      onDragStart={(e) => {
-                        e.stopPropagation();
-                        writePlateDrag(e, {
-                          kind: "world",
-                          styleId: job.styleId,
-                          thumbKey: t.key,
-                          name: t.name,
-                        });
-                      }}
-                      style={{
-                        width: "72px",
-                        height: "48px",
-                        objectFit: "cover",
-                        borderRadius: "8px",
-                        display: "block",
-                        border: used ? "2px solid var(--acid)" : "2px solid var(--line)",
-                      }}
-                    />
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: "10px",
-                        color: "var(--chrome-dim)",
-                        marginTop: "4px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {t.name || "Place"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
         {locationsOpen && adding === "location" ? (
           <AddForm
             styleId={job.styleId}
@@ -1369,7 +1339,7 @@ export function StudioTree({
                       }}
                     />
                     <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "6px" }}>
-                      From World places — locked. More still makes a new take if you want.
+                      Locked place still. More makes a new take if you want.
                     </div>
                   </div>
                 ) : null}
