@@ -922,12 +922,19 @@ export default function ScratchPage() {
 
   function pickGoldScenario(scenario: ScratchGoldScenario) {
     const who = speaker || padCast[0] || "Character";
+    const spoken =
+      line.trim() ||
+      (scenario.defaultLine || "").trim() ||
+      "…";
     const text = applyGoldTokens(scenario.template, {
       name: who,
       place: placeName,
-      line: line.trim() || "…",
+      line: spoken === "…" && scenario.defaultLine ? scenario.defaultLine : spoken,
     });
     setError("");
+    if (scenario.defaultLine && !line.trim()) {
+      setLine(scenario.defaultLine);
+    }
     if (scenario.target === "motion") {
       if (!beat) {
         setError("Draw a still first — then Gold clip fills LTX Image motion.");

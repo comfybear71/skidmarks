@@ -2,6 +2,11 @@
  * Scratch gold scenarios — one proven example per situation, not a bible dump.
  * Promote a Pass here only after Scratch proves it. Refine in place until
  * automation can rely on the base. Tokens: {{name}} {{place}} {{line}}
+ *
+ * Pipeline note (2026-08-20): spicy Siray plates (Seedream / i2v 2.0) can be
+ * spoken later on LTX — still Draw first, Save mp3, then LTX Image motion.
+ * GLOBAL lip-sync lead is hard-wired on send (`LTX_LIP_SYNC_LEAD`) — do not
+ * paste it into the Image motion box.
  */
 
 export type ScratchGoldTarget = "staging" | "motion";
@@ -17,11 +22,13 @@ export type ScratchGoldScenario = {
   target: ScratchGoldTarget;
   /** Prompt body with optional {{name}} {{place}} {{line}}. */
   template: string;
+  /** Optional spoken line to drop into the dialogue box when empty. */
+  defaultLine?: string;
 };
 
 /**
  * Seed set — situations we already know we incur.
- * Replace templates with Stuie's Pass CSV wording when he pastes winners.
+ * Replace templates with Stuie's Pass wording when a better Pass lands.
  */
 export const SCRATCH_GOLD_SCENARIOS: readonly ScratchGoldScenario[] = [
   {
@@ -69,10 +76,26 @@ export const SCRATCH_GOLD_SCENARIOS: readonly ScratchGoldScenario[] = [
     ].join(" "),
   },
   {
+    id: "still-spicy-edit-from-still",
+    label: "Still · spicy edit from still",
+    forWhat: "Draw (Siray Spicy) — same room/camera as attached; one clear wardrobe/pose change",
+    provenOn: "Siray Spicy plate Pass 2026-08-20 (LADDER ONE squat / skirt)",
+    target: "staging",
+    template: [
+      "Same as the attached image — same room, camera, topless with visible nipples, not smoothed,",
+      "cream ribbed knit mini-skirt with twisted knot, heels, same lean and angle.",
+      "Only change: squat down at the knees, both hands pull the skirt right down to her ankles —",
+      "bunched low around ankles. Pink underpants clearly visible. Still topless, bare breasts with nipples visible.",
+      "Do not add a top. Do not sit on the bed.",
+      "Only {{name}} in frame. No other people.",
+      "Same face and body as the start image. Not cartoon, not smoothed.",
+    ].join(" "),
+  },
+  {
     id: "clip-one-person-siray20",
     label: "Clip · Siray 2.0 one person",
-    forWhat: "Generate — one person, locked pose, flirt hip sway (worked excellently)",
-    provenOn: "Siray Seedance 2.0 i2v (Scratch Pass, many poses)",
+    forWhat: "Generate Siray i2v 2.0 — one person, locked pose, hip sway",
+    provenOn: "Siray Seedance 2.0 i2v Spicy (Scratch Pass, many poses)",
     target: "motion",
     template: [
       "A wide full-body video sequence where the single female subject from the source frame",
@@ -86,9 +109,31 @@ export const SCRATCH_GOLD_SCENARIOS: readonly ScratchGoldScenario[] = [
     ].join(" "),
   },
   {
+    id: "clip-ltx-after-spicy",
+    label: "Clip · LTX after spicy plate",
+    forWhat: "After spicy still Pass — LTX lip-sync on Saved mp3 (start image lock)",
+    provenOn: "Siray Spicy plate → LTX speaking Pass 2026-08-20",
+    target: "motion",
+    defaultLine: "[playfully]you know i am a slut, you 2 dirty little tiprats!",
+    template: [
+      "Use the provided start image as the first frame.",
+      "{{name}}, She is a beutiful Thai lady, lovely body, black hair brown eyse, not cartoon is prominent,",
+      "empty hands stay as the start image, no phone, mouth and head move naturally while speaking, subtle gesture.",
+      "Only {{name}} in frame, no one else appears.",
+      "Props and background stay exactly as the start image, nothing new enters frame.",
+      "No new objects. No readable text or signage. Background stays as the start image.",
+      '{{name}} says: "{{line}}".',
+      "Camera holds. Same person and objects as the start image.",
+      "No new people enter the frame. Nobody mentioned in the spoken line appears on screen.",
+      "highly detailed stylised 3D animated feature render, clean simplified forms, believable materials,",
+      "soft overcast lighting, shallow depth of field, cinematic quality, sharp focus.",
+      "Not photographic, not a cartoon. Not photographic, not photorealistic.",
+    ].join(" "),
+  },
+  {
     id: "clip-speaking-ltx",
     label: "Clip · LTX speaking gold",
-    forWhat: "Generate LTX — lip-sync on Saved mp3, start-image lock",
+    forWhat: "Generate LTX — lip-sync on Saved mp3, start-image lock (generic)",
     provenOn: "First Fleet /m Cloud LTX IA2V gold",
     target: "motion",
     template: [
