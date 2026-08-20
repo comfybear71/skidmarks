@@ -225,17 +225,19 @@ function ThumbTile({
           }}
           style={{
             position: "absolute",
-            top: "-4px",
-            left: "-4px",
-            width: "20px",
-            height: "20px",
+            top: "-6px",
+            left: "-6px",
+            width: "22px",
+            height: "22px",
             borderRadius: "999px",
-            border: "none",
-            background: "rgba(0,0,0,0.78)",
-            color: "var(--chrome)",
+            border: "2px solid var(--void)",
+            background: "var(--magenta-hot)",
+            color: "var(--void)",
             fontSize: "14px",
+            fontWeight: 700,
             lineHeight: 1,
-            zIndex: 1,
+            zIndex: 3,
+            boxShadow: "0 1px 4px rgba(0,0,0,0.55)",
           }}
         >
           ×
@@ -829,15 +831,21 @@ export function StudioTree({
   const [plateGraphHint, setPlateGraphHint] = useState("");
   const [deskStory, setDeskStory] = useState<CrashStoryDoc | null>(null);
   const [worldDropOver, setWorldDropOver] = useState(false);
+  const [plateSpeaker, setPlateSpeaker] = useState("");
 
-  async function addLocationToPlate(sceneId: string) {
+  async function addLocationToPlate(sceneId: string, speaker: string) {
+    const who = speaker.trim();
+    if (!who) {
+      setAddPlateError("Pick who is in this place first");
+      return;
+    }
     setAddingPlateFor(sceneId);
     setAddPlateError("");
     try {
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, action: "add", sceneId }),
+        body: JSON.stringify({ jobId: job.id, action: "add", sceneId, speaker: who }),
       });
       const data = (await res.json()) as { error?: string; job?: MobileGenJob; shotId?: string };
       if (!res.ok) throw new Error(data.error || "Couldn't add a plate there");
@@ -850,6 +858,47 @@ export function StudioTree({
       setAddingPlateFor(null);
     }
   }
+
+  async function plateThisPlace(sceneId: string) {
+    if (plating) return;
+    setPlating(true);
+    setPlateGraphHint("this place…");
+    setAddPlateError("");
+    try {
+      for (;;) {
+        const res = await fetch("/api/crash/mobile/plate-episode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: job.id, sceneId }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          job?: MobileGenJob;
+          done?: boolean;
+          node?: string;
+          doneCount?: number;
+          total?: number;
+          speaker?: string;
+        };
+        if (data.job) onJobChange(data.job);
+        if (!res.ok) throw new Error(data.error || "Couldn't plate that place");
+        const n = data.doneCount ?? 0;
+        const t = data.total ?? 0;
+        setPlateGraphHint(
+          data.node === "halt_lines"
+            ? "this place — done"
+            : `this place ${n}/${t}${data.speaker ? ` · ${data.speaker}` : ""}`,
+        );
+        if (data.done) break;
+      }
+    } catch (e) {
+      setAddPlateError(e instanceof Error ? e.message : "Couldn't plate that place");
+      setPlateGraphHint(e instanceof Error ? e.message : "Plate stopped");
+    } finally {
+      setPlating(false);
+    }
+  }
+
   const episodeHint = [
     `Vibe: ${job.prompt}`,
     `Cast (spell these names exactly, nobody else): ${job.speakers.join(", ")}`,
@@ -915,6 +964,11 @@ export function StudioTree({
   useEffect(() => {
     if (job.scenes.length && !openPlace && firstOpenPlace) setOpenPlace(firstOpenPlace.id);
   }, [job.scenes.length, firstOpenPlace, openPlace]);
+  useEffect(() => {
+    setPlateSpeaker("");
+    setAddPlateError("");
+    setAddPlateDoneFor(null);
+  }, [placeFocus]);
   useEffect(() => {
     if (!scriptDraft.trim() && job.scenes.length) {
       setScriptDraft(episodeTemplateFromJob(job));
@@ -1275,20 +1329,62 @@ export function StudioTree({
                   </div>
                 ) : null}
                 {job.folderName ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                    <MobilePrimaryButton
-                      size="chip"
-                      disabled={addingPlateFor === placeFocus}
-                      onClick={() => void addLocationToPlate(placeFocus)}
-                    >
-                      {addingPlateFor === placeFocus ? "…" : "Add to plate"}
-                    </MobilePrimaryButton>
-                    {addPlateDoneFor === placeFocus ? (
-                      <span style={{ fontSize: "11px", color: "var(--acid)" }}>Added — see Plates below</span>
-                    ) : null}
-                    {addPlateError ? (
-                      <span style={{ fontSize: "11px", color: "var(--magenta-hot)" }}>{addPlateError}</span>
-                    ) : null}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {job.speakers.length ? (
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        {job.speakers.map((name) => (
+                          <button
+                            key={name}
+                            type="button"
+                            disabled={busy || plating}
+                            onClick={() => setPlateSpeaker(name)}
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: "8px",
+                              border:
+                                plateSpeaker === name
+                                  ? "1px solid var(--acid)"
+                                  : "1px solid var(--line)",
+                              background: "transparent",
+                              color: plateSpeaker === name ? "var(--acid)" : "var(--chrome)",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
+                        Add cast first — a plate needs who is in the place.
+                      </div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <MobilePrimaryButton
+                        size="chip"
+                        disabled={addingPlateFor === placeFocus || !plateSpeaker.trim()}
+                        onClick={() => void addLocationToPlate(placeFocus, plateSpeaker)}
+                      >
+                        {addingPlateFor === placeFocus ? "…" : "Add to plate"}
+                      </MobilePrimaryButton>
+                      <MobilePrimaryButton
+                        size="chip"
+                        disabled={busy || plating}
+                        onClick={() => void plateThisPlace(placeFocus)}
+                      >
+                        {plating ? plateGraphHint || "Plating…" : "Plate this place"}
+                      </MobilePrimaryButton>
+                      {addPlateDoneFor === placeFocus ? (
+                        <span style={{ fontSize: "11px", color: "var(--acid)" }}>
+                          Added — see Plates below
+                        </span>
+                      ) : null}
+                      {addPlateError ? (
+                        <span style={{ fontSize: "11px", color: "var(--magenta-hot)" }}>
+                          {addPlateError}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
               </>

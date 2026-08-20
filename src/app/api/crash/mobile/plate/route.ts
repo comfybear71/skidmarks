@@ -135,6 +135,12 @@ export async function POST(req: Request) {
       // meant to get carried into the real story doc when a script gets
       // locked, but this flow skips scripts entirely. Create the story
       // scene here instead of demanding a step nobody asked for.
+      if (!speakerIn) {
+        return NextResponse.json(
+          { error: "Pick who is in this place before Add to plate" },
+          { status: 400 },
+        );
+      }
       let workingStory = story;
       let scene = workingStory.scenes.find((sc) => sc.id === sceneIdIn);
       if (!scene) {
@@ -149,16 +155,13 @@ export async function POST(req: Request) {
         };
         workingStory = { ...workingStory, scenes: [...workingStory.scenes, scene] };
       }
-      const solo = Boolean(speakerIn);
       const newShot = {
         id: newId("shot"),
-        title: solo ? speakerIn : scene.placeName,
-        summary: solo
-          ? `${speakerIn}, solo. Only ${speakerIn} in frame, no one else appears.`
-          : "",
-        staging: solo ? defaultSoloStaging(speakerIn) : "",
+        title: speakerIn,
+        summary: `${speakerIn}, solo. Only ${speakerIn} in frame, no one else appears.`,
+        staging: defaultSoloStaging(speakerIn),
         plateFile: "",
-        beats: solo ? [{ id: newId("beat"), speaker: speakerIn, text: "" }] : [],
+        beats: [{ id: newId("beat"), speaker: speakerIn, text: "" }],
         sfx: [],
       };
       const added: CrashStoryDoc = {
