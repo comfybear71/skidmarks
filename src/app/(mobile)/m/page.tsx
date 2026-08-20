@@ -461,6 +461,26 @@ export default function MobileHomePage() {
     [job],
   );
 
+  const dropCast = useCallback(
+    async (name: string) => {
+      if (!job) return;
+      setBusy(true);
+      setError("");
+      try {
+        const { job: updated } = await postJson<{ job: MobileGenJob }>(
+          "/api/crash/mobile/candidates",
+          { jobId: job.id, kind: "cast", target: name, action: "drop" },
+        );
+        setJob(updated);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't remove that cast member");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [job],
+  );
+
   const vibeAssist = useMobileAssist("vibe", styleId, () => prompt, setPrompt);
 
   const showVibeForm = !resuming && (!job || draftingNew);
@@ -617,6 +637,7 @@ export default function MobileHomePage() {
           onUploadLocation={(id, file) => uploadCandidate("location", id, file)}
           onRemoveCast={(name, candidateId) => void removeCandidate("cast", name, candidateId)}
           onRemoveLocation={(id, candidateId) => void removeCandidate("location", id, candidateId)}
+          onDropCast={(name) => void dropCast(name)}
           onDropScript={(script) => void runScreenplay(job.id, script)}
           onGenerateVideo={() => void approveReview()}
           onRetryError={() => void retryFromError(job.id)}
