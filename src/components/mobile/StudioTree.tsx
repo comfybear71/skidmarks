@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
 import {
   MobilePrimaryButton,
   MobileTextInput,
@@ -28,6 +28,12 @@ import { styleRealismLabel } from "@/lib/types";
 import { MOBILE_STITCH_MOVIES } from "@/lib/mobilePipeline";
 import { episodePlateCounts } from "@/lib/mobilePlateGraph";
 import { episodeJobShots, episodeQueuedClips } from "@/lib/mobileScratch";
+import {
+  clearLivePlateDrag,
+  peekLivePlateDrag,
+  readPlateDrag,
+  writePlateDrag,
+} from "@/lib/crashPlateDrag";
 import { queuedSavedClips } from "@/lib/mobileClipQueue";
 import { isJoKeyboardWarrior } from "@/lib/mobileImageMotion";
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
@@ -40,6 +46,13 @@ async function fetchDeskStory(styleId: string, folderName: string): Promise<Cras
   if (!res.ok) return null;
   const data = (await res.json()) as { story?: CrashStoryDoc };
   return data.story || null;
+}
+
+function worldGalleryStillUrl(styleId: string, thumbKey: string): string {
+  return (
+    `/api/crash/world-cards/file?styleId=${encodeURIComponent(styleId)}` +
+    `&thumb=${encodeURIComponent(thumbKey)}`
+  );
 }
 
 function castFaceUrl(
@@ -456,6 +469,7 @@ function CandidatePicker({
   promptLabel = "Look",
   hideUpload,
   extra,
+  skipAutoGenerate,
   onGenerate,
   onApprove,
   onUpload,
@@ -475,6 +489,8 @@ function CandidatePicker({
   /** Extra content rendered after the Look row — the per-character voice
    * control, so face/look/voice are one card instead of three. */
   extra?: ReactNode;
+  /** World gallery lock — do not fire Generate on open. */
+  skipAutoGenerate?: boolean;
   onGenerate: (customPrompt?: string) => void;
   onApprove: (candidateId: string) => void;
   onUpload: (file: File) => void;
@@ -495,10 +511,10 @@ function CandidatePicker({
   );
   const asked = useRef(false);
   useEffect(() => {
-    if (asked.current || busy || takes.length) return;
+    if (skipAutoGenerate || asked.current || busy || takes.length) return;
     asked.current = true;
     onGenerate();
-  }, [busy, takes.length, onGenerate]);
+  }, [busy, takes.length, onGenerate, skipAutoGenerate]);
 
   const newest = latestCandidate(takes);
   const focused =
@@ -554,6 +570,10 @@ function CandidatePicker({
           }}
           onRemove={onRemove ? () => onRemove(focused.id) : undefined}
         />
+      ) : skipAutoGenerate && !takes.length ? (
+        <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "8px 0 4px" }}>
+          World place locked. Tap More only if you want a new take.
+        </div>
       ) : busy || !error ? (
         <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "16px 0" }}>
           <ShimmerText>Generating</ShimmerText>
@@ -730,6 +750,7 @@ export function StudioTree({
   onGenerateLocation,
   onApproveLocation,
   onAddLocation,
+  onAddWorldLocation,
   onUploadLocation,
   onRemoveCast,
   onRemoveLocation,
@@ -751,6 +772,8 @@ export function StudioTree({
   onGenerateLocation: (sceneId: string, customPrompt?: string) => void;
   onApproveLocation: (sceneId: string, candidateId: string) => void;
   onAddLocation: (name: string) => void;
+  /** World gallery thumb → Locations row (drag or tap). */
+  onAddWorldLocation: (thumbKey: string, name?: string) => void;
   onUploadLocation: (sceneId: string, file: File) => void;
   onRemoveCast: (name: string, candidateId: string) => void;
   onRemoveLocation: (sceneId: string, candidateId: string) => void;
@@ -772,6 +795,10 @@ export function StudioTree({
   const [plating, setPlating] = useState(false);
   const [plateGraphHint, setPlateGraphHint] = useState("");
   const [deskStory, setDeskStory] = useState<CrashStoryDoc | null>(null);
+  const [worldDropOver, setWorldDropOver] = useState(false);
+  const [worldShelf, setWorldShelf] = useState<
+    { key: string; name?: string; placeType?: string }[]
+  >([]);
 
   async function addLocationToPlate(sceneId: string) {
     setAddingPlateFor(sceneId);
@@ -823,9 +850,41 @@ export function StudioTree({
   );
 
   const firstOpenCast = job.speakers.find((n) => !job.castCandidates[n]?.some((c) => c.approved));
-  const firstOpenPlace = job.scenes.find((s) => !job.locationCandidates[s.id]?.some((c) => c.approved));
+  const firstOpenPlace = job.scenes.find(
+    (s) =>
+      !s.worldThumbKey?.trim() &&
+      !job.locationCandidates[s.id]?.some((c) => c.approved),
+  );
   const castFocus = openCast || firstOpenCast || null;
   const placeFocus = openPlace || firstOpenPlace?.id || null;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/crash/world-cards")
+      .then((r) => r.json())
+      .then((data: { cards?: { id: string; thumbs?: { key: string; name?: string; placeType?: string }[] }[] }) => {
+        if (cancelled) return;
+        const show = (data.cards || []).find((c) => c.id === job.styleId);
+        setWorldShelf(show?.thumbs || []);
+      })
+      .catch(() => {
+        if (!cancelled) setWorldShelf([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [job.styleId, job.id]);
+
+  function takeWorldDrop(e: DragEvent) {
+    e.preventDefault();
+    setWorldDropOver(false);
+    if (busy) return;
+    const payload = readPlateDrag(e) || peekLivePlateDrag();
+    clearLivePlateDrag();
+    if (!payload || payload.kind !== "world") return;
+    if (payload.styleId && payload.styleId !== job.styleId) return;
+    onAddWorldLocation(payload.thumbKey, payload.name);
+  }
 
   useEffect(() => {
     if (job.speakers.length && !openCast && firstOpenCast) setOpenCast(firstOpenCast);
@@ -1049,13 +1108,23 @@ export function StudioTree({
         headerRight={<CollapseToggle open={locationsOpen} onToggle={() => setLocationsOpen((v) => !v)} />}
       >
         <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            setWorldDropOver(true);
+          }}
+          onDragLeave={() => setWorldDropOver(false)}
+          onDrop={takeWorldDrop}
           style={{
             display: "flex",
             gap: "10px",
             overflowX: "auto",
-            padding: "2px 2px 6px",
+            padding: "6px 4px",
             touchAction: "pan-x pan-y",
             overscrollBehaviorX: "contain",
+            borderRadius: "10px",
+            outline: worldDropOver ? "2px dashed var(--acid)" : "1px dashed transparent",
+            background: worldDropOver ? "rgba(180,255,0,0.06)" : "transparent",
           }}
         >
           <PlusTile
@@ -1070,12 +1139,18 @@ export function StudioTree({
             const chosen = (job.locationCandidates[scene.id] || []).find((c) => c.approved);
             const pending = latestCandidate(job.locationCandidates[scene.id]);
             const file = chosen?.fileName || pending?.fileName || "";
+            const worldKey = (scene.worldThumbKey || "").trim();
+            const src = file
+              ? locationStillUrl(job, file)
+              : worldKey
+                ? worldGalleryStillUrl(job.styleId, worldKey)
+                : "";
             return (
               <ThumbTile
                 key={scene.id}
-                src={file ? locationStillUrl(job, file) : ""}
+                src={src}
                 label={scene.placeName}
-                picked={Boolean(chosen)}
+                picked={Boolean(chosen || worldKey)}
                 onClick={() => {
                   setLocationsOpen(true);
                   setAdding(null);
@@ -1085,6 +1160,95 @@ export function StudioTree({
             );
           })}
         </div>
+        {locationsOpen && worldShelf.length ? (
+          <div style={{ marginTop: "8px" }}>
+            <div
+              style={{
+                color: "var(--chrome-dim)",
+                fontSize: "10px",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                marginBottom: "6px",
+              }}
+            >
+              World gallery — drag onto Locations, or tap to add
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                overflowX: "auto",
+                padding: "2px 2px 6px",
+                touchAction: "pan-x pan-y",
+                overscrollBehaviorX: "contain",
+              }}
+            >
+              {worldShelf.map((t) => {
+                const used = job.scenes.some((s) => s.worldThumbKey === t.key);
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    disabled={busy || used}
+                    title={used ? "Already in Locations" : t.name || "Place"}
+                    onClick={() => {
+                      if (busy || used) return;
+                      setLocationsOpen(true);
+                      setAdding(null);
+                      onAddWorldLocation(t.key, t.name);
+                    }}
+                    style={{
+                      flex: "0 0 auto",
+                      width: "72px",
+                      padding: 0,
+                      border: "none",
+                      background: "none",
+                      opacity: used ? 0.45 : 1,
+                      cursor: busy || used ? "default" : "grab",
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      draggable={!busy && !used}
+                      src={worldGalleryStillUrl(job.styleId, t.key)}
+                      alt=""
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        writePlateDrag(e, {
+                          kind: "world",
+                          styleId: job.styleId,
+                          thumbKey: t.key,
+                          name: t.name,
+                        });
+                      }}
+                      style={{
+                        width: "72px",
+                        height: "48px",
+                        objectFit: "cover",
+                        borderRadius: "8px",
+                        display: "block",
+                        border: used ? "2px solid var(--acid)" : "2px solid var(--line)",
+                      }}
+                    />
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "10px",
+                        color: "var(--chrome-dim)",
+                        marginTop: "4px",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {t.name || "Place"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
         {locationsOpen && adding === "location" ? (
           <AddForm
             styleId={job.styleId}
@@ -1110,24 +1274,51 @@ export function StudioTree({
             promptPlaceholder="e.g. Mars, a dive bar, outer space"
             promptLabel="Place"
             hideUpload
+            skipAutoGenerate={Boolean(
+              job.scenes.find((s) => s.id === placeFocus)?.worldThumbKey?.trim(),
+            )}
             extra={
-              job.folderName ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                  <MobilePrimaryButton
-                    size="chip"
-                    disabled={addingPlateFor === placeFocus}
-                    onClick={() => void addLocationToPlate(placeFocus)}
-                  >
-                    {addingPlateFor === placeFocus ? "…" : "Add to plate"}
-                  </MobilePrimaryButton>
-                  {addPlateDoneFor === placeFocus ? (
-                    <span style={{ fontSize: "11px", color: "var(--acid)" }}>Added — see Plates below</span>
-                  ) : null}
-                  {addPlateError ? (
-                    <span style={{ fontSize: "11px", color: "var(--magenta-hot)" }}>{addPlateError}</span>
-                  ) : null}
-                </div>
-              ) : null
+              <>
+                {job.scenes.find((s) => s.id === placeFocus)?.worldThumbKey?.trim() ? (
+                  <div style={{ marginBottom: "8px" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={worldGalleryStillUrl(
+                        job.styleId,
+                        job.scenes.find((s) => s.id === placeFocus)!.worldThumbKey,
+                      )}
+                      alt=""
+                      style={{
+                        width: "100%",
+                        maxHeight: "160px",
+                        objectFit: "cover",
+                        borderRadius: "10px",
+                        border: "2px solid var(--acid)",
+                      }}
+                    />
+                    <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "6px" }}>
+                      From World gallery — locked. More still makes a new take if you want.
+                    </div>
+                  </div>
+                ) : null}
+                {job.folderName ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <MobilePrimaryButton
+                      size="chip"
+                      disabled={addingPlateFor === placeFocus}
+                      onClick={() => void addLocationToPlate(placeFocus)}
+                    >
+                      {addingPlateFor === placeFocus ? "…" : "Add to plate"}
+                    </MobilePrimaryButton>
+                    {addPlateDoneFor === placeFocus ? (
+                      <span style={{ fontSize: "11px", color: "var(--acid)" }}>Added — see Plates below</span>
+                    ) : null}
+                    {addPlateError ? (
+                      <span style={{ fontSize: "11px", color: "var(--magenta-hot)" }}>{addPlateError}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
             }
             onGenerate={(p) => onGenerateLocation(placeFocus, p)}
             onApprove={(id) => {

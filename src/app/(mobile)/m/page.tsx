@@ -304,6 +304,7 @@ export default function MobileHomePage() {
       name: string,
       description?: string,
       file?: File,
+      worldThumbKey?: string,
     ) => {
       if (!job) return;
       setBusy(true);
@@ -311,7 +312,14 @@ export default function MobileHomePage() {
       try {
         const { job: added } = await postJson<{ job: MobileGenJob }>(
           "/api/crash/mobile/candidates",
-          { jobId: job.id, kind, action: "add", name, description },
+          {
+            jobId: job.id,
+            kind,
+            action: "add",
+            name,
+            description,
+            ...(worldThumbKey ? { worldThumbKey } : {}),
+          },
         );
         setJob(added);
         if (file && kind === "cast") {
@@ -330,6 +338,32 @@ export default function MobileHomePage() {
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't add that");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [job],
+  );
+
+  const addWorldLocation = useCallback(
+    async (thumbKey: string, name?: string) => {
+      if (!job) return;
+      setBusy(true);
+      setError("");
+      try {
+        const { job: added } = await postJson<{ job: MobileGenJob }>(
+          "/api/crash/mobile/candidates",
+          {
+            jobId: job.id,
+            kind: "location",
+            action: "add",
+            name: (name || "").trim(),
+            worldThumbKey: thumbKey,
+          },
+        );
+        setJob(added);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't add that place");
       } finally {
         setBusy(false);
       }
@@ -614,6 +648,7 @@ export default function MobileHomePage() {
           onGenerateLocation={(id, customPrompt) => genCandidates("location", id, customPrompt)}
           onApproveLocation={(id, candidateId) => approveCandidate("location", id, candidateId)}
           onAddLocation={(name) => addRosterItem("location", name)}
+          onAddWorldLocation={(thumbKey, name) => void addWorldLocation(thumbKey, name)}
           onUploadLocation={(id, file) => uploadCandidate("location", id, file)}
           onRemoveCast={(name, candidateId) => void removeCandidate("cast", name, candidateId)}
           onRemoveLocation={(id, candidateId) => void removeCandidate("location", id, candidateId)}

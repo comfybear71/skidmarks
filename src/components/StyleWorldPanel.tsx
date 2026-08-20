@@ -81,6 +81,7 @@ export function StyleWorldPanel({
         </p>
         <p className="mt-0.5 text-[9px] text-[var(--chrome-dim)]">
           Pick a place type, spin an Idea, Generate — same hunt as Style faces.
+          Drag a saved thumb onto /m Locations (or use the World strip there).
         </p>
       </div>
 

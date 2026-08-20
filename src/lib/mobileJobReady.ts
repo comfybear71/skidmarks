@@ -55,7 +55,10 @@ export function allLocationsApproved(
 ): boolean {
   return (
     job.scenes.length > 0 &&
-    job.scenes.every((s) => approvedUnder(job.locationCandidates, s.id))
+    job.scenes.every(
+      (s) =>
+        approvedUnder(job.locationCandidates, s.id) || Boolean(s.worldThumbKey?.trim()),
+    )
   );
 }
 
