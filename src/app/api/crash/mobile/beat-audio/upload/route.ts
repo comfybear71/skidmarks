@@ -12,6 +12,12 @@ import { mobileMediaFolder } from "@/lib/mobileJobFolder";
 import { upsertPendingClip } from "@/lib/mobileClipQueue";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { voiceNamesMatch } from "@/lib/voiceNameMatch";
+import { isScratchShotTitle } from "@/lib/mobileScratch";
+import {
+  clampSongWindow,
+  probeSongDurationSec,
+  SCRATCH_SONG_SLICE_DEFAULT_SEC,
+} from "@/lib/scratchSongSlice";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -64,12 +70,14 @@ export async function POST(req: Request) {
     const story = await readMobileStory(job.styleId, job.folderName);
     let speaker = "";
     let existingText = "";
+    let scratchBeat = false;
     for (const scene of story.scenes) {
       for (const shot of scene.shots) {
         const beat = shot.beats.find((b) => b.id === beatId);
         if (beat) {
           speaker = beat.speaker;
           existingText = beat.text || "";
+          scratchBeat = isScratchShotTitle(shot.title);
         }
       }
     }
@@ -149,10 +157,23 @@ export async function POST(req: Request) {
     await writeMobileStory(next, job.folderName);
 
     const clips = upsertPendingClip({ ...job, clips: job.clips || [] }, next, beatId);
+    const durationSec = scratchBeat ? probeSongDurationSec(localPath) || 0 : 0;
+    const window = clampSongWindow(0, SCRATCH_SONG_SLICE_DEFAULT_SEC, durationSec);
     const patched = await patchMobileGenJob(jobId, {
       clips,
       error: "",
       ...(job.phase === "error" || job.phase === "animate" ? { phase: "review" as const } : {}),
+      ...(scratchBeat
+        ? {
+            scratchSong: {
+              fileName,
+              durationSec,
+              sliceStartSec: window.startSec,
+              sliceDurationSec: window.durationSec,
+              cuts: job.scratchSong?.cuts || [],
+            },
+          }
+        : {}),
     });
 
     const mediaFolder = mobileMediaFolder(job);
@@ -186,6 +207,7 @@ export async function POST(req: Request) {
       ok: true,
       voiceFile: fileName,
       job: patched,
+      durationSec: scratchBeat ? durationSec : undefined,
     });
   } catch (e) {
     return NextResponse.json(
