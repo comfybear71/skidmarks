@@ -3,7 +3,9 @@ import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/li
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
 import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
-import { clearAllStoryShots } from "@/lib/mobileClipQueue";
+import { parkMobileClipFile } from "@/lib/mobileClipPark";
+import { clearAllStoryShots, clipQueueError } from "@/lib/mobileClipQueue";
+import { isEpisodeClipPlanError, planParkClipsUnderPlate } from "@/lib/mobileEpisodeClips";
 import { defaultSoloStaging } from "@/lib/mobileImageMotion";
 import { beatsAfterRemoveLine } from "@/lib/mobilePlateLines";
 import { castNamesMatch } from "@/lib/mobileDropCast";
@@ -13,6 +15,15 @@ import { newId } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+function parkPlanFiles(filesToPark: string[]): string[] {
+  const parked: string[] = [];
+  for (const file of filesToPark) {
+    const moved = parkMobileClipFile(file);
+    if (moved) parked.push(moved);
+  }
+  return parked;
+}
 
 function patchShotFields(
   story: CrashStoryDoc,
@@ -40,8 +51,9 @@ function patchShotFields(
  * POST { jobId, shotId, action: "save", summary?, staging? } — write the
  * action / tweak text. Does not composite.
  * POST { jobId, shotId, action: "drop" } — clear the shot still pointer
- * and its take list so the carousel dots go with it. Blob/disk stay
- * (park, don't delete). The strip shows an empty slot.
+ * and its take list so the carousel dots go with it. Clips under that
+ * plate park in _cleared/ (not deleted) and leave the job. Blob/disk
+ * stills stay. The strip shows an empty slot.
  * POST { jobId, shotId, takeId, action: "drop-take" } — park one still
  * from the carousel. Files stay.
  * POST { jobId, sceneId, speaker, action: "add" } — add a shot card at
@@ -57,9 +69,9 @@ function patchShotFields(
  * under the plate goes with it. Last real line leaves an empty box
  * (`beat`) so they can Save again.
  * POST { jobId, shotId, action: "remove" } — take the shot out of the
- * strip entirely. Any plate/audio it made stays on disk/Blob, just
- * unlinked — same park-don't-delete rule as "drop". Returns the removed
- * shot + its sceneId so the caller can offer Undo.
+ * strip entirely. Plate still stays on disk/Blob. Clips under it park
+ * in _cleared/. Returns the removed shot + its sceneId so the caller
+ * can offer Undo.
  * POST { jobId, action: "clear" } — remove every shot on this job in one
  * go (start fresh). Returns the full removed list for Undo.
  * POST { jobId, sceneId, shot, action: "restore" } — undo for "remove"/
@@ -369,6 +381,15 @@ export async function POST(req: Request) {
     if (remove) {
       const removedShot = shot;
       const removedSceneId = scene.id;
+      const plan = planParkClipsUnderPlate(
+        job.clips || [],
+        shotId,
+        liveShot.beats.map((b) => b.id),
+      );
+      if (isEpisodeClipPlanError(plan)) {
+        return NextResponse.json({ error: plan.error }, { status: plan.status });
+      }
+      const parked = parkPlanFiles(plan.filesToPark);
       const removedStory: CrashStoryDoc = {
         ...story,
         scenes: story.scenes.map((sc) =>
@@ -377,23 +398,57 @@ export async function POST(req: Request) {
       };
       await writeMobileStory(removedStory, job.folderName);
       const shots = job.shots.filter((s) => s.shotId !== shotId);
-      const updated = await patchMobileGenJob(jobId, { shots, error: "" });
+      const failed = clipQueueError(plan.next);
+      const updated = await patchMobileGenJob(jobId, {
+        shots,
+        clips: plan.next,
+        error: failed,
+        ...(job.phase === "error" && plan.clearedEpisodeErrors
+          ? { phase: "review" as const }
+          : {}),
+      });
       return NextResponse.json({
         ok: true,
         job: updated,
         removedShot,
         sceneId: removedSceneId,
+        parked: parked.length ? parked : null,
+        parkedIn: parked.length ? "_cleared/" : null,
       });
     }
 
     if (drop) {
+      const plan = planParkClipsUnderPlate(
+        job.clips || [],
+        shotId,
+        liveShot.beats.map((b) => b.id),
+      );
+      if (isEpisodeClipPlanError(plan)) {
+        return NextResponse.json({ error: plan.error }, { status: plan.status });
+      }
+      const parked = parkPlanFiles(plan.filesToPark);
       const dropped = patchShotFields(story, shotId, { plateFile: "", plateTakes: [] });
       await writeMobileStory(dropped, job.folderName);
       const shots = job.shots.map((s) =>
         s.shotId === shotId ? { ...s, plateFile: "", error: "" } : s,
       );
-      const updated = await patchMobileGenJob(jobId, { shots, error: "" });
-      return NextResponse.json({ ok: true, job: updated, plateFile: "", plateTakes: [] });
+      const failed = clipQueueError(plan.next);
+      const updated = await patchMobileGenJob(jobId, {
+        shots,
+        clips: plan.next,
+        error: failed,
+        ...(job.phase === "error" && plan.clearedEpisodeErrors
+          ? { phase: "review" as const }
+          : {}),
+      });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        plateFile: "",
+        plateTakes: [],
+        parked: parked.length ? parked : null,
+        parkedIn: parked.length ? "_cleared/" : null,
+      });
     }
 
     if (dropTake) {

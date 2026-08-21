@@ -4,6 +4,7 @@ import {
   isEpisodeClipPlanError,
   planBinFailedEpisodeClips,
   planDismissEpisodeClip,
+  planParkClipsUnderPlate,
   planRemoveEpisodeClipTake,
 } from "../src/lib/mobileEpisodeClips.ts";
 import { stackedClipFiles } from "../src/lib/mobilePlateClips.ts";
@@ -103,5 +104,32 @@ assert.equal(binned.clearedEpisodeErrors, true);
 const noop = planBinFailedEpisodeClips([stacked]);
 assert.equal(noop.next[0].clipStatus, "done");
 assert.equal(noop.clearedEpisodeErrors, true);
+
+const table = clip({
+  beatId: "table-1",
+  shotId: "table-shot",
+  clipFile: "table_a.mp4",
+  priorClipFiles: ["table_b.mp4"],
+  clipStatus: "done",
+});
+const other = clip({
+  beatId: "bar-1",
+  shotId: "bar-shot",
+  clipFile: "bar.mp4",
+  clipStatus: "done",
+});
+const parkedPlate = planParkClipsUnderPlate([table, other], "table-shot", ["table-1"]);
+assert.equal(isEpisodeClipPlanError(parkedPlate), false);
+assert.equal(parkedPlate.next.length, 1);
+assert.equal(parkedPlate.next[0].beatId, "bar-1");
+assert.deepEqual(parkedPlate.filesToPark.sort(), ["table_a.mp4", "table_b.mp4"].sort());
+
+const runningPlate = planParkClipsUnderPlate(
+  [clip({ beatId: "run", shotId: "table-shot", clipFile: "run.mp4", clipStatus: "running" })],
+  "table-shot",
+  ["run"],
+);
+assert.equal(isEpisodeClipPlanError(runningPlate), true);
+assert.equal(runningPlate.status, 409);
 
 console.log("check-mobile-episode-clips: ok");

@@ -2,6 +2,7 @@ import type { MobileClipUnit } from "./mobileGenJob";
 import {
   clearClipRowTakes,
   clipFileBasename,
+  clipsUnderPlate,
   dropClipTakeFromRow,
   stackedClipFiles,
 } from "./mobilePlateClips";
@@ -103,6 +104,28 @@ export function planDismissEpisodeClip(
   }
   const next = clips.map((c) => (c.beatId === wantBeat ? dismissFailedClipRow(c) : c));
   return planFrom(next, [], isEpisode);
+}
+
+/**
+ * Plate × — park every take under that still. Files go to _cleared/,
+ * rows leave the job so Generate does not keep sending them.
+ */
+export function planParkClipsUnderPlate(
+  clips: MobileClipUnit[],
+  shotId: string,
+  beatIds: string[],
+  isEpisode: (clip: MobileClipUnit) => boolean = alwaysEpisode,
+): EpisodeClipPlan | EpisodeClipPlanError {
+  const wantShot = shotId.trim();
+  if (!wantShot) return { error: "Need shotId", status: 400 };
+  const under = clipsUnderPlate(wantShot, beatIds, clips);
+  if (under.some((c) => c.clipStatus === "running")) {
+    return { error: "A clip on this plate is still rendering", status: 409 };
+  }
+  const ids = new Set(under.map((c) => c.beatId));
+  const filesToPark = under.flatMap((c) => stackedClipFiles(c));
+  const next = clips.filter((c) => !ids.has(c.beatId));
+  return planFrom(next, filesToPark, isEpisode);
 }
 
 /** Bin every failed episode-desk clip. Scratch / campaign errors stay. */

@@ -291,14 +291,14 @@ export function PlateReviewEditor({
   }
 
   async function dropPlate(shotId: string) {
+    setActionError("");
     try {
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId: job.id, shotId, action: "drop" }),
       });
-      const data = (await res.json()) as { error?: string; job?: MobileGenJob };
-      if (!res.ok) throw new Error(data.error || "Couldn't park that plate");
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
       setStory((cur) => {
         if (!cur) return cur;
         return {
@@ -312,8 +312,8 @@ export function PlateReviewEditor({
         };
       });
       if (data.job) onJobChange?.(data.job);
-    } catch {
-      /* strip stays until the next job refresh */
+    } catch (e) {
+      setActionError(studioFetchError(e, "Couldn't park that plate"));
     }
   }
 
@@ -547,7 +547,8 @@ export function PlateReviewEditor({
                 {!collapsed && plated ? (
                   <button
                     type="button"
-                    aria-label="Park this shot plate"
+                    aria-label="Park this shot plate and its clips"
+                    title="Park this still and the clips under it. Files stay in _cleared/ — not deleted."
                     onClick={(e) => {
                       e.stopPropagation();
                       void dropPlate(s.shotId);
