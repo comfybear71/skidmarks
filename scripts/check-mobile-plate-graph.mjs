@@ -1,5 +1,10 @@
+/** Run: npx tsx scripts/check-mobile-plate-graph.mjs */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
+  appendPlacePlate,
   appendSoloCastShot,
   episodePlateCounts,
   missingCastPlacePlates,
@@ -171,5 +176,48 @@ assert.equal(minted.placeName, "Upstairs lounge");
 const teeShot = minted.story.scenes.find((sc) => sc.id === "lounge")?.shots.find((s) => s.id === minted.shotId);
 assert.equal(teeShot?.beats[0]?.speaker, "TEE");
 assert.equal(teeShot?.staging, "");
+
+const emptyMint = appendPlacePlate({
+  job: houseJob,
+  story: houseStory,
+  sceneId: "llbed",
+});
+assert.equal(emptyMint.placeName, "Land lady bedroom");
+assert.equal(emptyMint.sceneId, "llbed");
+const emptyShot = emptyMint.story.scenes
+  .find((sc) => sc.id === "llbed")
+  ?.shots.find((s) => s.id === emptyMint.shotId);
+assert.equal(emptyShot?.beats[0]?.speaker, "");
+assert.equal(emptyShot?.plateFile, "");
+assert.ok(emptyMint.shots.some((s) => s.shotId === emptyMint.shotId && s.sceneId === "llbed"));
+
+const namedMint = appendPlacePlate({
+  job: houseJob,
+  story: houseStory,
+  sceneId: "llbed",
+  speaker: "COMFY",
+});
+const namedShot = namedMint.story.scenes
+  .find((sc) => sc.id === "llbed")
+  ?.shots.find((s) => s.id === namedMint.shotId);
+assert.equal(namedShot?.beats[0]?.speaker, "COMFY");
+assert.ok((namedShot?.staging || "").includes("COMFY"));
+assert.ok((namedShot?.staging || "").toLowerCase().includes("empty hands"));
+
+// Place-scoped graph must not invent a card — that's the old silent halt.
+// Client / Plate this place mints via appendPlacePlate when drew === 0.
+assert.equal(nextUnplatedEpisodeShot(rosterJob, rosterStory, "sc1"), null);
+
+const here = dirname(fileURLToPath(import.meta.url));
+const tree = readFileSync(join(here, "../src/components/mobile/StudioTree.tsx"), "utf8");
+assert.match(tree, /if \(drew === 0\)/);
+assert.match(tree, /action: "add"/);
+assert.match(tree, /Couldn't add a plate there/);
+const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+assert.match(editor, /void addPlaceCard\(""\)/);
+assert.doesNotMatch(editor, /New plate — pick who to test/);
+const addRoute = readFileSync(join(here, "../src/app/api/crash/mobile/plate/route.ts"), "utf8");
+assert.doesNotMatch(addRoute, /Pick who is in this place before Add to plate/);
+assert.match(addRoute, /appendPlacePlate/);
 
 console.log("check-mobile-plate-graph: ok");

@@ -12,6 +12,7 @@ import {
   type MissingCastPlacePlate,
 } from "./mobileCastPlaces";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
+import { defaultSoloStaging } from "./mobileImageMotion";
 import { approvedCandidateFileName } from "./mobileJobReady";
 import { episodeJobShots } from "./mobileScratch";
 import { newId } from "./types";
@@ -289,6 +290,63 @@ export function appendSoloCastShot(opts: {
     beats: names.map((name) => ({ id: newId("beat"), speaker: name, text: "" })),
     sfx: [],
   };
+  const story: CrashStoryDoc = {
+    ...picked.story,
+    scenes: picked.story.scenes.map((sc) =>
+      sc.id === picked.sceneId ? { ...sc, shots: [...sc.shots, newShot] } : sc,
+    ),
+  };
+  const shots = [
+    ...opts.job.shots,
+    { shotId: newShot.id, sceneId: picked.sceneId, plateFile: "" },
+  ];
+  return {
+    story,
+    shots,
+    shotId: newShot.id,
+    sceneId: picked.sceneId,
+    placeName: picked.placeName,
+  };
+}
+
+/**
+ * Add one plate card at this place. Does not draw.
+ * With speaker: same solo card Add to plate already mints.
+ * Without speaker: empty card — add people with add-cast, then Draw.
+ */
+export function appendPlacePlate(opts: {
+  job: Pick<MobileGenJob, "scenes" | "shots">;
+  story: CrashStoryDoc;
+  sceneId: string;
+  speaker?: string;
+}): {
+  story: CrashStoryDoc;
+  shots: MobileShotUnit[];
+  shotId: string;
+  sceneId: string;
+  placeName: string;
+} {
+  const speaker = (opts.speaker || "").trim();
+  const picked = pickCastPlateScene(opts.job, opts.story, opts.sceneId);
+  const newShot: CrashStoryShot = speaker
+    ? {
+        id: newId("shot"),
+        title: speaker,
+        summary: `${speaker}, solo. Only ${speaker} in frame, no one else appears.`,
+        staging: defaultSoloStaging(speaker),
+        plateFile: "",
+        beats: [{ id: newId("beat"), speaker, text: "" }],
+        sfx: [],
+      }
+    : {
+        id: newId("shot"),
+        title: picked.placeName || "Plate",
+        summary: "",
+        staging: "",
+        plateFile: "",
+        beats: [{ id: newId("beat"), speaker: "", text: "" }],
+        sfx: [],
+      };
   const story: CrashStoryDoc = {
     ...picked.story,
     scenes: picked.story.scenes.map((sc) =>

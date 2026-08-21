@@ -867,6 +867,7 @@ export function StudioTree({
     setPlating(true);
     setPlateGraphHint("this place…");
     setAddPlateError("");
+    let drew = 0;
     try {
       for (;;) {
         const res = await fetch("/api/crash/mobile/plate-episode", {
@@ -882,9 +883,12 @@ export function StudioTree({
           doneCount?: number;
           total?: number;
           speaker?: string;
+          shotId?: string;
+          plateFile?: string;
         };
         if (data.job) onJobChange(data.job);
         if (!res.ok) throw new Error(data.error || "Couldn't plate that place");
+        if (data.shotId || data.plateFile) drew += 1;
         const n = data.doneCount ?? 0;
         const t = data.total ?? 0;
         setPlateGraphHint(
@@ -894,6 +898,21 @@ export function StudioTree({
         );
         if (data.done) break;
       }
+      // Graph only draws shots that already exist. A locked bedroom with
+      // every story shot already plated used to halt here and add nothing.
+      if (drew === 0) {
+        const who = plateSpeaker.trim();
+        const res = await fetch("/api/crash/mobile/plate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: job.id, action: "add", sceneId, speaker: who }),
+        });
+        const data = (await res.json()) as { error?: string; job?: MobileGenJob };
+        if (!res.ok) throw new Error(data.error || "Couldn't add a plate there");
+        if (data.job) onJobChange(data.job);
+      }
+      setAddPlateDoneFor(sceneId);
+      setPlatesOpen(true);
     } catch (e) {
       setAddPlateError(e instanceof Error ? e.message : "Couldn't plate that place");
       setPlateGraphHint(e instanceof Error ? e.message : "Plate stopped");
@@ -1528,6 +1547,7 @@ export function StudioTree({
             onJobChange={onJobChange}
             collapsed={!platesOpen}
             onExpand={() => setPlatesOpen(true)}
+            defaultPlaceId={placeFocus || undefined}
           />
         ) : null}
 
