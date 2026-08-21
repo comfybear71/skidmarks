@@ -1616,12 +1616,6 @@ export function StudioTree({
           ) : null}
         </div>
 
-        {job.folderName ? (
-          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "0 0 10px" }}>
-            Crash Lab: Open <span style={{ color: "var(--acid)" }}>{job.folderName}</span>
-          </div>
-        ) : null}
-
         {platesOpen && isMusicVideoSongJob(job) && job.folderName ? (
           <MusicVideoSongCuts
             job={job}
