@@ -24,6 +24,27 @@ import {
 import { episodeRowId, findNeonFile, upsertNeonFile } from "./neonStore";
 import type { ShowStyleId } from "./showStylePresets";
 
+/** File already in Blob (client song drop). Neon row only — do not re-put. */
+export async function registerMobileMediaBlob(opts: {
+  styleId: ShowStyleId;
+  folderName: string;
+  kind: BlobFileKind;
+  fileName: string;
+  blobUrl: string;
+  blobPathname: string;
+}): Promise<void> {
+  if (!useCloudStore()) return;
+  const fileName = opts.fileName.trim();
+  if (!fileName) return;
+  await upsertNeonFile({
+    episodeId: episodeRowId(opts.styleId, opts.folderName),
+    kind: opts.kind,
+    blobUrl: opts.blobUrl,
+    filename: fileName,
+    blobPathname: opts.blobPathname,
+  });
+}
+
 export async function uploadMobileMedia(opts: {
   styleId: ShowStyleId;
   folderName: string;

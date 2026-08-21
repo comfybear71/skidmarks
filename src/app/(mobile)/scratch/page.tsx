@@ -22,6 +22,11 @@ import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { buildScratchPadLtxMotion, LTX_LIP_SYNC_LEAD, stripLtxLipSyncLead } from "@/lib/mobileImageMotion";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
+  SCRATCH_SONG_DIRECT_POST_MAX_BYTES,
+  dropScratchSongViaBlob,
+  probeBrowserAudioDurationSec,
+} from "@/lib/scratchSongDrop";
+import {
   ScratchChaosSelect,
   ScratchHistoryStrip,
   ScratchPromptBible,
@@ -1101,11 +1106,28 @@ export default function ScratchPage() {
     setBusy("voice");
     setError("");
     try {
+      const text = line.trim();
+      const durationSec = await probeBrowserAudioDurationSec(file);
+      if (file.size > SCRATCH_SONG_DIRECT_POST_MAX_BYTES) {
+        const data = await dropScratchSongViaBlob({
+          jobId: job.id,
+          beatId: beat.id,
+          file,
+          text,
+          durationSec,
+        });
+        if (data.job) setJob(data.job);
+        await applySavedVoice({
+          savedVoice: data.voiceFile || "",
+          text: text || undefined,
+          nextJob: data.job,
+        });
+        return;
+      }
       const form = new FormData();
       form.set("jobId", job.id);
       form.set("beatId", beat.id);
       form.set("file", file, file.name || "drop.mp3");
-      const text = line.trim();
       if (text) form.set("text", text);
       let res: Response;
       try {

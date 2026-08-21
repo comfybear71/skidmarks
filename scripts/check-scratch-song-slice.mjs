@@ -21,6 +21,9 @@ const route = readFileSync(join(here, "../src/app/api/crash/mobile/scratch/route
 const upload = readFileSync(join(here, "../src/app/api/crash/mobile/beat-audio/upload/route.ts"), "utf8");
 const step = readFileSync(join(here, "../src/app/api/crash/mobile/step/route.ts"), "utf8");
 const page = readFileSync(join(here, "../src/app/(mobile)/scratch/page.tsx"), "utf8");
+const drop = readFileSync(join(here, "../src/lib/scratchSongDrop.ts"), "utf8");
+const blob = readFileSync(join(here, "../src/app/api/crash/mobile/beat-audio/song-blob/route.ts"), "utf8");
+const fetchErr = readFileSync(join(here, "../src/lib/studioFetchError.ts"), "utf8");
 
 assert.equal(SCRATCH_SONG_SLICE_DEFAULT_SEC, 15);
 assert.equal(SCRATCH_SONG_SLICE_MAX_SEC, 30);
@@ -37,14 +40,20 @@ assert.match(route, /action === "song-cut-run"/);
 assert.match(route, /action === "song-stitch"/);
 assert.match(route, /endPlateFile/);
 assert.match(route, /Does not write job.finalVideoFile/);
-assert.match(upload, /scratchSong/);
-assert.match(upload, /isScratchShotTitle/);
+assert.match(upload, /scratchSongAttach/);
+assert.match(upload, /action === "prepare"/);
+assert.match(upload, /action === "attach"/);
+assert.match(upload, /registerMobileMediaBlob/);
 assert.doesNotMatch(step, /scratchSong/);
 assert.doesNotMatch(step, /song-cut-run/);
 assert.match(page, /ScratchSongCuts/);
 assert.match(page, /song-cut-run/);
+assert.match(page, /dropScratchSongViaBlob/);
 assert.match(slice, /from "\.\/scratchSongWindow"/);
 assert.doesNotMatch(ui, /scratchSongSlice/);
 assert.doesNotMatch(ui, /from "fs"/);
+assert.doesNotMatch(drop, /from "fs"/);
+assert.match(blob, /handleUpload/);
+assert.match(fetchErr, /too big for one drop/);
 
 console.log("check-scratch-song-slice: ok");
