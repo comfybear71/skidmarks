@@ -526,6 +526,14 @@ body {
   flex: 0 0 auto;
 }
 
+.m-song-cut-clock {
+  display: block;
+  color: var(--acid);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
 .m-song-cut-sub {
   display: block;
   color: var(--chrome-dim);

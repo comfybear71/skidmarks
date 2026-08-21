@@ -2091,9 +2091,6 @@ function ShotLineEditor({
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {onAddToSong ? (
             <>
-              <div style={{ fontSize: "13px", color: "var(--chrome)" }}>
-                Tap Add. It goes on the song list. Then you set 1 × 15s or 4 × 15s.
-              </div>
               <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
                 {songAdding ? "Adding…" : "Add"}
               </MobilePrimaryButton>
@@ -2116,6 +2113,11 @@ function ShotLineEditor({
         </div>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+        {onAddToSong ? (
+          <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
+            {songAdding ? "Adding…" : "Add"}
+          </MobilePrimaryButton>
+        ) : null}
         <AnotherLineButton
           jobId={jobId}
           shotId={shot.id}
