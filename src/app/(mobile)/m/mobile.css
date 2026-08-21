@@ -413,9 +413,31 @@ body {
   gap: 10px;
 }
 
+.m-song-plate-thumb-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
 .m-song-plate-head .m-song-cut-thumb {
   width: 56px;
   height: 56px;
+}
+
+.m-song-plate-x {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 2px;
+  border: 1px solid var(--acid);
+  background: rgba(0, 0, 0, 0.72);
+  color: var(--acid);
+  font-size: 18px;
+  line-height: 1;
 }
 
 .m-song-plate-head .scratch-song-cut-meta {
@@ -430,6 +452,19 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+.m-song-plate-x-inline {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 2px;
+  border: 1px solid var(--acid);
+  background: rgba(0, 0, 0, 0.72);
+  color: var(--acid);
+  font-size: 22px;
+  line-height: 1;
 }
 
 .scratch-song-cut-n {
