@@ -28,6 +28,8 @@ import {
   shortPlateLabel,
   clearStuckSongCooks,
   hasStuckSongCook,
+  syncSongCutsToDesk,
+  expectedDeskCutCount,
 } from "../src/lib/musicVideoSong.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
@@ -208,6 +210,33 @@ assert.deepEqual(
   ]).map((c) => c.status),
   ["pending", "done"],
 );
+assert.equal(expectedDeskCutCount([1]), 1);
+assert.equal(expectedDeskCutCount([4, 2]), 6);
+{
+  const ghosts = Array.from({ length: 16 }, (_, i) => ({
+    id: `g${i}`,
+    status: i === 0 ? "running" : "pending",
+    clipFile: "",
+    plateFile: "p.png",
+    shotId: "s1",
+    startSec: i * 15,
+    durationSec: 15,
+  }));
+  const synced = syncSongCutsToDesk({
+    songPlateIds: ["s1"],
+    rowSlices: [1],
+    cuts: ghosts,
+    plateFileByShotId: { s1: "p.png" },
+    songSec: 267,
+    newCutId: () => "only",
+  });
+  assert.equal(synced.length, 1);
+  assert.equal(synced[0].status, "pending");
+  assert.equal(synced[0].startSec, 0);
+}
+assert.match(songRoute, /syncSongCutsToDesk/);
+assert.match(songUi, /expectedDeskCutCount/);
+assert.match(songUi, /Cleared leftover cuts/);
 assert.match(songCss, /\.m-song-progress/);
 assert.match(songCss, /\.m-song-plate-line/);
 assert.match(editor, /m-song-plate-tally/);

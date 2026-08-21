@@ -19,6 +19,7 @@ import {
   clampPlateSliceCount,
   cutsForDeskRow,
   deskRowAllDone,
+  expectedDeskCutCount,
   findSongCarrierBeatId,
   formatSongSpan,
   hasStuckSongCook,
@@ -250,10 +251,12 @@ export function MusicVideoSongCuts({
     setNote("");
     try {
       await songAction("unstick-all");
-      setNote("Stopped. Add and − / + work again.");
+      setSongCookFlag(job.id, false);
+      setNote("Stopped. List matches the desk again.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't stop that hung clip");
     } finally {
+      cookLock.current = false;
       setBusy("");
     }
   }
@@ -263,9 +266,45 @@ export function MusicVideoSongCuts({
   };
 
   useEffect(() => {
+    const songNow = jobRef.current.scratchSong;
+    if (!songNow?.fileName) return;
+    const onList = songDeskPlateIds(songNow);
+    const slices = songDeskRowSlices(songNow, onList);
+    const expected = expectedDeskCutCount(slices);
+    const cutN = (songNow.cuts || []).length;
+    const ghostOrStuck = hasStuckSongCook(songNow.cuts || []) || (cutN > 0 && cutN !== expected);
+    if (!ghostOrStuck) return;
+    let cancelled = false;
+    setSongCookFlag(job.id, false);
+    cookCancel.current = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/crash/mobile/song", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "unstick-all", jobId: job.id }),
+        });
+        const raw = (await res.json().catch(() => ({}))) as {
+          job?: MobileGenJob;
+          error?: string;
+        };
+        if (cancelled) return;
+        if (raw.job) onJobChange(raw.job);
+        if (res.ok) setNote("Cleared leftover cuts so the list matches.");
+      } catch {
+        /* leave desk as-is; Stop still works */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [job.id, onJobChange]);
+
+  useEffect(() => {
     const onVis = () => {
       if (document.visibilityState !== "visible") return;
       if (cookLock.current) return;
+      if (cookCancel.current) return;
       const pending = pendingSongCuts(jobRef.current);
       if (!pending.length) return;
       if (!songCookFlagOn(job.id) && !pending.some((c) => c.status === "running")) return;
