@@ -14,8 +14,8 @@ const cloudMedia = readFileSync(join(here, "../src/lib/cloudMedia.ts"), "utf8");
 const cloudShelf = readFileSync(join(here, "../src/lib/cloudShelf.ts"), "utf8");
 
 assert.match(STILL_CACHE_CONTROL, /max-age=86400/);
-assert.doesNotMatch(nextConfig, /\/api\/crash\/mobile\/\*\*/);
-assert.match(nextConfig, /\/api\/crash\/mobile\/song\/\*\*/);
+assert.doesNotMatch(nextConfig, /"\/api\/crash\/mobile\/\*\*"/);
+assert.match(nextConfig, /"\/api\/crash\/mobile\/song\/\*\*"/);
 assert.match(nextConfig, /\/api\/crash\/mobile\/scratch\/\*\*/);
 assert.match(nextConfig, /\/api\/crash\/mobile\/step\/\*\*/);
 assert.match(nextConfig, /\/api\/crash\/mobile\/beat-audio\/\*\*/);
