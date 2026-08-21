@@ -167,8 +167,15 @@ const sing = buildScratchSongLtxMotion({
   styleId: "music_video",
   speaker: "Frank",
   staging: "Facing camera, mouth clear",
+  lookLock: "wide-brim black hat, teal shirt, short beard",
 });
 assert.match(sing, /singing, lip-sync/);
+assert.match(sing, /Same face, same hair, same hat, same clothes/);
+assert.match(sing, /Do not invent or change letters/);
+assert.match(sing, /No readable text or signage/);
+assert.match(sing, /wide-brim black hat/);
+assert.match(sax, /Same face, same hair, same hat, same clothes/);
+assert.match(clip, /Song slices must rebuild the identity lock/);
 
 assert.equal(songCookStorageKey("abc"), "skidmarks.songCook.abc");
 assert.match(scratchPage, /cookPendingSongCuts/);
