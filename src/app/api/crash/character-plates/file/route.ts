@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { cloudShowAssetRedirect } from "@/lib/cloudShelf";
 import { resolveCharacterPlatePath } from "@/lib/characterPlates";
+import { STILL_CACHE_CONTROL } from "@/lib/stillCache";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
   return new NextResponse(fs.readFileSync(local), {
     headers: {
       "Content-Type": MIME[ext] || "application/octet-stream",
-      "Cache-Control": "private, max-age=120",
+      "Cache-Control": STILL_CACHE_CONTROL,
     },
   });
 }

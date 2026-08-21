@@ -20,6 +20,7 @@ import {
   type NeonFileRow,
 } from "./neonStore";
 import { isSafeMediaName } from "./cloudMedia";
+import { STILL_CACHE_CONTROL } from "./stillCache";
 import { SHOW_STYLE_PRESETS, type ShowStyleId } from "./showStylePresets";
 
 /** Stream a show-level asset from Blob (Vercel). Null → let the route read disk. */
@@ -40,7 +41,7 @@ export async function cloudShowAssetRedirect(
   return new NextResponse(payload.stream, {
     headers: {
       "Content-Type": payload.contentType || blobContentType(kind, filename),
-      "Cache-Control": "private, max-age=120",
+      "Cache-Control": STILL_CACHE_CONTROL,
     },
   });
 }

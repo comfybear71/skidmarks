@@ -3,6 +3,7 @@ import { useCloudStore } from "./cloudEnv";
 import { findNeonFile, getLatestOpenedEpisode } from "./neonStore";
 import { blobContentType, getBlobPayload, type BlobFileKind } from "./blobStore";
 import { serveMediaBuffer } from "./serveMediaFile";
+import { STILL_CACHE_CONTROL } from "./stillCache";
 
 /** Basename only — allow apostrophes/spaces that disk packs actually use. */
 export function isSafeMediaName(name: string): boolean {
@@ -46,6 +47,6 @@ export async function cloudBlobRedirect(
     req ?? new Request("http://localhost"),
     buf,
     contentType,
-    { "Cache-Control": "private, max-age=120" },
+    { "Cache-Control": STILL_CACHE_CONTROL },
   );
 }
