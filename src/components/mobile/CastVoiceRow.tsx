@@ -176,7 +176,7 @@ export function CastVoiceRow({ jobId, styleId, name }: { jobId: string; styleId:
           style={{
             flex: "1 1 auto",
             minWidth: 0,
-            maxWidth: "160px",
+            maxWidth: "100%",
             padding: "6px 8px",
             borderRadius: "2px",
             border: "1px solid var(--line)",

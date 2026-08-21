@@ -502,8 +502,8 @@ function CandidatePicker({
   /** No "drop a photo" strip — CAST has voice in this card; Places go to
    * Add to plate. More still nudges the still on screen. */
   hideUpload?: boolean;
-  /** Extra content rendered after the Look row — the per-character voice
-   * control, so face/look/voice are one card instead of three. */
+  /** Extra content under Undo / More — voice on CAST, plate chips on
+   * a place. Full width. Never jammed beside those two buttons. */
   extra?: ReactNode;
   /** World gallery lock — do not fire Generate on open. */
   skipAutoGenerate?: boolean;
@@ -668,17 +668,7 @@ function CandidatePicker({
             onAi={() => void promptAssist.runAssist()}
             aiBusy={promptAssist.aiBusy}
           />
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              marginTop: "8px",
-              alignItems: "center",
-              flexWrap: "nowrap",
-              overflowX: "auto",
-              touchAction: "pan-x pan-y",
-            }}
-          >
+          <div className="m-picker-actions">
             <button
               type="button"
               disabled={busy || !canUndo}
@@ -721,8 +711,8 @@ function CandidatePicker({
             >
               More
             </button>
-            {extra || null}
           </div>
+          {extra ? <div className="m-picker-extra">{extra}</div> : null}
         </div>
       ) : null}
       {hideUpload ? null : (
@@ -1498,31 +1488,14 @@ export function StudioTree({
             extra={
               <>
                 {job.scenes.find((s) => s.id === placeFocus)?.worldThumbKey?.trim() ? (
-                  <div style={{ marginBottom: "8px" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={worldGalleryStillUrl(
-                        job.styleId,
-                        job.scenes.find((s) => s.id === placeFocus)!.worldThumbKey,
-                      )}
-                      alt=""
-                      style={{
-                        width: "100%",
-                        maxHeight: "160px",
-                        objectFit: "cover",
-                        borderRadius: "10px",
-                        border: "2px solid var(--acid)",
-                      }}
-                    />
-                    <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "6px" }}>
-                      Locked place still. More makes a new take if you want.
-                    </div>
+                  <div className="m-place-lock-hint">
+                    Locked place still. More makes a new take if you want.
                   </div>
                 ) : null}
                 {job.folderName ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div className="m-place-plate-extra">
                     {job.speakers.length ? (
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      <div className="m-place-plate-chips">
                         {job.speakers.map((name) => (
                           <button
                             key={name}
@@ -1530,7 +1503,7 @@ export function StudioTree({
                             disabled={busy || plating}
                             onClick={() => setPlateSpeaker(name)}
                             style={{
-                              padding: "6px 10px",
+                              padding: "8px 12px",
                               borderRadius: "8px",
                               border:
                                 plateSpeaker === name
@@ -1550,7 +1523,7 @@ export function StudioTree({
                         Add cast first — a plate needs who is in the place.
                       </div>
                     )}
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <div className="m-place-plate-actions">
                       <MobilePrimaryButton
                         size="chip"
                         disabled={addingPlateFor === placeFocus || !plateSpeaker.trim()}
@@ -1565,17 +1538,13 @@ export function StudioTree({
                       >
                         {plating ? plateGraphHint || "Plating…" : "Plate this place"}
                       </MobilePrimaryButton>
-                      {addPlateDoneFor === placeFocus ? (
-                        <span style={{ fontSize: "11px", color: "var(--acid)" }}>
-                          Added — see Plates below
-                        </span>
-                      ) : null}
-                      {addPlateError ? (
-                        <span style={{ fontSize: "11px", color: "var(--magenta-hot)" }}>
-                          {addPlateError}
-                        </span>
-                      ) : null}
                     </div>
+                    {addPlateDoneFor === placeFocus ? (
+                      <div className="m-place-plate-note">Added — see Plates below</div>
+                    ) : null}
+                    {addPlateError ? (
+                      <div className="m-place-plate-error">{addPlateError}</div>
+                    ) : null}
                   </div>
                 ) : null}
               </>
