@@ -14,13 +14,18 @@ import {
   findSongCarrierBeatId,
   isMusicVideoSongJob,
   plateSliceWindows,
-  skipSongPlateIds,
+  rebuildSongCutsFromDesk,
   songDeskPlateIds,
+  songDeskRowSlices,
+  skipSongPlateIds,
+  withRowSliceAt,
+  withSongPlate,
+  withSongRowSlice,
   withoutPlateParkedCuts,
   withoutSongPlateAt,
+  withoutSongRowSliceAt,
   withSkippedSongPlate,
   withoutSkippedSongPlate,
-  withSongPlate,
 } from "@/lib/musicVideoSong";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
@@ -41,7 +46,8 @@ export const maxDuration = 900;
  *   run — one LTX slice. Client polls the job if the phone drops.
  *   stitch — concat done cuts. Does not write job.finalVideoFile.
  *   remove-stitch — park the joined mp4. Song, plates, and cuts stay.
- *   add-plate — put a plate on the song list (same plate again = another row). No park yet.
+ *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row).
+ *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
  */
 export async function POST(req: Request) {
@@ -329,6 +335,12 @@ export async function POST(req: Request) {
       if (!song || !shotId) {
         return NextResponse.json({ error: "Need a plate to add." }, { status: 400 });
       }
+      if ((song.cuts || []).some((c) => c.status === "running")) {
+        return NextResponse.json(
+          { error: "Wait for cooking to finish before changing the list." },
+          { status: 400 },
+        );
+      }
       const shot = job.shots.find((s) => s.shotId === shotId);
       const plateFile = (shot?.plateFile || "").trim();
       if (!plateFile || plateFile === "__error__") {
@@ -356,11 +368,85 @@ export async function POST(req: Request) {
         job = landed.job;
       }
       const onList = songDeskPlateIds(song);
+      const slices = withSongRowSlice(songDeskRowSlices(song, onList));
+      const nextIds = withSongPlate(onList, shotId);
+      const plateFileByShotId: Record<string, string> = {};
+      for (const s of job.shots) {
+        const f = (s.plateFile || "").trim();
+        if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
+      }
+      const cuts = rebuildSongCutsFromDesk({
+        songPlateIds: nextIds,
+        rowSlices: slices,
+        plateFileByShotId,
+        songSec: song.durationSec,
+        newCutId: () => newId("cut"),
+      });
+      const nextWin = nextCutAfter(cuts, song.durationSec);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,
-          songPlateIds: withSongPlate(onList, shotId),
+          cuts,
+          songPlateIds: nextIds,
+          rowSlices: slices,
           skipShotIds: withoutSkippedSongPlate(skipSongPlateIds(song), shotId),
+          sliceStartSec: nextWin.startSec,
+          sliceDurationSec: nextWin.durationSec,
+        },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (action === "set-row-slices") {
+      const song = job.scratchSong;
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
+      }
+      if ((song.cuts || []).some((c) => c.status === "running")) {
+        return NextResponse.json(
+          { error: "Wait for cooking to finish before changing times." },
+          { status: 400 },
+        );
+      }
+      if ((song.cuts || []).some((c) => c.status === "done")) {
+        return NextResponse.json(
+          { error: "Clips already cooked — leave the times, or take rows off with × and Add again." },
+          { status: 400 },
+        );
+      }
+      const onList = songDeskPlateIds(song);
+      const rawIndex = body.listIndex;
+      const listIndex =
+        typeof rawIndex === "number" && Number.isInteger(rawIndex) ? rawIndex : -1;
+      if (listIndex < 0 || listIndex >= onList.length) {
+        return NextResponse.json({ error: "That row is not on the song list." }, { status: 400 });
+      }
+      const slices = withRowSliceAt(
+        songDeskRowSlices(song, onList),
+        listIndex,
+        Number(body.count),
+      );
+      const plateFileByShotId: Record<string, string> = {};
+      for (const s of job.shots) {
+        const f = (s.plateFile || "").trim();
+        if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
+      }
+      const cuts = rebuildSongCutsFromDesk({
+        songPlateIds: onList,
+        rowSlices: slices,
+        plateFileByShotId,
+        songSec: song.durationSec,
+        newCutId: () => newId("cut"),
+      });
+      const nextWin = nextCutAfter(cuts, song.durationSec);
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: {
+          ...song,
+          cuts,
+          rowSlices: slices,
+          sliceStartSec: nextWin.startSec,
+          sliceDurationSec: nextWin.durationSec,
         },
         error: "",
       });
@@ -373,6 +459,12 @@ export async function POST(req: Request) {
       if (!song || !shotId) {
         return NextResponse.json({ error: "Need a plate to leave the song." }, { status: 400 });
       }
+      if ((song.cuts || []).some((c) => c.status === "running")) {
+        return NextResponse.json(
+          { error: "Wait for cooking to finish before changing the list." },
+          { status: 400 },
+        );
+      }
       const onList = songDeskPlateIds(song);
       const rawIndex = body.listIndex;
       const listIndex =
@@ -383,18 +475,27 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "That plate is not on the song list." }, { status: 400 });
       }
       const nextIds = withoutSongPlateAt(onList, listIndex);
+      const nextSlices = withoutSongRowSliceAt(songDeskRowSlices(song, onList), listIndex);
       const stillOnList = nextIds.includes(shotId);
-      const plateFile = (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim();
-      let nextCuts = song.cuts || [];
-      if (!stillOnList) {
-        nextCuts = withoutPlateParkedCuts(nextCuts, shotId, plateFile).next;
+      const plateFileByShotId: Record<string, string> = {};
+      for (const s of job.shots) {
+        const f = (s.plateFile || "").trim();
+        if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
       }
-      const nextWin = nextCutAfter(nextCuts, song.durationSec);
+      const cuts = rebuildSongCutsFromDesk({
+        songPlateIds: nextIds,
+        rowSlices: nextSlices,
+        plateFileByShotId,
+        songSec: song.durationSec,
+        newCutId: () => newId("cut"),
+      });
+      const nextWin = nextCutAfter(cuts, song.durationSec);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,
-          cuts: nextCuts,
+          cuts,
           songPlateIds: nextIds,
+          rowSlices: nextSlices,
           skipShotIds: stillOnList
             ? skipSongPlateIds(song)
             : withSkippedSongPlate(skipSongPlateIds(song), shotId),

@@ -29,8 +29,10 @@ export type ScratchSong = {
   sliceDurationSec: number;
   cuts?: ScratchSongCut[];
   stitchedFile?: string;
-  /** Plates you tapped Add on. The song list is only these. */
+  /** Plates you tapped Add on. The song list is only these (repeats allowed). */
   songPlateIds?: string[];
+  /** N × 15s per list row — same length/order as songPlateIds. */
+  rowSlices?: number[];
   /** Legacy hide-list. Desk no longer uses this. */
   skipShotIds?: string[];
 };

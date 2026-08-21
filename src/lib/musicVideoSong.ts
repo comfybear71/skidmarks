@@ -94,16 +94,102 @@ export function songDeskPlateIds(song?: {
   return [...new Set((song?.cuts || []).map((c) => (c.shotId || "").trim()).filter(Boolean))];
 }
 
+/** N × 15s per list row — pads/truncates to match songPlateIds. */
+export function songDeskRowSlices(
+  song: { rowSlices?: number[] } | null | undefined,
+  deskIds: string[],
+): number[] {
+  const raw = song?.rowSlices || [];
+  return deskIds.map((_, i) => clampPlateSliceCount(raw[i] ?? MUSIC_VIDEO_SLICE_DEFAULT));
+}
+
 export function withSongPlate(ids: string[], shotId: string): string[] {
   const id = shotId.trim();
   if (!id) return ids;
   return [...ids, id];
 }
 
+export function withSongRowSlice(slices: number[], count = MUSIC_VIDEO_SLICE_DEFAULT): number[] {
+  return [...slices, clampPlateSliceCount(count)];
+}
+
 /** Take one list row off (by index). Same plate later in the list stays. */
 export function withoutSongPlateAt(ids: string[], index: number): string[] {
   if (!Number.isInteger(index) || index < 0 || index >= ids.length) return ids;
   return ids.filter((_, i) => i !== index);
+}
+
+export function withoutSongRowSliceAt(slices: number[], index: number): number[] {
+  if (!Number.isInteger(index) || index < 0 || index >= slices.length) return slices;
+  return slices.filter((_, i) => i !== index);
+}
+
+export function withRowSliceAt(slices: number[], index: number, count: number): number[] {
+  if (!Number.isInteger(index) || index < 0 || index >= slices.length) return slices;
+  return slices.map((n, i) => (i === index ? clampPlateSliceCount(count) : n));
+}
+
+/**
+ * Build pending cuts from the desk list. −/+ changes rowSlices → rebuild.
+ * One list row with N × 15s becomes N cuts in order.
+ */
+export function rebuildSongCutsFromDesk(opts: {
+  songPlateIds: string[];
+  rowSlices: number[];
+  plateFileByShotId: Record<string, string>;
+  songSec: number;
+  newCutId: () => string;
+}): ScratchSongCut[] {
+  const cuts: ScratchSongCut[] = [];
+  const used: Pick<ScratchSongCut, "durationSec">[] = [];
+  for (let i = 0; i < opts.songPlateIds.length; i++) {
+    const shotId = opts.songPlateIds[i];
+    const n = clampPlateSliceCount(opts.rowSlices[i] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+    const plateFile = (opts.plateFileByShotId[shotId] || "").trim();
+    const windows = plateSliceWindows(used, opts.songSec, n);
+    for (const window of windows) {
+      cuts.push({
+        id: opts.newCutId(),
+        plateFile,
+        shotId,
+        startSec: window.startSec,
+        durationSec: window.durationSec,
+        status: "pending",
+      });
+      used.push(window);
+    }
+  }
+  return cuts;
+}
+
+/** Cuts that belong to one desk row (by running rowSlices order). */
+export function cutsForDeskRow(
+  cuts: ScratchSongCut[],
+  rowSlices: number[],
+  rowIndex: number,
+): ScratchSongCut[] {
+  if (!Number.isInteger(rowIndex) || rowIndex < 0 || rowIndex >= rowSlices.length) return [];
+  let start = 0;
+  for (let i = 0; i < rowIndex; i++) {
+    start += clampPlateSliceCount(rowSlices[i] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+  }
+  const n = clampPlateSliceCount(rowSlices[rowIndex] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+  return cuts.slice(start, start + n);
+}
+
+export function deskRowAllDone(cuts: Pick<ScratchSongCut, "status" | "clipFile">[]): boolean {
+  return Boolean(cuts.length) && cuts.every((c) => c.status === "done" && (c.clipFile || "").trim());
+}
+
+export function shortPlateLabel(
+  story: CrashStoryDoc | null | undefined,
+  shotId: string,
+  fallbackIndex: number,
+): string {
+  const full = plateLabel(story, shotId, fallbackIndex);
+  const line = full.split(/\n/)[0]?.trim() || full.trim();
+  if (line.length <= 42) return line;
+  return `${line.slice(0, 41)}…`;
 }
 
 export function songOrdinal(n: number): string {
@@ -144,41 +230,45 @@ export type DeskPlateClock = {
   slices: number;
 };
 
-/**
- * 1st / 2nd clocks for each list row (index order).
- * counts keys are row indexes ("0", "1", …) so two Jacks each have their own N × 15s.
- * First row for a plate that already has parked cuts shows that span; later repeats
- * preview the next free windows from the current −/+ count.
- */
+/** Clocks from real desk cuts (rowSlices order), falling back to a preview. */
 export function deskPlateClocks(
   deskShotIds: string[],
   cuts: ScratchSongCut[],
   counts: Record<string, number>,
   songSec: number,
+  rowSlices?: number[],
 ): DeskPlateClock[] {
+  const slices =
+    rowSlices && rowSlices.length === deskShotIds.length
+      ? rowSlices.map((n) => clampPlateSliceCount(n))
+      : deskShotIds.map((_, i) =>
+          clampPlateSliceCount(counts[String(i)] ?? MUSIC_VIDEO_SLICE_DEFAULT),
+        );
   const used: Pick<ScratchSongCut, "durationSec">[] = [...cuts];
-  const seenShot = new Set<string>();
-  return deskShotIds.map((id, i) => {
-    const firstForShot = !seenShot.has(id);
-    if (id) seenShot.add(id);
-    if (firstForShot) {
-      const mine = cutsForPlate(cuts, id);
-      const span = plateCutSpan(mine);
-      if (span) {
-        return { ...span, parked: true, slices: mine.length };
-      }
+  const out: DeskPlateClock[] = [];
+  for (let i = 0; i < deskShotIds.length; i++) {
+    const mine = cutsForDeskRow(cuts, slices, i);
+    const span = plateCutSpan(mine);
+    if (span) {
+      out.push({ ...span, parked: true, slices: mine.length || slices[i] });
+      continue;
     }
-    const n = clampPlateSliceCount(counts[String(i)] ?? MUSIC_VIDEO_SLICE_DEFAULT);
-    const windows = plateSliceWindows(used, songSec, n);
+    const windows = plateSliceWindows(used, songSec, slices[i]);
     if (!windows.length) {
-      return { startSec: 0, endSec: 0, parked: false, slices: n };
+      out.push({ startSec: 0, endSec: 0, parked: false, slices: slices[i] });
+      continue;
     }
     const startSec = windows[0].startSec;
     const last = windows[windows.length - 1];
-    const endSec = last.startSec + last.durationSec;
+    out.push({
+      startSec,
+      endSec: last.startSec + last.durationSec,
+      parked: false,
+      slices: slices[i],
+    });
     used.push(...windows);
-    return { startSec, endSec, parked: false, slices: n };
-  });
+  }
+  return out;
 }
 
 export function withoutSongPlate(ids: string[], shotId: string): string[] {
