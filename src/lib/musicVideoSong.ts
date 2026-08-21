@@ -83,13 +83,13 @@ export function withoutSkippedSongPlate(skip: string[], shotId: string): string[
   return skip.filter((s) => s !== id);
 }
 
-/** Song list = plates you Add. Empty until you tap Add on a plate. */
+/** Song list = plates you Add, in order. Same plate can appear more than once. */
 export function songDeskPlateIds(song?: {
   songPlateIds?: string[];
   cuts?: { shotId?: string }[];
 } | null): string[] {
   if (song && song.songPlateIds !== undefined) {
-    return [...new Set(song.songPlateIds.map((id) => id.trim()).filter(Boolean))];
+    return song.songPlateIds.map((id) => id.trim()).filter(Boolean);
   }
   return [...new Set((song?.cuts || []).map((c) => (c.shotId || "").trim()).filter(Boolean))];
 }
@@ -98,6 +98,12 @@ export function withSongPlate(ids: string[], shotId: string): string[] {
   const id = shotId.trim();
   if (!id) return ids;
   return [...ids, id];
+}
+
+/** Take one list row off (by index). Same plate later in the list stays. */
+export function withoutSongPlateAt(ids: string[], index: number): string[] {
+  if (!Number.isInteger(index) || index < 0 || index >= ids.length) return ids;
+  return ids.filter((_, i) => i !== index);
 }
 
 export function songOrdinal(n: number): string {
@@ -138,35 +144,41 @@ export type DeskPlateClock = {
   slices: number;
 };
 
-/** 1st / 2nd clocks — real parked slices, or the next unused 15s if still empty. */
+/**
+ * 1st / 2nd clocks for each list row (index order).
+ * counts keys are row indexes ("0", "1", …) so two Jacks each have their own N × 15s.
+ * First row for a plate that already has parked cuts shows that span; later repeats
+ * preview the next free windows from the current −/+ count.
+ */
 export function deskPlateClocks(
   deskShotIds: string[],
   cuts: ScratchSongCut[],
   counts: Record<string, number>,
   songSec: number,
-): Record<string, DeskPlateClock> {
+): DeskPlateClock[] {
   const used: Pick<ScratchSongCut, "durationSec">[] = [...cuts];
-  const out: Record<string, DeskPlateClock> = {};
-  for (const id of deskShotIds) {
-    const mine = cutsForPlate(cuts, id);
-    const span = plateCutSpan(mine);
-    if (span) {
-      out[id] = { ...span, parked: true, slices: mine.length };
-      continue;
+  const seenShot = new Set<string>();
+  return deskShotIds.map((id, i) => {
+    const firstForShot = !seenShot.has(id);
+    if (id) seenShot.add(id);
+    if (firstForShot) {
+      const mine = cutsForPlate(cuts, id);
+      const span = plateCutSpan(mine);
+      if (span) {
+        return { ...span, parked: true, slices: mine.length };
+      }
     }
-    const n = clampPlateSliceCount(counts[id] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+    const n = clampPlateSliceCount(counts[String(i)] ?? MUSIC_VIDEO_SLICE_DEFAULT);
     const windows = plateSliceWindows(used, songSec, n);
     if (!windows.length) {
-      out[id] = { startSec: 0, endSec: 0, parked: false, slices: n };
-      continue;
+      return { startSec: 0, endSec: 0, parked: false, slices: n };
     }
     const startSec = windows[0].startSec;
     const last = windows[windows.length - 1];
     const endSec = last.startSec + last.durationSec;
-    out[id] = { startSec, endSec, parked: false, slices: n };
     used.push(...windows);
-  }
-  return out;
+    return { startSec, endSec, parked: false, slices: n };
+  });
 }
 
 export function withoutSongPlate(ids: string[], shotId: string): string[] {
