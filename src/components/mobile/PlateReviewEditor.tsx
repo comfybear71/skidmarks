@@ -768,6 +768,7 @@ export function PlateReviewEditor({
                     display: "flex",
                     flexDirection: "column",
                     gap: "4px",
+                    alignSelf: "stretch",
                   }}
                 >
                   <div
@@ -781,16 +782,19 @@ export function PlateReviewEditor({
                   >
                     Clips
                   </div>
-                  <PlateClipThumbs
-                    job={job}
-                    clips={underClips}
-                    poster={plated ? thumbSrc : undefined}
-                    preload={s.shotId === openShotId}
-                    removeDisabled={clipBusy}
-                    onRemoveTake={({ beatId, fileName }) =>
-                      void postClipAction({ action: "remove-clip", beatId, fileName })
-                    }
-                  />
+                  <div className="m-plate-clip-rail">
+                    <PlateClipThumbs
+                      job={job}
+                      clips={underClips}
+                      poster={plated ? thumbSrc : undefined}
+                      preload={s.shotId === openShotId}
+                      layout="strip"
+                      removeDisabled={clipBusy}
+                      onRemoveTake={({ beatId, fileName }) =>
+                        void postClipAction({ action: "remove-clip", beatId, fileName })
+                      }
+                    />
+                  </div>
                 </div>
               ) : null}
             </div>
