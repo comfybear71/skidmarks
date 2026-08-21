@@ -21,6 +21,7 @@ import {
   deskRowAllDone,
   findSongCarrierBeatId,
   formatSongSpan,
+  hasStuckSongCook,
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateCutSpan,
   shortPlateLabel,
@@ -32,6 +33,7 @@ import {
 import {
   cookPendingSongCuts,
   pendingSongCuts,
+  setSongCookFlag,
   songCookFlagOn,
 } from "@/lib/songCutCook";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
@@ -120,6 +122,7 @@ export function MusicVideoSongCuts({
   const jobRef = useRef(job);
   jobRef.current = job;
   const cookLock = useRef(false);
+  const cookCancel = useRef(false);
   const resumeCook = useRef<() => void>(() => {});
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
@@ -127,8 +130,10 @@ export function MusicVideoSongCuts({
   const song = job.scratchSong;
   const beatId = findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
   const cuts = song?.cuts || [];
-  const cooking = Boolean(cuts.some((c) => c.status === "running") || busy === "cook");
-  const listLocked = cooking || cuts.some((c) => c.status === "done");
+  /** Only lock controls while this phone is actively generating — not a hung server flag. */
+  const workingNow = busy === "cook";
+  const timesLocked = workingNow || cuts.some((c) => c.status === "done");
+  const stuckCook = hasStuckSongCook(cuts);
 
   async function songAction(action: string, extra: Record<string, unknown> = {}) {
     const res = await fetch("/api/crash/mobile/song", {
@@ -216,6 +221,7 @@ export function MusicVideoSongCuts({
       return;
     }
     cookLock.current = true;
+    cookCancel.current = false;
     setBusy("cook");
     setNote("");
     try {
@@ -226,6 +232,7 @@ export function MusicVideoSongCuts({
         runCut: (cutId) => songAction("run", { cutId, beatId }),
         unstickCut: (cutId) => songAction("unstick", { cutId }),
         onNote: setNote,
+        cancelled: () => cookCancel.current,
       });
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't generate those cuts");
@@ -234,6 +241,23 @@ export function MusicVideoSongCuts({
       setBusy("");
     }
   }
+
+  async function stopStuckCook() {
+    cookCancel.current = true;
+    cookLock.current = false;
+    setSongCookFlag(job.id, false);
+    setBusy("unstick");
+    setNote("");
+    try {
+      await songAction("unstick-all");
+      setNote("Stopped. Add and − / + work again.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't stop that hung clip");
+    } finally {
+      setBusy("");
+    }
+  }
+
   resumeCook.current = () => {
     void runCuts();
   };
@@ -349,7 +373,7 @@ export function MusicVideoSongCuts({
               <li key={`${s.shotId}-${row.listIndex}`}>
                 <SwipeDropRow
                   label="Leave song"
-                  disabled={skipBusy || listLocked}
+                  disabled={skipBusy || workingNow}
                   onDrop={() => void hidePlateFromSong(s.shotId, row.listIndex)}
                 >
                   <div
@@ -372,14 +396,14 @@ export function MusicVideoSongCuts({
                     <div className="m-song-plate-tools m-song-line-tools">
                       <button
                         type="button"
-                        disabled={Boolean(busy) || listLocked}
+                        disabled={Boolean(busy) || timesLocked}
                         onClick={() => void setRowSlices(row.listIndex, n - 1)}
                       >
                         −
                       </button>
                       <button
                         type="button"
-                        disabled={Boolean(busy) || listLocked}
+                        disabled={Boolean(busy) || timesLocked}
                         onClick={() => void setRowSlices(row.listIndex, n + 1)}
                       >
                         +
@@ -388,7 +412,7 @@ export function MusicVideoSongCuts({
                         type="button"
                         className="m-song-plate-x-inline"
                         aria-label="Take this plate off the song"
-                        disabled={skipBusy || listLocked}
+                        disabled={skipBusy || workingNow}
                         onClick={() => void hidePlateFromSong(s.shotId, row.listIndex)}
                       >
                         {skipBusy || sliceBusy ? "…" : "×"}
@@ -414,6 +438,16 @@ export function MusicVideoSongCuts({
               : "Working…"
             : "Generate cuts"}
         </MobilePrimaryButton>
+        {stuckCook || workingNow ? (
+          <MobilePrimaryButton
+            size="chip"
+            tone="ghost"
+            disabled={busy === "unstick"}
+            onClick={() => void stopStuckCook()}
+          >
+            {busy === "unstick" ? "Stopping…" : "Stop"}
+          </MobilePrimaryButton>
+        ) : null}
         <MobilePrimaryButton
           size="chip"
           tone="ghost"

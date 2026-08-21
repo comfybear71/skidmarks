@@ -14,6 +14,7 @@ import {
   findSongCarrierBeatId,
   isMusicVideoSongJob,
   plateSliceWindows,
+  clearStuckSongCooks,
   rebuildSongCutsFromDesk,
   songDeskPlateIds,
   songDeskRowSlices,
@@ -43,12 +44,14 @@ export const maxDuration = 900;
  *   remove — drop one parked cut.
  *   remove-plate-parked — drop pending/fail slices on one plate. Plate stays.
  *   unstick — running with no clip → pending (left the screen too long).
+ *   unstick-all — every stuck running cut → pending; unlocks Add / list.
  *   run — one LTX slice. Client polls the job if the phone drops.
  *   stitch — concat done cuts. Does not write job.finalVideoFile.
  *   remove-stitch — park the joined mp4. Song, plates, and cuts stay.
  *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row).
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
+ *   List edits clear stuck cooks first — a hung LTX must not lock Add forever.
  */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -208,6 +211,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, job: updated });
     }
 
+    if (action === "unstick-all") {
+      const song = job.scratchSong;
+      if (!song) {
+        return NextResponse.json({ error: "No song on this job." }, { status: 400 });
+      }
+      const cuts = clearStuckSongCooks(song.cuts || []);
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, cuts },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
     if (action === "run") {
       const song = job.scratchSong;
       if (!song?.fileName) {
@@ -330,17 +346,12 @@ export async function POST(req: Request) {
     }
 
     if (action === "add-plate") {
-      const song = job.scratchSong;
+      let song = job.scratchSong;
       const shotId = String(body.shotId || "").trim();
       if (!song || !shotId) {
         return NextResponse.json({ error: "Need a plate to add." }, { status: 400 });
       }
-      if ((song.cuts || []).some((c) => c.status === "running")) {
-        return NextResponse.json(
-          { error: "Wait for cooking to finish before changing the list." },
-          { status: 400 },
-        );
-      }
+      song = { ...song, cuts: clearStuckSongCooks(song.cuts || []) };
       const shot = job.shots.find((s) => s.shotId === shotId);
       const plateFile = (shot?.plateFile || "").trim();
       if (!plateFile || plateFile === "__error__") {
@@ -399,19 +410,14 @@ export async function POST(req: Request) {
     }
 
     if (action === "set-row-slices") {
-      const song = job.scratchSong;
+      let song = job.scratchSong;
       if (!song?.fileName) {
         return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
       }
-      if ((song.cuts || []).some((c) => c.status === "running")) {
-        return NextResponse.json(
-          { error: "Wait for cooking to finish before changing times." },
-          { status: 400 },
-        );
-      }
+      song = { ...song, cuts: clearStuckSongCooks(song.cuts || []) };
       if ((song.cuts || []).some((c) => c.status === "done")) {
         return NextResponse.json(
-          { error: "Clips already cooked — leave the times, or take rows off with × and Add again." },
+          { error: "Clips already done — leave the times, or take rows off with × and Add again." },
           { status: 400 },
         );
       }
@@ -454,17 +460,12 @@ export async function POST(req: Request) {
     }
 
     if (action === "skip-plate") {
-      const song = job.scratchSong;
+      let song = job.scratchSong;
       const shotId = String(body.shotId || "").trim();
       if (!song || !shotId) {
         return NextResponse.json({ error: "Need a plate to leave the song." }, { status: 400 });
       }
-      if ((song.cuts || []).some((c) => c.status === "running")) {
-        return NextResponse.json(
-          { error: "Wait for cooking to finish before changing the list." },
-          { status: 400 },
-        );
-      }
+      song = { ...song, cuts: clearStuckSongCooks(song.cuts || []) };
       const onList = songDeskPlateIds(song);
       const rawIndex = body.listIndex;
       const listIndex =
