@@ -387,12 +387,23 @@ export function MusicVideoSongCuts({
             const row = (
                   <div className="scratch-song-cut m-song-plate-row">
                     <div className="m-song-plate-head">
-                      {thumb ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img className="m-song-cut-thumb" src={thumb} alt="" />
-                      ) : (
-                        <span className="scratch-song-cut-n">{i + 1}</span>
-                      )}
+                      <div className="m-song-plate-thumb-wrap">
+                        {thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img className="m-song-cut-thumb" src={thumb} alt="" />
+                        ) : (
+                          <span className="scratch-song-cut-n">{i + 1}</span>
+                        )}
+                        <button
+                          type="button"
+                          className="m-song-plate-x"
+                          aria-label="Take this plate off the song"
+                          disabled={busy === `skip-${s.shotId}`}
+                          onClick={() => void hidePlateFromSong(s.shotId)}
+                        >
+                          {busy === `skip-${s.shotId}` ? "…" : "×"}
+                        </button>
+                      </div>
                       <span className="scratch-song-cut-meta">
                         {name}
                         <span className="m-song-cut-sub">
@@ -401,15 +412,6 @@ export function MusicVideoSongCuts({
                             : "No slices on this plate yet."}
                         </span>
                       </span>
-                      <MobilePrimaryButton
-                        size="chip"
-                        tone="ghost"
-                        busy={busy === `skip-${s.shotId}`}
-                        disabled={busy.startsWith("skip-") && busy !== `skip-${s.shotId}`}
-                        onClick={() => void hidePlateFromSong(s.shotId)}
-                      >
-                        {busy === `skip-${s.shotId}` ? "Removing…" : "Remove"}
-                      </MobilePrimaryButton>
                     </div>
                     <div className="m-song-plate-tools">
                       {mineTally.total ? (
@@ -449,6 +451,15 @@ export function MusicVideoSongCuts({
                       >
                         {busy === "park" ? "Adding…" : `Add ${n} × 15s`}
                       </MobilePrimaryButton>
+                      <button
+                        type="button"
+                        className="m-song-plate-x-inline"
+                        aria-label="Take this plate off the song"
+                        disabled={busy === `skip-${s.shotId}`}
+                        onClick={() => void hidePlateFromSong(s.shotId)}
+                      >
+                        {busy === `skip-${s.shotId}` ? "…" : "×"}
+                      </button>
                       {parkedHere.length ? (
                         <MobilePrimaryButton
                           size="chip"
