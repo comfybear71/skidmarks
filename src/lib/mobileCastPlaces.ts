@@ -87,14 +87,16 @@ export function castPlaceKindsFor(name: string): CastPlaceKind[] {
   return castHomePlaces(tag);
 }
 
-/** Who may stand in a Matty's bar plate — any mix, never Jo. */
+/** Who may stand in a Matty's bar plate — bible tags only, never Jo.
+ * Untagged test names (STUBALLS) must not auto-mix onto a group plate. */
 export function mattyBarCast(speakers: string[]): string[] {
   const out: string[] = [];
   for (const raw of speakers) {
     const name = raw.trim();
     if (!name) continue;
     const tag = classifyCastRoster(name);
-    if (tag && !castGoesToMattyBar(tag)) continue;
+    if (!tag) continue;
+    if (!castGoesToMattyBar(tag)) continue;
     if (tag === "jo") continue;
     if (!out.includes(name)) out.push(name);
   }

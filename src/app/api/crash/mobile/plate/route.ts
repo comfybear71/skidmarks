@@ -6,6 +6,7 @@ import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
 import { clearAllStoryShots } from "@/lib/mobileClipQueue";
 import { defaultSoloStaging } from "@/lib/mobileImageMotion";
 import { beatsAfterRemoveLine } from "@/lib/mobilePlateLines";
+import { castNamesMatch } from "@/lib/mobileDropCast";
 import { rebuildShotPlate } from "@/lib/mobilePlateRebuild";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { newId } from "@/lib/types";
@@ -138,6 +139,12 @@ export async function POST(req: Request) {
       if (!speakerIn) {
         return NextResponse.json(
           { error: "Pick who is in this place before Add to plate" },
+          { status: 400 },
+        );
+      }
+      if (!job.speakers.some((s) => castNamesMatch(s, speakerIn))) {
+        return NextResponse.json(
+          { error: `${speakerIn} is not in CAST — add them there first` },
           { status: 400 },
         );
       }
@@ -285,6 +292,12 @@ export async function POST(req: Request) {
     }
 
     if (addCast) {
+      if (!job.speakers.some((s) => castNamesMatch(s, speakerIn))) {
+        return NextResponse.json(
+          { error: `${speakerIn} is not in CAST — add them there first` },
+          { status: 400 },
+        );
+      }
       const already = liveShot.beats.some(
         (b) =>
           b.speaker.trim().toLowerCase() === speakerIn.toLowerCase() &&

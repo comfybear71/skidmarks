@@ -149,6 +149,18 @@ assert.ok(barMixes.length >= 1);
 assert.ok(barMixes.every((r) => (r.speakers || []).length >= 2 && (r.speakers || []).length <= 3));
 assert.ok(barMixes.some((r) => (r.speakers || []).includes("LAND LADY")));
 
+const stubJob = {
+  ...houseJob,
+  speakers: [...houseJob.speakers, "STUBALLS"],
+  castCandidates: {
+    ...houseJob.castCandidates,
+    STUBALLS: [{ approved: true, fileName: "stub.png" }],
+  },
+};
+const stubMissing = missingCastPlacePlates(stubJob, houseStory);
+assert.ok(!stubMissing.some((r) => r.speaker === "STUBALLS"));
+assert.ok(!stubMissing.some((r) => (r.speakers || []).includes("STUBALLS")));
+
 const minted = appendSoloCastShot({
   job: houseJob,
   story: houseStory,
