@@ -21,6 +21,12 @@ export type CrashStoryBeat = {
    * is prepended on send). Editable on /m for walk / prop experiments.
    */
   imageMotion?: string;
+  /** Silent action hold — catalogue SFX mp3, no spoken line. */
+  kind?: "cutaway";
+  /** Crash SPX catalogue id when the cutaway mp3 came from the shelf. */
+  spxId?: string;
+  /** What they do (stand up, walk away) — not spoken. */
+  action?: string;
 };
 
 /** One drawn still for a shot — a conversation shot can want several, each

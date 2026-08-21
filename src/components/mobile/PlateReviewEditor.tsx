@@ -46,6 +46,7 @@ import {
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { episodeJobShots } from "@/lib/mobileScratch";
+import { CutawayBeatPanel } from "@/components/mobile/CutawayBeatPanel";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
@@ -1562,6 +1563,35 @@ function ShotLineEditor({
                 ) : null}
               </div>
             ) : null}
+            {beat.kind === "cutaway" ? (
+            <CutawayBeatPanel
+            key={beat.id}
+            styleId={styleId as ShowStyleId}
+            folderName={folderName}
+            jobId={jobId}
+            shotId={shot.id}
+            lookLock={lookForSpeaker(beat.speaker)}
+            shotSpeakers={shotSpeakersOnCard({
+              shotId: shot.id,
+              title: shot.title,
+              staging: shot.staging,
+              summary: shot.summary,
+              plateFile: shot.plateFile,
+              jobSpeakers,
+              beats: shot.beats,
+            })}
+            beat={beat}
+            clipStatus={clips.find((c) => c.beatId === beat.id)?.clipStatus}
+            staging={shot.staging || ""}
+            onSaved={(text, voiceFile, imageMotion, nextJob) => {
+              onBeatSaved(beat.id, text, voiceFile, imageMotion, nextJob);
+            }}
+            onRemoved={(beatId, nextJob, emptyBeat) => {
+              onLineRemoved?.(beatId, nextJob);
+              if (emptyBeat) onLineAdded?.(emptyBeat);
+            }}
+            />
+            ) : (
             <BeatLineEditor
             key={beat.id}
             styleId={styleId}
@@ -1609,6 +1639,7 @@ function ShotLineEditor({
               if (emptyBeat) onLineAdded?.(emptyBeat);
             }}
           />
+            )}
           </div>
         );
       })}
@@ -1617,12 +1648,21 @@ function ShotLineEditor({
           Tap + above the picture — pick someone, position them, that draws the still.
         </div>
       ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
         <AnotherLineButton
           jobId={jobId}
           shotId={shot.id}
           speaker={speakingBeats[0]?.speaker || ""}
           onAdded={(beat) => onLineAdded?.(beat)}
         />
+        <AnotherLineButton
+          jobId={jobId}
+          shotId={shot.id}
+          speaker={speakingBeats[0]?.speaker || ""}
+          cutaway
+          onAdded={(beat) => onLineAdded?.(beat)}
+        />
+        </div>
       )}
     </div>
   );
@@ -1632,11 +1672,13 @@ function AnotherLineButton({
   jobId,
   shotId,
   speaker,
+  cutaway,
   onAdded,
 }: {
   jobId: string;
   shotId: string;
   speaker: string;
+  cutaway?: boolean;
   onAdded?: (beat: CrashStoryBeat) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -1649,12 +1691,17 @@ function AnotherLineButton({
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, shotId, speaker, action: "add-line" }),
+        body: JSON.stringify({
+          jobId,
+          shotId,
+          speaker,
+          action: cutaway ? "add-cutaway" : "add-line",
+        }),
       });
       const data = await readApiJson<{ error?: string; beat?: CrashStoryBeat }>(res);
       if (data.beat) onAdded?.(data.beat);
     } catch (e) {
-      setError(studioFetchError(e, "Couldn't add a line"));
+      setError(studioFetchError(e, cutaway ? "Couldn't add a cutaway" : "Couldn't add a line"));
     } finally {
       setBusy(false);
     }
@@ -1675,7 +1722,7 @@ function AnotherLineButton({
           fontWeight: 600,
         }}
       >
-        {busy ? "Adding…" : "+ another line"}
+        {busy ? "Adding…" : cutaway ? "+ cutaway" : "+ another line"}
       </button>
       {error ? (
         <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>{error}</div>

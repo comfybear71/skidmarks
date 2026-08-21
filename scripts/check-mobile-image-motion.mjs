@@ -15,6 +15,8 @@ import {
   storedMotionFightsEmptyHands,
   storedMotionReinventsLook,
   ltxSendPrompt,
+  buildCutawayMotion,
+  isCutawayMotion,
   shortLtxLookLock,
   stripLtxLipSyncLead,
   withLtxLipSyncLead,
@@ -230,5 +232,22 @@ const ia2v = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../workflow/LTX_2.3_IA2V_Cloud.json"), "utf8"),
 );
 assert.equal(ia2v["340:349"].inputs.value, false);
+
+const cutaway = buildCutawayMotion({
+  styleId: "skidmarks",
+  speaker: "BC",
+  action: "stands up from sitting, rises to their feet",
+});
+assert.match(cutaway, /^Use the provided start image as the first frame\./);
+assert.match(cutaway, /stands up from sitting/);
+assert.match(cutaway, /No dialogue/);
+assert.match(cutaway, /Mouth stays closed/);
+assert.doesNotMatch(cutaway, /says:/);
+assert.doesNotMatch(cutaway, /perfect lip sync/i);
+assert.equal(isCutawayMotion(cutaway), true);
+const sentCutaway = ltxSendPrompt(cutaway);
+assert.equal(sentCutaway.startsWith(LTX_LIP_SYNC_LEAD), false);
+assert.equal(isCutawayMotion(sentCutaway), true);
+assert.equal(isCutawayMotion(jo), false);
 
 console.log("check-mobile-image-motion: ok");

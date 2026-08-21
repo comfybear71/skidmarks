@@ -13,6 +13,7 @@ export function findBeatHome(story: CrashStoryDoc, beatId: string): {
   speaker: string;
   text: string;
   voiceFile: string;
+  kind?: "cutaway";
 } | null {
   for (const sc of story.scenes) {
     for (const sh of sc.shots) {
@@ -24,6 +25,7 @@ export function findBeatHome(story: CrashStoryDoc, beatId: string): {
         speaker: beat.speaker,
         text: beat.text,
         voiceFile: beat.voiceFile || "",
+        kind: beat.kind,
       };
     }
   }
@@ -242,7 +244,10 @@ export function queueOneBeatForAnimate(
   if (!isMobileSavedVoiceFile(voice)) {
     return {
       clips: job.clips || [],
-      error: "Save the spoken line first — Play appears when the mp3 is ready.",
+      error:
+        home.kind === "cutaway"
+          ? "Pick a 6–10s SFX first — Play appears when the mp3 is ready."
+          : "Save the spoken line first — Play appears when the mp3 is ready.",
     };
   }
   const clips = upsertPendingClip(job, story, id).map((c) =>
