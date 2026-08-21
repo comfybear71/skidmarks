@@ -1,23 +1,22 @@
 import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { findBeatInStory } from "@/lib/crashStorySpeak";
-import { dialogueFileName, slugToken } from "@/lib/crashStoryNames";
 import { storyDialogueDir } from "@/lib/crashStoryLocations";
-import { writeCrashStory } from "@/lib/crashStory";
-import { uploadMobileMedia } from "@/lib/mobileMediaStore";
-import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
-import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { uploadMobileMedia, registerMobileMediaBlob } from "@/lib/mobileMediaStore";
+import { readMobileStory } from "@/lib/mobileStoryStore";
+import { readMobileGenJob } from "@/lib/mobileGenJob";
 import { mobileMediaFolder } from "@/lib/mobileJobFolder";
-import { upsertPendingClip } from "@/lib/mobileClipQueue";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
-import { voiceNamesMatch } from "@/lib/voiceNameMatch";
-import { isScratchShotTitle } from "@/lib/mobileScratch";
+import { isSafeMediaName } from "@/lib/cloudMedia";
+import { blobPathname } from "@/lib/blobStore";
+import { useCloudStore } from "@/lib/cloudEnv";
 import {
-  clampSongWindow,
-  probeSongDurationSec,
-  SCRATCH_SONG_SLICE_DEFAULT_SEC,
-} from "@/lib/scratchSongSlice";
+  attachDroppedBeatMp3,
+  findDroppedBeat,
+  speakerOnJobCast,
+  stampDroppedMp3Name,
+} from "@/lib/scratchSongAttach";
+import { probeSongDurationSec } from "@/lib/scratchSongSlice";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -40,143 +39,202 @@ function looksLikeMp3(file: File, buf: Buffer): boolean {
 }
 
 /**
- * POST multipart: jobId, beatId, file [, text] — drop an mp3 onto the
- * Scratch beat as the Saved take. Skips ElevenLabs. Same stamp naming as
- * Save so Generate / Play treat it as a real take.
+ * POST multipart: jobId, beatId, file [, text] — small mp3 through Studio.
+ * POST JSON { action: "prepare" | "attach" } — big songs go to Blob first.
  */
 export async function POST(req: Request) {
+  const ctype = req.headers.get("content-type") || "";
   try {
-    const form = await req.formData();
-    const jobId = String(form.get("jobId") || "").trim();
-    const beatId = String(form.get("beatId") || "").trim();
-    const textOverride = String(form.get("text") || "").trim();
-    const file = form.get("file");
-    if (!jobId || !beatId) {
-      return NextResponse.json({ error: "Need jobId and beatId" }, { status: 400 });
+    if (ctype.includes("application/json")) {
+      return await handleJson(req);
     }
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: "Need an mp3 file" }, { status: 400 });
-    }
-    if (file.size <= 0) {
-      return NextResponse.json({ error: "That mp3 is empty" }, { status: 400 });
-    }
-    if (file.size > MAX_BYTES) {
-      return NextResponse.json({ error: "That mp3 is too large" }, { status: 400 });
-    }
+    return await handleMultipart(req);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
+}
 
-    const job = await readMobileGenJob(jobId);
-    if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+async function handleJson(req: Request) {
+  const body = (await req.json().catch(() => ({}))) as {
+    action?: string;
+    jobId?: string;
+    beatId?: string;
+    text?: string;
+    fileName?: string;
+    blobUrl?: string;
+    durationSec?: number;
+  };
+  const action = String(body.action || "").trim();
+  const jobId = String(body.jobId || "").trim();
+  const beatId = String(body.beatId || "").trim();
+  const textOverride = String(body.text || "").trim();
+  if (!jobId || !beatId) {
+    return NextResponse.json({ error: "Need jobId and beatId" }, { status: 400 });
+  }
 
-    const story = await readMobileStory(job.styleId, job.folderName);
-    let speaker = "";
-    let existingText = "";
-    let scratchBeat = false;
-    for (const scene of story.scenes) {
-      for (const shot of scene.shots) {
-        const beat = shot.beats.find((b) => b.id === beatId);
-        if (beat) {
-          speaker = beat.speaker;
-          existingText = beat.text || "";
-          scratchBeat = isScratchShotTitle(shot.title);
-        }
-      }
-    }
-    if (!speaker) {
+  const job = await readMobileGenJob(jobId);
+  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  const story = await readMobileStory(job.styleId, job.folderName);
+  const found = findDroppedBeat(story, beatId);
+  if (!found?.speaker) {
+    return NextResponse.json(
+      { error: "No Scratch beat yet — Draw with a face on the pad first, then drop the mp3." },
+      { status: 400 },
+    );
+  }
+  if (!speakerOnJobCast(job, found.speaker)) {
+    return NextResponse.json(
+      { error: "That line isn't this job's cast — leftover Comfy/Land audio stays parked" },
+      { status: 400 },
+    );
+  }
+
+  const line = textOverride || found.existingText || "dropped line";
+  const folderName = mobileMediaFolder(job);
+
+  if (action === "prepare") {
+    if (!useCloudStore()) {
       return NextResponse.json(
-        { error: "No Scratch beat yet — Draw with a face on the pad first, then drop the mp3." },
-        { status: 400 },
+        { error: "Cloud song drop is off here — drop a smaller mp3 through Studio." },
+        { status: 409 },
       );
     }
-    if (
-      job.speakers.length &&
-      !job.speakers.some(
-        (s) =>
-          voiceNamesMatch(s, speaker) ||
-          s.trim().toLowerCase() === speaker.trim().toLowerCase(),
-      )
-    ) {
-      return NextResponse.json(
-        { error: "That line isn't this job's cast — leftover Comfy/Land audio stays parked" },
-        { status: 400 },
-      );
-    }
-
-    const buf = Buffer.from(await file.arrayBuffer());
-    if (!looksLikeMp3(file, buf)) {
-      return NextResponse.json(
-        { error: "Need an mp3 — LTX lip-sync only takes mpeg audio." },
-        { status: 400 },
-      );
-    }
-
-    const line = textOverride || existingText || "dropped line";
-    const ctx = findBeatInStory(story, beatId);
-    const baseName = ctx
-      ? dialogueFileName({
-          shotNum: ctx.shotNum,
-          beatNum: ctx.beatNum,
-          speaker,
-          text: line,
-        })
-      : `${beatId}_${slugToken(line, 24)}.mp3`;
-    const stamp = Date.now().toString(36);
-    const fileName = baseName.replace(/\.mp3$/i, "") + `_${stamp}.mp3`;
-    if (!isMobileSavedVoiceFile(fileName)) {
-      return NextResponse.json(
-        { error: `Couldn't stamp a Saved take name (${fileName})` },
-        { status: 500 },
-      );
-    }
-
-    const dir = storyDialogueDir(job.styleId);
-    fs.mkdirSync(dir, { recursive: true });
-    const localPath = path.join(dir, fileName);
-    fs.writeFileSync(localPath, buf);
-
-    const next = {
-      ...story,
-      scenes: story.scenes.map((sc) => ({
-        ...sc,
-        shots: sc.shots.map((sh) => ({
-          ...sh,
-          beats: sh.beats.map((b) =>
-            b.id === beatId
-              ? {
-                  ...b,
-                  voiceFile: fileName,
-                  ...(textOverride ? { text: textOverride } : {}),
-                }
-              : b,
-          ),
-        })),
-      })),
-    };
-
-    // Mirror local desk story so same-request Play / LTX resolve the file.
-    writeCrashStory(next);
-    await writeMobileStory(next, job.folderName);
-
-    const clips = upsertPendingClip({ ...job, clips: job.clips || [] }, next, beatId);
-    const durationSec = scratchBeat ? probeSongDurationSec(localPath) || 0 : 0;
-    const window = clampSongWindow(0, SCRATCH_SONG_SLICE_DEFAULT_SEC, durationSec);
-    const patched = await patchMobileGenJob(jobId, {
-      clips,
-      error: "",
-      ...(job.phase === "error" || job.phase === "animate" ? { phase: "review" as const } : {}),
-      ...(scratchBeat
-        ? {
-            scratchSong: {
-              fileName,
-              durationSec,
-              sliceStartSec: window.startSec,
-              sliceDurationSec: window.durationSec,
-              cuts: job.scratchSong?.cuts || [],
-            },
-          }
-        : {}),
+    const fileName = stampDroppedMp3Name({
+      story,
+      beatId,
+      speaker: found.speaker,
+      line,
     });
+    const pathname = blobPathname(job.styleId, folderName, "audio", fileName);
+    return NextResponse.json({
+      ok: true,
+      fileName,
+      pathname,
+      folderName,
+    });
+  }
 
-    const mediaFolder = mobileMediaFolder(job);
+  if (action === "attach") {
+    const fileName = String(body.fileName || "").trim();
+    const blobUrl = String(body.blobUrl || "").trim();
+    if (!fileName || !isSafeMediaName(fileName) || !isMobileSavedVoiceFile(fileName)) {
+      return NextResponse.json({ error: "Need the stamped song file name" }, { status: 400 });
+    }
+    if (!blobUrl) {
+      return NextResponse.json({ error: "Need the cloud song URL" }, { status: 400 });
+    }
+    const pathname = blobPathname(job.styleId, folderName, "audio", fileName);
+    await registerMobileMediaBlob({
+      styleId: job.styleId,
+      folderName,
+      kind: "audio",
+      fileName,
+      blobUrl,
+      blobPathname: pathname,
+    });
+    const attached = await attachDroppedBeatMp3({
+      job,
+      jobId,
+      story,
+      beatId,
+      fileName,
+      textOverride,
+      scratchBeat: found.scratchBeat,
+      durationSec: Number(body.durationSec) || 0,
+    });
+    return NextResponse.json({
+      ok: true,
+      voiceFile: fileName,
+      job: attached.job,
+      durationSec: found.scratchBeat ? attached.durationSec : undefined,
+    });
+  }
+
+  return NextResponse.json({ error: "Need action prepare or attach" }, { status: 400 });
+}
+
+async function handleMultipart(req: Request) {
+  const form = await req.formData();
+  const jobId = String(form.get("jobId") || "").trim();
+  const beatId = String(form.get("beatId") || "").trim();
+  const textOverride = String(form.get("text") || "").trim();
+  const file = form.get("file");
+  if (!jobId || !beatId) {
+    return NextResponse.json({ error: "Need jobId and beatId" }, { status: 400 });
+  }
+  if (!(file instanceof File)) {
+    return NextResponse.json({ error: "Need an mp3 file" }, { status: 400 });
+  }
+  if (file.size <= 0) {
+    return NextResponse.json({ error: "That mp3 is empty" }, { status: 400 });
+  }
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json({ error: "That mp3 is too large" }, { status: 400 });
+  }
+
+  const job = await readMobileGenJob(jobId);
+  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+  const story = await readMobileStory(job.styleId, job.folderName);
+  const found = findDroppedBeat(story, beatId);
+  if (!found?.speaker) {
+    return NextResponse.json(
+      { error: "No Scratch beat yet — Draw with a face on the pad first, then drop the mp3." },
+      { status: 400 },
+    );
+  }
+  if (!speakerOnJobCast(job, found.speaker)) {
+    return NextResponse.json(
+      { error: "That line isn't this job's cast — leftover Comfy/Land audio stays parked" },
+      { status: 400 },
+    );
+  }
+
+  const buf = Buffer.from(await file.arrayBuffer());
+  if (!looksLikeMp3(file, buf)) {
+    return NextResponse.json(
+      { error: "Need an mp3 — LTX lip-sync only takes mpeg audio." },
+      { status: 400 },
+    );
+  }
+
+  const line = textOverride || found.existingText || "dropped line";
+  const fileName = stampDroppedMp3Name({
+    story,
+    beatId,
+    speaker: found.speaker,
+    line,
+  });
+
+  const dir = storyDialogueDir(job.styleId);
+  fs.mkdirSync(dir, { recursive: true });
+  const localPath = path.join(dir, fileName);
+  fs.writeFileSync(localPath, buf);
+
+  const durationSec = found.scratchBeat ? probeSongDurationSec(localPath) || 0 : 0;
+  const attached = await attachDroppedBeatMp3({
+    job,
+    jobId,
+    story,
+    beatId,
+    fileName,
+    textOverride,
+    scratchBeat: found.scratchBeat,
+    durationSec,
+  });
+
+  const mediaFolder = mobileMediaFolder(job);
+  try {
+    await uploadMobileMedia({
+      styleId: job.styleId,
+      folderName: mediaFolder,
+      kind: "audio",
+      localPath,
+    });
+  } catch {
     try {
       await uploadMobileMedia({
         styleId: job.styleId,
@@ -184,35 +242,21 @@ export async function POST(req: Request) {
         kind: "audio",
         localPath,
       });
-    } catch {
-      try {
-        await uploadMobileMedia({
-          styleId: job.styleId,
-          folderName: mediaFolder,
-          kind: "audio",
-          localPath,
-        });
-      } catch (e2) {
-        const detail = e2 instanceof Error ? e2.message : String(e2);
-        return NextResponse.json(
-          {
-            error: `Mp3 landed on disk but failed to reach cloud storage — ${detail}. Drop it again.`,
-          },
-          { status: 502 },
-        );
-      }
+    } catch (e2) {
+      const detail = e2 instanceof Error ? e2.message : String(e2);
+      return NextResponse.json(
+        {
+          error: `Mp3 landed on disk but failed to reach cloud storage — ${detail}. Drop it again.`,
+        },
+        { status: 502 },
+      );
     }
-
-    return NextResponse.json({
-      ok: true,
-      voiceFile: fileName,
-      job: patched,
-      durationSec: scratchBeat ? durationSec : undefined,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 },
-    );
   }
+
+  return NextResponse.json({
+    ok: true,
+    voiceFile: fileName,
+    job: attached.job,
+    durationSec: found.scratchBeat ? attached.durationSec : undefined,
+  });
 }

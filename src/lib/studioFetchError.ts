@@ -27,7 +27,9 @@ export async function readApiJson<T extends { error?: string }>(
     );
   }
   if (res.status === 413) {
-    throw new Error("That line is too long for one Save. Keep this episode.");
+    throw new Error(
+      "That file is too big for one drop — the song never reached Studio. Keep this episode.",
+    );
   }
   throw new Error(`Request failed (${res.status})`);
 }
