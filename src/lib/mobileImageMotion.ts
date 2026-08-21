@@ -107,12 +107,21 @@ export function stripJoPhoneLock(prompt: string): string {
   );
 }
 
+/** Silent cutaway — no spoken line, no lip-sync lead. */
+export function isCutawayMotion(prompt: string): boolean {
+  const t = stripLtxLipSyncLead(prompt).toLowerCase();
+  if (!t) return false;
+  if (/\bsays:\s*"/.test(t)) return false;
+  return /\bno dialogue\b/.test(t) && /\bmouth stays closed\b/.test(t);
+}
+
 /** The one string Cloud LTX gets: lead + Image motion body + walker locks. */
 export function ltxSendPrompt(imageMotion: string, staging = ""): string {
   let body = ensureGoldFrameLocks(imageMotion);
   if (directorWantsEmptyHands(staging) || directorWantsEmptyHands(body)) {
     body = stripJoPhoneLock(body);
   }
+  if (isCutawayMotion(body)) return body;
   return withLtxLipSyncLead(body);
 }
 
@@ -370,6 +379,36 @@ export function buildSpeakingMotion(opts: {
       "Camera holds. Same person and objects as the start image.",
       "No new people enter the frame.",
       GOLD_NO_LINE_EXTRAS,
+      motionStyleLock(opts.styleId),
+    ].join(" "),
+  );
+}
+
+/**
+ * Silent action on the existing still — stand up, walk away, walk toward.
+ * No spoken line. No lip-sync lead. Same first-frame lock as a hold.
+ */
+export function buildCutawayMotion(opts: {
+  styleId: ShowStyleId;
+  speaker: string;
+  action: string;
+  lookLock?: string;
+  shotSpeakers?: string[];
+  staging?: string;
+}): string {
+  const name = clean(opts.speaker) || "The character";
+  const look = shortLtxLookLock(opts.lookLock || "");
+  const who = look ? `${name}, ${look}` : name;
+  const move = clean(opts.action) || "stands up from sitting, rises to their feet";
+  return clean(
+    [
+      "Use the provided start image as the first frame.",
+      `${who} is prominent, empty hands, no phone. ${move}.`,
+      onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
+      "Props and background stay exactly as the start image, nothing new enters frame.",
+      GOLD_NO_TEXT,
+      "No dialogue. Mouth stays closed. Camera holds, no cuts. Same person and objects as the start image.",
+      "No new people enter the frame.",
       motionStyleLock(opts.styleId),
     ].join(" "),
   );

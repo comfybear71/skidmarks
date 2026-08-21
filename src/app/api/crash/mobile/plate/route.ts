@@ -6,8 +6,10 @@ import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
 import { clearAllStoryShots, clipQueueError } from "@/lib/mobileClipQueue";
 import { isEpisodeClipPlanError, planParkClipsUnderPlate } from "@/lib/mobileEpisodeClips";
-import { defaultSoloStaging } from "@/lib/mobileImageMotion";
-import { beatsAfterRemoveLine } from "@/lib/mobilePlateLines";
+import { CUTAWAY_ACTIONS } from "@/lib/cutawayActions";
+import { buildCutawayMotion, defaultSoloStaging } from "@/lib/mobileImageMotion";
+import { candidateLookPrompt } from "@/lib/mobileJobReady";
+import { beatsAfterRemoveLine, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import { castNamesMatch } from "@/lib/mobileDropCast";
 import { rebuildShotPlate } from "@/lib/mobilePlateRebuild";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
@@ -64,6 +66,8 @@ function patchShotFields(
  * Appends a beat for that speaker if they're not already in it.
  * POST { jobId, shotId, speaker?, action: "add-line" } — another spoken
  * take on the SAME still. Same face, new mp3, new clip thumb under the plate.
+ * POST { jobId, shotId, speaker?, action: "add-cutaway" } — silent take on
+ * the SAME still. SFX mp3 + Image motion come next. Does not Redo.
  * POST { jobId, shotId, beatId, action: "remove-line" } — drop that spoken
  * take from the plate. Audio/clip files stay in Blob (park). The thumb
  * under the plate goes with it. Last real line leaves an empty box
@@ -113,6 +117,7 @@ export async function POST(req: Request) {
     const add = action === "add";
     const addCast = action === "add-cast";
     const addLine = action === "add-line";
+    const addCutaway = action === "add-cutaway";
     const removeLine = action === "remove-line";
     const remove = action === "remove";
     const clear = action === "clear";
@@ -241,7 +246,7 @@ export async function POST(req: Request) {
     }
     const liveShot = shot;
 
-    if (addLine) {
+    if (addLine || addCutaway) {
       const speaker =
         speakerIn ||
         liveShot.beats.find((b) => b.speaker.trim() && !isHydratedLeftoverBeat(liveShot.id, b))?.speaker ||
@@ -252,7 +257,38 @@ export async function POST(req: Request) {
       const kept = liveShot.beats.filter(
         (b) => b.speaker.trim() && !isHydratedLeftoverBeat(liveShot.id, b),
       );
-      const beat = { id: newId("beat"), speaker: speaker.trim(), text: "" };
+      const lookLock =
+        candidateLookPrompt(job.castCandidates, speaker) ||
+        job.roster.find((c) => c.name.trim().toLowerCase() === speaker.trim().toLowerCase())
+          ?.appearance ||
+        "";
+      const onCard = shotSpeakersOnCard({
+        shotId: liveShot.id,
+        title: liveShot.title,
+        staging: liveShot.staging,
+        summary: liveShot.summary,
+        plateFile: liveShot.plateFile,
+        jobSpeakers: job.speakers,
+        beats: kept,
+      });
+      const move = CUTAWAY_ACTIONS[0]!;
+      const beat = addCutaway
+        ? {
+            id: newId("beat"),
+            speaker: speaker.trim(),
+            text: move.action,
+            kind: "cutaway" as const,
+            action: move.action,
+            imageMotion: buildCutawayMotion({
+              styleId: job.styleId,
+              speaker: speaker.trim(),
+              action: move.action,
+              lookLock,
+              shotSpeakers: onCard.length ? onCard : [speaker.trim()],
+              staging: liveShot.staging,
+            }),
+          }
+        : { id: newId("beat"), speaker: speaker.trim(), text: "" };
       const beats = [...kept, beat];
       const withBeat: CrashStoryDoc = {
         ...story,

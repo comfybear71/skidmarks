@@ -37,7 +37,9 @@ import {
 import { CRASH_DIR } from "@/lib/paths";
 import { dropTailStill, startStillForNextClip } from "@/lib/clipTailFrame";
 import {
+  buildCutawayMotion,
   buildDefaultBeatMotion,
+  isCutawayMotion,
   buildSegmentText,
   buildGlobalPrompt,
   ltxSendPrompt,
@@ -432,7 +434,6 @@ export async function POST(req: Request) {
         // shape docs/SUNNY_BANKS_IMAGE_MOTION_STANDARD.md logged as working
         // 100%: first-frame lock, look lock, "nothing new enters frame",
         // "same person and objects as the start image".
-        const speaking = line.length > 0;
         const lookLock =
           candidateLookPrompt(job.castCandidates, speaker) ||
           job.roster.find(
@@ -449,25 +450,37 @@ export async function POST(req: Request) {
           beats: storyShot.beats,
         });
         const stored = stripLtxLipSyncLead(beat.imageMotion || "");
-        if (looksLikePlatePositionPrompt(line)) {
+        const cutaway = beat.kind === "cutaway" || isCutawayMotion(stored);
+        const speaking = !cutaway && line.length > 0;
+        if (!cutaway && looksLikePlatePositionPrompt(line)) {
           throw new Error(
             "The queued line is the still position, not speech. Wipe the line box, type what she says, Save, then Generate video.",
           );
         }
-        const body =
-          (stored &&
-          !imageMotionNamesLeftovers(stored, leftovers) &&
-          imageMotionUsableForLine(stored, line, storyShot.staging)
+        const body = cutaway
+          ? isCutawayMotion(stored)
             ? stored
-            : "") ||
-          buildDefaultBeatMotion({
-            styleId: job.styleId,
-            speaker,
-            line,
-            lookLock,
-            shotSpeakers: shotCast,
-            staging: storyShot.staging,
-          });
+            : buildCutawayMotion({
+                styleId: job.styleId,
+                speaker,
+                action: (beat.action || line || "stands up from sitting, rises to their feet").trim(),
+                lookLock,
+                shotSpeakers: shotCast,
+                staging: storyShot.staging,
+              })
+          : (stored &&
+            !imageMotionNamesLeftovers(stored, leftovers) &&
+            imageMotionUsableForLine(stored, line, storyShot.staging)
+              ? stored
+              : "") ||
+            buildDefaultBeatMotion({
+              styleId: job.styleId,
+              speaker,
+              line,
+              lookLock,
+              shotSpeakers: shotCast,
+              staging: storyShot.staging,
+            });
         const imageMotion = ltxSendPrompt(body, storyShot.staging);
 
         // Recorded on the clip before the render even starts, so the prompt is
