@@ -5,6 +5,7 @@ import {
   MobileAudioPlayer,
   MobilePrimaryButton,
   MobileTextInput,
+  ShimmerText,
   mobileCard,
 } from "./MobileUi";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "./PlateClipThumbs";
@@ -452,6 +453,11 @@ export function PlateReviewEditor({
           No plates yet. Tap + for an empty card, or tap a name on a place then Add.
         </div>
       ) : null}
+      {focusShotId && shots.some((s) => s.shotId === focusShotId) ? (
+        <div className="m-place-plate-note" style={{ margin: "0 2px 8px" }}>
+          New plate — this one. No still yet. Tap it, then Draw.
+        </div>
+      ) : null}
       {collapsed ? null : shots.length || job.finalVideoFile ? (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", margin: "0 2px 8px" }}>
           <button
@@ -624,6 +630,7 @@ export function PlateReviewEditor({
                     setOpenShotId((cur) => (cur === s.shotId ? null : s.shotId));
                   }}
                   style={{
+                    position: "relative",
                     padding: "2px",
                     border: s.shotId === openShotId ? "2px solid var(--acid)" : "2px solid var(--line)",
                     borderRadius: "2px",
@@ -662,6 +669,17 @@ export function PlateReviewEditor({
                       {i + 1}
                     </div>
                   )}
+                  {!plated ? (
+                    <div className="m-plate-no-still">
+                      <span>
+                        {(storyShot?.beats || [])
+                          .map((b) => b.speaker.trim())
+                          .filter(Boolean)
+                          .join(", ") || "Empty"}
+                      </span>
+                      <span className="m-plate-no-still-sub">No still</span>
+                    </div>
+                  ) : null}
                 </button>
                 {!collapsed ? (
                   <button
@@ -1515,8 +1533,8 @@ function CastIntoPlatePopup({
               aiBusy={assist.aiBusy}
             />
             <MobilePrimaryButton
+              busy={busy}
               disabled={
-                busy ||
                 assist.aiBusy ||
                 (crowd ? padCast.length < 2 || !staging.trim() : !staging.trim())
               }
@@ -1530,6 +1548,11 @@ function CastIntoPlatePopup({
                     : "Draw this picture"
                   : "Draw this picture"}
             </MobilePrimaryButton>
+            {busy ? (
+              <ShimmerText style={{ fontSize: "13px", fontWeight: 700 }}>
+                Drawing the still — wait here.
+              </ShimmerText>
+            ) : null}
             {assist.aiError ? (
               <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{assist.aiError}</div>
             ) : null}

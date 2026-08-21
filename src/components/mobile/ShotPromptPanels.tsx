@@ -107,15 +107,17 @@ export function PositionPromptPanel({
               <MobilePrimaryButton
                 size="chip"
                 tone="ghost"
+                busy={keeping}
                 disabled={keepDisabled}
                 onClick={onKeep}
               >
-                {keeping ? "…" : keepLabel}
+                {keeping ? "Saving…" : keepLabel}
               </MobilePrimaryButton>
             ) : null}
             {onRedo ? (
               <MobilePrimaryButton
                 size="chip"
+                busy={redrawing}
                 disabled={redoDisabled}
                 onClick={onRedo}
               >
