@@ -415,6 +415,47 @@ body {
   }
 }
 
+/* Fullscreen clip must portal to body. A fixed layer inside
+ * .scratch-clip-rail (overflow-x: auto) stays trapped under the pad. */
+.scratch-clip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  cursor: zoom-out;
+}
+
+.scratch-clip-overlay-x {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  color: var(--chrome);
+  font-size: 24px;
+  pointer-events: none;
+}
+
+.scratch-clip-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--acid);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: var(--acid);
+  font-size: 14px;
+  line-height: 36px;
+  text-align: center;
+  cursor: pointer;
+}
+
 .scratch-clip-rail {
   display: flex;
   flex-direction: row;
