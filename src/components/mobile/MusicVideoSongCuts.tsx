@@ -13,7 +13,6 @@ import {
   SCRATCH_SONG_DIRECT_POST_MAX_BYTES,
 } from "@/lib/scratchSongDrop";
 import {
-  formatSongClock,
   songWindowLabel,
 } from "@/lib/scratchSongWindow";
 import {
@@ -25,7 +24,6 @@ import {
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateCutSpan,
   shortPlateLabel,
-  songCutTallyLine,
   songDeskPlateIds,
   songDeskRowSlices,
   songOrdinal,
@@ -259,18 +257,14 @@ export function MusicVideoSongCuts({
     })
     .filter((row): row is { unit: MobileShotUnit; listIndex: number; shotId: string } => Boolean(row));
   const tally = tallySongCuts(cuts);
-  const cookingCut = cuts.find((c) => c.status === "running");
-  const cookingN = cookingCut ? cuts.findIndex((c) => c.id === cookingCut.id) + 1 : 0;
+  const runningCut = cuts.find((c) => c.status === "running");
   const done = cuts.filter((c) => c.status === "done" && c.clipFile).length;
   const label = song?.fileName
     ? songWindowLabel(song.durationSec, cuts)
     : "Drop the song, then Add plates. − / + sets the length.";
   const progress =
-    song?.fileName && cuts.length
-      ? cookingCut
-        ? `${tally.done}/${tally.total} done · cooking ${cookingN}`
-        : songCutTallyLine(tally)
-      : "";
+    song?.fileName && cuts.length ? `${tally.done}/${tally.total}` : "";
+  const progressPct = cuts.length ? Math.round((tally.done / cuts.length) * 100) : 0;
 
   return (
     <div className="scratch-song">
@@ -297,24 +291,14 @@ export function MusicVideoSongCuts({
       {note ? <p className="scratch-song-parked">{note}</p> : null}
       {cuts.length ? (
         <div
-          className="m-animate-meter"
+          className="m-song-progress"
           role="progressbar"
           aria-valuemin={0}
-          aria-valuemax={cuts.length}
-          aria-valuenow={tally.done}
+          aria-valuemax={100}
+          aria-valuenow={progressPct}
           aria-label="Song cut progress"
         >
-          {cuts.map((cut) => (
-            <span
-              key={cut.id}
-              className={`m-animate-meter-cell${
-                cut.status === "done" ? " is-done" : ""
-              }${cut.status === "error" ? " is-error" : ""}${
-                cut.status === "running" ? " is-run" : ""
-              }`}
-              title={`${formatSongClock(cut.startSec)} · ${cut.status || "pending"}`}
-            />
-          ))}
+          <div className="m-song-progress-fill" style={{ width: `${progressPct}%` }} />
         </div>
       ) : null}
       {!song?.fileName ? (
@@ -342,6 +326,9 @@ export function MusicVideoSongCuts({
             const spanObj = plateCutSpan(mine);
             const span = spanObj ? formatSongSpan(spanObj.startSec, spanObj.endSec) : "";
             const rowDone = deskRowAllDone(mine);
+            const rowRun = mine.some((c) => c.status === "running");
+            const rowDoneN = mine.filter((c) => c.status === "done" && c.clipFile).length;
+            const rowPct = mine.length ? Math.round((rowDoneN / mine.length) * 100) : 0;
             const placeScene = job.scenes.find((sc) => sc.id === s.sceneId);
             const placeFile = approvedCandidateFileName(job.locationCandidates, s.sceneId) || "";
             const thumb = s.plateFile
@@ -359,32 +346,24 @@ export function MusicVideoSongCuts({
                   disabled={skipBusy || listLocked}
                   onDrop={() => void hidePlateFromSong(s.shotId, row.listIndex)}
                 >
-                  <div className={`scratch-song-cut m-song-plate-row${rowDone ? " is-done" : ""}`}>
-                    <div className="m-song-plate-head">
-                      <div className="m-song-plate-thumb-wrap">
-                        {thumb ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img className="m-song-cut-thumb" src={thumb} alt="" />
-                        ) : (
-                          <span className="scratch-song-cut-n">{i + 1}</span>
-                        )}
-                        <button
-                          type="button"
-                          className="m-song-plate-x"
-                          aria-label="Take this plate off the song"
-                          disabled={skipBusy || listLocked}
-                          onClick={() => void hidePlateFromSong(s.shotId, row.listIndex)}
-                        >
-                          {skipBusy ? "…" : "×"}
-                        </button>
-                      </div>
-                      <span className={`scratch-song-cut-meta${rowDone ? " is-done" : ""}`}>
-                        {songOrdinal(i + 1)} · {n} × 15s
-                        {span ? <span className="m-song-cut-clock">{span}</span> : null}
-                        <span className="m-song-cut-sub">{name}</span>
-                      </span>
-                    </div>
-                    <div className="m-song-plate-tools">
+                  <div
+                    className={`scratch-song-cut m-song-plate-row m-song-plate-line${
+                      rowDone ? " is-done" : ""
+                    }${rowRun ? " is-run" : ""}`}
+                    style={{ ["--row-progress" as string]: `${rowPct}%` }}
+                  >
+                    {thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="m-song-cut-thumb m-song-line-thumb" src={thumb} alt="" />
+                    ) : (
+                      <span className="scratch-song-cut-n">{i + 1}</span>
+                    )}
+                    <span className={`scratch-song-cut-meta m-song-line-meta${rowDone ? " is-done" : ""}`}>
+                      {songOrdinal(i + 1)} · {n} × 15s
+                      {span ? <> · {span}</> : null}
+                      <> · {name}</>
+                    </span>
+                    <div className="m-song-plate-tools m-song-line-tools">
                       <button
                         type="button"
                         disabled={Boolean(busy) || listLocked}
@@ -392,7 +371,6 @@ export function MusicVideoSongCuts({
                       >
                         −
                       </button>
-                      <span className="scratch-song-cut-meta">{n} × 15s</span>
                       <button
                         type="button"
                         disabled={Boolean(busy) || listLocked}
@@ -424,7 +402,11 @@ export function MusicVideoSongCuts({
           disabled={Boolean(busy) || !cuts.length || !pendingSongCuts(job).length}
           onClick={() => void runCuts()}
         >
-          {busy === "cook" ? "Cooking…" : "Generate cuts"}
+          {busy === "cook"
+            ? runningCut
+              ? `${tally.done}/${tally.total}`
+              : "Working…"
+            : "Generate cuts"}
         </MobilePrimaryButton>
         <MobilePrimaryButton
           size="chip"

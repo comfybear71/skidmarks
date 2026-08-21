@@ -418,6 +418,102 @@ body {
   border-bottom: 1px solid #1f1f1f;
 }
 
+/* One tidy line — progress fills behind the row */
+.m-song-plate-row.m-song-plate-line {
+  position: relative;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  overflow: hidden;
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.m-song-plate-row.m-song-plate-line::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--row-progress, 0%);
+  background: color-mix(in srgb, var(--acid) 20%, transparent);
+  pointer-events: none;
+  z-index: 0;
+  transition: width 0.25s ease;
+}
+
+.m-song-plate-row.m-song-plate-line.is-run::before {
+  background: color-mix(in srgb, var(--acid) 32%, transparent);
+}
+
+.m-song-plate-row.m-song-plate-line.is-done::before {
+  width: 100%;
+  background: color-mix(in srgb, var(--acid) 28%, transparent);
+}
+
+.m-song-plate-row.m-song-plate-line > * {
+  position: relative;
+  z-index: 1;
+}
+
+.m-song-line-thumb {
+  width: 40px !important;
+  height: 40px !important;
+  flex: 0 0 auto;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+.m-song-line-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px !important;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.m-song-line-meta.is-done,
+.scratch-song-cut-meta.is-done {
+  color: var(--acid);
+}
+
+.m-song-line-tools {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.m-song-line-tools button {
+  min-height: 32px;
+  padding: 0 8px;
+}
+
+.m-song-line-tools .m-song-plate-x-inline {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  font-size: 18px;
+}
+
+.m-song-progress {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  margin: 8px 0 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.m-song-progress-fill {
+  height: 100%;
+  background: var(--acid);
+  transition: width 0.25s ease;
+}
+
 .m-song-plate-head {
   display: flex;
   align-items: flex-start;
