@@ -10,6 +10,42 @@ export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+/** PATCH { prompt?, artist?, songTitle?, styleRealism? } — fix the start. Same job. */
+export async function PATCH(req: Request, ctx: Ctx) {
+  const { id } = await ctx.params;
+  const job = await readMobileGenJob(id);
+  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  const body = (await req.json().catch(() => ({}))) as {
+    prompt?: string;
+    artist?: string;
+    songTitle?: string;
+    styleRealism?: number;
+  };
+  const patch: {
+    prompt?: string;
+    artist?: string;
+    songTitle?: string;
+    styleRealism?: number;
+    error: string;
+  } = { error: "" };
+  if (typeof body.prompt === "string") {
+    const prompt = body.prompt.trim();
+    if (!prompt) return NextResponse.json({ error: "Need a vibe." }, { status: 400 });
+    patch.prompt = prompt;
+  }
+  if (typeof body.artist === "string") patch.artist = body.artist.trim();
+  if (typeof body.songTitle === "string") patch.songTitle = body.songTitle.trim();
+  if (body.styleRealism !== undefined) {
+    const raw = Number(body.styleRealism);
+    if (!Number.isFinite(raw)) {
+      return NextResponse.json({ error: "Need a look slider number." }, { status: 400 });
+    }
+    patch.styleRealism = Math.max(0, Math.min(100, Math.round(raw)));
+  }
+  const updated = await patchMobileGenJob(id, patch);
+  return NextResponse.json({ ok: true, job: updated });
+}
+
 /** GET — poll a mobile run's current state. */
 export async function GET(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;

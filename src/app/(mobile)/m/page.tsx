@@ -35,6 +35,8 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 
 export default function MobileHomePage() {
   const [prompt, setPrompt] = useState("");
+  const [artist, setArtist] = useState("");
+  const [songTitle, setSongTitle] = useState("");
   const [styleId, setStyleId] = useState<(typeof SHOW_STYLE_PRESETS)[number]["id"]>("skidmarks");
   const [styleRealism, setStyleRealism] = useState<number>(
     SHOW_STYLE_PRESETS.find((p) => p.id === "skidmarks")?.defaultRealism ?? 60,
@@ -208,6 +210,8 @@ export default function MobileHomePage() {
         styleId,
         styleRealism,
         deskId: DEFAULT_DESK_ID,
+        artist,
+        songTitle,
       });
       setJob(created);
       setDraftingNew(false);
@@ -218,7 +222,7 @@ export default function MobileHomePage() {
     } finally {
       setBusy(false);
     }
-  }, [prompt, styleId, styleRealism]);
+  }, [prompt, styleId, styleRealism, artist, songTitle]);
 
   const openEpisode = useCallback(async (jobId: string) => {
     const id = jobId.trim();
@@ -233,6 +237,8 @@ export default function MobileHomePage() {
       setJob(data.job);
       setDraftingNew(false);
       setPrompt(data.job.prompt || "");
+      setArtist(data.job.artist || "");
+      setSongTitle(data.job.songTitle || "");
       if (data.job.styleId) setStyleId(data.job.styleId as typeof styleId);
       if (typeof data.job.styleRealism === "number") setStyleRealism(data.job.styleRealism);
       try {
@@ -624,6 +630,21 @@ export default function MobileHomePage() {
           {vibeAssist.aiError ? (
             <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
               {vibeAssist.aiError}
+            </div>
+          ) : null}
+
+          {styleId === "music_video" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px" }}>
+              <MobileTextInput
+                value={artist}
+                onChange={setArtist}
+                placeholder="Artist"
+              />
+              <MobileTextInput
+                value={songTitle}
+                onChange={setSongTitle}
+                placeholder="Song"
+              />
             </div>
           ) : null}
 

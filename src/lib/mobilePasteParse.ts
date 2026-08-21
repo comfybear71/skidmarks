@@ -24,13 +24,20 @@ export function episodeTemplateFromJob(job: {
   prompt: string;
   speakers: string[];
   scenes: { placeName: string }[];
+  artist?: string;
+  songTitle?: string;
 }): string {
   const vibe = job.prompt.trim();
-  const title = vibe.split(/\n/)[0]?.slice(0, 80) || "Untitled episode";
+  const artist = (job.artist || "").trim();
+  const song = (job.songTitle || "").trim();
+  const credit = [artist, song].filter(Boolean).join(" — ");
+  const title =
+    credit || vibe.split(/\n/)[0]?.slice(0, 80) || "Untitled episode";
+  const gag = credit ? [vibe, `Artist: ${artist || "—"}`, `Song: ${song || "—"}`].filter(Boolean).join("\n") : vibe;
   const shots = job.scenes.map((s, i) =>
     [`--- SHOT ${i + 1} ---`, `Place: ${s.placeName}`, "Title: ", "Action: ", "Plate: "].join("\n"),
   );
-  return [`EPISODE: ${title}`, `GAG: ${vibe}`, "", ...shots].join("\n\n");
+  return [`EPISODE: ${title}`, `GAG: ${gag}`, "", ...shots].join("\n\n");
 }
 
 export function storyHasSpokenLine(story: CrashStoryDoc): boolean {

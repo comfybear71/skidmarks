@@ -58,6 +58,13 @@ export function isMusicVideoSongJob(job: { styleId?: string }): boolean {
   return job.styleId === "music_video";
 }
 
+export function musicVideoCreditLine(job: { artist?: string; songTitle?: string }): string {
+  const artist = (job.artist || "").trim();
+  const song = (job.songTitle || "").trim();
+  if (artist && song) return `${artist} — ${song}`;
+  return artist || song;
+}
+
 export function clampPlateSliceCount(n: number): number {
   if (!Number.isFinite(n)) return MUSIC_VIDEO_SLICE_DEFAULT;
   return Math.max(1, Math.min(MUSIC_VIDEO_SLICE_MAX, Math.floor(n)));

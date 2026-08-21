@@ -14,7 +14,7 @@ import { SingleCandidateCard } from "./SingleCandidateCard";
 import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { MusicVideoSongCuts } from "./MusicVideoSongCuts";
-import { isMusicVideoSongJob } from "@/lib/musicVideoSong";
+import { isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong";
 import {
   allCastApproved,
   allLocationsApproved,
@@ -837,6 +837,15 @@ export function StudioTree({
   const [plateSpeaker, setPlateSpeaker] = useState("");
   const [binFailedBusy, setBinFailedBusy] = useState(false);
   const [binFailedError, setBinFailedError] = useState("");
+  const [vibeEdit, setVibeEdit] = useState(false);
+  const [vibeDraft, setVibeDraft] = useState(job.prompt);
+  const [artistDraft, setArtistDraft] = useState(job.artist || "");
+  const [songDraft, setSongDraft] = useState(job.songTitle || "");
+  const [realismDraft, setRealismDraft] = useState(
+    job.styleRealism ?? getShowStylePreset(job.styleId).defaultRealism,
+  );
+  const [vibeBusy, setVibeBusy] = useState(false);
+  const [vibeError, setVibeError] = useState("");
 
   async function addLocationToPlate(sceneId: string, speaker: string) {
     const who = speaker.trim();
@@ -1080,15 +1089,126 @@ export function StudioTree({
   const queued = episodeQueuedClips({ ...job, clips: queuedSavedClips(job.clips) });
   const vibePreset = getShowStylePreset(job.styleId);
   const vibeRealism = job.styleRealism ?? vibePreset.defaultRealism;
+  const credit = musicVideoCreditLine(job);
+
+  async function keepVibe() {
+    const nextPrompt = vibeDraft.trim();
+    if (!nextPrompt) {
+      setVibeError("Need a vibe.");
+      return;
+    }
+    setVibeBusy(true);
+    setVibeError("");
+    try {
+      const res = await fetch(`/api/crash/mobile/job/${encodeURIComponent(job.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: nextPrompt,
+          artist: isMusicVideoSongJob(job) ? artistDraft : undefined,
+          songTitle: isMusicVideoSongJob(job) ? songDraft : undefined,
+          styleRealism: realismDraft,
+        }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onJobChange(data.job);
+      setVibeEdit(false);
+    } catch (e) {
+      setVibeError(e instanceof Error ? e.message : "Couldn't keep that vibe");
+    } finally {
+      setVibeBusy(false);
+    }
+  }
 
   return (
     <div style={{ padding: "12px 16px 48px" }}>
       <TreeBranch label="Vibe">
         <div style={{ ...mobileCard, padding: "12px 14px" }}>
-          <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--chrome)" }}>{job.prompt}</div>
-          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
-            {vibePreset.label} · {vibeRealism} · {styleRealismLabel(vibeRealism)}
-          </div>
+          {vibeEdit ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <MobileTextInput
+                value={vibeDraft}
+                onChange={setVibeDraft}
+                placeholder="What's the vibe?"
+                multiline
+                rows={3}
+              />
+              {isMusicVideoSongJob(job) ? (
+                <>
+                  <MobileTextInput value={artistDraft} onChange={setArtistDraft} placeholder="Artist" />
+                  <MobileTextInput value={songDraft} onChange={setSongDraft} placeholder="Song" />
+                </>
+              ) : null}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--chrome-dim)" }}>
+                <span>Cartoon</span>
+                <span style={{ color: "var(--acid)", fontWeight: 700 }}>
+                  {realismDraft} · {styleRealismLabel(realismDraft)}
+                </span>
+                <span>Photoreal</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={realismDraft}
+                onChange={(e) => setRealismDraft(Number(e.target.value))}
+                aria-label="Cartoon to photoreal"
+                style={{ width: "100%", accentColor: "var(--acid)" }}
+              />
+              {vibeError ? (
+                <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>{vibeError}</div>
+              ) : null}
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <MobilePrimaryButton size="chip" disabled={vibeBusy} onClick={() => void keepVibe()}>
+                  {vibeBusy ? "Keeping…" : "Keep vibe"}
+                </MobilePrimaryButton>
+                <MobilePrimaryButton
+                  size="chip"
+                  tone="ghost"
+                  disabled={vibeBusy}
+                  onClick={() => {
+                    setVibeEdit(false);
+                    setVibeError("");
+                    setVibeDraft(job.prompt);
+                    setArtistDraft(job.artist || "");
+                    setSongDraft(job.songTitle || "");
+                    setRealismDraft(vibeRealism);
+                  }}
+                >
+                  Leave it
+                </MobilePrimaryButton>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--chrome)" }}>{job.prompt}</div>
+              {credit ? (
+                <div style={{ color: "var(--acid)", fontSize: "13px", marginTop: "4px", fontWeight: 600 }}>
+                  {credit}
+                </div>
+              ) : null}
+              <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
+                {vibePreset.label} · {vibeRealism} · {styleRealismLabel(vibeRealism)}
+              </div>
+              <div style={{ marginTop: "10px" }}>
+                <MobilePrimaryButton
+                  size="chip"
+                  tone="ghost"
+                  onClick={() => {
+                    setVibeDraft(job.prompt);
+                    setArtistDraft(job.artist || "");
+                    setSongDraft(job.songTitle || "");
+                    setRealismDraft(vibeRealism);
+                    setVibeError("");
+                    setVibeEdit(true);
+                  }}
+                >
+                  Edit vibe
+                </MobilePrimaryButton>
+              </div>
+            </>
+          )}
         </div>
       </TreeBranch>
 

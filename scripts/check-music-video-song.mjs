@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   clampPlateSliceCount,
   isMusicVideoSongJob,
+  musicVideoCreditLine,
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateSliceWindows,
   songCutTallyLine,
@@ -16,6 +17,9 @@ import { songCookStorageKey } from "../src/lib/songCutCook.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const tree = readFileSync(join(here, "../src/components/mobile/StudioTree.tsx"), "utf8");
+const mPage = readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8");
+const jobIdRoute = readFileSync(join(here, "../src/app/api/crash/mobile/job/[id]/route.ts"), "utf8");
+const jobCreate = readFileSync(join(here, "../src/app/api/crash/mobile/job/route.ts"), "utf8");
 const songUi = readFileSync(join(here, "../src/components/mobile/MusicVideoSongCuts.tsx"), "utf8");
 const songRoute = readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8");
 const scratchPage = readFileSync(join(here, "../src/app/(mobile)/scratch/page.tsx"), "utf8");
@@ -26,6 +30,8 @@ const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEdit
 
 assert.equal(isMusicVideoSongJob({ styleId: "music_video" }), true);
 assert.equal(isMusicVideoSongJob({ styleId: "skidmarks" }), false);
+assert.equal(musicVideoCreditLine({ artist: "Jack Ghost", songTitle: "Take Me Down" }), "Jack Ghost — Take Me Down");
+assert.equal(musicVideoCreditLine({ artist: "Jack Ghost" }), "Jack Ghost");
 assert.equal(clampPlateSliceCount(4), 4);
 assert.equal(clampPlateSliceCount(99), 16);
 assert.equal(MUSIC_VIDEO_SLICE_DEFAULT, 4);
@@ -73,6 +79,13 @@ assert.match(songUi, /now cooking/);
 assert.match(editor, /m-song-plate-tally/);
 assert.match(tree, /MusicVideoSongCuts/);
 assert.match(tree, /isMusicVideoSongJob/);
+assert.match(tree, /Edit vibe/);
+assert.match(tree, /Keep vibe/);
+assert.match(tree, /method: "PATCH"/);
+assert.match(mPage, /placeholder="Artist"/);
+assert.match(mPage, /placeholder="Song"/);
+assert.match(jobIdRoute, /export async function PATCH/);
+assert.match(jobCreate, /artist: body.artist/);
 assert.doesNotMatch(tree, /from "fs"/);
 assert.match(attach, /styleId === "music_video"/);
 assert.match(clip, /skipLipSyncLead/);

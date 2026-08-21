@@ -21,6 +21,14 @@ const job = {
 
 const template = episodeTemplateFromJob(job);
 assert.match(template, /^EPISODE: CRAZY BIG HOLE JO/m);
+const mv = episodeTemplateFromJob({
+  ...job,
+  artist: "Jack Ghost",
+  songTitle: "Take Me Down",
+});
+assert.match(mv, /Jack Ghost — Take Me Down/);
+assert.match(mv, /Artist: Jack Ghost/);
+assert.match(mv, /Song: Take Me Down/);
 assert.match(template, /Place: Matty bar/);
 assert.match(template, /Place: Front of the houses/);
 assert.throws(

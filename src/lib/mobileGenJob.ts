@@ -99,6 +99,9 @@ export type MobileGenJob = {
   styleId: ShowStyleId;
   folderName: string;
   prompt: string;
+  /** Music video only. Older jobs omit these. */
+  artist?: string;
+  songTitle?: string;
   /** Leftover from the old "How long?" step. Not a planning input —
    * runtime comes from voiced lines + plates. Kept so older jobs still parse. */
   targetDurationSec: number;
@@ -181,6 +184,8 @@ export async function createMobileGenJob(opts: {
   secondsPerShot: number;
   styleRealism?: number;
   deskId?: string;
+  artist?: string;
+  songTitle?: string;
 }): Promise<MobileGenJob> {
   const now = new Date().toISOString();
   const job: MobileGenJob = {
@@ -192,6 +197,8 @@ export async function createMobileGenJob(opts: {
     folderName: "",
     deskId: normalizeDeskId(opts.deskId || DEFAULT_DESK_ID),
     prompt: opts.prompt,
+    artist: (opts.artist || "").trim() || undefined,
+    songTitle: (opts.songTitle || "").trim() || undefined,
     targetDurationSec: opts.targetDurationSec,
     secondsPerShot: opts.secondsPerShot,
     styleRealism: opts.styleRealism,
