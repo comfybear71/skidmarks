@@ -1581,6 +1581,7 @@ function ShotLineEditor({
             })}
             placeName={placeName || "this place"}
             beat={beat}
+            clipStatus={clips.find((c) => c.beatId === beat.id)?.clipStatus}
             positionPrompt={shot.staging || ""}
             positionBibleIds={resolveShotBibleIds(shot)}
             onPositionSaved={(staging, plate) =>
@@ -1693,6 +1694,7 @@ function BeatLineEditor({
   shotSpeakers,
   placeName,
   beat,
+  clipStatus,
   positionPrompt,
   positionBibleIds,
   onPositionSaved,
@@ -1708,6 +1710,7 @@ function BeatLineEditor({
   shotSpeakers: string[];
   placeName?: string;
   beat: CrashStoryBeat;
+  clipStatus?: MobileClipUnit["clipStatus"];
   positionPrompt: string;
   positionBibleIds?: string[];
   onPositionSaved: (
@@ -1736,6 +1739,7 @@ function BeatLineEditor({
     lineVoiceLabel({ speaker: beat.speaker, jobVoices, library: [] }),
   );
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [redrawing, setRedrawing] = useState(false);
   const [error, setError] = useState("");
@@ -1916,6 +1920,29 @@ function BeatLineEditor({
     },
     [beat.id, jobId, onSaved, text, voiceFile],
   );
+
+  async function generateThisClip() {
+    if (!playable) {
+      setError("Save the spoken line first — Play appears when the mp3 is ready.");
+      return;
+    }
+    setGenerating(true);
+    setError("");
+    try {
+      if (motionDirty) await persistMotion(motionBody);
+      const res = await fetch("/api/crash/mobile/step", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, approveReview: true, beatId: beat.id }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onSaved(text, voiceFile, motionBody, data.job);
+    } catch (e) {
+      setError(studioFetchError(e, "Couldn't start that clip"));
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   const emptiedPhoneMotionRef = useRef("");
   useEffect(() => {
@@ -2198,6 +2225,29 @@ function BeatLineEditor({
         aiBusy={motionAssist.aiBusy}
         aiError={motionAssist.aiError}
       />
+      <MobilePrimaryButton
+        disabled={
+          generating ||
+          saving ||
+          removing ||
+          !playable ||
+          positionAsLine ||
+          clipStatus === "running"
+        }
+        onClick={() => void generateThisClip()}
+      >
+        {generating || clipStatus === "running"
+          ? "Sending…"
+          : playable
+            ? "Generate"
+            : "Save the line first"}
+      </MobilePrimaryButton>
+      {!playable ? (
+        <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>
+          Save the spoken line (Play appears), then Generate — that makes this plate&apos;s LTX
+          clip. Generate video at the top still sends every Saved line.
+        </div>
+      ) : null}
     </div>
   );
 }

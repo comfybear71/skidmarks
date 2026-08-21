@@ -2,7 +2,7 @@ import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import type { MobileClipUnit, MobileGenJob } from "./mobileGenJob";
 import { clipFileBasename, stackedClipFiles } from "./mobilePlateClips";
-import { isLeftoverPackVoiceFile } from "./mobileSavedVoice";
+import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
 import { voiceNamesMatch } from "./voiceNameMatch";
 
 type ClipQueueRow = Pick<MobileClipUnit, "beatId" | "shotId" | "clipStatus" | "clipFile">;
@@ -220,6 +220,37 @@ export function upsertPendingClip(
         }
       : c,
   );
+}
+
+/**
+ * Generate on one plate line — pending that beat only.
+ * Does not re-queue every other Saved line (that's Generate video).
+ */
+export function queueOneBeatForAnimate(
+  job: MobileGenJob,
+  story: CrashStoryDoc,
+  beatId: string,
+): { clips: MobileClipUnit[]; error?: string } {
+  const id = beatId.trim();
+  const home = findBeatHome(story, id);
+  if (!home) return { clips: job.clips || [], error: "That line isn't on this pack" };
+  const existing = (job.clips || []).find((c) => c.beatId === id);
+  const voice =
+    (isMobileSavedVoiceFile(home.voiceFile) && home.voiceFile) ||
+    (isMobileSavedVoiceFile(existing?.voiceFile) && existing?.voiceFile) ||
+    "";
+  if (!isMobileSavedVoiceFile(voice)) {
+    return {
+      clips: job.clips || [],
+      error: "Save the spoken line first — Play appears when the mp3 is ready.",
+    };
+  }
+  const clips = upsertPendingClip(job, story, id).map((c) =>
+    c.beatId === id
+      ? { ...c, voiceFile: voice, clipStatus: "pending" as const, error: "" }
+      : c,
+  );
+  return { clips };
 }
 
 export function queuedSavedClips(clips: MobileClipUnit[]): MobileClipUnit[] {

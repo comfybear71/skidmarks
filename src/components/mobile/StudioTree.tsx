@@ -1079,7 +1079,7 @@ export function StudioTree({
             {queued.length === 0 && plated.length
               ? " — Save the spoken line (Play appears) before Generate video"
               : queued.length
-                ? ` — Generate sends Saved mp3s (stacks under the plate; tap again to render again)`
+                ? ` — Generate on a plate sends that line. Generate video sends every Saved mp3`
                 : ""}
           </div>
           {job.error ? (

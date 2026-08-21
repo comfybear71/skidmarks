@@ -5,6 +5,7 @@ import {
   nextClipToAnimate,
   previousDoneClipOnShot,
   queueableStoryBeats,
+  queueOneBeatForAnimate,
   queuedSavedClips,
   upsertPendingClip,
 } from "../src/lib/mobileClipQueue.ts";
@@ -362,5 +363,44 @@ const three = [
   { beatId: "a3", shotId: "shot_jo", clipStatus: "pending", clipFile: "" },
 ];
 assert.equal(previousDoneClipOnShot(three, three[2])?.clipFile, "a2.mp4");
+
+const twoClipJob = {
+  ...job,
+  clips: [
+    {
+      beatId: "beat_jo",
+      shotId: "shot_jo",
+      sceneId: "sc1",
+      clipFile: "jo.mp4",
+      clipStatus: "done",
+      error: "",
+      speaker: "CRAZY BIG HOLE JO",
+      line: "hi",
+      voiceFile: "01_01_CRAZY_BIG_HOLE_JO_sitting-texting_mjx8k2.mp3",
+    },
+    {
+      beatId: "beat_other",
+      shotId: "shot_x",
+      sceneId: "sc1",
+      clipFile: "x.mp4",
+      clipStatus: "done",
+      error: "",
+      speaker: "X",
+      line: "yo",
+      voiceFile: "01_02_X_yo_abc12.mp3",
+    },
+  ],
+};
+const oneBeat = queueOneBeatForAnimate(twoClipJob, savedStory, "beat_jo");
+assert.equal(oneBeat.error, undefined);
+assert.equal(oneBeat.clips.find((c) => c.beatId === "beat_jo")?.clipStatus, "pending");
+assert.equal(
+  oneBeat.clips.find((c) => c.beatId === "beat_other")?.clipStatus,
+  "done",
+  "Generate on one line must not re-queue every Saved mp3",
+);
+
+const leftoverOne = queueOneBeatForAnimate(job, leftoverJoStory, "shot_jo_a1");
+assert.match(leftoverOne.error || "", /Save the spoken line/);
 
 console.log("check-mobile-clip-queue: ok");
