@@ -13,6 +13,7 @@ import {
 } from "./mobileCastPlaces";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { defaultSoloStaging } from "./mobileImageMotion";
+import { emptyStageFarOutStaging } from "./emptyStagePlate";
 import { approvedCandidateFileName } from "./mobileJobReady";
 import { episodeJobShots } from "./mobileScratch";
 import { newId } from "./types";
@@ -340,9 +341,9 @@ export function appendPlacePlate(opts: {
       }
     : {
         id: newId("shot"),
-        title: picked.placeName || "Plate",
-        summary: "",
-        staging: "",
+        title: picked.placeName || "Empty stage",
+        summary: "Far out, empty stage. No people.",
+        staging: emptyStageFarOutStaging(picked.placeName),
         plateFile: "",
         beats: [{ id: newId("beat"), speaker: "", text: "" }],
         sfx: [],

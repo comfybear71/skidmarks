@@ -978,6 +978,7 @@ export function StudioTree({
     canLockEpisode(job.phase);
 
   const plated = episodeJobShots(job, deskStory).filter((s) => s.plateFile && s.plateFile !== "__error__");
+  const songPlates = episodeJobShots(job, deskStory).filter((s) => s.plateFile !== "__error__");
   const episodeShots = episodeJobShots(job, deskStory);
   const plateCounts = episodePlateCounts(job, deskStory);
   const unplated = plateCounts.total - plateCounts.done;
@@ -1457,7 +1458,9 @@ export function StudioTree({
                 {job.folderName ? (
                   <div className="m-place-plate-extra">
                     <div className="m-place-plate-hint">
-                      Tap a name, or Empty. Then Add. The card shows under PLATES.
+                      {isMusicVideoSongJob(job)
+                        ? "Empty is the far-out empty stage. No people. It goes on the song. Or tap a name."
+                        : "Tap a name, or Empty. Then Add. The card shows under PLATES."}
                     </div>
                     <div className="m-place-plate-chips">
                       {job.speakers.map((name) => (
@@ -1510,7 +1513,9 @@ export function StudioTree({
                           ? "Adding…"
                           : plateSpeaker.trim()
                             ? `Add ${plateSpeaker.trim()}`
-                            : "Add empty plate"}
+                            : isMusicVideoSongJob(job)
+                              ? "Add empty stage"
+                              : "Add empty plate"}
                       </MobilePrimaryButton>
                     </div>
                     {addingPlateFor === placeFocus ? (
@@ -1620,7 +1625,7 @@ export function StudioTree({
           <MusicVideoSongCuts
             job={job}
             story={deskStory}
-            plated={plated}
+            plated={songPlates}
             onJobChange={onJobChange}
           />
         ) : null}

@@ -13,6 +13,8 @@ import { beatsAfterRemoveLine, shotSpeakersOnCard } from "@/lib/mobilePlateLines
 import { castNamesMatch } from "@/lib/mobileDropCast";
 import { appendPlacePlate } from "@/lib/mobilePlateGraph";
 import { landEpisodePlateStill, rebuildShotPlate } from "@/lib/mobilePlateRebuild";
+import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
+import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
 import { scratchDrawStillInFlight } from "@/lib/mobileScratch";
 import { finishSirayScratchPlate, submitSirayScratchPlate } from "@/lib/sirayScratchPlate";
 import { sirayConfigured } from "@/lib/sirayClient";
@@ -64,7 +66,8 @@ function patchShotFields(
  * from the carousel. Files stay.
  * POST { jobId, sceneId, speaker, action: "add" } — add a shot card at
  * that location. With speaker: a solo card, one beat, that speaker only.
- * Without speaker: an empty plate — add cast to it with "add-cast".
+ * Without speaker: empty stage plate — far out, no people. Copies the
+ * locked place still onto a new plate file so it can sit on the song.
  * POST { jobId, shotId, speaker, action: "add-cast" } — put one more
  * character into an existing shot (repeat to build a conversation).
  * Appends a beat for that speaker if they're not already in it.
@@ -249,11 +252,27 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: message }, { status: missing ? 404 : 400 });
       }
       await writeMobileStory(minted.story, job.folderName);
-      const updated = await patchMobileGenJob(jobId, {
+      let updated = await patchMobileGenJob(jobId, {
         shots: minted.shots,
         error: "",
         phase: phaseAfterPlateAdd(job.phase),
       });
+      if (!speakerIn && updated) {
+        const copied = await copyPlaceStillAsEmptyPlate({
+          job: updated,
+          sceneId: minted.sceneId,
+        });
+        if (copied) {
+          const landed = await landEpisodePlateStill({
+            job: updated,
+            story: minted.story,
+            shotId: minted.shotId,
+            fileName: copied,
+            staging: emptyStageFarOutStaging(minted.placeName),
+          });
+          updated = landed.job;
+        }
+      }
       return NextResponse.json({ ok: true, job: updated, shotId: minted.shotId });
     }
 

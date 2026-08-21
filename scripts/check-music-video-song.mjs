@@ -15,6 +15,7 @@ import {
   withSkippedSongPlate,
   withoutSkippedSongPlate,
 } from "../src/lib/musicVideoSong.ts";
+import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
 import { songCookStorageKey } from "../src/lib/songCutCook.ts";
 
@@ -72,6 +73,13 @@ assert.match(songRoute, /remove-plate-parked/);
 assert.match(songRoute, /skip-plate/);
 assert.match(songUi, /hidePlateFromSong/);
 assert.match(songUi, /Leave song/);
+assert.match(emptyStageFarOutStaging("A dark stage"), /Far out/);
+assert.match(emptyStageFarOutStaging("A dark stage"), /No people/);
+assert.match(songRoute, /copyPlaceStillAsEmptyPlate/);
+assert.match(songRoute, /Need the place still first/);
+assert.match(tree, /Add empty stage/);
+assert.match(tree, /songPlates/);
+assert.match(songUi, /Empty stage — Add 15s/);
 assert.match(songUi, /m-song-plate-x/);
 assert.match(songUi, /m-song-plate-x-inline/);
 assert.match(songUi, /Take this plate off the song/);

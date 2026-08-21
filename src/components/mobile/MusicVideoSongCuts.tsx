@@ -32,6 +32,8 @@ import {
   pendingSongCuts,
   songCookFlagOn,
 } from "@/lib/songCutCook";
+import { approvedCandidateFileName } from "@/lib/mobileJobReady";
+import { mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
 
 function SwipeDropRow({
   children,
@@ -381,9 +383,14 @@ export function MusicVideoSongCuts({
             const mine = cutsForPlate(cuts, s.shotId, s.plateFile);
             const mineTally = tallySongCuts(mine);
             const parkedHere = droppablePlateCuts(mine);
+            const placeScene = job.scenes.find((sc) => sc.id === s.sceneId);
+            const placeFile = approvedCandidateFileName(job.locationCandidates, s.sceneId) || "";
             const thumb = s.plateFile
               ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
-              : "";
+              : mobilePlacePreviewUrl(job, {
+                  fileName: placeFile,
+                  worldThumbKey: placeScene?.worldThumbKey || "",
+                });
             const row = (
                   <div className="scratch-song-cut m-song-plate-row">
                     <div className="m-song-plate-head">
@@ -409,7 +416,9 @@ export function MusicVideoSongCuts({
                         <span className="m-song-cut-sub">
                           {mineTally.total
                             ? songCutTallyLine(mineTally)
-                            : "No slices on this plate yet."}
+                            : s.plateFile
+                            ? "No slices on this plate yet."
+                            : "Empty stage — Add 15s to put it on the song."}
                         </span>
                       </span>
                     </div>
