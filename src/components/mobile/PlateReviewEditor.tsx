@@ -930,9 +930,11 @@ function CastIntoPlatePopup({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jobId: job.id, shotId, speaker: picked, action: "add-cast" }),
         });
-        const addData = (await addRes.json()) as { error?: string };
-        if (!addRes.ok && !/already in this shot/i.test(addData.error || "")) {
-          throw new Error(addData.error || "Couldn't add them");
+        try {
+          await readApiJson<{ error?: string }>(addRes);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "";
+          if (!/already in this shot/i.test(msg)) throw e;
         }
       }
       const existing = (shot?.staging || "").trim();
@@ -951,13 +953,12 @@ function CastIntoPlatePopup({
           summary: next,
         }),
       });
-      const drawData = (await drawRes.json()) as {
+      const drawData = await readApiJson<{
         error?: string;
         job?: MobileGenJob;
         plateFile?: string;
         plateTakes?: PlateTake[];
-      };
-      if (!drawRes.ok) throw new Error(drawData.error || "Couldn't draw that still");
+      }>(drawRes);
       onPlaced({
         job: drawData.job,
         plateFile: drawData.plateFile,
@@ -965,7 +966,7 @@ function CastIntoPlatePopup({
         staging: next,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't draw that still");
+      setError(studioFetchError(e, "Couldn't draw that still"));
     } finally {
       setBusy(false);
     }
