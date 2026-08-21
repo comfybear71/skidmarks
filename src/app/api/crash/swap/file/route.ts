@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseStyleCardId } from "@/lib/styleCardThumbs";
 import { readSwapResultFile } from "@/lib/swapCards";
+import { STILL_CACHE_CONTROL } from "@/lib/stillCache";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
   return new NextResponse(new Uint8Array(hit.buf), {
     headers: {
       "Content-Type": hit.contentType,
-      "Cache-Control": "no-store",
+      "Cache-Control": STILL_CACHE_CONTROL,
     },
   });
 }

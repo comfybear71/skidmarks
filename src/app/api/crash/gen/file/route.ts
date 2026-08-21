@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
+import { STILL_CACHE_CONTROL } from "@/lib/stillCache";
 import { cloudBlobRedirect, isSafeMediaName } from "@/lib/cloudMedia";
 
 export const runtime = "nodejs";
@@ -27,6 +28,6 @@ export async function GET(req: Request) {
         ? "image/webp"
         : "image/png";
   return new NextResponse(buf, {
-    headers: { "Content-Type": type, "Cache-Control": "no-store" },
+    headers: { "Content-Type": type, "Cache-Control": STILL_CACHE_CONTROL },
   });
 }
