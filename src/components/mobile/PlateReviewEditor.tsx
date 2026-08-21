@@ -326,7 +326,7 @@ export function PlateReviewEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId: job.id, ...body }),
       });
-      const data = await readApiJson<{ job?: MobileGenJob }>(res);
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
       if (data.job) onJobChange?.(data.job);
     } catch (e) {
       setActionError(studioFetchError(e, "Couldn't park that clip"));

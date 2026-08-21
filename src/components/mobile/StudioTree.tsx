@@ -1010,7 +1010,7 @@ export function StudioTree({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId: job.id, action: "bin-failed" }),
       });
-      const data = await readApiJson<{ job?: MobileGenJob }>(res);
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
       if (data.job) onJobChange(data.job);
     } catch (e) {
       setBinFailedError(studioFetchError(e, "Couldn't bin those clips"));
