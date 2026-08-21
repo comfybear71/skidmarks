@@ -129,13 +129,17 @@ export function ScratchSongCuts({
           disabled={disabled || filling || !plateFile || plateFile === "__error__" || leftToPark === 0}
           onClick={() => {
             setFilling(true);
-            setParkNote(`Parking the rest (${leftToPark} cameras)…`);
+            setParkNote(`Parking ${leftToPark} shot${leftToPark === 1 ? "" : "s"} (2 min batch)…`);
             void Promise.resolve(onFillCuts())
               .catch(() => setParkNote(""))
               .finally(() => setFilling(false));
           }}
         >
-          {filling ? "Parking rest…" : leftToPark ? `Park the rest (${leftToPark})` : "Song is parked"}
+          {filling
+            ? `Parking ${leftToPark}…`
+            : leftToPark
+              ? `Park ${leftToPark} shots (2 min)`
+              : "Song is parked"}
         </MobilePrimaryButton>
         <MobilePrimaryButton
           size="chip"
