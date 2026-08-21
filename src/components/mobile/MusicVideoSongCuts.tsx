@@ -23,8 +23,8 @@ import {
   findSongCarrierBeatId,
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateLabel,
-  skipSongPlateIds,
   songCutTallyLine,
+  songDeskPlateIds,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
 import {
@@ -190,11 +190,17 @@ export function MusicVideoSongCuts({
     }
   }
 
-  async function showPlateOnSong(shotId: string) {
+  async function addPlateToSong(shotId: string) {
+    const n = clampPlateSliceCount(counts[shotId] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+    setBusy(`park-${shotId}`);
+    setNote(`Adding ${n} × 15s…`);
     try {
-      await songAction("unskip-plate", { shotId });
+      await songAction("assign", { shotId, count: n });
+      setNote(`Added ${n} × 15s`);
     } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't put that plate back");
+      setNote(e instanceof Error ? e.message : "Couldn't add those slices");
+    } finally {
+      setBusy("");
     }
   }
 
@@ -221,20 +227,7 @@ export function MusicVideoSongCuts({
   }
 
   async function parkPlate(shotId: string) {
-    const n = clampPlateSliceCount(counts[shotId] ?? MUSIC_VIDEO_SLICE_DEFAULT);
-    setBusy("park");
-    setNote(`Parking ${n} × 15s…`);
-    try {
-      await songAction("assign", {
-        shotId,
-        count: n,
-      });
-      setNote(`Parked ${n} × 15s on that plate`);
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't park those slices");
-    } finally {
-      setBusy("");
-    }
+    await addPlateToSong(shotId);
   }
 
   async function runCuts() {
@@ -293,8 +286,8 @@ export function MusicVideoSongCuts({
   }, [song?.cuts]);
 
   const cuts = song?.cuts || [];
-  const skipped = skipSongPlateIds(song);
-  const deskPlates = plated.filter((s) => !skipped.includes(s.shotId));
+  const onSong = songDeskPlateIds(song);
+  const deskPlates = plated.filter((s) => onSong.includes(s.shotId));
   const tally = tallySongCuts(cuts);
   const cooking = cuts.find((c) => c.status === "running");
   const cookingN = cooking ? cuts.findIndex((c) => c.id === cooking.id) + 1 : 0;
@@ -355,7 +348,7 @@ export function MusicVideoSongCuts({
         </div>
       ) : null}
       <p className="scratch-song-hint">
-        Add 15s on a plate — empty stage or a person. Then Generate cuts.
+        Tap a plate. Tap Add. Then set 1 × 15s or 4 × 15s here. You pick.
       </p>
       {!song?.fileName ? (
         <label className="scratch-song-hint" style={{ display: "block" }}>
@@ -371,24 +364,6 @@ export function MusicVideoSongCuts({
             }}
           />
         </label>
-      ) : null}
-      {song?.fileName && skipped.length ? (
-        <ul className="scratch-song-cuts">
-          {skipped.map((id) => (
-            <li key={`skip-${id}`} className="scratch-song-cut">
-              <span className="scratch-song-cut-meta">
-                {plateLabel(story, id, 0)} left out of this song
-              </span>
-              <MobilePrimaryButton
-                size="chip"
-                tone="ghost"
-                onClick={() => void showPlateOnSong(id)}
-              >
-                Put back
-              </MobilePrimaryButton>
-            </li>
-          ))}
-        </ul>
       ) : null}
       {song?.fileName && deskPlates.length ? (
         <ul className="scratch-song-cuts">
@@ -431,49 +406,44 @@ export function MusicVideoSongCuts({
                         <span className="m-song-cut-sub">
                           {mineTally.total
                             ? songCutTallyLine(mineTally)
-                            : s.plateFile
-                            ? "No slices on this plate yet."
-                            : "Empty stage — Add 15s to put it on the song."}
+                            : "Set 1 × 15s or 4 × 15s. You pick."}
                         </span>
                       </span>
                     </div>
                     <div className="m-song-plate-tools">
-                      {mineTally.total ? (
-                        <>
-                          <button
-                            type="button"
-                            disabled={Boolean(busy)}
-                            onClick={() =>
-                              setCounts((cur) => ({
-                                ...cur,
-                                [s.shotId]: clampPlateSliceCount(n - 1),
-                              }))
-                            }
-                          >
-                            −
-                          </button>
-                          <span className="scratch-song-cut-meta">{n} × 15s</span>
-                          <button
-                            type="button"
-                            disabled={Boolean(busy)}
-                            onClick={() =>
-                              setCounts((cur) => ({
-                                ...cur,
-                                [s.shotId]: clampPlateSliceCount(n + 1),
-                              }))
-                            }
-                          >
-                            +
-                          </button>
-                        </>
-                      ) : null}
+                      <button
+                        type="button"
+                        disabled={Boolean(busy)}
+                        onClick={() =>
+                          setCounts((cur) => ({
+                            ...cur,
+                            [s.shotId]: clampPlateSliceCount(n - 1),
+                          }))
+                        }
+                      >
+                        −
+                      </button>
+                      <span className="scratch-song-cut-meta">{n} × 15s</span>
+                      <button
+                        type="button"
+                        disabled={Boolean(busy)}
+                        onClick={() =>
+                          setCounts((cur) => ({
+                            ...cur,
+                            [s.shotId]: clampPlateSliceCount(n + 1),
+                          }))
+                        }
+                      >
+                        +
+                      </button>
                       <MobilePrimaryButton
                         size="chip"
                         tone="ghost"
-                        disabled={Boolean(busy)}
+                        busy={busy === `park-${s.shotId}`}
+                        disabled={Boolean(busy) && busy !== `park-${s.shotId}`}
                         onClick={() => void parkPlate(s.shotId)}
                       >
-                        {busy === "park" ? "Adding…" : `Add ${n} × 15s`}
+                        {busy === `park-${s.shotId}` ? "Adding…" : `Add ${n} × 15s`}
                       </MobilePrimaryButton>
                       <button
                         type="button"

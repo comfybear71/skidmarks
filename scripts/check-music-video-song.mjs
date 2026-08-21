@@ -14,6 +14,8 @@ import {
   withoutPlateParkedCuts,
   withSkippedSongPlate,
   withoutSkippedSongPlate,
+  songDeskPlateIds,
+  withSongPlate,
 } from "../src/lib/musicVideoSong.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
@@ -38,7 +40,7 @@ assert.equal(musicVideoCreditLine({ artist: "Jack Ghost", songTitle: "Take Me Do
 assert.equal(musicVideoCreditLine({ artist: "Jack Ghost" }), "Jack Ghost");
 assert.equal(clampPlateSliceCount(4), 4);
 assert.equal(clampPlateSliceCount(99), 16);
-assert.equal(MUSIC_VIDEO_SLICE_DEFAULT, 4);
+assert.equal(MUSIC_VIDEO_SLICE_DEFAULT, 1);
 const parked = plateSliceWindows([], 180, 4);
 assert.equal(parked.length, 4);
 assert.equal(parked[0].durationSec, 15);
@@ -68,6 +70,9 @@ assert.deepEqual(kept.next.map((c) => c.id), ["a", "c"]);
 
 assert.deepEqual(withSkippedSongPlate(["a"], "b"), ["a", "b"]);
 assert.deepEqual(withoutSkippedSongPlate(["a", "b"], "a"), ["b"]);
+assert.deepEqual(songDeskPlateIds({ cuts: [{ shotId: "a" }] }), ["a"]);
+assert.deepEqual(songDeskPlateIds({ songPlateIds: [], cuts: [{ shotId: "a" }] }), []);
+assert.deepEqual(withSongPlate(["a"], "b"), ["a", "b"]);
 
 assert.match(songRoute, /remove-plate-parked/);
 assert.match(songRoute, /skip-plate/);
@@ -79,7 +84,7 @@ assert.match(songRoute, /copyPlaceStillAsEmptyPlate/);
 assert.match(songRoute, /Need the place still first/);
 assert.match(tree, /Add empty stage/);
 assert.match(tree, /songPlates/);
-assert.match(songUi, /Empty stage — Add 15s/);
+assert.match(songUi, /songDeskPlateIds/);
 assert.match(songUi, /m-song-plate-x/);
 assert.match(songUi, /m-song-plate-x-inline/);
 assert.match(songUi, /Take this plate off the song/);
@@ -117,8 +122,8 @@ assert.match(scratchRoute, /song-cut-unstick/);
 assert.match(songRoute, /action === "assign"/);
 assert.match(songRoute, /Does not write job.finalVideoFile/);
 assert.match(songUi, /Add \$\{n\} × 15s/);
-assert.match(songUi, /No slices on this plate yet/);
-assert.match(songUi, /mineTally\.total \? \(/);
+assert.match(songUi, /Set 1 × 15s or 4 × 15s/);
+assert.match(songUi, /\$\{n\} × 15s/);
 assert.match(songUi, /cookPendingSongCuts/);
 assert.match(songUi, /m-song-cut-chip/);
 const songCss = readFileSync(join(here, "../src/app/(mobile)/m/mobile.css"), "utf8");
@@ -141,11 +146,15 @@ assert.doesNotMatch(tree, /from "fs"/);
 assert.match(attach, /styleId === "music_video"/);
 assert.match(clip, /skipLipSyncLead/);
 assert.match(editor, /songDesk=\{styleId === "music_video"\}/);
-assert.match(editor, /Add 4 × 15s to the song/);
+assert.match(editor, /action: "add-plate"/);
+assert.match(editor, /\{songAdding \? "Adding…" : "Add"\}/);
+assert.doesNotMatch(songUi, /Put back/);
+assert.match(songRoute, /add-plate/);
+assert.match(songUi, /addPlateToSong/);
 assert.match(editor, /addPlateToSong/);
-assert.match(editor, /Empty stage\. No one on it/);
+assert.match(editor, /Tap Add\. It goes on the song list/);
 assert.doesNotMatch(songUi, /Singer plates sing/);
-assert.match(songUi, /Add 15s on a plate/);
+assert.match(songUi, /Tap a plate\. Tap Add/);
 assert.match(songUi, /scratch-song-mp3/);
 assert.match(songUi, /Song · \{song\.fileName\}/);
 assert.match(songCss, /\.scratch-song-mp3/);

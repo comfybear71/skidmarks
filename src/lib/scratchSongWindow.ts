@@ -29,7 +29,9 @@ export type ScratchSong = {
   sliceDurationSec: number;
   cuts?: ScratchSongCut[];
   stitchedFile?: string;
-  /** Plates left out of the song desk. Plate cards stay under PLATES. */
+  /** Plates you tapped Add on. The song list is only these. */
+  songPlateIds?: string[];
+  /** Legacy hide-list. Desk no longer uses this. */
   skipShotIds?: string[];
 };
 

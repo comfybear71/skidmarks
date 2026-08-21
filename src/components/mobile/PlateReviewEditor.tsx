@@ -56,7 +56,6 @@ import { episodeJobShots } from "@/lib/mobileScratch";
 import {
   cutsForPlate,
   isMusicVideoSongJob,
-  MUSIC_VIDEO_SLICE_DEFAULT,
   songCutTallyLine,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
@@ -447,7 +446,7 @@ export function PlateReviewEditor({
 
   async function addPlateToSong(shotId: string) {
     if (!job.scratchSong?.fileName) {
-      setActionError("Drop the song mp3 first — then Add 15s on this plate.");
+      setActionError("Drop the song mp3 first.");
       return;
     }
     setSongAddFor(shotId);
@@ -457,10 +456,9 @@ export function PlateReviewEditor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "assign",
+          action: "add-plate",
           jobId: job.id,
           shotId,
-          count: MUSIC_VIDEO_SLICE_DEFAULT,
         }),
       });
       const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
@@ -759,7 +757,7 @@ export function PlateReviewEditor({
                     disabled={Boolean(songAddFor) && songAddFor !== s.shotId}
                     onClick={() => void addPlateToSong(s.shotId)}
                   >
-                    {songAddFor === s.shotId ? "Adding…" : "Add 4 × 15s"}
+                    {songAddFor === s.shotId ? "Adding…" : "Add"}
                   </MobilePrimaryButton>
                 </div>
               ) : null}
@@ -2094,10 +2092,10 @@ function ShotLineEditor({
           {onAddToSong ? (
             <>
               <div style={{ fontSize: "13px", color: "var(--chrome)" }}>
-                Empty stage. No one on it. Add it to the song — it animates.
+                Tap Add. It goes on the song list. Then you set 1 × 15s or 4 × 15s.
               </div>
               <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
-                {songAdding ? "Adding…" : "Add 4 × 15s to the song"}
+                {songAdding ? "Adding…" : "Add"}
               </MobilePrimaryButton>
               {onAddCast ? (
                 <MobilePrimaryButton tone="ghost" onClick={onAddCast}>
