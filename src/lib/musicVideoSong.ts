@@ -4,6 +4,7 @@
  */
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import {
+  formatSongClock,
   remainingSongWindows,
   SCRATCH_SONG_SLICE_DEFAULT_SEC,
   type ScratchSongCut,
@@ -97,6 +98,75 @@ export function withSongPlate(ids: string[], shotId: string): string[] {
   const id = shotId.trim();
   if (!id || ids.includes(id)) return ids;
   return [...ids, id];
+}
+
+export function songOrdinal(n: number): string {
+  const i = Math.max(1, Math.floor(Number(n) || 1));
+  const mod100 = i % 100;
+  const mod10 = i % 10;
+  if (mod100 >= 11 && mod100 <= 13) return `${i}th`;
+  if (mod10 === 1) return `${i}st`;
+  if (mod10 === 2) return `${i}nd`;
+  if (mod10 === 3) return `${i}rd`;
+  return `${i}th`;
+}
+
+export function plateCutSpan(
+  cuts: Pick<ScratchSongCut, "startSec" | "durationSec">[],
+): { startSec: number; endSec: number } | null {
+  if (!cuts.length) return null;
+  let start = Infinity;
+  let end = -Infinity;
+  for (const c of cuts) {
+    const a = Number(c.startSec) || 0;
+    const b = a + (Number(c.durationSec) || 0);
+    if (a < start) start = a;
+    if (b > end) end = b;
+  }
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return { startSec: start, endSec: end };
+}
+
+export function formatSongSpan(startSec: number, endSec: number): string {
+  return `${formatSongClock(startSec)}–${formatSongClock(endSec)}`;
+}
+
+export type DeskPlateClock = {
+  startSec: number;
+  endSec: number;
+  parked: boolean;
+  slices: number;
+};
+
+/** 1st / 2nd clocks — real parked slices, or the next unused 15s if still empty. */
+export function deskPlateClocks(
+  deskShotIds: string[],
+  cuts: ScratchSongCut[],
+  counts: Record<string, number>,
+  songSec: number,
+): Record<string, DeskPlateClock> {
+  const used: Pick<ScratchSongCut, "durationSec">[] = [...cuts];
+  const out: Record<string, DeskPlateClock> = {};
+  for (const id of deskShotIds) {
+    const mine = cutsForPlate(cuts, id);
+    const span = plateCutSpan(mine);
+    if (span) {
+      out[id] = { ...span, parked: true, slices: mine.length };
+      continue;
+    }
+    const n = clampPlateSliceCount(counts[id] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+    const windows = plateSliceWindows(used, songSec, n);
+    if (!windows.length) {
+      out[id] = { startSec: 0, endSec: 0, parked: false, slices: n };
+      continue;
+    }
+    const startSec = windows[0].startSec;
+    const last = windows[windows.length - 1];
+    const endSec = last.startSec + last.durationSec;
+    out[id] = { startSec, endSec, parked: false, slices: n };
+    used.push(...windows);
+  }
+  return out;
 }
 
 export function withoutSongPlate(ids: string[], shotId: string): string[] {

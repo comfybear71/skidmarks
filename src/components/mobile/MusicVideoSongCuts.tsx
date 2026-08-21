@@ -19,12 +19,15 @@ import {
 import {
   clampPlateSliceCount,
   cutsForPlate,
+  deskPlateClocks,
   droppablePlateCuts,
   findSongCarrierBeatId,
+  formatSongSpan,
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateLabel,
   songCutTallyLine,
   songDeskPlateIds,
+  songOrdinal,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
 import {
@@ -288,6 +291,12 @@ export function MusicVideoSongCuts({
   const cuts = song?.cuts || [];
   const onSong = songDeskPlateIds(song);
   const deskPlates = plated.filter((s) => onSong.includes(s.shotId));
+  const clocks = deskPlateClocks(
+    deskPlates.map((s) => s.shotId),
+    cuts,
+    counts,
+    song?.durationSec || 0,
+  );
   const tally = tallySongCuts(cuts);
   const cooking = cuts.find((c) => c.status === "running");
   const cookingN = cooking ? cuts.findIndex((c) => c.id === cooking.id) + 1 : 0;
@@ -347,9 +356,6 @@ export function MusicVideoSongCuts({
           ))}
         </div>
       ) : null}
-      <p className="scratch-song-hint">
-        Tap a plate. Tap Add. Then set 1 × 15s or 4 × 15s here. You pick.
-      </p>
       {!song?.fileName ? (
         <label className="scratch-song-hint" style={{ display: "block" }}>
           Drop the song mp3
@@ -372,6 +378,12 @@ export function MusicVideoSongCuts({
             const name = plateLabel(story, s.shotId, i + 1);
             const mine = cutsForPlate(cuts, s.shotId, s.plateFile);
             const mineTally = tallySongCuts(mine);
+            const clock = clocks[s.shotId];
+            const sliceN = clock?.slices ?? n;
+            const span =
+              clock && clock.endSec > clock.startSec
+                ? formatSongSpan(clock.startSec, clock.endSec)
+                : "";
             const parkedHere = droppablePlateCuts(mine);
             const placeScene = job.scenes.find((sc) => sc.id === s.sceneId);
             const placeFile = approvedCandidateFileName(job.locationCandidates, s.sceneId) || "";
@@ -402,11 +414,11 @@ export function MusicVideoSongCuts({
                         </button>
                       </div>
                       <span className="scratch-song-cut-meta">
-                        {name}
+                        {songOrdinal(i + 1)} · {sliceN} × 15s
+                        {span ? <span className="m-song-cut-clock">{span}</span> : null}
                         <span className="m-song-cut-sub">
-                          {mineTally.total
-                            ? songCutTallyLine(mineTally)
-                            : "Set 1 × 15s or 4 × 15s. You pick."}
+                          {name}
+                          {mineTally.total ? ` · ${songCutTallyLine(mineTally)}` : ""}
                         </span>
                       </span>
                     </div>
@@ -443,7 +455,7 @@ export function MusicVideoSongCuts({
                         disabled={Boolean(busy) && busy !== `park-${s.shotId}`}
                         onClick={() => void parkPlate(s.shotId)}
                       >
-                        {busy === `park-${s.shotId}` ? "Adding…" : `Add ${n} × 15s`}
+                        {busy === `park-${s.shotId}` ? "Adding…" : "Add"}
                       </MobilePrimaryButton>
                       <button
                         type="button"

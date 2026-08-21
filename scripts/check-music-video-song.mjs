@@ -15,6 +15,9 @@ import {
   withSkippedSongPlate,
   withoutSkippedSongPlate,
   songDeskPlateIds,
+  songOrdinal,
+  formatSongSpan,
+  deskPlateClocks,
   withSongPlate,
 } from "../src/lib/musicVideoSong.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
@@ -73,6 +76,14 @@ assert.deepEqual(withoutSkippedSongPlate(["a", "b"], "a"), ["b"]);
 assert.deepEqual(songDeskPlateIds({ cuts: [{ shotId: "a" }] }), ["a"]);
 assert.deepEqual(songDeskPlateIds({ songPlateIds: [], cuts: [{ shotId: "a" }] }), []);
 assert.deepEqual(withSongPlate(["a"], "b"), ["a", "b"]);
+assert.equal(songOrdinal(1), "1st");
+assert.equal(songOrdinal(2), "2nd");
+assert.equal(songOrdinal(3), "3rd");
+assert.equal(formatSongSpan(0, 15), "0:00.0–0:15.0");
+assert.equal(formatSongSpan(15, 30), "0:15.0–0:30.0");
+const clocks = deskPlateClocks(["a", "b"], [], {}, 180);
+assert.equal(formatSongSpan(clocks.a.startSec, clocks.a.endSec), "0:00.0–0:15.0");
+assert.equal(formatSongSpan(clocks.b.startSec, clocks.b.endSec), "0:15.0–0:30.0");
 
 assert.match(songRoute, /remove-plate-parked/);
 assert.match(songRoute, /skip-plate/);
@@ -121,8 +132,11 @@ assert.match(scratchPage, /visibilitychange/);
 assert.match(scratchRoute, /song-cut-unstick/);
 assert.match(songRoute, /action === "assign"/);
 assert.match(songRoute, /Does not write job.finalVideoFile/);
-assert.match(songUi, /Add \$\{n\} × 15s/);
-assert.match(songUi, /Set 1 × 15s or 4 × 15s/);
+assert.match(songUi, /\{busy === `park-\$\{s\.shotId\}` \? "Adding…" : "Add"\}/);
+assert.doesNotMatch(songUi, /You pick/);
+assert.doesNotMatch(songUi, /Set 1 × 15s or 4 × 15s/);
+assert.match(songUi, /songOrdinal/);
+assert.match(songUi, /m-song-cut-clock/);
 assert.match(songUi, /\$\{n\} × 15s/);
 assert.match(songUi, /cookPendingSongCuts/);
 assert.match(songUi, /m-song-cut-chip/);
@@ -152,11 +166,14 @@ assert.doesNotMatch(songUi, /Put back/);
 assert.match(songRoute, /add-plate/);
 assert.match(songUi, /addPlateToSong/);
 assert.match(editor, /addPlateToSong/);
-assert.match(editor, /Tap Add\. It goes on the song list/);
+assert.doesNotMatch(editor, /Tap Add\. It goes on the song list/);
+assert.doesNotMatch(editor, /Position this plate/);
+assert.doesNotMatch(editor, /Song slices are under/);
 assert.doesNotMatch(songUi, /Singer plates sing/);
-assert.match(songUi, /Tap a plate\. Tap Add/);
+assert.doesNotMatch(songUi, /Tap a plate\. Tap Add/);
 assert.match(songUi, /scratch-song-mp3/);
 assert.match(songUi, /Song · \{song\.fileName\}/);
 assert.match(songCss, /\.scratch-song-mp3/);
+assert.match(songCss, /\.m-song-cut-clock/);
 
 console.log("check-music-video-song: ok");
