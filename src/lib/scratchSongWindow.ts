@@ -11,6 +11,8 @@ export const SCRATCH_SONG_BATCH_SHOTS = 8;
 export type ScratchSongCut = {
   id: string;
   plateFile: string;
+  /** /m Music video — which episode plate this slice uses. Scratch omits it. */
+  shotId?: string;
   /** Parked for first→last. Not sent to IA2V — that graph has no last frame. */
   endPlateFile?: string;
   startSec: number;

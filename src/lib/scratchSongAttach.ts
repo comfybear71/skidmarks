@@ -102,7 +102,8 @@ export async function attachDroppedBeatMp3(opts: {
   await writeMobileStory(next, opts.job.folderName);
 
   const clips = upsertPendingClip({ ...opts.job, clips: opts.job.clips || [] }, next, opts.beatId);
-  const durationSec = opts.scratchBeat
+  const attachSong = opts.scratchBeat || opts.job.styleId === "music_video";
+  const durationSec = attachSong
     ? Number.isFinite(opts.durationSec) && opts.durationSec > 0
       ? opts.durationSec
       : 0
@@ -112,7 +113,7 @@ export async function attachDroppedBeatMp3(opts: {
     clips,
     error: "",
     ...(opts.job.phase === "error" || opts.job.phase === "animate" ? { phase: "review" as const } : {}),
-    ...(opts.scratchBeat
+    ...(attachSong
       ? {
           scratchSong: {
             fileName: opts.fileName,

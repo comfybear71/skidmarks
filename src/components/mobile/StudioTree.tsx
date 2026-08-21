@@ -13,6 +13,8 @@ import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
+import { MusicVideoSongCuts } from "./MusicVideoSongCuts";
+import { isMusicVideoSongJob } from "@/lib/musicVideoSong";
 import {
   allCastApproved,
   allLocationsApproved,
@@ -1095,11 +1097,15 @@ export function StudioTree({
           <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
             {plateCounts.done}/{plateCounts.total} plated · {queued.length}{" "}
             {queued.length === 1 ? "line queued" : "lines queued"}
-            {queued.length === 0 && plated.length
-              ? " — Save the spoken line (Play appears) before Generate video"
-              : queued.length
-                ? ` — Generate on a plate sends that line. Generate video sends every Saved mp3`
-                : ""}
+            {isMusicVideoSongJob(job)
+              ? plated.length
+                ? " — drop the song, park N × 15s on each plate, then Generate cuts"
+                : " — draw plates with Position first"
+              : queued.length === 0 && plated.length
+                ? " — Save the spoken line (Play appears) before Generate video"
+                : queued.length
+                  ? ` — Generate on a plate sends that line. Generate video sends every Saved mp3`
+                  : ""}
           </div>
           {job.error ? (
             <div style={{ color: "var(--magenta-hot)", fontSize: "13px" }}>{job.error}</div>
@@ -1152,7 +1158,7 @@ export function StudioTree({
           {plateGraphHint && !plating ? (
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>{plateGraphHint}</div>
           ) : null}
-          {plated.length || busy ? (
+          {!isMusicVideoSongJob(job) && (plated.length || busy) ? (
             <MobilePrimaryButton disabled={busy || plating || !plated.length} onClick={onGenerateVideo}>
               {busy ? "Sending…" : "Generate video"}
             </MobilePrimaryButton>
@@ -1548,6 +1554,15 @@ export function StudioTree({
             collapsed={!platesOpen}
             onExpand={() => setPlatesOpen(true)}
             defaultPlaceId={placeFocus || undefined}
+          />
+        ) : null}
+
+        {platesOpen && isMusicVideoSongJob(job) && (job.phase === "review" || job.phase === "animate" || job.phase === "done" || job.phase === "error") ? (
+          <MusicVideoSongCuts
+            job={job}
+            story={deskStory}
+            plated={plated}
+            onJobChange={onJobChange}
           />
         ) : null}
 

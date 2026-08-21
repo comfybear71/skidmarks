@@ -135,6 +135,7 @@ async function handleJson(req: Request) {
       blobUrl,
       blobPathname: pathname,
     });
+    const attachSong = found.scratchBeat || job.styleId === "music_video";
     const attached = await attachDroppedBeatMp3({
       job,
       jobId,
@@ -142,14 +143,14 @@ async function handleJson(req: Request) {
       beatId,
       fileName,
       textOverride,
-      scratchBeat: found.scratchBeat,
+      scratchBeat: attachSong,
       durationSec: Number(body.durationSec) || 0,
     });
     return NextResponse.json({
       ok: true,
       voiceFile: fileName,
       job: attached.job,
-      durationSec: found.scratchBeat ? attached.durationSec : undefined,
+      durationSec: attachSong ? attached.durationSec : undefined,
     });
   }
 
@@ -214,7 +215,8 @@ async function handleMultipart(req: Request) {
   const localPath = path.join(dir, fileName);
   fs.writeFileSync(localPath, buf);
 
-  const durationSec = found.scratchBeat ? probeSongDurationSec(localPath) || 0 : 0;
+  const attachSong = found.scratchBeat || job.styleId === "music_video";
+  const durationSec = attachSong ? probeSongDurationSec(localPath) || 0 : 0;
   const attached = await attachDroppedBeatMp3({
     job,
     jobId,
@@ -222,7 +224,7 @@ async function handleMultipart(req: Request) {
     beatId,
     fileName,
     textOverride,
-    scratchBeat: found.scratchBeat,
+    scratchBeat: attachSong,
     durationSec,
   });
 
@@ -257,6 +259,6 @@ async function handleMultipart(req: Request) {
     ok: true,
     voiceFile: fileName,
     job: attached.job,
-    durationSec: found.scratchBeat ? attached.durationSec : undefined,
+    durationSec: attachSong ? attached.durationSec : undefined,
   });
 }

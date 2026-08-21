@@ -17,6 +17,7 @@ import {
   buildScratchSongLtxMotion,
   buildSegmentText,
   buildGlobalPrompt,
+  isInstrumentalStaging,
   ltxSendPrompt,
   stripLtxLipSyncLead,
   looksLikePlatePositionPrompt,
@@ -72,7 +73,7 @@ export async function runScratchLtxClip(opts: {
   const scene = story.scenes.find((sc) => sc.id === sceneId);
   const storyShot = scene?.shots.find((sh) => sh.id === shotId);
   const beat = storyShot?.beats.find((b) => b.id === beatId);
-  if (!shot) throw new Error("Scratch plate is not on this job");
+  if (!shot) throw new Error("That plate is not on this job");
   const wantPlate = (opts.plateFile || shot.plateFile || "").trim();
   if (!wantPlate || wantPlate === "__error__") {
     throw new Error(
@@ -96,7 +97,9 @@ export async function runScratchLtxClip(opts: {
   const clipRow = (job.clips || []).find((c) => c.beatId === beatId);
   // Cloud story hydrate can blank beat.voiceFile on read while the queued
   // clip still holds the Save take — same fix as /m step/route.ts.
-  const voiceFile = (clipRow?.voiceFile || beat.voiceFile || "").trim();
+  const song = job.scratchSong;
+  const songFile = (song?.fileName || "").trim();
+  const voiceFile = (songFile || clipRow?.voiceFile || beat.voiceFile || "").trim();
   const speaker = (clipRow?.speaker || beat.speaker || "").trim();
   const line = (clipRow?.line || beat.text || "").trim();
   const sourceAudio = await resolveMobileBeatAudio({
@@ -113,8 +116,9 @@ export async function runScratchLtxClip(opts: {
         : "Save the spoken line first — Play appears when the mp3 is ready.",
     );
   }
-  const song = job.scratchSong;
-  const singing = Boolean(song?.fileName) && isDroppedPlaceholderLine(line);
+  const singing =
+    Boolean(songFile) &&
+    (isDroppedPlaceholderLine(line) || job.styleId === "music_video" || Boolean(opts.cutId));
   if (looksLikePlatePositionPrompt(line) && !singing) {
     throw new Error("That's the still position, not speech. Wipe the line box, type what they say, then Save.");
   }
@@ -155,7 +159,12 @@ export async function runScratchLtxClip(opts: {
   const body =
     (storedOk ? stored : "") ||
     (singing
-      ? buildScratchSongLtxMotion({ styleId: job.styleId, speaker, lookLock })
+      ? buildScratchSongLtxMotion({
+          styleId: job.styleId,
+          speaker,
+          lookLock,
+          staging: storyShot.staging,
+        })
       : buildScratchPadLtxMotion({
           styleId: job.styleId,
           speaker,
@@ -163,7 +172,9 @@ export async function runScratchLtxClip(opts: {
           lookLock,
           shotSpeakers: shotCast,
         }));
-  const imageMotion = ltxSendPrompt(body, storyShot.staging);
+  const imageMotion = ltxSendPrompt(body, storyShot.staging, {
+    skipLipSyncLead: singing && isInstrumentalStaging(storyShot.staging || ""),
+  });
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
     ? (job.clips || []).map((c) =>

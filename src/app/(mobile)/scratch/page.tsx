@@ -22,6 +22,12 @@ import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { buildScratchPadLtxMotion, LTX_LIP_SYNC_LEAD, stripLtxLipSyncLead } from "@/lib/mobileImageMotion";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
+  cookPendingSongCuts,
+  pendingSongCuts,
+  songCookFlagOn,
+  waitForSongCut,
+} from "@/lib/songCutCook";
+import {
   SCRATCH_SONG_DIRECT_POST_MAX_BYTES,
   dropScratchSongViaBlob,
   probeBrowserAudioDurationSec,
@@ -265,6 +271,10 @@ function ScratchLightbox({ src, onClose }: { src: string; onClose: () => void })
 
 export default function ScratchPage() {
   const [job, setJob] = useState<MobileGenJob | null>(null);
+  const jobRef = useRef<MobileGenJob | null>(null);
+  jobRef.current = job;
+  const songCookLock = useRef(false);
+  const resumeSongCook = useRef<() => void>(() => {});
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [speaker, setSpeaker] = useState("");
   const [padCast, setPadCast] = useState<string[]>([]);
@@ -386,6 +396,24 @@ export default function ScratchPage() {
     const t = window.setInterval(() => setDrawTick((n) => n + 1), 1000);
     return () => window.clearInterval(t);
   }, [busy]);
+
+  useEffect(() => {
+    if (!job?.id) return;
+    const onVis = () => {
+      if (document.visibilityState !== "visible") return;
+      if (songCookLock.current) return;
+      const live = jobRef.current;
+      const pending = pendingSongCuts(live);
+      if (!pending.length) return;
+      const wanted =
+        songCookFlagOn(job.id) || pending.some((c) => c.status === "running");
+      if (!wanted) return;
+      resumeSongCook.current();
+    };
+    onVis();
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [job?.id]);
 
   const loadStory = useCallback(
     async (
@@ -1170,24 +1198,33 @@ export default function ScratchPage() {
 
   async function runSongCuts() {
     if (!job) return;
-    const pending = (job.scratchSong?.cuts || []).filter((c) => c.status !== "done");
-    if (!pending.length) {
+    if (!pendingSongCuts(job).length) {
       setError("Add a camera cut first.");
       return;
     }
+    if (songCookLock.current) return;
+    songCookLock.current = true;
     setBusy("clip");
     setError("");
     try {
-      for (const cut of pending) {
-        const data = await songAction("song-cut-run", { cutId: cut.id, beatId: beat?.id });
-        if (data?.job) setJob(data.job);
-      }
+      await cookPendingSongCuts({
+        jobId: job.id,
+        getJob: () => jobRef.current,
+        setJob,
+        runCut: (cutId) => songAction("song-cut-run", { cutId, beatId: beat?.id }),
+        unstickCut: (cutId) => songAction("song-cut-unstick", { cutId }),
+        onNote: (msg) => setError(msg),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't generate that cut");
     } finally {
+      songCookLock.current = false;
       setBusy("");
     }
   }
+  resumeSongCook.current = () => {
+    void runSongCuts();
+  };
 
   async function pollSirayClipUntilDone(
     jobId: string,
@@ -1952,11 +1989,23 @@ export default function ScratchPage() {
                   );
                 }}
                 onRunCut={(cutId) => {
+                  if (!job) return;
                   setBusy("clip");
                   setError("");
-                  void songAction("song-cut-run", { cutId, beatId: beat?.id })
-                    .catch((e) => setError(e instanceof Error ? e.message : "Couldn't generate that cut"))
-                    .finally(() => setBusy(""));
+                  void (async () => {
+                    try {
+                      try {
+                        await songAction("song-cut-run", { cutId, beatId: beat?.id });
+                      } catch {
+                        setError("Left the screen — Studio is still cooking. Waiting…");
+                      }
+                      await waitForSongCut({ jobId: job.id, cutId, setJob });
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : "Couldn't generate that cut");
+                    } finally {
+                      setBusy("");
+                    }
+                  })();
                 }}
                 onRunAll={() => void runSongCuts()}
                 onStitch={() => {

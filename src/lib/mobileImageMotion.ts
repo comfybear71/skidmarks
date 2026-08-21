@@ -116,13 +116,28 @@ export function isCutawayMotion(prompt: string): boolean {
 }
 
 /** The one string Cloud LTX gets: lead + Image motion body + walker locks. */
-export function ltxSendPrompt(imageMotion: string, staging = ""): string {
+export function ltxSendPrompt(
+  imageMotion: string,
+  staging = "",
+  opts?: { skipLipSyncLead?: boolean },
+): string {
   let body = ensureGoldFrameLocks(imageMotion);
   if (directorWantsEmptyHands(staging) || directorWantsEmptyHands(body)) {
     body = stripJoPhoneLock(body);
   }
-  if (isCutawayMotion(body)) return body;
+  if (isCutawayMotion(body) || opts?.skipLipSyncLead) return body;
   return withLtxLipSyncLead(body);
+}
+
+/** Instrumental plate — sax / guitar / drums, not a singing close-up. */
+export function isInstrumentalStaging(staging: string): boolean {
+  const t = (staging || "").toLowerCase();
+  if (!t) return false;
+  return (
+    /\b(sax(?:ophone)?|trumpet|trombone|clarinet|flute|guitar|bass|drum(?:s|mer)?|keyboard|piano|violin|cello|harmonica|instrument(?:al)?)\b/.test(
+      t,
+    ) || /\bplay(?:s|ing)?\s+(the\s+)?(sax|guitar|drums|bass|keys|piano|trumpet)\b/.test(t)
+  );
 }
 
 /**
@@ -509,21 +524,27 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
   return clean([LTX_LIP_SYNC_LEAD, motionStyleLock(styleId)].join(" "));
 }
 
-/** Scratch song slice — mouth follows the track, not a spoken Save line. */
+/** Scratch / Music video song slice — singing, or playing if Position names an instrument. */
 export function buildScratchSongLtxMotion(opts: {
   styleId: ShowStyleId;
   speaker: string;
   lookLock?: string;
+  staging?: string;
 }): string {
   const name = clean(opts.speaker) || "The performer";
   const look = shortLtxLookLock(opts.lookLock || "");
   const who = look ? `${name}, ${look}` : name;
+  const instrumental = isInstrumentalStaging(opts.staging || "");
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`,
+      instrumental
+        ? `${who} is prominent, hands and body play the same instrument as the start image, in time with the music.`
+        : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`,
       "Props and background stay exactly as the start image, nothing new enters frame.",
-      `${name} sings this slice of the track. Camera holds. Same person and objects as the start image.`,
+      instrumental
+        ? `${name} plays this instrumental slice. Camera holds. Same person, same instrument, same objects as the start image. Not a new player. Not singing unless the start image is already singing.`
+        : `${name} sings this slice of the track. Camera holds. Same person and objects as the start image.`,
       motionStyleLock(opts.styleId),
     ].join(" "),
   );
