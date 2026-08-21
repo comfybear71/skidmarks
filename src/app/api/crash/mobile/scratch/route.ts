@@ -54,6 +54,7 @@ import { mobileMediaFolder } from "@/lib/mobileJobFolder";
 import {
   clampSongWindow,
   nextCutAfter,
+  remainingSongWindows,
   songWindowLabel,
   type ScratchSongCut,
 } from "@/lib/scratchSongSlice";
@@ -344,6 +345,8 @@ async function restoreScratchPlate(opts: {
  *     is a different route and is unchanged.
  * POST { action: "song-window", jobId, sliceStartSec, sliceDurationSec }
  * POST { action: "song-cut-add", jobId, plateFile?, endPlateFile?, startSec?, durationSec? }
+ * POST { action: "song-cut-fill", jobId, plateFile? }
+ *   — park 15s cameras from here to the end of the track. Does not cook LTX.
  * POST { action: "song-cut-remove", jobId, cutId }
  * POST { action: "song-cut-end", jobId, cutId, plateFile }
  *   — park a last-frame still. Not sent to IA2V.
@@ -1116,6 +1119,47 @@ export async function POST(req: Request) {
         ok: true,
         job: updated,
         cut,
+        label: songWindowLabel(song.durationSec, cuts),
+      });
+    }
+
+    if (action === "song-cut-fill") {
+      const song = job.scratchSong;
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop a song mp3 on Scratch first." }, { status: 400 });
+      }
+      const plateFile = (body.plateFile || shot.plateFile || "").trim();
+      if (!plateFile || plateFile === "__error__") {
+        return NextResponse.json({ error: "Draw the still first, then park the rest." }, { status: 400 });
+      }
+      const extra = remainingSongWindows(song.cuts || [], song.durationSec);
+      if (!extra.length) {
+        return NextResponse.json({ error: "The song is already parked to the end." }, { status: 400 });
+      }
+      const cuts: ScratchSongCut[] = [
+        ...(song.cuts || []),
+        ...extra.map((window) => ({
+          id: newId("cut"),
+          plateFile,
+          startSec: window.startSec,
+          durationSec: window.durationSec,
+          status: "pending" as const,
+        })),
+      ];
+      const nextWin = nextCutAfter(cuts, song.durationSec);
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: {
+          ...song,
+          cuts,
+          sliceStartSec: nextWin.startSec,
+          sliceDurationSec: nextWin.durationSec,
+        },
+        error: "",
+      });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        added: extra.length,
         label: songWindowLabel(song.durationSec, cuts),
       });
     }

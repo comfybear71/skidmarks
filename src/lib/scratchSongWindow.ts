@@ -87,6 +87,23 @@ export function nextCutAfter(cuts: ScratchSongCut[], songSec: number): { startSe
   return clampSongWindow(start, SCRATCH_SONG_SLICE_DEFAULT_SEC, songSec);
 }
 
+/** 15s windows from what's already parked to the end of the track. */
+export function remainingSongWindows(
+  cuts: Pick<ScratchSongCut, "durationSec">[],
+  songSec: number,
+): { startSec: number; durationSec: number }[] {
+  const scheduled: Pick<ScratchSongCut, "durationSec">[] = [...cuts];
+  const out: { startSec: number; durationSec: number }[] = [];
+  for (let i = 0; i < 48; i++) {
+    if (songWindowLeftSec(songSec, scheduled) < SCRATCH_SONG_SLICE_MIN_SEC) break;
+    const window = nextCutAfter(scheduled as ScratchSongCut[], songSec);
+    if (window.durationSec < SCRATCH_SONG_SLICE_MIN_SEC) break;
+    scheduled.push(window);
+    out.push(window);
+  }
+  return out;
+}
+
 export function isDroppedPlaceholderLine(line: string): boolean {
   const t = (line || "").trim().toLowerCase();
   return !t || t === "dropped line";

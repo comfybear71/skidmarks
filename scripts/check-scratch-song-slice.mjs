@@ -9,6 +9,7 @@ import {
   scheduledSongSeconds,
   songWindowLabel,
   songWindowLeftSec,
+  remainingSongWindows,
   SCRATCH_SONG_SLICE_DEFAULT_SEC,
   SCRATCH_SONG_SLICE_MAX_SEC,
 } from "../src/lib/scratchSongWindow.ts";
@@ -33,9 +34,15 @@ const cuts = [{ durationSec: 15 }, { durationSec: 10 }, { durationSec: 30 }, { d
 assert.equal(scheduledSongSeconds(cuts), 115);
 assert.equal(songWindowLeftSec(139.4, cuts), 24.4);
 assert.match(songWindowLabel(139.4, cuts), /Song window 2:19.4 \| scheduled 1:55.0 \| left 0:24.4/);
+const filled = remainingSongWindows([], 139.4);
+assert.equal(filled.length, 10);
+assert.deepEqual(filled[0], { startSec: 0, durationSec: 15 });
+assert.equal(Math.round(filled[9].startSec * 10) / 10, 135);
+assert.equal(remainingSongWindows(cuts, 139.4).length, 2);
 
 assert.match(clip, /sliceSongMp3/);
 assert.match(clip, /buildScratchSongLtxMotion/);
+assert.match(route, /action === "song-cut-fill"/);
 assert.match(route, /action === "song-cut-run"/);
 assert.match(route, /action === "song-stitch"/);
 assert.match(route, /endPlateFile/);
@@ -52,6 +59,7 @@ assert.match(page, /dropScratchSongViaBlob/);
 assert.match(slice, /from "\.\/scratchSongWindow"/);
 assert.doesNotMatch(ui, /scratchSongSlice/);
 assert.doesNotMatch(ui, /from "fs"/);
+assert.match(ui, /Park the rest/);
 assert.match(ui, /Parking…/);
 assert.match(ui, / · parked/);
 assert.match(ui, /is-just-added/);

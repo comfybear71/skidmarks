@@ -5,6 +5,7 @@ import { MobilePrimaryButton } from "@/components/mobile/MobileUi";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import {
   formatSongClock,
+  remainingSongWindows,
   songWindowLabel,
   type ScratchSongCut,
 } from "@/lib/scratchSongWindow";
@@ -15,6 +16,7 @@ export function ScratchSongCuts({
   disabled,
   onWindow,
   onAddCut,
+  onFillCuts,
   onRemoveCut,
   onParkEnd,
   onRunCut,
@@ -26,6 +28,7 @@ export function ScratchSongCuts({
   disabled?: boolean;
   onWindow: (startSec: number, durationSec: number) => void;
   onAddCut: () => void | Promise<unknown>;
+  onFillCuts: () => void | Promise<unknown>;
   onRemoveCut: (cutId: string) => void;
   onParkEnd: (cutId: string) => void;
   onRunCut: (cutId: string) => void;
@@ -36,6 +39,7 @@ export function ScratchSongCuts({
   const [start, setStart] = useState(song?.sliceStartSec ?? 0);
   const [len, setLen] = useState(song?.sliceDurationSec ?? 15);
   const [adding, setAdding] = useState(false);
+  const [filling, setFilling] = useState(false);
   const [flashId, setFlashId] = useState("");
   const [parkNote, setParkNote] = useState("");
   const cutCount = useRef(song?.cuts?.length || 0);
@@ -62,6 +66,7 @@ export function ScratchSongCuts({
   const cuts = song.cuts || [];
   const done = cuts.filter((c) => c.status === "done" && c.clipFile).length;
   const canStitch = done >= 2;
+  const leftToPark = remainingSongWindows(cuts, song.durationSec).length;
   const label = songWindowLabel(song.durationSec, cuts);
 
   return (
@@ -117,6 +122,20 @@ export function ScratchSongCuts({
           }}
         >
           {adding ? "Parking…" : "Add this camera"}
+        </MobilePrimaryButton>
+        <MobilePrimaryButton
+          size="chip"
+          tone="ghost"
+          disabled={disabled || filling || !plateFile || plateFile === "__error__" || leftToPark === 0}
+          onClick={() => {
+            setFilling(true);
+            setParkNote(`Parking the rest (${leftToPark} cameras)…`);
+            void Promise.resolve(onFillCuts())
+              .catch(() => setParkNote(""))
+              .finally(() => setFilling(false));
+          }}
+        >
+          {filling ? "Parking rest…" : leftToPark ? `Park the rest (${leftToPark})` : "Song is parked"}
         </MobilePrimaryButton>
         <MobilePrimaryButton
           size="chip"

@@ -1935,6 +1935,12 @@ export default function ScratchPage() {
                     throw e;
                   })
                 }
+                onFillCuts={() =>
+                  songAction("song-cut-fill", { plateFile }).catch((e) => {
+                    setError(e instanceof Error ? e.message : "Couldn't park the rest of the song");
+                    throw e;
+                  })
+                }
                 onRemoveCut={(cutId) => {
                   void songAction("song-cut-remove", { cutId }).catch((e) =>
                     setError(e instanceof Error ? e.message : "Couldn't remove that cut"),

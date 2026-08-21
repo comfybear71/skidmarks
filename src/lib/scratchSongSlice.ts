@@ -22,6 +22,7 @@ export {
   formatSongClock,
   songWindowLabel,
   nextCutAfter,
+  remainingSongWindows,
   isDroppedPlaceholderLine,
 } from "./scratchSongWindow";
 export type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
