@@ -1,4 +1,8 @@
+/** Run: npx tsx scripts/check-mobile-plate-graph.mjs */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   appendPlacePlate,
   appendSoloCastShot,
@@ -203,5 +207,17 @@ assert.ok((namedShot?.staging || "").toLowerCase().includes("empty hands"));
 // Place-scoped graph must not invent a card — that's the old silent halt.
 // Client / Plate this place mints via appendPlacePlate when drew === 0.
 assert.equal(nextUnplatedEpisodeShot(rosterJob, rosterStory, "sc1"), null);
+
+const here = dirname(fileURLToPath(import.meta.url));
+const tree = readFileSync(join(here, "../src/components/mobile/StudioTree.tsx"), "utf8");
+assert.match(tree, /if \(drew === 0\)/);
+assert.match(tree, /action: "add"/);
+assert.match(tree, /Couldn't add a plate there/);
+const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+assert.match(editor, /void addPlaceCard\(""\)/);
+assert.doesNotMatch(editor, /New plate — pick who to test/);
+const addRoute = readFileSync(join(here, "../src/app/api/crash/mobile/plate/route.ts"), "utf8");
+assert.doesNotMatch(addRoute, /Pick who is in this place before Add to plate/);
+assert.match(addRoute, /appendPlacePlate/);
 
 console.log("check-mobile-plate-graph: ok");
