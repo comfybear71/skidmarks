@@ -1171,7 +1171,7 @@ export function StudioTree({
             {queued.length === 1 ? "line queued" : "lines queued"}
             {isMusicVideoSongJob(job)
               ? plated.length
-                ? " — drop the song, park N × 15s on each plate, then Generate cuts"
+                ? " — drop the song, Add N × 15s on each plate, then Generate cuts"
                 : " — draw plates with Position first"
               : queued.length === 0 && plated.length
                 ? " — Save the spoken line (Play appears) before Generate video"

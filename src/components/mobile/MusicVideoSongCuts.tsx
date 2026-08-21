@@ -275,7 +275,7 @@ export function MusicVideoSongCuts({
   const done = cuts.filter((c) => c.status === "done" && c.clipFile).length;
   const label = song?.fileName
     ? songWindowLabel(song.durationSec, cuts)
-    : "Drop the song, then park N × 15s on each plate. Same plate can come back later.";
+    : "Drop the song, then Add N × 15s on each plate. Same plate can come back later.";
   const progress =
     song?.fileName && cuts.length
       ? cooking
@@ -358,7 +358,11 @@ export function MusicVideoSongCuts({
                     )}
                     <span className="scratch-song-cut-meta">
                       {name}
-                      <span className="m-song-cut-sub">{songCutTallyLine(mineTally)}</span>
+                      <span className="m-song-cut-sub">
+                        {mineTally.total
+                          ? songCutTallyLine(mineTally)
+                          : "No slices on this plate yet. − / + is how many you add."}
+                      </span>
                     </span>
                     <button
                       type="button"
@@ -391,7 +395,7 @@ export function MusicVideoSongCuts({
                       disabled={Boolean(busy)}
                       onClick={() => void parkPlate(s.shotId)}
                     >
-                      {busy === "park" ? "Parking…" : `Park ${n} × 15s`}
+                      {busy === "park" ? "Adding…" : `Add ${n} × 15s`}
                     </MobilePrimaryButton>
                     {parkedHere.length ? (
                       <MobilePrimaryButton
