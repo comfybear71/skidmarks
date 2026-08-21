@@ -35,7 +35,9 @@ export function songCookFlagOn(jobId: string): boolean {
 }
 
 export function pendingSongCuts(job: MobileGenJob | null | undefined): ScratchSongCut[] {
-  return (job?.scratchSong?.cuts || []).filter((c) => c.status !== "done");
+  return (job?.scratchSong?.cuts || []).filter(
+    (c) => c.status === "pending" || c.status === "running" || !c.status,
+  );
 }
 
 export function songCutById(
@@ -107,8 +109,14 @@ export async function cookPendingSongCuts(opts: {
             opts.setJob(data.job);
             live = data.job;
           }
-        } catch {
-          opts.onNote?.("Left the screen — still making clips. Waiting…");
+        } catch (e) {
+          const msg = e instanceof Error ? e.message.trim() : "";
+          // Tab drop / network — keep waiting. Real LTX/API errors must show.
+          if (!msg || /couldn't reach studio|failed to fetch|networkerror|load failed/i.test(msg)) {
+            opts.onNote?.("Connection dropped — still making clips. Waiting…");
+          } else {
+            opts.onNote?.(msg);
+          }
         }
       } else {
         opts.onNote?.("Still on a clip. You can leave — it keeps going.");
@@ -121,6 +129,10 @@ export async function cookPendingSongCuts(opts: {
       });
       if (afterWait) live = afterWait;
       const after = songCutById(live, cut.id);
+      if (after?.status === "error") {
+        opts.onNote?.(after.error?.trim() || "That clip failed.");
+        continue;
+      }
       if (after?.status === "running" && !after.clipFile && opts.unstickCut) {
         opts.onNote?.("That cut sat too long — sending it again.");
         try {
