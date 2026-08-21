@@ -127,6 +127,7 @@ export function PlateReviewEditor({
   const [clearBusy, setClearBusy] = useState(false);
   const [undoBusy, setUndoBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [clipBusy, setClipBusy] = useState(false);
 
   const shots = episodeJobShots(job, story);
   const shotIdsKey = shots.map((s) => s.shotId).join("\0");
@@ -313,6 +314,24 @@ export function PlateReviewEditor({
       if (data.job) onJobChange?.(data.job);
     } catch {
       /* strip stays until the next job refresh */
+    }
+  }
+
+  async function postClipAction(body: Record<string, string>) {
+    setActionError("");
+    setClipBusy(true);
+    try {
+      const res = await fetch("/api/crash/mobile/clip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, ...body }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob }>(res);
+      if (data.job) onJobChange?.(data.job);
+    } catch (e) {
+      setActionError(studioFetchError(e, "Couldn't park that clip"));
+    } finally {
+      setClipBusy(false);
     }
   }
 
@@ -578,6 +597,10 @@ export function PlateReviewEditor({
                     clips={underClips}
                     poster={plated ? thumbSrc : undefined}
                     preload={s.shotId === openShotId}
+                    removeDisabled={clipBusy}
+                    onRemoveTake={({ beatId, fileName }) =>
+                      void postClipAction({ action: "remove-clip", beatId, fileName })
+                    }
                   />
                 </div>
               ) : null}
@@ -744,6 +767,8 @@ export function PlateReviewEditor({
             shots.find((s) => s.shotId === openShotId)?.plateFile &&
               shots.find((s) => s.shotId === openShotId)?.plateFile !== "__error__",
           )}
+          clipRemoveDisabled={clipBusy}
+          onDismissClipError={(beatId) => void postClipAction({ action: "dismiss", beatId })}
           onPlateRebuilt={(plateFile, staging, summary, plateTakes, bibleIds) => {
             setStory((cur) => {
               if (!cur || !openShotId) return cur;
@@ -1399,6 +1424,8 @@ function ShotLineEditor({
   placeName,
   placeSrc,
   jobPlated,
+  clipRemoveDisabled,
+  onDismissClipError,
   onBeatSaved,
   onPlateRebuilt,
   onLineAdded,
@@ -1417,6 +1444,8 @@ function ShotLineEditor({
   placeName?: string;
   placeSrc?: string;
   jobPlated?: boolean;
+  clipRemoveDisabled?: boolean;
+  onDismissClipError?: (beatId: string) => void;
   onBeatSaved: (beatId: string, text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
   onLineAdded?: (beat: CrashStoryBeat) => void;
   onLineRemoved?: (beatId: string, job?: MobileGenJob) => void;
@@ -1469,8 +1498,42 @@ function ShotLineEditor({
         return (
           <div key={beat.id}>
             {clip?.clipStatus === "error" && clip.error ? (
-              <div style={{ fontSize: "12px", color: "var(--magenta-hot)", marginBottom: "6px" }}>
-                {clip.error}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "8px",
+                  marginBottom: "6px",
+                }}
+              >
+                <div style={{ flex: 1, fontSize: "12px", color: "var(--magenta-hot)" }}>
+                  {clip.error}
+                </div>
+                {onDismissClipError ? (
+                  <button
+                    type="button"
+                    aria-label="Bin failed clip"
+                    title="Bin this failed Generate. File parks in _cleared/ — not deleted."
+                    disabled={clipRemoveDisabled}
+                    onClick={() => onDismissClipError(beat.id)}
+                    style={{
+                      flex: "0 0 auto",
+                      width: "22px",
+                      height: "22px",
+                      padding: 0,
+                      borderRadius: "2px",
+                      border: "1px solid var(--acid)",
+                      background: "transparent",
+                      color: "var(--acid)",
+                      fontSize: "11px",
+                      lineHeight: 1,
+                      cursor: clipRemoveDisabled ? "not-allowed" : "pointer",
+                      opacity: clipRemoveDisabled ? 0.45 : 1,
+                    }}
+                  >
+                    ✕
+                  </button>
+                ) : null}
               </div>
             ) : null}
             <BeatLineEditor

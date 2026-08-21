@@ -37,6 +37,7 @@ import { queuedSavedClips } from "@/lib/mobileClipQueue";
 import { isJoKeyboardWarrior } from "@/lib/mobileImageMotion";
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
+import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
 async function fetchDeskStory(styleId: string, folderName: string): Promise<CrashStoryDoc | null> {
   const res = await fetch(
@@ -832,6 +833,8 @@ export function StudioTree({
   const [deskStory, setDeskStory] = useState<CrashStoryDoc | null>(null);
   const [worldDropOver, setWorldDropOver] = useState(false);
   const [plateSpeaker, setPlateSpeaker] = useState("");
+  const [binFailedBusy, setBinFailedBusy] = useState(false);
+  const [binFailedError, setBinFailedError] = useState("");
 
   async function addLocationToPlate(sceneId: string, speaker: string) {
     const who = speaker.trim();
@@ -998,6 +1001,24 @@ export function StudioTree({
   const unplated = plateCounts.total - plateCounts.done;
   const plateCountsReady = Boolean(deskStory) || !job.folderName;
 
+  async function binFailedClips() {
+    setBinFailedError("");
+    setBinFailedBusy(true);
+    try {
+      const res = await fetch("/api/crash/mobile/clip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, action: "bin-failed" }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob }>(res);
+      if (data.job) onJobChange(data.job);
+    } catch (e) {
+      setBinFailedError(studioFetchError(e, "Couldn't bin those clips"));
+    } finally {
+      setBinFailedBusy(false);
+    }
+  }
+
   async function plateTheEpisode() {
     if (plating || (plateCountsReady && !unplated)) return;
     setPlating(true);
@@ -1065,11 +1086,36 @@ export function StudioTree({
             <div style={{ color: "var(--magenta-hot)", fontSize: "13px" }}>{job.error}</div>
           ) : null}
           {job.clips.some((c) => c.clipStatus === "error" && c.error) ? (
-            <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>
-              {job.clips
-                .filter((c) => c.clipStatus === "error" && c.error)
-                .map((c) => c.error)
-                .join(" · ")}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>
+                {job.clips
+                  .filter((c) => c.clipStatus === "error" && c.error)
+                  .map((c) => c.error)
+                  .join(" · ")}
+              </div>
+              <button
+                type="button"
+                disabled={binFailedBusy}
+                onClick={() => void binFailedClips()}
+                style={{
+                  alignSelf: "flex-start",
+                  padding: "4px 8px",
+                  borderRadius: "2px",
+                  border: "1px solid var(--acid)",
+                  background: "transparent",
+                  color: "var(--acid)",
+                  fontSize: "10px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  cursor: binFailedBusy ? "not-allowed" : "pointer",
+                  opacity: binFailedBusy ? 0.45 : 1,
+                }}
+              >
+                {binFailedBusy ? "…" : "Bin failed clips"}
+              </button>
+              {binFailedError ? (
+                <div style={{ color: "var(--magenta-hot)", fontSize: "12px" }}>{binFailedError}</div>
+              ) : null}
             </div>
           ) : null}
           {plateCounts.total || !plateCountsReady ? (
@@ -1547,7 +1593,33 @@ export function StudioTree({
             <div style={{ color: "var(--magenta-hot)", fontSize: "13px", marginBottom: "10px" }}>
               {job.error || "Something went wrong"}
             </div>
-            <MobilePrimaryButton onClick={onRetryError}>Check again</MobilePrimaryButton>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              <MobilePrimaryButton onClick={onRetryError}>Check again</MobilePrimaryButton>
+              {job.clips.some((c) => c.clipStatus === "error") ? (
+                <button
+                  type="button"
+                  disabled={binFailedBusy}
+                  onClick={() => void binFailedClips()}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "2px",
+                    border: "1px solid var(--acid)",
+                    background: "transparent",
+                    color: "var(--acid)",
+                    fontSize: "12px",
+                    cursor: binFailedBusy ? "not-allowed" : "pointer",
+                    opacity: binFailedBusy ? 0.45 : 1,
+                  }}
+                >
+                  {binFailedBusy ? "…" : "Bin failed clips"}
+                </button>
+              ) : null}
+            </div>
+            {binFailedError ? (
+              <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "8px" }}>
+                {binFailedError}
+              </div>
+            ) : null}
           </div>
         ) : null}
 

@@ -28,7 +28,7 @@ export function PlateClipThumbs({
   /** Plate still — first frame stand-in so the box is not black before play. */
   poster?: string;
   layout?: "stack" | "strip";
-  /** Scratch — park one bad take off the strip (mp4 stays in _cleared/ or Blob). */
+  /** /m and Scratch — park one take (mp4 stays in _cleared/ or Blob). */}
   onRemoveTake?: (opts: { beatId: string; fileName: string }) => void;
   removeDisabled?: boolean;
 }) {
