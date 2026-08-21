@@ -313,6 +313,23 @@ export function MusicVideoSongCuts({
     <div className="scratch-song">
       <div className="scratch-song-title">Music video — song cuts</div>
       <p className="scratch-song-clock">{label}</p>
+      {song?.fileName ? (
+        beatId ? (
+          <a
+            className="scratch-song-mp3"
+            href={
+              `/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}` +
+              `&folderName=${encodeURIComponent(job.folderName || job.id)}` +
+              `&beatId=${encodeURIComponent(beatId)}` +
+              `&fileName=${encodeURIComponent(song.fileName)}`
+            }
+          >
+            Song · {song.fileName}
+          </a>
+        ) : (
+          <p className="scratch-song-mp3">Song · {song.fileName}</p>
+        )
+      ) : null}
       {progress ? <p className="scratch-song-parked">{progress}</p> : null}
       {note ? <p className="scratch-song-parked">{note}</p> : null}
       {cuts.length ? (

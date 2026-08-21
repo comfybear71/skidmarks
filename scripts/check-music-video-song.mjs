@@ -146,5 +146,8 @@ assert.match(editor, /addPlateToSong/);
 assert.match(editor, /Empty stage\. No one on it/);
 assert.doesNotMatch(songUi, /Singer plates sing/);
 assert.match(songUi, /Add 15s on a plate/);
+assert.match(songUi, /scratch-song-mp3/);
+assert.match(songUi, /Song · \{song\.fileName\}/);
+assert.match(songCss, /\.scratch-song-mp3/);
 
 console.log("check-music-video-song: ok");
