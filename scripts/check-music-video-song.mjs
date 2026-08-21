@@ -26,6 +26,8 @@ import {
   cutsForDeskRow,
   deskRowAllDone,
   shortPlateLabel,
+  clearStuckSongCooks,
+  hasStuckSongCook,
 } from "../src/lib/musicVideoSong.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
@@ -65,6 +67,9 @@ assert.deepEqual(tallySongCuts([{ status: "done" }, { status: "running" }, { sta
   error: 0,
 });
 assert.match(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1, error: 0 }), /1\/3 done/);
+assert.match(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1, error: 0 }), /working/);
+assert.match(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1, error: 0 }), /waiting/);
+assert.doesNotMatch(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1, error: 0 }), /cooking|parked/);
 
 const kept = withoutPlateParkedCuts(
   [
@@ -187,6 +192,22 @@ assert.match(songUi, /--row-progress/);
 assert.doesNotMatch(songUi, /Cooking/);
 assert.doesNotMatch(songUi, /cooking \$\{/);
 assert.match(songUi, /Working…/);
+assert.match(songUi, /unstick-all/);
+assert.match(songUi, /stopStuckCook/);
+assert.match(songRoute, /unstick-all/);
+assert.match(songRoute, /clearStuckSongCooks/);
+assert.doesNotMatch(songRoute, /Wait for cooking/);
+assert.equal(
+  hasStuckSongCook([{ status: "running", clipFile: "" }, { status: "pending", clipFile: "" }]),
+  true,
+);
+assert.deepEqual(
+  clearStuckSongCooks([
+    { id: "a", status: "running", clipFile: "", plateFile: "p.png", startSec: 0, durationSec: 15 },
+    { id: "b", status: "done", clipFile: "b.mp4", plateFile: "p.png", startSec: 15, durationSec: 15 },
+  ]).map((c) => c.status),
+  ["pending", "done"],
+);
 assert.match(songCss, /\.m-song-progress/);
 assert.match(songCss, /\.m-song-plate-line/);
 assert.match(editor, /m-song-plate-tally/);

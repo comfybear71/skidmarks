@@ -43,6 +43,22 @@ export function cutsForPlate(
   });
 }
 
+/**
+ * Hung LTX left status=running with no clip — that used to lock Add forever.
+ * Clear those before list edits so the desk stays usable.
+ */
+export function clearStuckSongCooks<T extends ScratchSongCut>(cuts: T[] = []): T[] {
+  return cuts.map((c) =>
+    c.status === "running" && !(c.clipFile || "").trim()
+      ? { ...c, status: "pending" as const, error: "" }
+      : c,
+  );
+}
+
+export function hasStuckSongCook(cuts: Pick<ScratchSongCut, "status" | "clipFile">[] = []): boolean {
+  return cuts.some((c) => c.status === "running" && !(c.clipFile || "").trim());
+}
+
 /** Pending / fail / stuck cook — not a finished clip. Plate stays. */
 export function droppablePlateCuts(
   cuts: Pick<ScratchSongCut, "id" | "status" | "clipFile">[],
@@ -279,8 +295,8 @@ export function withoutSongPlate(ids: string[], shotId: string): string[] {
 export function songCutTallyLine(tally: SongCutTally): string {
   if (!tally.total) return "no slices yet";
   const bits = [`${tally.done}/${tally.total} done`];
-  if (tally.cooking) bits.push(`${tally.cooking} cooking`);
-  if (tally.parked) bits.push(`${tally.parked} parked`);
+  if (tally.cooking) bits.push(`${tally.cooking} working`);
+  if (tally.parked) bits.push(`${tally.parked} waiting`);
   if (tally.error) bits.push(`${tally.error} fail`);
   return bits.join(" · ");
 }
