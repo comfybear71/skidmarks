@@ -133,22 +133,28 @@ export function MobilePrimaryButton({
   children,
   onClick,
   disabled,
+  busy,
   tone = "accent",
   size = "block",
 }: {
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
+  /** Working — stay lit. Do not fade to 0.55 or a tap looks dead. */
+  busy?: boolean;
   tone?: "accent" | "ghost";
   size?: "block" | "chip";
 }) {
   const accent = tone === "accent";
   const chip = size === "chip";
+  const locked = Boolean(disabled || busy);
   return (
     <button
       type="button"
+      className={busy ? "m-tap m-tap-busy" : "m-tap"}
       onClick={onClick}
-      disabled={disabled}
+      disabled={locked}
+      aria-busy={busy || undefined}
       style={{
         width: "auto",
         maxWidth: "100%",
@@ -163,13 +169,19 @@ export function MobilePrimaryButton({
         fontWeight: 600,
         letterSpacing: chip ? "0.06em" : undefined,
         textTransform: chip ? "uppercase" : undefined,
-        border: accent ? "1px solid var(--acid)" : "1px solid var(--line)",
+        border: accent || busy ? "1px solid var(--acid)" : "1px solid var(--line)",
         appearance: "none",
         WebkitAppearance: "none",
         backgroundImage: "none",
-        background: "transparent",
-        color: disabled ? "var(--chrome-dim)" : accent ? "var(--acid)" : "var(--chrome)",
-        opacity: disabled ? 0.55 : 1,
+        background: busy ? "var(--acid)" : "transparent",
+        color: busy
+          ? "#111"
+          : disabled
+            ? "var(--chrome-dim)"
+            : accent
+              ? "var(--acid)"
+              : "var(--chrome)",
+        opacity: disabled && !busy ? 0.55 : 1,
         boxShadow: "none",
         touchAction: "manipulation",
         whiteSpace: "nowrap",
@@ -191,24 +203,26 @@ export function MobileAiButton({
   return (
     <button
       type="button"
+      className="m-tap"
       onClick={onClick}
       disabled={busy}
+      aria-busy={busy || undefined}
       title="Draft this box — tap again for a different take"
       style={{
         flex: "0 0 auto",
         padding: "4px 8px",
         borderRadius: "2px",
         border: "1px solid var(--magenta)",
-        background: "transparent",
-        color: "var(--magenta)",
+        background: busy ? "var(--magenta)" : "transparent",
+        color: busy ? "#fff" : "var(--magenta)",
         fontSize: "10px",
         fontWeight: 700,
         letterSpacing: "0.08em",
         textTransform: "uppercase",
-        opacity: busy ? 0.5 : 1,
+        opacity: 1,
       }}
     >
-      {busy ? "…" : "AI"}
+      {busy ? "AI…" : "AI"}
     </button>
   );
 }

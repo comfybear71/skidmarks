@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Black_Ops_One, DM_Sans } from "next/font/google";
 import "../globals.css";
 import "./m/mobile.css";
+import { MobileTapFeedback } from "@/components/mobile/MobileTapFeedback";
 
 /**
  * Phone chrome for /m (episode) and /scratch (one-plate test bed).
@@ -49,6 +50,7 @@ export default function MobileRootLayout({
         className={`${display.variable} ${body.variable} antialiased`}
         style={{ background: "var(--void)", minHeight: "100dvh" }}
       >
+        <MobileTapFeedback />
         {children}
       </body>
     </html>

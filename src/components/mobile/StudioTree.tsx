@@ -1503,16 +1503,21 @@ export function StudioTree({
                     <div className="m-place-plate-actions">
                       <MobilePrimaryButton
                         size="chip"
-                        disabled={addingPlateFor === placeFocus}
+                        busy={addingPlateFor === placeFocus}
                         onClick={() => void addLocationToPlate(placeFocus, plateSpeaker)}
                       >
                         {addingPlateFor === placeFocus
-                          ? "…"
+                          ? "Adding…"
                           : plateSpeaker.trim()
                             ? `Add ${plateSpeaker.trim()}`
                             : "Add empty plate"}
                       </MobilePrimaryButton>
                     </div>
+                    {addingPlateFor === placeFocus ? (
+                      <ShimmerText style={{ fontSize: "13px", fontWeight: 700 }}>
+                        Adding a plate — wait here.
+                      </ShimmerText>
+                    ) : null}
                     {addPlateDoneFor === placeFocus ? (
                       <div className="m-place-plate-note">Added under PLATES</div>
                     ) : null}

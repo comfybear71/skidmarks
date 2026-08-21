@@ -58,5 +58,24 @@ assert.doesNotMatch(
   "A failed story GET must not hide the plate strip",
 );
 assert.match(editor, /No plates yet\. Tap \+/);
+assert.match(editor, /m-plate-no-still/);
+assert.match(editor, /Drawing the still — wait here/);
+assert.match(tree, /Adding a plate — wait here/);
+assert.match(tree, /busy=\{addingPlateFor === placeFocus\}/);
+
+const css = readFileSync(join(root, "src/app/(mobile)/m/mobile.css"), "utf8");
+assert.match(css, /\.mobile-shell button:active/);
+assert.match(css, /\.m-tap-busy/);
+assert.match(css, /\.m-plate-no-still/);
+
+const tap = readFileSync(
+  join(root, "src/components/mobile/MobileTapFeedback.tsx"),
+  "utf8",
+);
+assert.match(tap, /touchstart/);
+assert.match(
+  readFileSync(join(root, "src/app/(mobile)/layout.tsx"), "utf8"),
+  /MobileTapFeedback/,
+);
 
 console.log("mobile plate visible lock ok");
