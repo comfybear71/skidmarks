@@ -42,6 +42,31 @@ export function cutsForPlate(
   });
 }
 
+/** Pending / fail / stuck cook — not a finished clip. Plate stays. */
+export function droppablePlateCuts(
+  cuts: Pick<ScratchSongCut, "id" | "status" | "clipFile">[],
+): typeof cuts {
+  return cuts.filter((c) => {
+    if (c.status === "done") return false;
+    if (c.status === "running" && (c.clipFile || "").trim()) return false;
+    return true;
+  });
+}
+
+export function withoutPlateParkedCuts(
+  cuts: ScratchSongCut[],
+  shotId: string,
+  plateFile?: string,
+): { next: ScratchSongCut[]; dropped: number } {
+  const dropIds = new Set(
+    droppablePlateCuts(cutsForPlate(cuts, shotId, plateFile)).map((c) => c.id),
+  );
+  return {
+    next: cuts.filter((c) => !dropIds.has(c.id)),
+    dropped: dropIds.size,
+  };
+}
+
 export function songCutTallyLine(tally: SongCutTally): string {
   if (!tally.total) return "no slices yet";
   const bits = [`${tally.done}/${tally.total} done`];

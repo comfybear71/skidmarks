@@ -362,6 +362,34 @@ body {
   gap: 6px;
 }
 
+.m-swipe-drop {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.m-swipe-drop-action {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 88px;
+  border: 0;
+  background: var(--magenta-hot);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.m-swipe-drop-front {
+  position: relative;
+  z-index: 1;
+  background: var(--void);
+  touch-action: pan-x pan-y;
+}
+
 .scratch-song-cut {
   display: flex;
   flex-wrap: wrap;
@@ -441,11 +469,6 @@ body {
 .m-song-cut-chip.is-cooking {
   color: #111;
   background: var(--acid);
-  border-color: var(--acid);
-}
-
-.m-song-cut-chip.is-done {
-  color: var(--acid);
   border-color: var(--acid);
 }
 
