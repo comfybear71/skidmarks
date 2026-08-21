@@ -99,6 +99,86 @@ async function fetchStory(styleId: string, folderName: string): Promise<CrashSto
   return (data.story as CrashStoryDoc) || null;
 }
 
+/** Submit the still, then poll. One long POST was dying as "Couldn't reach Studio". */
+async function drawPlateStill(opts: {
+  jobId: string;
+  shotId: string;
+  staging: string;
+  bibleIds?: string[];
+}): Promise<{
+  job?: MobileGenJob;
+  plateFile?: string;
+  plateTakes?: PlateTake[];
+  staging: string;
+  bibleIds?: string[];
+}> {
+  const startRes = await fetch("/api/crash/mobile/plate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jobId: opts.jobId,
+      shotId: opts.shotId,
+      action: "draw-start",
+      staging: opts.staging,
+      summary: opts.staging,
+      bibleIds: opts.bibleIds,
+    }),
+  });
+  const start = await readApiJson<{
+    error?: string;
+    pending?: boolean;
+    job?: MobileGenJob;
+    plateFile?: string;
+    plateTakes?: PlateTake[];
+    staging?: string;
+    bibleIds?: string[];
+  }>(startRes);
+  if (!start.pending) {
+    return {
+      job: start.job,
+      plateFile: start.plateFile,
+      plateTakes: start.plateTakes,
+      staging: start.staging || opts.staging,
+      bibleIds: start.bibleIds,
+    };
+  }
+  for (let i = 0; i < 90; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const pollRes = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: opts.jobId,
+          shotId: opts.shotId,
+          action: "draw-poll",
+        }),
+      });
+      const poll = await readApiJson<{
+        error?: string;
+        pending?: boolean;
+        job?: MobileGenJob;
+        plateFile?: string;
+        plateTakes?: PlateTake[];
+        staging?: string;
+        bibleIds?: string[];
+      }>(pollRes);
+      if (!poll.pending) {
+        return {
+          job: poll.job,
+          plateFile: poll.plateFile,
+          plateTakes: poll.plateTakes,
+          staging: poll.staging || opts.staging,
+          bibleIds: poll.bibleIds,
+        };
+      }
+    } catch {
+      /* short poll dropped — keep waiting, don't pink-line yet */
+    }
+  }
+  throw new Error("Draw is still cooking. The episode is still there — tap again.");
+}
+
 /**
  * Plates as a horizontal thumbnail row (step 1); tap one to open its lines
  * below (step 2) — edit the text, hear it, tap Save to re-voice. Runs during
@@ -896,27 +976,16 @@ function CastIntoPlatePopup({
         : existing
           ? `${existing.replace(/\s+$/, "")} ${staging.trim()}`
           : staging.trim();
-      const drawRes = await fetch("/api/crash/mobile/plate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId: job.id,
-          shotId,
-          staging: next,
-          summary: next,
-        }),
+      const drawData = await drawPlateStill({
+        jobId: job.id,
+        shotId,
+        staging: next,
       });
-      const drawData = await readApiJson<{
-        error?: string;
-        job?: MobileGenJob;
-        plateFile?: string;
-        plateTakes?: PlateTake[];
-      }>(drawRes);
       onPlaced({
         job: drawData.job,
         plateFile: drawData.plateFile,
         plateTakes: drawData.plateTakes,
-        staging: next,
+        staging: drawData.staging || next,
       });
     } catch (e) {
       setError(studioFetchError(e, "Couldn't draw that still"));
@@ -1814,27 +1883,12 @@ function BeatLineEditor({
     async (body: string) => {
       const staging = body.trim();
       if (!staging) throw new Error("Write a position prompt before redrawing");
-      const res = await fetch("/api/crash/mobile/plate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId,
-          shotId,
-          staging,
-          summary: staging,
-          bibleIds: bibleActiveIds,
-        }),
+      const data = await drawPlateStill({
+        jobId,
+        shotId,
+        staging,
+        bibleIds: bibleActiveIds,
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        plateFile?: string;
-        plateTakes?: PlateTake[];
-        staging?: string;
-        bibleIds?: string[];
-        qa?: { ok?: boolean; fails?: string[] };
-        qaAttempts?: number;
-      };
-      if (!res.ok) throw new Error(data.error || "Couldn't redraw that still");
       const saved = (data.staging ?? staging).trim();
       const ids = Array.isArray(data.bibleIds) ? data.bibleIds : bibleActiveIds;
       setBibleActiveIds(ids);
@@ -1843,11 +1897,6 @@ function BeatLineEditor({
         plateTakes: data.plateTakes,
         bibleIds: ids,
       });
-      if (data.qa && data.qa.ok === false) {
-        const n = data.qaAttempts || 3;
-        const why = (data.qa.fails || []).join(", ") || "the still";
-        throw new Error(`Still off after ${n} tries (${why}). Tweak Position and Redo still.`);
-      }
       return saved;
     },
     [bibleActiveIds, jobId, onPositionSaved, shotId],

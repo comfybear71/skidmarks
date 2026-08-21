@@ -207,3 +207,70 @@ export async function rebuildShotPlate(opts: {
     speaker,
   };
 }
+
+/** Land a finished Siray still onto an episode plate. Does not draw. */
+export async function landEpisodePlateStill(opts: {
+  job: MobileGenJob;
+  story: CrashStoryDoc;
+  shotId: string;
+  fileName: string;
+  staging: string;
+  bibleIds?: string[];
+}): Promise<{
+  job: MobileGenJob;
+  story: CrashStoryDoc;
+  plateFile: string;
+  plateTakes: PlateTake[];
+  staging: string;
+  bibleIds: string[];
+}> {
+  const { job, shotId, fileName } = opts;
+  const staging = opts.staging.trim();
+  const bibleIds = [...new Set((opts.bibleIds || []).map((id) => id.trim()).filter(Boolean))];
+  const scene = opts.story.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId));
+  const shot = scene?.shots.find((sh) => sh.id === shotId);
+  if (!scene || !shot) throw new Error("That shot is not in the story");
+
+  try {
+    await uploadMobileMedia({
+      styleId: job.styleId,
+      folderName: job.folderName,
+      kind: "plates",
+      localPath: path.join(CRASH_DIR, "gen", fileName),
+    });
+  } catch {
+    /* still usable this request */
+  }
+
+  const newTake: PlateTake = {
+    id: newId("take"),
+    fileName,
+    staging,
+    bibleIds: bibleIds.length ? bibleIds : undefined,
+    approved: true,
+  };
+  const plateTakes = [...(shot.plateTakes || []).map((t) => ({ ...t, approved: false })), newTake];
+  const story = patchShotFields(opts.story, shotId, {
+    plateFile: fileName,
+    staging,
+    bibleIds: bibleIds.length ? bibleIds : undefined,
+    plateTakes,
+  });
+  await writeMobileStory(story, job.folderName);
+  const shots = job.shots.map((s) =>
+    s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
+  );
+  const updated = (await patchMobileGenJob(job.id, {
+    shots,
+    error: "",
+    plateDraw: null,
+  }))!;
+  return {
+    job: updated,
+    story,
+    plateFile: fileName,
+    plateTakes,
+    staging,
+    bibleIds,
+  };
+}

@@ -12,7 +12,10 @@ import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { beatsAfterRemoveLine, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import { castNamesMatch } from "@/lib/mobileDropCast";
 import { appendPlacePlate } from "@/lib/mobilePlateGraph";
-import { rebuildShotPlate } from "@/lib/mobilePlateRebuild";
+import { landEpisodePlateStill, rebuildShotPlate } from "@/lib/mobilePlateRebuild";
+import { scratchDrawStillInFlight } from "@/lib/mobileScratch";
+import { finishSirayScratchPlate, submitSirayScratchPlate } from "@/lib/sirayScratchPlate";
+import { sirayConfigured } from "@/lib/sirayClient";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { newId } from "@/lib/types";
 
@@ -84,6 +87,11 @@ function patchShotFields(
  * POST { jobId, shotId, takeId, action: "pick" } — a conversation shot can
  * carry several takes (drawn on different position tweaks); this mirrors
  * one onto plateFile/staging without drawing anything new.
+ * POST { jobId, shotId, staging, action: "draw-start" } — start the still.
+ * Siray returns pending; the browser polls. One long POST was dying as
+ * "Couldn't reach Studio".
+ * POST { jobId, shotId?, action: "draw-poll" } — one Siray tick. Lands the
+ * still when ready. Does not start a second Draw.
  */
 export async function POST(req: Request) {
   try {
@@ -125,8 +133,10 @@ export async function POST(req: Request) {
     const restore = action === "restore";
     const pick = action === "pick";
     const dropTake = action === "drop-take";
+    const drawStart = action === "draw-start";
+    const drawPoll = action === "draw-poll";
     if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
-    if (!add && !remove && !clear && !restore && !shotId) {
+    if (!add && !remove && !clear && !restore && !drawPoll && !shotId) {
       return NextResponse.json({ error: "Need shotId" }, { status: 400 });
     }
     if (add && !sceneIdIn) return NextResponse.json({ error: "Need sceneId" }, { status: 400 });
@@ -222,7 +232,9 @@ export async function POST(req: Request) {
     let scene = story.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId));
     let shot = scene?.shots.find((sh) => sh.id === shotId);
     if (!scene || !shot) {
-      return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
+      if (!drawPoll) {
+        return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
+      }
     }
     const liveShot = shot;
 
@@ -494,6 +506,155 @@ export async function POST(req: Request) {
         staging,
         plateTakes: remaining,
       });
+    }
+
+    if (drawStart) {
+      if (!liveShot) {
+        return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
+      }
+      const staging = (stagingIn || "").trim();
+      if (!staging) {
+        return NextResponse.json(
+          { error: "Say who sits where — not two people stuck in the front." },
+          { status: 400 },
+        );
+      }
+      const speakers = shotSpeakersOnCard({
+        shotId: liveShot.id,
+        title: liveShot.title,
+        staging,
+        summary: summaryIn ?? staging,
+        plateFile: liveShot.plateFile,
+        jobSpeakers: job.speakers,
+        beats: liveShot.beats,
+      });
+      if (!speakers.length) {
+        return NextResponse.json(
+          { error: "Need a character on this plate before Draw" },
+          { status: 400 },
+        );
+      }
+      const saved = patchShotFields(story, shotId, {
+        staging,
+        summary: summaryIn ?? staging,
+        bibleIds: bibleIdsIn,
+      });
+      await writeMobileStory(saved, job.folderName);
+      const liveScene = saved.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId));
+      const nextShot = liveScene?.shots.find((sh) => sh.id === shotId);
+      if (!liveScene || !nextShot) {
+        return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
+      }
+
+      if (sirayConfigured()) {
+        const want = { shotId, staging, speaker: speakers[0], cast: speakers };
+        if (scratchDrawStillInFlight(job.plateDraw, want)) {
+          return NextResponse.json({ ok: true, pending: true, job, shotId });
+        }
+        const started = await submitSirayScratchPlate(job.styleId, liveScene, nextShot, {
+          silentCast: [],
+          styleRealism: job.styleRealism,
+          job,
+        });
+        const updated = await patchMobileGenJob(jobId, {
+          error: "",
+          plateDraw: {
+            taskId: started.taskId,
+            shotId,
+            sceneId: liveScene.id,
+            staging,
+            bibleIds: bibleIdsIn,
+            speaker: speakers[0],
+            cast: speakers,
+            castNames: started.castNames,
+            placeName: started.placeName,
+            startedAt: new Date().toISOString(),
+            sendPrompt: started.send.prompt,
+          },
+        });
+        return NextResponse.json({ ok: true, pending: true, job: updated, shotId });
+      }
+
+      const rebuilt = await rebuildShotPlate({
+        job,
+        story: saved,
+        shotId,
+        stagingIn: staging,
+        bibleIdsIn,
+        qa: false,
+      });
+      return NextResponse.json({
+        ok: true,
+        pending: false,
+        job: rebuilt.job,
+        plateFile: rebuilt.plateFile,
+        plateTakes: rebuilt.plateTakes,
+        staging: rebuilt.staging,
+        bibleIds: rebuilt.bibleIds,
+      });
+    }
+
+    if (drawPoll) {
+      const task = job.plateDraw;
+      if (!task?.taskId) {
+        const sid = shotId || "";
+        const plateFile =
+          job.shots.find((s) => s.shotId === sid)?.plateFile ||
+          story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === sid)?.plateFile ||
+          "";
+        if (plateFile && plateFile !== "__error__") {
+          return NextResponse.json({
+            ok: true,
+            pending: false,
+            recovered: true,
+            job,
+            plateFile,
+            staging: story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === sid)?.staging,
+            plateTakes: story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === sid)?.plateTakes,
+          });
+        }
+        return NextResponse.json(
+          { error: "No Draw in flight — tap Draw again. The episode is still there." },
+          { status: 400 },
+        );
+      }
+      try {
+        const fileName = await finishSirayScratchPlate({
+          taskId: task.taskId,
+          styleId: job.styleId,
+          castNames: task.castNames,
+          placeName: task.placeName,
+        });
+        if (!fileName) {
+          return NextResponse.json({ ok: true, pending: true, job });
+        }
+        const landed = await landEpisodePlateStill({
+          job,
+          story,
+          shotId: task.shotId,
+          fileName,
+          staging: task.staging,
+          bibleIds: task.bibleIds,
+        });
+        return NextResponse.json({
+          ok: true,
+          pending: false,
+          job: landed.job,
+          plateFile: landed.plateFile,
+          plateTakes: landed.plateTakes,
+          staging: landed.staging,
+          bibleIds: landed.bibleIds,
+        });
+      } catch (e) {
+        const failed = await patchMobileGenJob(jobId, {
+          plateDraw: null,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : String(e), job: failed || job },
+          { status: 502 },
+        );
+      }
     }
 
     if (saveOnly) {
