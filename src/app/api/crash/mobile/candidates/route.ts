@@ -11,6 +11,14 @@ import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { jobHasEpisodePack, mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { dropCandidateTake, keepCandidateTakes, latestCandidate } from "@/lib/mobileJobReady";
+import {
+  castNamesMatch,
+  clipsAfterDroppedSpeaker,
+  dropSpeakerFromList,
+  dropSpeakerFromRecord,
+  scrubSpeakerFromStory,
+  shotsAfterDroppedSpeaker,
+} from "@/lib/mobileDropCast";
 import { newId } from "@/lib/types";
 import { useCloudStore } from "@/lib/cloudEnv";
 import { listWorldCardThumbsWithLabels } from "@/lib/worldCardThumbs";
@@ -66,6 +74,9 @@ type Body = {
  *
  * action "drop" (cast) — remove the whole speaker from this job's CAST.
  * Face files stay in Blob (park). Takes list and speakerVoices entry go.
+ * Also strips that name from the story + clip queue so a test CAST
+ * (STUBALLS) cannot print on shirts after you never put them on a plate.
+ * Already-gone names return 200 — do not 404 "is not in this cast".
  * action "drop" (location) — remove the place from this job's scenes.
  * Still files stay in Blob (park). locationCandidates entry goes.
  */
@@ -170,24 +181,31 @@ export async function POST(req: Request) {
       if (action === "drop") {
         const who = target.trim();
         if (!who) return NextResponse.json({ error: "Need a cast name" }, { status: 400 });
-        if (!job.speakers.some((s) => s.trim().toLowerCase() === who.toLowerCase())) {
-          return NextResponse.json({ error: `${who} is not in this cast` }, { status: 404 });
+        let removedShotIds: string[] = [];
+        let removedBeatIds: string[] = [];
+        if (jobHasEpisodePack(job)) {
+          const story = await readMobileStory(job.styleId, job.folderName);
+          const scrubbed = scrubSpeakerFromStory(story, who);
+          removedShotIds = scrubbed.removedShotIds;
+          removedBeatIds = scrubbed.removedBeatIds;
+          await writeMobileStory(scrubbed.story, job.folderName);
         }
-        const speakers = job.speakers.filter(
-          (s) => s.trim().toLowerCase() !== who.toLowerCase(),
+        const roster = (job.roster || []).filter(
+          (row) => !castNamesMatch(row.name || "", who),
         );
-        const castCandidates = { ...job.castCandidates };
-        for (const key of Object.keys(castCandidates)) {
-          if (key.trim().toLowerCase() === who.toLowerCase()) delete castCandidates[key];
-        }
-        const speakerVoices = { ...(job.speakerVoices || {}) };
-        for (const key of Object.keys(speakerVoices)) {
-          if (key.trim().toLowerCase() === who.toLowerCase()) delete speakerVoices[key];
-        }
         const updated = await patchMobileGenJob(jobId, {
-          speakers,
-          castCandidates,
-          speakerVoices,
+          speakers: dropSpeakerFromList(job.speakers, who),
+          castCandidates: dropSpeakerFromRecord(job.castCandidates, who),
+          speakerVoices: dropSpeakerFromRecord(job.speakerVoices, who),
+          characterPlates: dropSpeakerFromRecord(job.characterPlates, who),
+          roster,
+          shots: shotsAfterDroppedSpeaker(job.shots || [], removedShotIds),
+          clips: clipsAfterDroppedSpeaker({
+            clips: job.clips || [],
+            name: who,
+            removedShotIds,
+            removedBeatIds,
+          }),
           error: "",
         });
         return NextResponse.json({ ok: true, job: updated });

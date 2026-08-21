@@ -64,6 +64,13 @@ assert.ok(mixes.every((g) => g.length >= 2 && g.length <= 3));
 assert.ok(!mixes.flat().some((n) => classifyCastRoster(n) === "jo"));
 assert.ok(mixes.some((g) => g.includes("LAND LADY")));
 assert.ok(!mixes.some((g) => g.length > 3));
+assert.deepEqual(
+  mattyBarCast(["CRAZY BIG HOLE JO", "MATTY", "STUBALLS", "TEE"]),
+  ["MATTY", "TEE"],
+);
+assert.ok(
+  !barMixGroups(["MATTY", "TEE", "STUBALLS", "LAND LADY"]).flat().includes("STUBALLS"),
+);
 const llRooms = requiredCastPlacePlates(["LANDLADY"], [
   { id: "front", placeName: "Front" },
   { id: "bed", placeName: "Landlady bedroom" },
