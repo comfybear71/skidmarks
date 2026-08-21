@@ -46,8 +46,13 @@ assert.doesNotMatch(
 
 const plates = tree.slice(tree.indexOf('label="Plates"'), tree.indexOf("<MusicVideoSongCuts"));
 assert.ok(
-  plates.indexOf("m-plates-strip") < plates.indexOf("Crash Lab: Open"),
-  "Plate strip must sit above the Crash Lab line so the cards are on screen",
+  plates.indexOf("m-plates-strip") >= 0,
+  "Plate strip must sit above song cuts so the cards are on screen",
+);
+assert.doesNotMatch(
+  tree,
+  /Crash Lab: Open/,
+  "Do not leave a Crash Lab Open line on /m — it is not a button",
 );
 
 assert.match(editor, /focusShotId/);
