@@ -136,9 +136,15 @@ export function MusicVideoSongCuts({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, jobId: job.id, ...extra }),
     });
-    const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
-    if (data.job) onJobChange(data.job);
-    return data;
+    const raw = (await res.json().catch(() => ({}))) as {
+      job?: MobileGenJob;
+      error?: string;
+    };
+    if (raw.job) onJobChange(raw.job);
+    if (!res.ok) {
+      throw new Error(raw.error?.trim() || `Request failed (${res.status})`);
+    }
+    return raw;
   }
 
   async function dropSong(file: File) {
