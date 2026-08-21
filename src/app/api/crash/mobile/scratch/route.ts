@@ -1205,6 +1205,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, job: updated });
     }
 
+    if (action === "song-cut-unstick") {
+      const song = job.scratchSong;
+      const cutId = (body.cutId || "").trim();
+      if (!song || !cutId) {
+        return NextResponse.json({ error: "Need a cut to unstick." }, { status: 400 });
+      }
+      const cuts = (song.cuts || []).map((c) =>
+        c.id === cutId && c.status === "running" && !c.clipFile
+          ? { ...c, status: "pending" as const, error: "" }
+          : c,
+      );
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, cuts },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
     if (action === "song-cut-run") {
       const song = job.scratchSong;
       if (!song?.fileName) {

@@ -1947,6 +1947,7 @@ function ShotLineEditor({
             placeName={placeName || "this place"}
             beat={beat}
             clipStatus={clips.find((c) => c.beatId === beat.id)?.clipStatus}
+            songDesk={styleId === "music_video"}
             positionPrompt={shot.staging || ""}
             positionBibleIds={resolveShotBibleIds(shot)}
             onPositionSaved={(staging, plate) =>
@@ -2082,6 +2083,7 @@ function BeatLineEditor({
   placeName,
   beat,
   clipStatus,
+  songDesk,
   positionPrompt,
   positionBibleIds,
   onPositionSaved,
@@ -2098,6 +2100,7 @@ function BeatLineEditor({
   placeName?: string;
   beat: CrashStoryBeat;
   clipStatus?: MobileClipUnit["clipStatus"];
+  songDesk?: boolean;
   positionPrompt: string;
   positionBibleIds?: string[];
   onPositionSaved: (
@@ -2456,7 +2459,11 @@ function BeatLineEditor({
         <div style={{ fontSize: "12px", color: "var(--acid)", fontWeight: 700, flex: "0 0 auto" }}>
           {beat.speaker}
         </div>
-        {playable ? (
+        {songDesk ? (
+          <div style={{ fontSize: "12px", color: "var(--chrome-dim)", flex: 1 }}>
+            Position this plate. Song slices are under Music video — song cuts.
+          </div>
+        ) : playable ? (
           <MobileAudioPlayer
             src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(
               folderName,
@@ -2468,6 +2475,7 @@ function BeatLineEditor({
           <div style={{ fontSize: "12px", color: "var(--chrome-dim)", flex: 1 }}>No line yet</div>
         )}
       </div>
+      {songDesk ? null : (
       <MobileTextInput
         value={text}
         onChange={setText}
@@ -2477,14 +2485,16 @@ function BeatLineEditor({
         onAi={() => void lineAssist.runAssist()}
         aiBusy={lineAssist.aiBusy}
       />
-      {lineAssist.aiError ? (
+      )}
+      {songDesk ? null : lineAssist.aiError ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{lineAssist.aiError}</div>
       ) : null}
-      {positionAsLine ? (
+      {songDesk ? null : positionAsLine ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>
           That&apos;s the still position, not the spoken line. Wipe it. Type what she says, then Save.
         </div>
       ) : null}
+      {songDesk ? null : (
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", minWidth: 0 }}>
         <MobilePrimaryButton
           size="chip"
@@ -2516,6 +2526,7 @@ function BeatLineEditor({
         </span>
         {error ? <span style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{error}</span> : null}
       </div>
+      )}
 
       <PositionPromptPanel
         open={positionOpen}
@@ -2592,6 +2603,7 @@ function BeatLineEditor({
         aiBusy={motionAssist.aiBusy}
         aiError={motionAssist.aiError}
       />
+      {songDesk ? null : (
       <MobilePrimaryButton
         disabled={
           generating ||
@@ -2609,12 +2621,13 @@ function BeatLineEditor({
             ? "Generate"
             : "Save the line first"}
       </MobilePrimaryButton>
-      {!playable ? (
+      )}
+      {songDesk || playable ? null : (
         <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>
           Save the spoken line (Play appears), then Generate — that makes this plate&apos;s LTX
           clip. Generate video at the top still sends every Saved line.
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
