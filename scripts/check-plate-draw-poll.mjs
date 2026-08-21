@@ -22,5 +22,12 @@ assert.match(editor, /action: "draw-start"/);
 assert.match(editor, /action: "draw-poll"/);
 assert.match(editor, /async function drawPlateStill/);
 assert.doesNotMatch(editor, /Draw this picture[\s\S]{0,400}staging: next,\s*summary: next/);
+assert.match(editor, /2 or more/);
+assert.match(editor, /mergePlacementsIntoStaging/);
+assert.match(editor, /function turnCrowd/);
+assert.match(editor, /scratch-pad-surface/);
+assert.match(editor, /gold=\{\s*crowd\s*\?\s*null/);
+assert.match(editor, /cast: crowd && padCast.length \? padCast/);
+assert.match(editor, /padCast.length < 2/);
 
 console.log("check-plate-draw-poll: ok");

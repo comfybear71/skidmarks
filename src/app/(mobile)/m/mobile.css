@@ -225,6 +225,35 @@ body {
   background: var(--void);
 }
 
+/* /m add-cast 2-or-more: same pad as Scratch, shorter so the Draw button still fits. */
+.cast-popup-pad {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cast-popup-pad .scratch-pad-still {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 120px;
+  max-height: min(28dvh, 220px);
+  object-fit: contain;
+  object-position: center center;
+  display: block;
+  margin: 0 auto;
+  background: var(--void);
+}
+
+.cast-popup-pad .scratch-pad-markers {
+  pointer-events: none;
+}
+
+.cast-popup-pad .scratch-pad-marker {
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
 /* Stage tight under the title — prompt + knobs share the console under Draw. */
 .scratch-viewport {
   box-sizing: border-box;

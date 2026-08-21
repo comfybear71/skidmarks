@@ -13,9 +13,15 @@ import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scra
 import { PositionPromptPanel, LtxImageMotionPanel } from "@/components/mobile/ShotPromptPanels";
 import {
   applyBibleTokens,
+  dropPercents,
+  mergePlacementsIntoStaging,
+  readScratchDrag,
   resolveShotBibleIds,
+  setScratchDrag,
+  upsertPlacement,
   type ScratchBibleEntry,
   type ScratchBibleSectionId,
+  type ScratchPadPlacement,
 } from "@/lib/scratchBench";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import {
@@ -744,6 +750,10 @@ export function PlateReviewEditor({
             job.locationCandidates,
             shots.find((s) => s.shotId === castPickerShotId)?.sceneId || "",
           )}
+          placeSrc={placeStillUrl(
+            job,
+            shots.find((s) => s.shotId === castPickerShotId)?.sceneId || "",
+          )}
           onCancel={() => setCastPickerShotId(null)}
           onPlaced={(result) => {
             const id = castPickerShotId;
@@ -904,15 +914,15 @@ export function PlateReviewEditor({
   );
 }
 
-/** Scrollable "everyone" picker. Tap one face — the rest grey out, that
- * person lights up, and a position box with AI appears for dropping them
- * into this place still. */
+/** Scrollable "everyone" picker. One = tap a face (rest grey) and Draw.
+ * 2 or more = Scratch pad: park faces on the room still, then Draw. */
 function CastIntoPlatePopup({
   job,
   shotId,
   shot,
   placeName,
   placeLook,
+  placeSrc,
   onCancel,
   onPlaced,
 }: {
@@ -921,6 +931,7 @@ function CastIntoPlatePopup({
   shot: CrashStoryShot | null;
   placeName: string;
   placeLook: string;
+  placeSrc?: string;
   onCancel: () => void;
   onPlaced: (result: {
     job?: MobileGenJob;
@@ -930,11 +941,17 @@ function CastIntoPlatePopup({
   }) => void;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
+  const [crowd, setCrowd] = useState(false);
+  const [padCast, setPadCast] = useState<string[]>([]);
+  const [placements, setPlacements] = useState<ScratchPadPlacement[]>([]);
   const [staging, setStaging] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
   const [bibleActiveId, setBibleActiveId] = useState<string | null>(null);
+  const [padDragOver, setPadDragOver] = useState(false);
+  const padSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const markDragging = useRef(false);
   const inShot = new Set(
     speakersAlreadyInPlate({
       shotId: shot?.id || shotId,
@@ -946,22 +963,168 @@ function CastIntoPlatePopup({
       beats: shot?.beats || [],
     }).map((n) => n.toLowerCase()),
   );
+  const crowdPeople = crowd ? padCast : picked ? [picked] : [];
   const hint = platePositionAssistHint({
-    people: picked ? [picked] : [],
+    people: crowdPeople,
     placeName,
     placeLook,
-    looks: picked
-      ? [{ name: picked, look: candidateLookPrompt(job.castCandidates, picked) }]
-      : [],
+    looks: crowdPeople.map((name) => ({
+      name,
+      look: candidateLookPrompt(job.castCandidates, name),
+    })),
   });
   const assist = useMobileAssist("plate", job.styleId, () => staging, setStaging, hint);
 
+  function crowdX(count: number): number {
+    if (count === 0) return 70;
+    if (count === 1) return 22;
+    return Math.min(88, 22 + count * 28);
+  }
+
+  function writeCrowdLetter(nextPlaces: ScratchPadPlacement[]) {
+    setStaging(mergePlacementsIntoStaging("", nextPlaces, placeName || "this place"));
+  }
+
+  function parkFace(name: string, xPercent: number, yPercent: number) {
+    setPadCast((prev) => (prev.includes(name) ? prev : [...prev, name]));
+    setPlacements((prev) => {
+      const next = upsertPlacement(prev, { name, xPercent, yPercent });
+      writeCrowdLetter(next);
+      return next;
+    });
+    setPicked(name);
+    setError("");
+  }
+
+  function unparkFace(name: string) {
+    const nextCast = padCast.filter((n) => n !== name);
+    const nextPlaces = placements.filter((p) => p.name !== name);
+    setPadCast(nextCast);
+    setPlacements(nextPlaces);
+    writeCrowdLetter(nextPlaces);
+    setPicked(nextCast[nextCast.length - 1] || null);
+  }
+
+  function pickFace(name: string) {
+    if (crowd) {
+      if (!padCast.includes(name)) {
+        parkFace(name, crowdX(padCast.length), 58);
+        return;
+      }
+      if (picked === name) {
+        unparkFace(name);
+        return;
+      }
+      setPicked(name);
+      setError("");
+      return;
+    }
+    setPicked(name);
+    setStaging(inShot.has(name.trim().toLowerCase()) ? shot?.staging?.trim() || "" : "");
+    setError("");
+  }
+
+  function turnCrowd(on: boolean) {
+    setCrowd(on);
+    setError("");
+    if (!on) return;
+    const already = speakersAlreadyInPlate({
+      shotId: shot?.id || shotId,
+      title: shot?.title,
+      staging: shot?.staging,
+      summary: shot?.summary,
+      plateFile: shot?.plateFile,
+      jobSpeakers: job.speakers,
+      beats: shot?.beats || [],
+    });
+    if (!already.length) return;
+    const places = already.map((name, i) => ({
+      name,
+      xPercent: crowdX(i),
+      yPercent: 58,
+    }));
+    setPadCast(already);
+    setPlacements(places);
+    setPicked(already[already.length - 1] || null);
+    writeCrowdLetter(places);
+  }
+
+  function onPadDragOver(e: React.DragEvent) {
+    if (!crowd) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    if (!padDragOver) setPadDragOver(true);
+  }
+
+  function onPadDragLeave(e: React.DragEvent) {
+    const next = e.relatedTarget as Node | null;
+    if (next && padSurfaceRef.current?.contains(next)) return;
+    setPadDragOver(false);
+  }
+
+  function placeAtClient(clientX: number, clientY: number, name: string) {
+    if (!padSurfaceRef.current) return;
+    const { xPercent, yPercent } = dropPercents(
+      clientX,
+      clientY,
+      padSurfaceRef.current.getBoundingClientRect(),
+    );
+    parkFace(name, xPercent, yPercent);
+  }
+
+  function onPadDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setPadDragOver(false);
+    if (!crowd) return;
+    const payload = readScratchDrag(e.dataTransfer);
+    if (!payload || payload.type !== "actor") return;
+    placeAtClient(e.clientX, e.clientY, payload.id);
+  }
+
   async function putIn() {
-    if (!picked || !staging.trim()) return;
+    if (crowd) {
+      if (padCast.length < 2) {
+        setError("Park at least two faces on the room — tap them, or drag onto the still.");
+        return;
+      }
+    } else if (!picked || !staging.trim()) return;
     setBusy(true);
     setError("");
     try {
-      const already = inShot.has(picked.trim().toLowerCase());
+      if (crowd) {
+        const letter = mergePlacementsIntoStaging(
+          staging.trim(),
+          placements,
+          placeName || "this place",
+        );
+        for (const name of padCast) {
+          if (inShot.has(name.trim().toLowerCase())) continue;
+          const addRes = await fetch("/api/crash/mobile/plate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jobId: job.id, shotId, speaker: name, action: "add-cast" }),
+          });
+          try {
+            await readApiJson<{ error?: string }>(addRes);
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "";
+            if (!/already in this shot/i.test(msg)) throw e;
+          }
+        }
+        const drawData = await drawPlateStill({
+          jobId: job.id,
+          shotId,
+          staging: letter,
+        });
+        onPlaced({
+          job: drawData.job,
+          plateFile: drawData.plateFile,
+          plateTakes: drawData.plateTakes,
+          staging: drawData.staging || letter,
+        });
+        return;
+      }
+      const already = inShot.has(picked!.trim().toLowerCase());
       if (!already) {
         const addRes = await fetch("/api/crash/mobile/plate", {
           method: "POST",
@@ -1005,7 +1168,7 @@ function CastIntoPlatePopup({
         ...mobileCard,
         padding: "12px",
         marginBottom: "10px",
-        maxHeight: "70vh",
+        maxHeight: crowd ? "82vh" : "70vh",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
@@ -1026,6 +1189,36 @@ function CastIntoPlatePopup({
           >
             Who&apos;s in this plate
           </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => turnCrowd(false)}
+            style={{
+              padding: "4px 8px",
+              borderRadius: "8px",
+              border: crowd ? "1px solid var(--line)" : "1px solid var(--acid)",
+              background: "transparent",
+              color: crowd ? "var(--chrome)" : "var(--acid)",
+              fontSize: "11px",
+            }}
+          >
+            One
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => turnCrowd(true)}
+            style={{
+              padding: "4px 8px",
+              borderRadius: "8px",
+              border: crowd ? "1px solid var(--acid)" : "1px solid var(--line)",
+              background: "transparent",
+              color: crowd ? "var(--acid)" : "var(--chrome)",
+              fontSize: "11px",
+            }}
+          >
+            2 or more
+          </button>
           <button
             type="button"
             onClick={onCancel}
@@ -1052,20 +1245,22 @@ function CastIntoPlatePopup({
           }}
         >
           {job.speakers.map((name) => {
-            const selected = picked === name;
+            const onPad = padCast.includes(name);
+            const selected = crowd ? onPad || picked === name : picked === name;
             const already = inShot.has(name.trim().toLowerCase());
-            const grey = castPopupFaceGrey(picked, name);
+            const grey = crowd ? false : castPopupFaceGrey(picked, name);
             const face = speakerFaceUrl(job, name);
             return (
               <button
                 key={name}
                 type="button"
-                disabled={false}
-                onClick={() => {
-                  setPicked(name);
-                  setStaging(already ? shot?.staging?.trim() || "" : "");
-                  setError("");
+                disabled={busy}
+                draggable={crowd}
+                onDragStart={(e) => {
+                  if (!crowd) return;
+                  setScratchDrag(e.dataTransfer, { type: "actor", id: name, label: name });
                 }}
+                onClick={() => pickFace(name)}
                 style={{
                   flex: "0 0 auto",
                   width: "72px",
@@ -1125,7 +1320,7 @@ function CastIntoPlatePopup({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {already && !selected ? `${name} · in` : name}
+                  {already && !selected && !crowd ? `${name} · in` : onPad && crowd ? `${name} · on` : name}
                 </span>
               </button>
             );
@@ -1144,34 +1339,132 @@ function CastIntoPlatePopup({
           gap: "10px",
         }}
       >
-        {picked ? (
+        {crowd ? (
+          <div className="cast-popup-pad">
+            <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>
+              Tap 2 or more faces, then drag them onto the room — same as Scratch (bed left, sofa
+              right). Drag a name on the still to move them. Tap a lit face again to take them off.
+            </div>
+            <div
+              ref={padSurfaceRef}
+              className={`scratch-pad-surface${padDragOver ? " is-drop-target" : ""}`}
+              onDragOver={onPadDragOver}
+              onDragLeave={onPadDragLeave}
+              onDrop={onPadDrop}
+              onClick={(e) => {
+                if (!picked || markDragging.current) return;
+                placeAtClient(e.clientX, e.clientY, picked);
+              }}
+            >
+              <div
+                style={{
+                  ...mobileCard,
+                  padding: "2px",
+                  lineHeight: 0,
+                  width: "100%",
+                  border: "none",
+                  background: "var(--panel)",
+                  position: "relative",
+                }}
+              >
+                {placeSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={placeSrc}
+                    alt={placeName || "This place"}
+                    className="scratch-pad-still"
+                    draggable={false}
+                  />
+                ) : (
+                  <div
+                    className="scratch-pad-still"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--chrome-dim)",
+                      fontSize: "13px",
+                      textAlign: "center",
+                      padding: "16px",
+                    }}
+                  >
+                    No room still on this plate yet.
+                  </div>
+                )}
+              </div>
+              {placements.length ? (
+                <div className="scratch-pad-markers">
+                  {placements.map((p) => (
+                    <div
+                      key={p.name}
+                      className="scratch-pad-marker"
+                      style={{ left: `${p.xPercent}%`, top: `${p.yPercent}%` }}
+                      title={`${p.name} · drag to move`}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        markDragging.current = true;
+                        setPicked(p.name);
+                        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                      }}
+                      onPointerMove={(e) => {
+                        if (!markDragging.current) return;
+                        placeAtClient(e.clientX, e.clientY, p.name);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerUp={(e) => {
+                        e.stopPropagation();
+                        markDragging.current = false;
+                      }}
+                    >
+                      <span className="scratch-pad-marker-label">{p.name}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {crowd || picked ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {fieldLabel(`Position ${picked}`)}
+            {fieldLabel(
+              crowd
+                ? padCast.length
+                  ? `Position ${padCast.join(" + ")}`
+                  : "Position the pair"
+                : `Position ${picked}`,
+            )}
             <ScratchPromptBible
               activeId={bibleActiveId}
               mode={bibleMode}
               onModeChange={setBibleMode}
               disabled={busy}
-              gold={{
-                title: stylePositionGold(job.styleId as ShowStyleId).forWhat,
-                onClick: () => {
-                  const text = applyStylePositionGold(job.styleId as ShowStyleId, {
-                    name: picked,
-                    place: placeName || "this place",
-                  });
-                  setBibleActiveId("style-position-gold");
-                  if (bibleMode === "append" && staging.trim()) {
-                    setStaging(`${staging.trim()}\n\n${text}`);
-                  } else {
-                    setStaging(text);
-                  }
-                },
-              }}
+              gold={
+                crowd
+                  ? null
+                  : {
+                      title: stylePositionGold(job.styleId as ShowStyleId).forWhat,
+                      onClick: () => {
+                        const text = applyStylePositionGold(job.styleId as ShowStyleId, {
+                          name: picked || "",
+                          place: placeName || "this place",
+                        });
+                        setBibleActiveId("style-position-gold");
+                        if (bibleMode === "append" && staging.trim()) {
+                          setStaging(`${staging.trim()}\n\n${text}`);
+                        } else {
+                          setStaging(text);
+                        }
+                      },
+                    }
+              }
               onPick={(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => {
+                const who = picked || padCast[0] || "";
                 const text = applyBibleTokens(entry.template, {
-                  name: picked,
+                  name: who,
                   place: placeName || "this place",
-                  cast: [picked],
+                  cast: crowd && padCast.length ? padCast : who ? [who] : [],
                 });
                 setBibleActiveId(entry.id);
                 if (bibleMode === "append" && staging.trim()) {
@@ -1186,15 +1479,29 @@ function CastIntoPlatePopup({
               onChange={setStaging}
               multiline
               rows={3}
-              placeholder={`${picked} in ${placeName || "this room"} — sitting, lying down, against the wall…`}
+              placeholder={
+                crowd
+                  ? `Park 2 faces on ${placeName || "this room"} — then Draw.`
+                  : `${picked} in ${placeName || "this room"} — sitting, lying down, against the wall…`
+              }
               onAi={() => void assist.runAssist()}
               aiBusy={assist.aiBusy}
             />
             <MobilePrimaryButton
-              disabled={busy || assist.aiBusy || !staging.trim()}
+              disabled={
+                busy ||
+                assist.aiBusy ||
+                (crowd ? padCast.length < 2 || !staging.trim() : !staging.trim())
+              }
               onClick={() => void putIn()}
             >
-              {busy ? "Drawing…" : "Draw this picture"}
+              {busy
+                ? "Drawing…"
+                : crowd
+                  ? padCast.length < 2
+                    ? "Need 2 faces"
+                    : "Draw this picture"
+                  : "Draw this picture"}
             </MobilePrimaryButton>
             {assist.aiError ? (
               <div style={{ fontSize: "12px", color: "var(--magenta-hot)" }}>{assist.aiError}</div>
