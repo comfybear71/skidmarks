@@ -26,9 +26,23 @@ assert.doesNotMatch(
 
 const addFn = tree.slice(
   tree.indexOf("async function addLocationToPlate"),
-  tree.indexOf("async function plateThisPlace"),
+  tree.indexOf("const episodeHint"),
 );
 assert.match(addFn, /revealPlates\(data\.shotId\)/);
+assert.match(addFn, /studioFetchError/);
+assert.doesNotMatch(
+  tree,
+  /Plate this place/,
+  "One add button on a place — do not show a second plate button",
+);
+assert.match(tree, /Add \$\{plateSpeaker\.trim\(\)\}/);
+assert.match(tree, /Add empty plate/);
+assert.match(tree, /Tap a name, or Empty\. Then Add/);
+assert.doesNotMatch(
+  tree,
+  /Pick who is in this place first/,
+  "Empty plate must still add — do not block on a name",
+);
 
 const plates = tree.slice(tree.indexOf('label="Plates"'), tree.indexOf("<MusicVideoSongCuts"));
 assert.ok(
@@ -38,5 +52,11 @@ assert.ok(
 
 assert.match(editor, /focusShotId/);
 assert.match(editor, /if \(id\) setOpenShotId\(id\)/);
+assert.doesNotMatch(
+  editor,
+  /if \(!shots\.length && !story\) return null/,
+  "A failed story GET must not hide the plate strip",
+);
+assert.match(editor, /No plates yet\. Tap \+/);
 
 console.log("mobile plate visible lock ok");

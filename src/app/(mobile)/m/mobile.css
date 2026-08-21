@@ -60,6 +60,12 @@ body {
   gap: 10px;
 }
 
+.m-place-plate-hint {
+  color: var(--chrome-dim);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .m-place-plate-chips {
   display: flex;
   flex-wrap: wrap;

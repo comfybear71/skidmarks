@@ -239,10 +239,12 @@ export function PlateReviewEditor({
         if (s) {
           setStory(s);
           setLoadError("");
-        } else setLoadError("Couldn't load the lines for this episode");
+        } else setLoadError("Couldn't load the plates. Tap + — the episode is still there.");
       })
-      .catch(() => {
-        if (!cancelled) setLoadError("Couldn't load the lines for this episode");
+      .catch((e) => {
+        if (!cancelled) {
+          setLoadError(studioFetchError(e, "Couldn't load the plates. Tap + — the episode is still there."));
+        }
       });
     return () => {
       cancelled = true;
@@ -253,8 +255,6 @@ export function PlateReviewEditor({
     const id = (focusShotId || "").trim();
     if (id) setOpenShotId(id);
   }, [focusShotId]);
-
-  if (!shots.length && !story) return null;
 
   const shotById = (shotId: string): CrashStoryShot | null => {
     if (!story) return null;
@@ -444,6 +444,14 @@ export function PlateReviewEditor({
 
   return (
     <div style={{ marginBottom: "16px" }}>
+      {loadError ? (
+        <div style={{ fontSize: "13px", color: "var(--magenta-hot)", margin: "0 2px 8px" }}>{loadError}</div>
+      ) : null}
+      {!shots.length ? (
+        <div style={{ fontSize: "13px", color: "var(--chrome-dim)", margin: "0 2px 8px", lineHeight: 1.4 }}>
+          No plates yet. Tap + for an empty card, or tap a name on a place then Add.
+        </div>
+      ) : null}
       {collapsed ? null : shots.length || job.finalVideoFile ? (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", margin: "0 2px 8px" }}>
           <button
@@ -723,8 +731,7 @@ export function PlateReviewEditor({
           );
         })}
 
-        {(story?.scenes.length || job.scenes.length) ? (
-          <button
+        <button
             type="button"
             aria-label="Add a new plate"
             disabled={Boolean(addBusySpeaker)}
@@ -748,7 +755,6 @@ export function PlateReviewEditor({
           >
             {addBusySpeaker === "__empty__" ? "…" : "+"}
           </button>
-        ) : null}
       </div>
       {addError ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)", margin: "0 0 10px" }}>{addError}</div>

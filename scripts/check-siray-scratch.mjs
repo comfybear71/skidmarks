@@ -125,6 +125,10 @@ assert.match(
   studioFetchError(new TypeError("Failed to fetch"), "Request failed"),
   /episode is still there/i,
 );
+assert.match(
+  studioFetchError(new TypeError("Load failed"), "Request failed"),
+  /episode is still there/i,
+);
 assert.doesNotMatch(
   studioFetchError(new TypeError("Failed to fetch"), "Request failed"),
   /Check the signal/i,

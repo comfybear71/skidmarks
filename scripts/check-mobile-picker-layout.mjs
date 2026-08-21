@@ -18,6 +18,8 @@ const card = readFileSync(join(root, "src/components/mobile/SingleCandidateCard.
 assert.match(tree, /className="m-picker-actions"/);
 assert.match(tree, /className="m-picker-extra"/);
 assert.match(tree, /className="m-place-plate-extra"/);
+assert.match(tree, /className="m-place-plate-hint"/);
+assert.doesNotMatch(tree, /Plate this place/);
 assert.match(tree, /className="m-place-lock-still"/);
 assert.match(tree, /mobilePlacePreviewUrl/);
 assert.match(tree, /Locked place still\. More makes a new take if you want\./);

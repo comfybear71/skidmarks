@@ -493,7 +493,7 @@ function CandidatePicker({
   promptPlaceholder: string;
   promptLabel?: string;
   /** No "drop a photo" strip — CAST has voice in this card; Places go to
-   * Add to plate. More still nudges the still on screen. */
+   * Add. More still nudges the still on screen. */
   hideUpload?: boolean;
   /** Extra content under Undo / More — voice on CAST, plate chips on
    * a place. Full width. Never jammed beside those two buttons. */
@@ -818,7 +818,7 @@ export function StudioTree({
   const [plateGraphHint, setPlateGraphHint] = useState("");
   const [deskStory, setDeskStory] = useState<CrashStoryDoc | null>(null);
   const [worldDropOver, setWorldDropOver] = useState(false);
-  const [plateSpeaker, setPlateSpeaker] = useState("");
+  const [plateSpeaker, setPlateSpeaker] = useState(job.speakers[0] || "");
   const [binFailedBusy, setBinFailedBusy] = useState(false);
   const [binFailedError, setBinFailedError] = useState("");
   const [vibeEdit, setVibeEdit] = useState(false);
@@ -845,10 +845,6 @@ export function StudioTree({
 
   async function addLocationToPlate(sceneId: string, speaker: string) {
     const who = speaker.trim();
-    if (!who) {
-      setAddPlateError("Pick who is in this place first");
-      return;
-    }
     setAddingPlateFor(sceneId);
     setAddPlateError("");
     try {
@@ -863,68 +859,9 @@ export function StudioTree({
       setAddPlateDoneFor(sceneId);
       revealPlates(data.shotId);
     } catch (e) {
-      setAddPlateError(e instanceof Error ? e.message : "Couldn't add a plate there");
+      setAddPlateError(studioFetchError(e, "Couldn't add a plate there"));
     } finally {
       setAddingPlateFor(null);
-    }
-  }
-
-  async function plateThisPlace(sceneId: string) {
-    if (plating) return;
-    setPlating(true);
-    setPlateGraphHint("this place…");
-    setAddPlateError("");
-    let drew = 0;
-    try {
-      for (;;) {
-        const res = await fetch("/api/crash/mobile/plate-episode", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId: job.id, sceneId }),
-        });
-        const data = (await res.json().catch(() => ({}))) as {
-          error?: string;
-          job?: MobileGenJob;
-          done?: boolean;
-          node?: string;
-          doneCount?: number;
-          total?: number;
-          speaker?: string;
-          shotId?: string;
-          plateFile?: string;
-        };
-        if (data.job) onJobChange(data.job);
-        if (!res.ok) throw new Error(data.error || "Couldn't plate that place");
-        if (data.shotId || data.plateFile) drew += 1;
-        const n = data.doneCount ?? 0;
-        const t = data.total ?? 0;
-        setPlateGraphHint(
-          data.node === "halt_lines"
-            ? "this place — done"
-            : `this place ${n}/${t}${data.speaker ? ` · ${data.speaker}` : ""}`,
-        );
-        if (data.done) break;
-      }
-      // Graph only draws shots that already exist. A locked bedroom with
-      // every story shot already plated used to halt here and add nothing.
-      if (drew === 0) {
-        const who = plateSpeaker.trim();
-        const res = await fetch("/api/crash/mobile/plate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId: job.id, action: "add", sceneId, speaker: who }),
-        });
-        const data = (await res.json()) as { error?: string; job?: MobileGenJob };
-        if (!res.ok) throw new Error(data.error || "Couldn't add a plate there");
-        if (data.job) onJobChange(data.job);
-      }
-      setAddPlateDoneFor(sceneId);
-      revealPlates();
-    } catch (e) {
-      setAddPlateError(e instanceof Error ? e.message : "Couldn't plate that place");
-      setPlateGraphHint(e instanceof Error ? e.message : "Plate stopped");
-    } finally {
-      setPlating(false);
     }
   }
 
@@ -1006,10 +943,17 @@ export function StudioTree({
     if (job.scenes.length && !openPlace && firstOpenPlace) setOpenPlace(firstOpenPlace.id);
   }, [job.scenes.length, firstOpenPlace, openPlace]);
   useEffect(() => {
-    setPlateSpeaker("");
+    setPlateSpeaker(job.speakers[0] || "");
     setAddPlateError("");
     setAddPlateDoneFor(null);
   }, [placeFocus]);
+  useEffect(() => {
+    setPlateSpeaker((prev) => {
+      if (!prev) return prev;
+      if (job.speakers.includes(prev)) return prev;
+      return job.speakers[0] || "";
+    });
+  }, [job.speakers]);
   useEffect(() => {
     if (!scriptDraft.trim() && job.scenes.length) {
       setScriptDraft(episodeTemplateFromJob(job));
@@ -1512,53 +1456,65 @@ export function StudioTree({
                 ) : null}
                 {job.folderName ? (
                   <div className="m-place-plate-extra">
-                    {job.speakers.length ? (
-                      <div className="m-place-plate-chips">
-                        {job.speakers.map((name) => (
-                          <button
-                            key={name}
-                            type="button"
-                            disabled={busy || plating}
-                            onClick={() => setPlateSpeaker(name)}
-                            style={{
-                              padding: "8px 12px",
-                              borderRadius: "8px",
-                              border:
-                                plateSpeaker === name
-                                  ? "1px solid var(--acid)"
-                                  : "1px solid var(--line)",
-                              background: "transparent",
-                              color: plateSpeaker === name ? "var(--acid)" : "var(--chrome)",
-                              fontSize: "12px",
-                            }}
-                          >
-                            {name}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
-                        Add cast first — a plate needs who is in the place.
-                      </div>
-                    )}
+                    <div className="m-place-plate-hint">
+                      Tap a name, or Empty. Then Add. The card shows under PLATES.
+                    </div>
+                    <div className="m-place-plate-chips">
+                      {job.speakers.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          disabled={busy || plating}
+                          onClick={() => setPlateSpeaker(name)}
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: "8px",
+                            border:
+                              plateSpeaker === name
+                                ? "1px solid var(--acid)"
+                                : "1px solid var(--line)",
+                            background: "transparent",
+                            color: plateSpeaker === name ? "var(--acid)" : "var(--chrome)",
+                            fontSize: "12px",
+                          }}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={busy || plating}
+                        onClick={() => setPlateSpeaker("")}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: "8px",
+                          border:
+                            !plateSpeaker.trim()
+                              ? "1px solid var(--acid)"
+                              : "1px solid var(--line)",
+                          background: "transparent",
+                          color: !plateSpeaker.trim() ? "var(--acid)" : "var(--chrome)",
+                          fontSize: "12px",
+                        }}
+                      >
+                        Empty
+                      </button>
+                    </div>
                     <div className="m-place-plate-actions">
                       <MobilePrimaryButton
                         size="chip"
-                        disabled={addingPlateFor === placeFocus || !plateSpeaker.trim()}
+                        disabled={addingPlateFor === placeFocus}
                         onClick={() => void addLocationToPlate(placeFocus, plateSpeaker)}
                       >
-                        {addingPlateFor === placeFocus ? "…" : "Add to plate"}
-                      </MobilePrimaryButton>
-                      <MobilePrimaryButton
-                        size="chip"
-                        disabled={busy || plating}
-                        onClick={() => void plateThisPlace(placeFocus)}
-                      >
-                        {plating ? plateGraphHint || "Plating…" : "Plate this place"}
+                        {addingPlateFor === placeFocus
+                          ? "…"
+                          : plateSpeaker.trim()
+                            ? `Add ${plateSpeaker.trim()}`
+                            : "Add empty plate"}
                       </MobilePrimaryButton>
                     </div>
                     {addPlateDoneFor === placeFocus ? (
-                      <div className="m-place-plate-note">Added — see Plates below</div>
+                      <div className="m-place-plate-note">Added under PLATES</div>
                     ) : null}
                     {addPlateError ? (
                       <div className="m-place-plate-error">{addPlateError}</div>
