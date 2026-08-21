@@ -532,19 +532,25 @@ export function buildScratchSongLtxMotion(opts: {
   staging?: string;
 }): string {
   const name = clean(opts.speaker) || "The performer";
-  const look = shortLtxLookLock(opts.lookLock || "");
+  // Song slices drift hard on later cuts — keep more of the cast look than the 120-char speak trim.
+  const look = shortLtxLookLock(opts.lookLock || "", 160);
   const who = look ? `${name}, ${look}` : name;
   const instrumental = isInstrumentalStaging(opts.staging || "");
+  const identityLock =
+    "Same face, same hair, same hat, same clothes as the start image — not a different person, not younger, not a new face. Do not invent or change letters on the hat or clothing.";
   return clean(
     [
-      "Use the provided start image as the first frame.",
+      GOLD_START_FRAME,
       instrumental
         ? `${who} is prominent, hands and body play the same instrument as the start image, in time with the music.`
         : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`,
-      "Props and background stay exactly as the start image, nothing new enters frame.",
+      GOLD_PROPS_LOCK,
+      GOLD_NO_TEXT,
+      identityLock,
       instrumental
-        ? `${name} plays this instrumental slice. Camera holds. Same person, same instrument, same objects as the start image. Not a new player. Not singing unless the start image is already singing.`
-        : `${name} sings this slice of the track. Camera holds. Same person and objects as the start image.`,
+        ? `${name} plays this instrumental slice. ${GOLD_CAMERA_HOLDS} Same person, same instrument, same objects as the start image. Not a new player. Not singing unless the start image is already singing.`
+        : `${name} sings this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`,
+      GOLD_NO_NEW_PEOPLE,
       motionStyleLock(opts.styleId),
     ].join(" "),
   );

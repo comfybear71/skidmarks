@@ -160,8 +160,9 @@ export async function runScratchLtxClip(opts: {
     Boolean(stored) &&
     !imageMotionNamesLeftovers(stored, leftovers) &&
     !looksLikePlatePositionPrompt(stored);
+  // Song slices must rebuild the identity lock every cut — a stored beat
+  // prompt from an earlier draw lets later takes invent a new face.
   const body =
-    (storedOk ? stored : "") ||
     (singing
       ? buildScratchSongLtxMotion({
           styleId: job.styleId,
@@ -169,13 +170,15 @@ export async function runScratchLtxClip(opts: {
           lookLock,
           staging: storyShot.staging,
         })
-      : buildScratchPadLtxMotion({
-          styleId: job.styleId,
-          speaker,
-          line,
-          lookLock,
-          shotSpeakers: shotCast,
-        }));
+      : "") ||
+    (storedOk ? stored : "") ||
+    buildScratchPadLtxMotion({
+      styleId: job.styleId,
+      speaker,
+      line,
+      lookLock,
+      shotSpeakers: shotCast,
+    });
   const imageMotion = ltxSendPrompt(body, storyShot.staging, {
     skipLipSyncLead: singing && isInstrumentalStaging(storyShot.staging || ""),
   });
