@@ -5,6 +5,8 @@
 export const SCRATCH_SONG_SLICE_DEFAULT_SEC = 15;
 export const SCRATCH_SONG_SLICE_MIN_SEC = 4;
 export const SCRATCH_SONG_SLICE_MAX_SEC = 30;
+/** One auto batch — 8 × 15s = 2 minutes, then stop so you can check / swap a plate. */
+export const SCRATCH_SONG_BATCH_SHOTS = 8;
 
 export type ScratchSongCut = {
   id: string;
@@ -87,14 +89,16 @@ export function nextCutAfter(cuts: ScratchSongCut[], songSec: number): { startSe
   return clampSongWindow(start, SCRATCH_SONG_SLICE_DEFAULT_SEC, songSec);
 }
 
-/** 15s windows from what's already parked to the end of the track. */
+/** Next 15s windows. Default one batch (8 / 2 min). Pass a higher limit to fill further. */
 export function remainingSongWindows(
   cuts: Pick<ScratchSongCut, "durationSec">[],
   songSec: number,
+  limit = SCRATCH_SONG_BATCH_SHOTS,
 ): { startSec: number; durationSec: number }[] {
+  const cap = Math.max(0, Math.min(48, Math.floor(Number(limit) || 0)));
   const scheduled: Pick<ScratchSongCut, "durationSec">[] = [...cuts];
   const out: { startSec: number; durationSec: number }[] = [];
-  for (let i = 0; i < 48; i++) {
+  for (let i = 0; i < cap; i++) {
     if (songWindowLeftSec(songSec, scheduled) < SCRATCH_SONG_SLICE_MIN_SEC) break;
     const window = nextCutAfter(scheduled as ScratchSongCut[], songSec);
     if (window.durationSec < SCRATCH_SONG_SLICE_MIN_SEC) break;

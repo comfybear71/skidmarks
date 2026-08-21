@@ -55,6 +55,7 @@ import {
   clampSongWindow,
   nextCutAfter,
   remainingSongWindows,
+  SCRATCH_SONG_BATCH_SHOTS,
   songWindowLabel,
   type ScratchSongCut,
 } from "@/lib/scratchSongSlice";
@@ -346,7 +347,7 @@ async function restoreScratchPlate(opts: {
  * POST { action: "song-window", jobId, sliceStartSec, sliceDurationSec }
  * POST { action: "song-cut-add", jobId, plateFile?, endPlateFile?, startSec?, durationSec? }
  * POST { action: "song-cut-fill", jobId, plateFile? }
- *   — park 15s cameras from here to the end of the track. Does not cook LTX.
+ *   — park the next 8 cameras (2 min). Does not cook LTX. Does not fill the whole song.
  * POST { action: "song-cut-remove", jobId, cutId }
  * POST { action: "song-cut-end", jobId, cutId, plateFile }
  *   — park a last-frame still. Not sent to IA2V.
@@ -1132,9 +1133,9 @@ export async function POST(req: Request) {
       if (!plateFile || plateFile === "__error__") {
         return NextResponse.json({ error: "Draw the still first, then park the rest." }, { status: 400 });
       }
-      const extra = remainingSongWindows(song.cuts || [], song.durationSec);
+      const extra = remainingSongWindows(song.cuts || [], song.durationSec, SCRATCH_SONG_BATCH_SHOTS);
       if (!extra.length) {
-        return NextResponse.json({ error: "The song is already parked to the end." }, { status: 400 });
+        return NextResponse.json({ error: "Nothing left to park — at the end of the track." }, { status: 400 });
       }
       const cuts: ScratchSongCut[] = [
         ...(song.cuts || []),

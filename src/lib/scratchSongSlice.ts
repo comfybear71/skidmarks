@@ -14,6 +14,7 @@ export {
   SCRATCH_SONG_SLICE_DEFAULT_SEC,
   SCRATCH_SONG_SLICE_MIN_SEC,
   SCRATCH_SONG_SLICE_MAX_SEC,
+  SCRATCH_SONG_BATCH_SHOTS,
   clampSongSliceDuration,
   clampSongSliceStart,
   clampSongWindow,
