@@ -24,7 +24,7 @@ import {
   latestCandidate,
   preferredCandidate,
 } from "@/lib/mobileJobReady";
-import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
+import { mobileLocationStillUrl, mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import { MOBILE_STITCH_MOVIES } from "@/lib/mobilePipeline";
@@ -48,13 +48,6 @@ async function fetchDeskStory(styleId: string, folderName: string): Promise<Cras
   if (!res.ok) return null;
   const data = (await res.json()) as { story?: CrashStoryDoc };
   return data.story || null;
-}
-
-function worldGalleryStillUrl(styleId: string, thumbKey: string): string {
-  return (
-    `/api/crash/world-cards/file?styleId=${encodeURIComponent(styleId)}` +
-    `&thumb=${encodeURIComponent(thumbKey)}`
-  );
 }
 
 function castFaceUrl(
@@ -959,6 +952,18 @@ export function StudioTree({
   );
   const castFocus = openCast || firstOpenCast || null;
   const placeFocus = openPlace || firstOpenPlace?.id || null;
+  const placeScene = job.scenes.find((s) => s.id === placeFocus);
+  const placePick =
+    (placeFocus &&
+      ((job.locationCandidates[placeFocus] || []).find((c) => c.approved) ||
+        latestCandidate(job.locationCandidates[placeFocus]))) ||
+    null;
+  const placeLockSrc = placeFocus
+    ? mobilePlacePreviewUrl(job, {
+        fileName: placePick?.fileName || "",
+        worldThumbKey: placeScene?.worldThumbKey || "",
+      })
+    : "";
 
   function takeWorldDrop(e: DragEvent) {
     e.preventDefault();
@@ -1423,11 +1428,7 @@ export function StudioTree({
             const pending = latestCandidate(job.locationCandidates[scene.id]);
             const file = chosen?.fileName || pending?.fileName || "";
             const worldKey = (scene.worldThumbKey || "").trim();
-            const src = file
-              ? locationStillUrl(job, file)
-              : worldKey
-                ? worldGalleryStillUrl(job.styleId, worldKey)
-                : "";
+            const src = mobilePlacePreviewUrl(job, { fileName: file, worldThumbKey: worldKey });
             return (
               <ThumbTile
                 key={scene.id}
@@ -1487,7 +1488,11 @@ export function StudioTree({
             )}
             extra={
               <>
-                {job.scenes.find((s) => s.id === placeFocus)?.worldThumbKey?.trim() ? (
+                {placeLockSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={placeLockSrc} alt="" className="m-place-lock-still" />
+                ) : null}
+                {placeScene?.worldThumbKey?.trim() || placePick?.approved ? (
                   <div className="m-place-lock-hint">
                     Locked place still. More makes a new take if you want.
                   </div>
