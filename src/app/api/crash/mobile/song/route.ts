@@ -17,6 +17,7 @@ import {
   withoutPlateParkedCuts,
 } from "@/lib/musicVideoSong";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
+import { parkMobileClipFile } from "@/lib/mobileClipPark";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -30,6 +31,7 @@ export const maxDuration = 900;
  *   unstick — running with no clip → pending (left the screen too long).
  *   run — one LTX slice. Client polls the job if the phone drops.
  *   stitch — concat done cuts. Does not write job.finalVideoFile.
+ *   remove-stitch — park the joined mp4. Song, plates, and cuts stay.
  */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -282,6 +284,20 @@ export async function POST(req: Request) {
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated, stitchedFile });
+    }
+
+    if (action === "remove-stitch") {
+      const song = job.scratchSong;
+      const file = (song?.stitchedFile || "").trim();
+      if (!song || !file) {
+        return NextResponse.json({ error: "No stitch on this song." }, { status: 400 });
+      }
+      parkMobileClipFile(file);
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, stitchedFile: "" },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

@@ -64,6 +64,8 @@ assert.equal(kept.dropped, 1);
 assert.deepEqual(kept.next.map((c) => c.id), ["a", "c"]);
 
 assert.match(songRoute, /remove-plate-parked/);
+assert.match(songRoute, /remove-stitch/);
+assert.match(songUi, /Drop stitch/);
 assert.match(songUi, /Drop parked/);
 assert.match(songUi, /SwipeDropRow/);
 assert.doesNotMatch(
