@@ -110,17 +110,19 @@ export function PlateReviewEditor({
   onJobChange,
   collapsed,
   onExpand,
+  defaultPlaceId,
 }: {
   job: MobileGenJob;
   onJobChange?: (job: MobileGenJob) => void;
   /** Strip-only mode — everything below the thumbnails stays hidden. */
   collapsed?: boolean;
   onExpand?: () => void;
+  /** Place currently open under Locations — new + cards land here. */
+  defaultPlaceId?: string;
 }) {
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
   const [openShotId, setOpenShotId] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [castPickerShotId, setCastPickerShotId] = useState<string | null>(null);
   const [addBusySpeaker, setAddBusySpeaker] = useState<string | null>(null);
   const [addError, setAddError] = useState("");
@@ -186,6 +188,8 @@ export function PlateReviewEditor({
       if (story?.scenes.some((s) => s.id === id)) return id;
       return null;
     };
+    const focused = known(defaultPlaceId);
+    if (focused) return focused;
     if (openShotId) {
       const sc = story?.scenes.find((s) => s.shots.some((sh) => sh.id === openShotId));
       if (sc) return sc.id;
@@ -199,20 +203,14 @@ export function PlateReviewEditor({
     return job.scenes[0]?.id || story?.scenes[0]?.id || null;
   }
 
-  const usedShotSpeakers = new Set(
-    shots
-      .map((s) => shotById(s.shotId)?.title.trim())
-      .filter((t): t is string => Boolean(t)),
-  );
-
-  async function addSoloShot(speaker: string) {
+  async function addPlaceCard(speaker = "") {
     const sceneId = defaultSceneId();
     if (!sceneId) {
       setAddError("No location yet — build one first.");
       return;
     }
     setAddError("");
-    setAddBusySpeaker(speaker);
+    setAddBusySpeaker(speaker || "__empty__");
     try {
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
@@ -225,7 +223,6 @@ export function PlateReviewEditor({
       if (fresh) setStory(fresh);
       if (data.job) onJobChange?.(data.job);
       if (data.shotId) setOpenShotId(data.shotId);
-      setPickerOpen(false);
     } catch (e) {
       setAddError(e instanceof Error ? e.message : "Couldn't add that card");
     } finally {
@@ -482,7 +479,6 @@ export function PlateReviewEditor({
                   aria-label="Add cast to this plate"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setPickerOpen(false);
                     setOpenShotId(s.shotId);
                     setCastPickerShotId((cur) => (cur === s.shotId ? null : s.shotId));
                   }}
@@ -623,75 +619,31 @@ export function PlateReviewEditor({
           <button
             type="button"
             aria-label="Add a new plate"
+            disabled={Boolean(addBusySpeaker)}
             onClick={() => {
-              if (collapsed) {
-                onExpand?.();
-                setCastPickerShotId(null);
-                setPickerOpen(true);
-                return;
-              }
+              if (collapsed) onExpand?.();
               setCastPickerShotId(null);
-              setPickerOpen((v) => !v);
+              void addPlaceCard("");
             }}
             style={{
               flex: "0 0 auto",
               width: `${PLATE_TILE_PX + 4}px`,
               height: `${PLATE_TILE_PX + 4}px`,
               borderRadius: "2px",
-              border: pickerOpen ? "2px solid var(--acid)" : "2px dashed var(--line)",
+              border: addBusySpeaker === "__empty__" ? "2px solid var(--acid)" : "2px dashed var(--line)",
               background: "var(--panel-2)",
               color: "var(--chrome-dim)",
               fontSize: "32px",
               lineHeight: 1,
-              cursor: "pointer",
+              cursor: addBusySpeaker ? "default" : "pointer",
             }}
           >
-            +
+            {addBusySpeaker === "__empty__" ? "…" : "+"}
           </button>
         ) : null}
       </div>
-
-      {!collapsed && pickerOpen ? (
-        <div style={{ ...mobileCard, padding: "10px", marginBottom: "10px" }}>
-          <div
-            style={{
-              color: "var(--chrome-dim)",
-              fontSize: "10px",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              marginBottom: "8px",
-            }}
-          >
-            New plate — pick who to test
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-            {job.speakers.map((name) => {
-              const already = usedShotSpeakers.has(name.trim());
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  disabled={Boolean(addBusySpeaker)}
-                  onClick={() => void addSoloShot(name)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "2px",
-                    border: "1px solid var(--line)",
-                    background: already ? "var(--panel-2)" : "transparent",
-                    color: addBusySpeaker === name ? "var(--acid)" : "var(--chrome)",
-                    fontSize: "13px",
-                    cursor: addBusySpeaker ? "default" : "pointer",
-                  }}
-                >
-                  {addBusySpeaker === name ? "Adding…" : already ? `${name} · another` : name}
-                </button>
-              );
-            })}
-          </div>
-          {addError ? (
-            <div style={{ fontSize: "12px", color: "var(--magenta-hot)", marginTop: "8px" }}>{addError}</div>
-          ) : null}
-        </div>
+      {addError ? (
+        <div style={{ fontSize: "12px", color: "var(--magenta-hot)", margin: "0 0 10px" }}>{addError}</div>
       ) : null}
 
       {!collapsed && castPickerShotId ? (

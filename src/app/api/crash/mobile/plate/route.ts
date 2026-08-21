@@ -11,6 +11,7 @@ import { buildCutawayMotion, defaultSoloStaging } from "@/lib/mobileImageMotion"
 import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { beatsAfterRemoveLine, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import { castNamesMatch } from "@/lib/mobileDropCast";
+import { appendPlacePlate } from "@/lib/mobilePlateGraph";
 import { rebuildShotPlate } from "@/lib/mobilePlateRebuild";
 import { ensureSpeakerVoiceCast } from "@/lib/scriptVoiceGen";
 import { newId } from "@/lib/types";
@@ -153,51 +154,30 @@ export async function POST(req: Request) {
       // meant to get carried into the real story doc when a script gets
       // locked, but this flow skips scripts entirely. Create the story
       // scene here instead of demanding a step nobody asked for.
-      if (!speakerIn) {
-        return NextResponse.json(
-          { error: "Pick who is in this place before Add to plate" },
-          { status: 400 },
-        );
-      }
-      if (!job.speakers.some((s) => castNamesMatch(s, speakerIn))) {
+      // Speaker optional: empty card waits for add-cast. Plate this place
+      // and the Plates + slot use that so a card appears without a chip.
+      if (speakerIn && !job.speakers.some((s) => castNamesMatch(s, speakerIn))) {
         return NextResponse.json(
           { error: `${speakerIn} is not in CAST — add them there first` },
           { status: 400 },
         );
       }
-      let workingStory = story;
-      let scene = workingStory.scenes.find((sc) => sc.id === sceneIdIn);
-      if (!scene) {
-        const jobScene = job.scenes.find((s) => s.id === sceneIdIn);
-        if (!jobScene) return NextResponse.json({ error: "That location doesn't exist" }, { status: 404 });
-        scene = {
-          id: jobScene.id,
-          title: jobScene.placeName,
-          placeName: jobScene.placeName,
-          worldThumbKey: jobScene.worldThumbKey || "",
-          shots: [],
-        };
-        workingStory = { ...workingStory, scenes: [...workingStory.scenes, scene] };
+      let minted;
+      try {
+        minted = appendPlacePlate({
+          job,
+          story,
+          sceneId: sceneIdIn,
+          speaker: speakerIn,
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "That location doesn't exist";
+        const missing = /not on this episode/i.test(message);
+        return NextResponse.json({ error: message }, { status: missing ? 404 : 400 });
       }
-      const newShot = {
-        id: newId("shot"),
-        title: speakerIn,
-        summary: `${speakerIn}, solo. Only ${speakerIn} in frame, no one else appears.`,
-        staging: defaultSoloStaging(speakerIn),
-        plateFile: "",
-        beats: [{ id: newId("beat"), speaker: speakerIn, text: "" }],
-        sfx: [],
-      };
-      const added: CrashStoryDoc = {
-        ...workingStory,
-        scenes: workingStory.scenes.map((sc) =>
-          sc.id === scene.id ? { ...sc, shots: [...sc.shots, newShot] } : sc,
-        ),
-      };
-      await writeMobileStory(added, job.folderName);
-      const shots = [...job.shots, { shotId: newShot.id, sceneId: scene.id, plateFile: "" }];
-      const updated = await patchMobileGenJob(jobId, { shots, error: "" });
-      return NextResponse.json({ ok: true, job: updated, shotId: newShot.id });
+      await writeMobileStory(minted.story, job.folderName);
+      const updated = await patchMobileGenJob(jobId, { shots: minted.shots, error: "" });
+      return NextResponse.json({ ok: true, job: updated, shotId: minted.shotId });
     }
 
     if (restore) {
