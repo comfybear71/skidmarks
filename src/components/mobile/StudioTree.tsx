@@ -1169,7 +1169,7 @@ export function StudioTree({
               ) : null}
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 <MobilePrimaryButton size="chip" disabled={vibeBusy} onClick={() => void keepVibe()}>
-                  {vibeBusy ? "Keeping…" : "Keep vibe"}
+                  {vibeBusy ? "Saving…" : "Save"}
                 </MobilePrimaryButton>
                 <MobilePrimaryButton
                   size="chip"
@@ -1184,7 +1184,7 @@ export function StudioTree({
                     setRealismDraft(vibeRealism);
                   }}
                 >
-                  Leave it
+                  Cancel
                 </MobilePrimaryButton>
               </div>
             </div>
