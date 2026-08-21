@@ -80,7 +80,11 @@ export async function runScratchLtxClip(opts: {
       shot.error ? `Plate failed — ${shot.error}` : "Draw the still first",
     );
   }
-  if (!storyShot || !beat) throw new Error("That line is missing from the scratch plate");
+  if (!storyShot || !beat) {
+    throw new Error(
+      "That line is missing from the scratch plate — Draw again, or drop the song so the spoken line is on this plate.",
+    );
+  }
 
   const mediaFolder = mobileMediaFolder(job);
   const defaultPlatePath =
@@ -279,4 +283,24 @@ function patchScratchSongCut(
     ...song,
     cuts: (song.cuts || []).map((c) => (c.id === cutId ? { ...c, ...patch } : c)),
   };
+}
+
+/** Early throw after marking running left the cut hung forever — flip it to error. */
+export async function failScratchSongCutRun(opts: {
+  jobId: string;
+  job: MobileGenJob;
+  cutId: string;
+  message: string;
+}): Promise<MobileGenJob> {
+  const msg = (opts.message || "").trim() || "Clip failed";
+  const song = opts.job.scratchSong;
+  if (!song) return opts.job;
+  const next = await patchMobileGenJob(opts.jobId, {
+    scratchSong: patchScratchSongCut(song, opts.cutId, {
+      status: "error",
+      error: msg,
+    }),
+    error: "",
+  });
+  return next || opts.job;
 }

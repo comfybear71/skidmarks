@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { resolveMobileMedia, uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { readMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
-import { runScratchLtxClip } from "@/lib/mobileScratchClip";
+import { failScratchSongCutRun, runScratchLtxClip } from "@/lib/mobileScratchClip";
 import { mobileFinalVideoPath, stitchClips } from "@/lib/mobileStitch";
 import { mobileMediaFolder } from "@/lib/mobileJobFolder";
 import { CRASH_DIR } from "@/lib/paths";
@@ -270,8 +270,9 @@ export async function POST(req: Request) {
       if (!scene || !storyShot) {
         return NextResponse.json({ error: "That plate is not on this episode." }, { status: 400 });
       }
+      const wantBeat = String(body.beatId || "").trim();
       const beatId =
-        String(body.beatId || "").trim() ||
+        (wantBeat && storyShot.beats.some((b) => b.id === wantBeat) ? wantBeat : "") ||
         findSongCarrierBeatId(story, song.fileName, shotId) ||
         storyShot.beats.find((b) => isMobileSavedVoiceFile(b.voiceFile))?.id ||
         storyShot.beats[0]?.id ||
@@ -305,11 +306,18 @@ export async function POST(req: Request) {
           label: songWindowLabel(song.durationSec, updated.scratchSong?.cuts || running),
         });
       } catch (e) {
-        const latest = await readMobileGenJob(jobId);
+        const msg = e instanceof Error ? e.message : String(e);
+        const latest = (await readMobileGenJob(jobId)) || job;
+        const failed = await failScratchSongCutRun({
+          jobId,
+          job: latest,
+          cutId: cut.id,
+          message: msg,
+        });
         return NextResponse.json(
           {
-            error: e instanceof Error ? e.message : String(e),
-            job: latest || job,
+            error: msg,
+            job: failed,
           },
           { status: 502 },
         );

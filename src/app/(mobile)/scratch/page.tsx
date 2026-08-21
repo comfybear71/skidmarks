@@ -1187,13 +1187,25 @@ export default function ScratchPage() {
 
   async function songAction(action: string, extra: Record<string, unknown> = {}) {
     if (!job) return;
-    const data = await postJson<{ job?: MobileGenJob; error?: string }>("/api/crash/mobile/scratch", {
-      action,
-      jobId: job.id,
-      ...extra,
-    });
-    if (data.job) setJob(data.job);
-    return data;
+    let res: Response;
+    try {
+      res = await fetch("/api/crash/mobile/scratch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, jobId: job.id, ...extra }),
+      });
+    } catch (e) {
+      throw new Error(studioFetchError(e, "Request failed"));
+    }
+    const raw = (await res.json().catch(() => ({}))) as {
+      job?: MobileGenJob;
+      error?: string;
+    };
+    if (raw.job) setJob(raw.job);
+    if (!res.ok) {
+      throw new Error(raw.error?.trim() || `Request failed (${res.status})`);
+    }
+    return raw;
   }
 
   async function runSongCuts() {
@@ -1994,11 +2006,7 @@ export default function ScratchPage() {
                   setError("");
                   void (async () => {
                     try {
-                      try {
-                        await songAction("song-cut-run", { cutId, beatId: beat?.id });
-                      } catch {
-                        setError("Left the screen — Studio is still cooking. Waiting…");
-                      }
+                      await songAction("song-cut-run", { cutId, beatId: beat?.id });
                       await waitForSongCut({ jobId: job.id, cutId, setJob });
                     } catch (e) {
                       setError(e instanceof Error ? e.message : "Couldn't generate that cut");

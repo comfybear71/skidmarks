@@ -198,6 +198,7 @@ assert.match(songUi, /unstick-all/);
 assert.match(songUi, /stopStuckCook/);
 assert.match(songRoute, /unstick-all/);
 assert.match(songRoute, /clearStuckSongCooks/);
+assert.match(songRoute, /failScratchSongCutRun/);
 assert.doesNotMatch(songRoute, /Wait for cooking/);
 assert.equal(
   hasStuckSongCook([{ status: "running", clipFile: "" }, { status: "pending", clipFile: "" }]),
