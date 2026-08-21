@@ -36,6 +36,7 @@ import {
 import { lineVoiceLabel, type JobSpeakerVoice } from "@/lib/mobileJobVoices";
 import { shownVoiceId } from "@/lib/mobileVoicePick";
 import type { ShowStyleId } from "@/lib/showStylePresets";
+import { applyStylePositionGold, stylePositionGold } from "@/lib/stylePositionGold";
 import {
   buildDefaultBeatMotion,
   looksLikePlatePositionPrompt,
@@ -1123,6 +1124,21 @@ function CastIntoPlatePopup({
               mode={bibleMode}
               onModeChange={setBibleMode}
               disabled={busy}
+              gold={{
+                title: stylePositionGold(job.styleId as ShowStyleId).forWhat,
+                onClick: () => {
+                  const text = applyStylePositionGold(job.styleId as ShowStyleId, {
+                    name: picked,
+                    place: placeName || "this place",
+                  });
+                  setBibleActiveId("style-position-gold");
+                  if (bibleMode === "append" && staging.trim()) {
+                    setStaging(`${staging.trim()}\n\n${text}`);
+                  } else {
+                    setStaging(text);
+                  }
+                },
+              }}
               onPick={(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => {
                 const text = applyBibleTokens(entry.template, {
                   name: picked,
