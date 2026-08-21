@@ -108,10 +108,10 @@ export async function cookPendingSongCuts(opts: {
             live = data.job;
           }
         } catch {
-          opts.onNote?.("Left the screen — Studio is still cooking. Waiting…");
+          opts.onNote?.("Left the screen — still making clips. Waiting…");
         }
       } else {
-        opts.onNote?.("Still cooking a cut. You can leave — it keeps going.");
+        opts.onNote?.("Still on a clip. You can leave — it keeps going.");
       }
       const afterWait = await waitForSongCut({
         jobId: opts.jobId,
