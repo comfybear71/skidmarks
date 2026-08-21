@@ -83,6 +83,15 @@ export function phaseAfterScreenplay(
   return "plates";
 }
 
+/** Lock lands on plates / *_images. The plate strip only mounted in
+ * review, so Add to plate wrote a shot the phone could not draw. */
+export function phaseAfterPlateAdd(phase: MobileGenPhase): MobileGenPhase {
+  if (phase === "cast_images" || phase === "location_images" || phase === "plates") {
+    return "review";
+  }
+  return phase;
+}
+
 /** Series turnaround sheets (`plate_baby.jpg`) — not a face/place take. */
 export function isCharacterPlateFileName(fileName: string | undefined): boolean {
   return /^plate_[a-z0-9_]+\.(png|jpe?g|webp)$/i.test((fileName || "").trim());

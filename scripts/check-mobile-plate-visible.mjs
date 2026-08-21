@@ -15,6 +15,14 @@ assert.match(tree, /function revealPlates/);
 assert.match(tree, /setOpenPlace\(null\)/);
 assert.match(tree, /id="m-plates-strip"/);
 assert.match(tree, /focusShotId=\{focusPlateShotId\}/);
+const strip = tree.slice(tree.indexOf('id="m-plates-strip"'));
+assert.match(strip, /job\.folderName \? \(/);
+assert.match(strip, /<PlateReviewEditor/);
+assert.doesNotMatch(
+  strip,
+  /job\.phase === "review"/,
+  "Do not hide the plate strip behind a review-only phase gate",
+);
 
 const addFn = tree.slice(
   tree.indexOf("async function addLocationToPlate"),

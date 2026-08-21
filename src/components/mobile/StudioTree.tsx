@@ -1016,7 +1016,7 @@ export function StudioTree({
     }
   }, [job.id, job.scenes.length, job.speakers.length, job.prompt, scriptDraft]);
   useEffect(() => {
-    if (!job.folderName || job.phase !== "review") return;
+    if (!job.folderName) return;
     let cancelled = false;
     fetchDeskStory(job.styleId, job.folderName)
       .then((s) => {
@@ -1642,14 +1642,8 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {job.phase === "plates" ? (
-          <div style={{ padding: "4px 0 12px" }}>
-            <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Opening the shot strip…</ShimmerText>
-          </div>
-        ) : null}
-
         <div id="m-plates-strip">
-          {job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error" ? (
+          {job.folderName ? (
             <PlateReviewEditor
               job={job}
               onJobChange={onJobChange}
@@ -1667,7 +1661,7 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {platesOpen && isMusicVideoSongJob(job) && (job.phase === "review" || job.phase === "animate" || job.phase === "done" || job.phase === "error") ? (
+        {platesOpen && isMusicVideoSongJob(job) && job.folderName ? (
           <MusicVideoSongCuts
             job={job}
             story={deskStory}
