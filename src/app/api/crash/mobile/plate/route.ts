@@ -8,7 +8,7 @@ import { clearAllStoryShots, clipQueueError } from "@/lib/mobileClipQueue";
 import { isEpisodeClipPlanError, planParkClipsUnderPlate } from "@/lib/mobileEpisodeClips";
 import { CUTAWAY_ACTIONS } from "@/lib/cutawayActions";
 import { buildCutawayMotion, defaultSoloStaging } from "@/lib/mobileImageMotion";
-import { candidateLookPrompt } from "@/lib/mobileJobReady";
+import { candidateLookPrompt, phaseAfterPlateAdd } from "@/lib/mobileJobReady";
 import { beatsAfterRemoveLine, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import { castNamesMatch } from "@/lib/mobileDropCast";
 import { appendPlacePlate } from "@/lib/mobilePlateGraph";
@@ -249,7 +249,11 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: message }, { status: missing ? 404 : 400 });
       }
       await writeMobileStory(minted.story, job.folderName);
-      const updated = await patchMobileGenJob(jobId, { shots: minted.shots, error: "" });
+      const updated = await patchMobileGenJob(jobId, {
+        shots: minted.shots,
+        error: "",
+        phase: phaseAfterPlateAdd(job.phase),
+      });
       return NextResponse.json({ ok: true, job: updated, shotId: minted.shotId });
     }
 

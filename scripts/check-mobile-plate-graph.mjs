@@ -219,5 +219,6 @@ assert.doesNotMatch(editor, /New plate — pick who to test/);
 const addRoute = readFileSync(join(here, "../src/app/api/crash/mobile/plate/route.ts"), "utf8");
 assert.doesNotMatch(addRoute, /Pick who is in this place before Add to plate/);
 assert.match(addRoute, /appendPlacePlate/);
+assert.match(addRoute, /phaseAfterPlateAdd/);
 
 console.log("check-mobile-plate-graph: ok");

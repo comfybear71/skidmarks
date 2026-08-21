@@ -13,6 +13,7 @@ import {
   isCharacterPlateFileName,
   latestCandidate,
   phaseAfterScreenplay,
+  phaseAfterPlateAdd,
   canLockEpisode,
   preferredCandidate,
   candidateLookPrompt,
@@ -71,6 +72,11 @@ assert.equal(
   }),
   "location_images",
 );
+assert.equal(phaseAfterPlateAdd("plates"), "review");
+assert.equal(phaseAfterPlateAdd("location_images"), "review");
+assert.equal(phaseAfterPlateAdd("cast_images"), "review");
+assert.equal(phaseAfterPlateAdd("review"), "review");
+assert.equal(phaseAfterPlateAdd("animate"), "animate");
 
 assert.deepEqual(mobileCandidateFolders(firstJob), [firstJob.id]);
 assert.deepEqual(mobileCandidateFolders(jobIdAsFolder), [firstJob.id]);
