@@ -275,7 +275,7 @@ export function MusicVideoSongCuts({
   const done = cuts.filter((c) => c.status === "done" && c.clipFile).length;
   const label = song?.fileName
     ? songWindowLabel(song.durationSec, cuts)
-    : "Drop the song, then park N × 15s on each plate. Same plate can come back later.";
+    : "Drop the song, then Add N × 15s on each plate. Same plate can come back later.";
   const progress =
     song?.fileName && cuts.length
       ? cooking
@@ -342,13 +342,7 @@ export function MusicVideoSongCuts({
             const thumb = s.plateFile
               ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
               : "";
-            return (
-              <li key={s.shotId}>
-                <SwipeDropRow
-                  label="Drop parked"
-                  disabled={!parkedHere.length}
-                  onDrop={() => void dropPlateParked(s.shotId)}
-                >
+            const row = (
                   <div className="scratch-song-cut m-song-plate-row">
                     {thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -358,40 +352,48 @@ export function MusicVideoSongCuts({
                     )}
                     <span className="scratch-song-cut-meta">
                       {name}
-                      <span className="m-song-cut-sub">{songCutTallyLine(mineTally)}</span>
+                      <span className="m-song-cut-sub">
+                        {mineTally.total
+                          ? songCutTallyLine(mineTally)
+                          : "No slices on this plate yet."}
+                      </span>
                     </span>
-                    <button
-                      type="button"
-                      disabled={Boolean(busy)}
-                      onClick={() =>
-                        setCounts((cur) => ({
-                          ...cur,
-                          [s.shotId]: clampPlateSliceCount(n - 1),
-                        }))
-                      }
-                    >
-                      −
-                    </button>
-                    <span className="scratch-song-cut-meta">{n} × 15s</span>
-                    <button
-                      type="button"
-                      disabled={Boolean(busy)}
-                      onClick={() =>
-                        setCounts((cur) => ({
-                          ...cur,
-                          [s.shotId]: clampPlateSliceCount(n + 1),
-                        }))
-                      }
-                    >
-                      +
-                    </button>
+                    {mineTally.total ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={Boolean(busy)}
+                          onClick={() =>
+                            setCounts((cur) => ({
+                              ...cur,
+                              [s.shotId]: clampPlateSliceCount(n - 1),
+                            }))
+                          }
+                        >
+                          −
+                        </button>
+                        <span className="scratch-song-cut-meta">{n} × 15s</span>
+                        <button
+                          type="button"
+                          disabled={Boolean(busy)}
+                          onClick={() =>
+                            setCounts((cur) => ({
+                              ...cur,
+                              [s.shotId]: clampPlateSliceCount(n + 1),
+                            }))
+                          }
+                        >
+                          +
+                        </button>
+                      </>
+                    ) : null}
                     <MobilePrimaryButton
                       size="chip"
                       tone="ghost"
                       disabled={Boolean(busy)}
                       onClick={() => void parkPlate(s.shotId)}
                     >
-                      {busy === "park" ? "Parking…" : `Park ${n} × 15s`}
+                      {busy === "park" ? "Adding…" : `Add ${n} × 15s`}
                     </MobilePrimaryButton>
                     {parkedHere.length ? (
                       <MobilePrimaryButton
@@ -407,7 +409,19 @@ export function MusicVideoSongCuts({
                       </MobilePrimaryButton>
                     ) : null}
                   </div>
-                </SwipeDropRow>
+            );
+            return (
+              <li key={s.shotId}>
+                {parkedHere.length ? (
+                  <SwipeDropRow
+                    label="Drop parked"
+                    onDrop={() => void dropPlateParked(s.shotId)}
+                  >
+                    {row}
+                  </SwipeDropRow>
+                ) : (
+                  row
+                )}
               </li>
             );
           })}
