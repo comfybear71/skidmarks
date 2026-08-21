@@ -59,6 +59,53 @@ export function hasStuckSongCook(cuts: Pick<ScratchSongCut, "status" | "clipFile
   return cuts.some((c) => c.status === "running" && !(c.clipFile || "").trim());
 }
 
+/** How many 15s slices the desk list says it has (rowSlices sum). */
+export function expectedDeskCutCount(rowSlices: number[]): number {
+  return rowSlices.reduce((sum, n) => sum + clampPlateSliceCount(n), 0);
+}
+
+/**
+ * Desk says 1 × 15s but an old park left 16 cuts → cook runs 0/16 forever.
+ * Rebuild cuts to match the list; keep finished clips that still line up.
+ */
+export function syncSongCutsToDesk(opts: {
+  songPlateIds: string[];
+  rowSlices: number[];
+  cuts: ScratchSongCut[];
+  plateFileByShotId: Record<string, string>;
+  songSec: number;
+  newCutId: () => string;
+}): ScratchSongCut[] {
+  const expected = expectedDeskCutCount(opts.rowSlices);
+  const cleared = clearStuckSongCooks(opts.cuts);
+  if (cleared.length === expected && !hasStuckSongCook(opts.cuts)) {
+    return cleared;
+  }
+  const rebuilt = rebuildSongCutsFromDesk({
+    songPlateIds: opts.songPlateIds,
+    rowSlices: opts.rowSlices,
+    plateFileByShotId: opts.plateFileByShotId,
+    songSec: opts.songSec,
+    newCutId: opts.newCutId,
+  });
+  const doneByKey = new Map<string, ScratchSongCut>();
+  for (const c of cleared) {
+    if (c.status !== "done" || !(c.clipFile || "").trim()) continue;
+    doneByKey.set(`${(c.shotId || "").trim()}|${c.startSec}|${c.durationSec}`, c);
+  }
+  return rebuilt.map((c) => {
+    const prev = doneByKey.get(`${(c.shotId || "").trim()}|${c.startSec}|${c.durationSec}`);
+    if (!prev) return c;
+    return {
+      ...c,
+      id: prev.id,
+      status: "done" as const,
+      clipFile: prev.clipFile,
+      error: "",
+    };
+  });
+}
+
 /** Pending / fail / stuck cook — not a finished clip. Plate stays. */
 export function droppablePlateCuts(
   cuts: Pick<ScratchSongCut, "id" | "status" | "clipFile">[],

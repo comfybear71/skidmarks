@@ -19,6 +19,7 @@ import {
   songDeskPlateIds,
   songDeskRowSlices,
   skipSongPlateIds,
+  syncSongCutsToDesk,
   withRowSliceAt,
   withSongPlate,
   withSongRowSlice,
@@ -44,7 +45,7 @@ export const maxDuration = 900;
  *   remove — drop one parked cut.
  *   remove-plate-parked — drop pending/fail slices on one plate. Plate stays.
  *   unstick — running with no clip → pending (left the screen too long).
- *   unstick-all — every stuck running cut → pending; unlocks Add / list.
+ *   unstick-all — clear stuck cooks and sync cuts to the desk list (kills ghost 0/16).
  *   run — one LTX slice. Client polls the job if the phone drops.
  *   stitch — concat done cuts. Does not write job.finalVideoFile.
  *   remove-stitch — park the joined mp4. Song, plates, and cuts stay.
@@ -216,9 +217,31 @@ export async function POST(req: Request) {
       if (!song) {
         return NextResponse.json({ error: "No song on this job." }, { status: 400 });
       }
-      const cuts = clearStuckSongCooks(song.cuts || []);
+      const onList = songDeskPlateIds(song);
+      const slices = songDeskRowSlices(song, onList);
+      const plateFileByShotId: Record<string, string> = {};
+      for (const s of job.shots) {
+        const f = (s.plateFile || "").trim();
+        if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
+      }
+      const cuts = syncSongCutsToDesk({
+        songPlateIds: onList,
+        rowSlices: slices,
+        cuts: song.cuts || [],
+        plateFileByShotId,
+        songSec: song.durationSec,
+        newCutId: () => newId("cut"),
+      });
+      const nextWin = nextCutAfter(cuts, song.durationSec);
       const updated = await patchMobileGenJob(jobId, {
-        scratchSong: { ...song, cuts },
+        scratchSong: {
+          ...song,
+          cuts,
+          songPlateIds: onList,
+          rowSlices: slices,
+          sliceStartSec: nextWin.startSec,
+          sliceDurationSec: nextWin.durationSec,
+        },
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated });
