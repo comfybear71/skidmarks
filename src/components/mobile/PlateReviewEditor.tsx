@@ -56,6 +56,7 @@ import { episodeJobShots } from "@/lib/mobileScratch";
 import {
   cutsForPlate,
   isMusicVideoSongJob,
+  MUSIC_VIDEO_SLICE_DEFAULT,
   songCutTallyLine,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
@@ -227,6 +228,7 @@ export function PlateReviewEditor({
   const [clearBusy, setClearBusy] = useState(false);
   const [undoBusy, setUndoBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [songAddFor, setSongAddFor] = useState<string | null>(null);
   const [clipBusy, setClipBusy] = useState(false);
 
   const shots = episodeJobShots(job, story);
@@ -442,6 +444,37 @@ export function PlateReviewEditor({
       setClipBusy(false);
     }
   }
+
+  async function addPlateToSong(shotId: string) {
+    if (!job.scratchSong?.fileName) {
+      setActionError("Drop the song mp3 first — then Add 15s on this plate.");
+      return;
+    }
+    setSongAddFor(shotId);
+    setActionError("");
+    try {
+      const res = await fetch("/api/crash/mobile/song", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "assign",
+          jobId: job.id,
+          shotId,
+          count: MUSIC_VIDEO_SLICE_DEFAULT,
+        }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onJobChange?.(data.job);
+      const fresh = await fetchStory(job.styleId, job.folderName);
+      if (fresh) setStory(fresh);
+    } catch (e) {
+      setActionError(studioFetchError(e, "Couldn't add this plate to the song"));
+    } finally {
+      setSongAddFor(null);
+    }
+  }
+
+  const songReady = isMusicVideoSongJob(job) && Boolean(job.scratchSong?.fileName);
 
   return (
     <div style={{ marginBottom: "16px" }}>
@@ -677,7 +710,9 @@ export function PlateReviewEditor({
                           .filter(Boolean)
                           .join(", ") || "Empty"}
                       </span>
-                      <span className="m-plate-no-still-sub">No still</span>
+                      <span className="m-plate-no-still-sub">
+                        {placeSrc ? "Empty stage" : "No still"}
+                      </span>
                     </div>
                   ) : null}
                 </button>
@@ -712,6 +747,21 @@ export function PlateReviewEditor({
               </div>
               {!collapsed && songTally.total ? (
                 <div className="m-song-plate-tally">{songCutTallyLine(songTally)}</div>
+              ) : null}
+              {!collapsed && songReady ? (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <MobilePrimaryButton
+                    size="chip"
+                    busy={songAddFor === s.shotId}
+                    disabled={Boolean(songAddFor) && songAddFor !== s.shotId}
+                    onClick={() => void addPlateToSong(s.shotId)}
+                  >
+                    {songAddFor === s.shotId ? "Adding…" : "Add 4 × 15s"}
+                  </MobilePrimaryButton>
+                </div>
               ) : null}
               {!collapsed && underClips.length ? (
                 <div
@@ -871,6 +921,12 @@ export function PlateReviewEditor({
             if (!openShotId) return;
             setCastPickerShotId(openShotId);
           }}
+          onAddToSong={
+            songReady && openShotId
+              ? () => void addPlateToSong(openShotId)
+              : undefined
+          }
+          songAdding={Boolean(openShotId && songAddFor === openShotId)}
           onDismissClipError={(beatId) => void postClipAction({ action: "dismiss", beatId })}
           onPlateRebuilt={(plateFile, staging, summary, plateTakes, bibleIds) => {
             setStory((cur) => {
@@ -1841,6 +1897,8 @@ function ShotLineEditor({
   onLineAdded,
   onLineRemoved,
   onAddCast,
+  onAddToSong,
+  songAdding,
 }: {
   styleId: string;
   folderName: string;
@@ -1861,6 +1919,8 @@ function ShotLineEditor({
   onLineAdded?: (beat: CrashStoryBeat) => void;
           onLineRemoved?: (beatId: string, job?: MobileGenJob) => void;
           onAddCast?: () => void;
+          onAddToSong?: () => void;
+          songAdding?: boolean;
           onPlateRebuilt: (
     plateFile: string | undefined,
     staging: string,
@@ -2031,12 +2091,30 @@ function ShotLineEditor({
       })}
       {!speakingBeats.length ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
-            Nobody on this plate yet. Tap Add someone — or the small + on this card in the row.
-          </div>
-          {onAddCast ? (
-            <MobilePrimaryButton onClick={onAddCast}>Add someone</MobilePrimaryButton>
-          ) : null}
+          {onAddToSong ? (
+            <>
+              <div style={{ fontSize: "13px", color: "var(--chrome)" }}>
+                Empty stage. No one on it. Add it to the song — it animates.
+              </div>
+              <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
+                {songAdding ? "Adding…" : "Add 4 × 15s to the song"}
+              </MobilePrimaryButton>
+              {onAddCast ? (
+                <MobilePrimaryButton tone="ghost" onClick={onAddCast}>
+                  Add someone
+                </MobilePrimaryButton>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
+                Nobody on this plate yet. Tap Add someone — or the small + on this card in the row.
+              </div>
+              {onAddCast ? (
+                <MobilePrimaryButton onClick={onAddCast}>Add someone</MobilePrimaryButton>
+              ) : null}
+            </>
+          )}
         </div>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
