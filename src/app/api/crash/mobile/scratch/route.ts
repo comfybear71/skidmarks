@@ -48,7 +48,7 @@ import {
   dropClipTakeFromRow,
   stackedClipFiles,
 } from "@/lib/mobilePlateClips";
-import { runScratchLtxClip } from "@/lib/mobileScratchClip";
+import { failScratchSongCutRun, runScratchLtxClip } from "@/lib/mobileScratchClip";
 import { mobileFinalVideoPath, stitchClips } from "@/lib/mobileStitch";
 import { mobileMediaFolder } from "@/lib/mobileJobFolder";
 import {
@@ -934,11 +934,13 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
+      const wantBeat = (body.beatId || "").trim();
       const beatId =
-        (body.beatId || "").trim() ||
+        (wantBeat && shot.beats.some((b) => b.id === wantBeat) ? wantBeat : "") ||
         (clipPick === "ltx"
           ? shot.beats.find((b) => isMobileSavedVoiceFile(b.voiceFile))?.id
           : shot.beats[0]?.id) ||
+        shot.beats[0]?.id ||
         "";
       if (!beatId) {
         return NextResponse.json(
@@ -1236,8 +1238,9 @@ export async function POST(req: Request) {
       if (!cut) {
         return NextResponse.json({ error: "Add a camera cut first." }, { status: 400 });
       }
+      const wantBeat = (body.beatId || "").trim();
       const beatId =
-        (body.beatId || "").trim() ||
+        (wantBeat && shot.beats.some((b) => b.id === wantBeat) ? wantBeat : "") ||
         shot.beats.find((b) => isMobileSavedVoiceFile(b.voiceFile))?.id ||
         shot.beats[0]?.id ||
         "";
@@ -1275,11 +1278,18 @@ export async function POST(req: Request) {
           label: songWindowLabel(song.durationSec, updated.scratchSong?.cuts || running),
         });
       } catch (e) {
-        const latest = await readMobileGenJob(jobId);
+        const msg = e instanceof Error ? e.message : String(e);
+        const latest = (await readMobileGenJob(jobId)) || job;
+        const failed = await failScratchSongCutRun({
+          jobId,
+          job: latest,
+          cutId: cut.id,
+          message: msg,
+        });
         return NextResponse.json(
           {
-            error: e instanceof Error ? e.message : String(e),
-            job: latest || job,
+            error: msg,
+            job: failed,
           },
           { status: 502 },
         );
