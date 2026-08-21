@@ -23,6 +23,7 @@ import {
   findSongCarrierBeatId,
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateLabel,
+  skipSongPlateIds,
   songCutTallyLine,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
@@ -174,6 +175,27 @@ export function MusicVideoSongCuts({
     }
   }
 
+  async function hidePlateFromSong(shotId: string) {
+    setBusy(`skip-${shotId}`);
+    setNote("Taking that plate off the song. The plate stays.");
+    try {
+      await songAction("skip-plate", { shotId });
+      setNote("Off the song. Plate is still under PLATES.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't take that plate off the song");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function showPlateOnSong(shotId: string) {
+    try {
+      await songAction("unskip-plate", { shotId });
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't put that plate back");
+    }
+  }
+
   async function dropPlateParked(shotId: string) {
     setBusy(`drop-${shotId}`);
     setNote("Dropping parked slices — plate stays.");
@@ -269,6 +291,8 @@ export function MusicVideoSongCuts({
   }, [song?.cuts]);
 
   const cuts = song?.cuts || [];
+  const skipped = skipSongPlateIds(song);
+  const deskPlates = plated.filter((s) => !skipped.includes(s.shotId));
   const tally = tallySongCuts(cuts);
   const cooking = cuts.find((c) => c.status === "running");
   const cookingN = cooking ? cuts.findIndex((c) => c.id === cooking.id) + 1 : 0;
@@ -331,9 +355,27 @@ export function MusicVideoSongCuts({
           />
         </label>
       ) : null}
-      {song?.fileName && plated.length ? (
+      {song?.fileName && skipped.length ? (
         <ul className="scratch-song-cuts">
-          {plated.map((s, i) => {
+          {skipped.map((id) => (
+            <li key={`skip-${id}`} className="scratch-song-cut">
+              <span className="scratch-song-cut-meta">
+                {plateLabel(story, id, 0)} left out of this song
+              </span>
+              <MobilePrimaryButton
+                size="chip"
+                tone="ghost"
+                onClick={() => void showPlateOnSong(id)}
+              >
+                Put back
+              </MobilePrimaryButton>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {song?.fileName && deskPlates.length ? (
+        <ul className="scratch-song-cuts">
+          {deskPlates.map((s, i) => {
             const n = clampPlateSliceCount(counts[s.shotId] ?? MUSIC_VIDEO_SLICE_DEFAULT);
             const name = plateLabel(story, s.shotId, i + 1);
             const mine = cutsForPlate(cuts, s.shotId, s.plateFile);
@@ -344,84 +386,94 @@ export function MusicVideoSongCuts({
               : "";
             const row = (
                   <div className="scratch-song-cut m-song-plate-row">
-                    {thumb ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img className="m-song-cut-thumb" src={thumb} alt="" />
-                    ) : (
-                      <span className="scratch-song-cut-n">{i + 1}</span>
-                    )}
-                    <span className="scratch-song-cut-meta">
-                      {name}
-                      <span className="m-song-cut-sub">
-                        {mineTally.total
-                          ? songCutTallyLine(mineTally)
-                          : "No slices on this plate yet."}
+                    <div className="m-song-plate-head">
+                      {thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img className="m-song-cut-thumb" src={thumb} alt="" />
+                      ) : (
+                        <span className="scratch-song-cut-n">{i + 1}</span>
+                      )}
+                      <span className="scratch-song-cut-meta">
+                        {name}
+                        <span className="m-song-cut-sub">
+                          {mineTally.total
+                            ? songCutTallyLine(mineTally)
+                            : "No slices on this plate yet."}
+                        </span>
                       </span>
-                    </span>
-                    {mineTally.total ? (
-                      <>
-                        <button
-                          type="button"
-                          disabled={Boolean(busy)}
-                          onClick={() =>
-                            setCounts((cur) => ({
-                              ...cur,
-                              [s.shotId]: clampPlateSliceCount(n - 1),
-                            }))
-                          }
-                        >
-                          −
-                        </button>
-                        <span className="scratch-song-cut-meta">{n} × 15s</span>
-                        <button
-                          type="button"
-                          disabled={Boolean(busy)}
-                          onClick={() =>
-                            setCounts((cur) => ({
-                              ...cur,
-                              [s.shotId]: clampPlateSliceCount(n + 1),
-                            }))
-                          }
-                        >
-                          +
-                        </button>
-                      </>
-                    ) : null}
-                    <MobilePrimaryButton
-                      size="chip"
-                      tone="ghost"
-                      disabled={Boolean(busy)}
-                      onClick={() => void parkPlate(s.shotId)}
-                    >
-                      {busy === "park" ? "Adding…" : `Add ${n} × 15s`}
-                    </MobilePrimaryButton>
-                    {parkedHere.length ? (
                       <MobilePrimaryButton
                         size="chip"
                         tone="ghost"
-                        busy={busy === `drop-${s.shotId}`}
-                        disabled={busy.startsWith("drop-") && busy !== `drop-${s.shotId}`}
-                        onClick={() => void dropPlateParked(s.shotId)}
+                        busy={busy === `skip-${s.shotId}`}
+                        disabled={busy.startsWith("skip-") && busy !== `skip-${s.shotId}`}
+                        onClick={() => void hidePlateFromSong(s.shotId)}
                       >
-                        {busy === `drop-${s.shotId}`
-                          ? "Dropping…"
-                          : `Drop parked (${parkedHere.length})`}
+                        {busy === `skip-${s.shotId}` ? "Removing…" : "Remove"}
                       </MobilePrimaryButton>
-                    ) : null}
+                    </div>
+                    <div className="m-song-plate-tools">
+                      {mineTally.total ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={Boolean(busy)}
+                            onClick={() =>
+                              setCounts((cur) => ({
+                                ...cur,
+                                [s.shotId]: clampPlateSliceCount(n - 1),
+                              }))
+                            }
+                          >
+                            −
+                          </button>
+                          <span className="scratch-song-cut-meta">{n} × 15s</span>
+                          <button
+                            type="button"
+                            disabled={Boolean(busy)}
+                            onClick={() =>
+                              setCounts((cur) => ({
+                                ...cur,
+                                [s.shotId]: clampPlateSliceCount(n + 1),
+                              }))
+                            }
+                          >
+                            +
+                          </button>
+                        </>
+                      ) : null}
+                      <MobilePrimaryButton
+                        size="chip"
+                        tone="ghost"
+                        disabled={Boolean(busy)}
+                        onClick={() => void parkPlate(s.shotId)}
+                      >
+                        {busy === "park" ? "Adding…" : `Add ${n} × 15s`}
+                      </MobilePrimaryButton>
+                      {parkedHere.length ? (
+                        <MobilePrimaryButton
+                          size="chip"
+                          tone="ghost"
+                          busy={busy === `drop-${s.shotId}`}
+                          disabled={busy.startsWith("drop-") && busy !== `drop-${s.shotId}`}
+                          onClick={() => void dropPlateParked(s.shotId)}
+                        >
+                          {busy === `drop-${s.shotId}`
+                            ? "Dropping…"
+                            : `Drop parked (${parkedHere.length})`}
+                        </MobilePrimaryButton>
+                      ) : null}
+                    </div>
                   </div>
             );
             return (
               <li key={s.shotId}>
-                {parkedHere.length ? (
-                  <SwipeDropRow
-                    label="Drop parked"
-                    onDrop={() => void dropPlateParked(s.shotId)}
-                  >
-                    {row}
-                  </SwipeDropRow>
-                ) : (
-                  row
-                )}
+                <SwipeDropRow
+                  label="Leave song"
+                  disabled={busy === `skip-${s.shotId}`}
+                  onDrop={() => void hidePlateFromSong(s.shotId)}
+                >
+                  {row}
+                </SwipeDropRow>
               </li>
             );
           })}

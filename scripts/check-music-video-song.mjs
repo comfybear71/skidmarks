@@ -12,6 +12,8 @@ import {
   songCutTallyLine,
   tallySongCuts,
   withoutPlateParkedCuts,
+  withSkippedSongPlate,
+  withoutSkippedSongPlate,
 } from "../src/lib/musicVideoSong.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
 import { songCookStorageKey } from "../src/lib/songCutCook.ts";
@@ -63,7 +65,15 @@ const kept = withoutPlateParkedCuts(
 assert.equal(kept.dropped, 1);
 assert.deepEqual(kept.next.map((c) => c.id), ["a", "c"]);
 
+assert.deepEqual(withSkippedSongPlate(["a"], "b"), ["a", "b"]);
+assert.deepEqual(withoutSkippedSongPlate(["a", "b"], "a"), ["b"]);
+
 assert.match(songRoute, /remove-plate-parked/);
+assert.match(songRoute, /skip-plate/);
+assert.match(songUi, /hidePlateFromSong/);
+assert.match(songUi, /Leave song/);
+assert.match(songUi, /"Remove"/);
+assert.match(songUi, /m-song-plate-head/);
 assert.match(songRoute, /remove-stitch/);
 assert.match(songUi, /Drop stitch/);
 assert.match(songUi, /Drop parked/);

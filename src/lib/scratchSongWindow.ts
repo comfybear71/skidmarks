@@ -29,6 +29,8 @@ export type ScratchSong = {
   sliceDurationSec: number;
   cuts?: ScratchSongCut[];
   stitchedFile?: string;
+  /** Plates left out of the song desk. Plate cards stay under PLATES. */
+  skipShotIds?: string[];
 };
 
 export function clampSongSliceDuration(sec: number): number {
