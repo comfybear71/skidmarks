@@ -1929,11 +1929,18 @@ export default function ScratchPage() {
                     setError(e instanceof Error ? e.message : "Couldn't set the song window"),
                   );
                 }}
-                onAddCut={() => {
-                  void songAction("song-cut-add", { plateFile }).catch((e) =>
-                    setError(e instanceof Error ? e.message : "Couldn't add that camera"),
-                  );
-                }}
+                onAddCut={() =>
+                  songAction("song-cut-add", { plateFile }).catch((e) => {
+                    setError(e instanceof Error ? e.message : "Couldn't add that camera");
+                    throw e;
+                  })
+                }
+                onFillCuts={() =>
+                  songAction("song-cut-fill", { plateFile }).catch((e) => {
+                    setError(e instanceof Error ? e.message : "Couldn't park the rest of the song");
+                    throw e;
+                  })
+                }
                 onRemoveCut={(cutId) => {
                   void songAction("song-cut-remove", { cutId }).catch((e) =>
                     setError(e instanceof Error ? e.message : "Couldn't remove that cut"),
