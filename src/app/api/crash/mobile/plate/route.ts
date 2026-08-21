@@ -6,7 +6,7 @@ import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
 import { clearAllStoryShots, clipQueueError } from "@/lib/mobileClipQueue";
 import { isEpisodeClipPlanError, planParkClipsUnderPlate } from "@/lib/mobileEpisodeClips";
-import { CUTAWAY_ACTIONS } from "@/lib/cutawaySfx";
+import { CUTAWAY_ACTIONS } from "@/lib/cutawayActions";
 import { buildCutawayMotion, defaultSoloStaging } from "@/lib/mobileImageMotion";
 import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { beatsAfterRemoveLine, shotSpeakersOnCard } from "@/lib/mobilePlateLines";

@@ -7,7 +7,7 @@ import {
   CUTAWAY_ACTIONS,
   CUTAWAY_SFX_MAX_SEC,
   CUTAWAY_SFX_MIN_SEC,
-} from "@/lib/cutawaySfx";
+} from "@/lib/cutawayActions";
 import { buildCutawayMotion, stripLtxLipSyncLead } from "@/lib/mobileImageMotion";
 import type { CrashStoryBeat } from "@/lib/crashStoryTypes";
 import type { MobileClipUnit, MobileGenJob } from "@/lib/mobileGenJob";

@@ -10,7 +10,7 @@ import {
   cutawayActionById,
   cutawaySfxInRange,
   cutawaySfxRangeError,
-} from "../src/lib/cutawaySfx.ts";
+} from "../src/lib/cutawayActions.ts";
 import { queueOneBeatForAnimate } from "../src/lib/mobileClipQueue.ts";
 
 assert.equal(CUTAWAY_SFX_MIN_SEC, 6);
@@ -87,5 +87,7 @@ const panel = readFileSync(
 );
 assert.match(panel, /Do not Redo Position/);
 assert.match(panel, /cutaway-sfx/);
+assert.match(panel, /cutawayActions/);
+assert.doesNotMatch(panel, /from \"@\/lib\/cutawaySfx\"/);
 
 console.log("check-cutaway-sfx: ok");

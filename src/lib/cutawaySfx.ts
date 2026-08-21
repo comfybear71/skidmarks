@@ -1,6 +1,6 @@
 /**
- * /m cutaway = same still + silent Image motion + a 6–10s SFX mp3 so LTX
- * has a length. The sound is thrown away in Resolve.
+ * Server-only: read the SPX shelf and copy a 6–10s SFX onto a cutaway beat.
+ * Do not import this from a client component — use cutawayActions.ts.
  */
 
 import fs from "fs";
@@ -15,62 +15,15 @@ import { cloudSpxItems, readShowAssetBytes } from "./cloudShelf";
 import { probeDurationSeconds } from "./mediaDuration";
 import type { ShowStyleId } from "./showStylePresets";
 
-export const CUTAWAY_SFX_MIN_SEC = 6;
-export const CUTAWAY_SFX_MAX_SEC = 10;
-
-export type CutawayAction = {
-  id: string;
-  label: string;
-  action: string;
-};
-
-export const CUTAWAY_ACTIONS: CutawayAction[] = [
-  {
-    id: "stand-up",
-    label: "Stand up",
-    action: "stands up from sitting, rises to their feet",
-  },
-  {
-    id: "walk-away",
-    label: "Walk away",
-    action: "stands and walks away from camera, leaving the place",
-  },
-  {
-    id: "walk-toward",
-    label: "Walk toward",
-    action: "walks toward the camera, filling the frame",
-  },
-  {
-    id: "sit-up",
-    label: "Sit up",
-    action: "sits up, weight shifting upright",
-  },
-  {
-    id: "look-away",
-    label: "Look away",
-    action: "turns their head and looks away",
-  },
-  {
-    id: "shake-head",
-    label: "Shake head",
-    action: "shakes their head, no words",
-  },
-];
-
-export function cutawayActionById(id: string): CutawayAction | undefined {
-  return CUTAWAY_ACTIONS.find((a) => a.id === id);
-}
-
-/** Probe jitter — a 6.00 file can read 5.97. */
-export function cutawaySfxInRange(sec: number): boolean {
-  if (!Number.isFinite(sec) || sec <= 0) return false;
-  return sec >= CUTAWAY_SFX_MIN_SEC - 0.25 && sec <= CUTAWAY_SFX_MAX_SEC + 0.25;
-}
-
-export function cutawaySfxRangeError(sec: number): string {
-  const shown = Number.isFinite(sec) ? `${sec.toFixed(1)}s` : "unknown length";
-  return `Need a 6–10 second SFX (this one is ${shown}). Pick another, or add one on the SPX shelf.`;
-}
+export {
+  CUTAWAY_ACTIONS,
+  CUTAWAY_SFX_MAX_SEC,
+  CUTAWAY_SFX_MIN_SEC,
+  cutawayActionById,
+  cutawaySfxInRange,
+  cutawaySfxRangeError,
+  type CutawayAction,
+} from "./cutawayActions";
 
 export function estimateMp3DurationSec(filePath: string): number | undefined {
   try {
