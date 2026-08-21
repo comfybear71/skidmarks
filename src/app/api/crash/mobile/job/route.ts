@@ -18,6 +18,8 @@ export async function POST(req: Request) {
       secondsPerShot?: number;
       styleRealism?: number;
       deskId?: string;
+      artist?: string;
+      songTitle?: string;
     };
     const prompt = (body.prompt || "").trim();
     if (!prompt) {
@@ -47,6 +49,8 @@ export async function POST(req: Request) {
       secondsPerShot,
       styleRealism,
       deskId: body.deskId,
+      artist: body.artist,
+      songTitle: body.songTitle,
     });
     return NextResponse.json({ ok: true, job });
   } catch (e) {
