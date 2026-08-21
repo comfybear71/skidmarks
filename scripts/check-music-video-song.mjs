@@ -141,5 +141,10 @@ assert.doesNotMatch(tree, /from "fs"/);
 assert.match(attach, /styleId === "music_video"/);
 assert.match(clip, /skipLipSyncLead/);
 assert.match(editor, /songDesk=\{styleId === "music_video"\}/);
+assert.match(editor, /Add 4 × 15s to the song/);
+assert.match(editor, /addPlateToSong/);
+assert.match(editor, /Empty stage\. No one on it/);
+assert.doesNotMatch(songUi, /Singer plates sing/);
+assert.match(songUi, /Add 15s on a plate/);
 
 console.log("check-music-video-song: ok");

@@ -338,9 +338,7 @@ export function MusicVideoSongCuts({
         </div>
       ) : null}
       <p className="scratch-song-hint">
-        Position stays on the plate. Singer plates sing. A sax plate plays the
-        instrumental — write that in Position. Leave the screen — cooking keeps
-        going. You get each clip and one stitch.
+        Add 15s on a plate — empty stage or a person. Then Generate cuts.
       </p>
       {!song?.fileName ? (
         <label className="scratch-song-hint" style={{ display: "block" }}>
