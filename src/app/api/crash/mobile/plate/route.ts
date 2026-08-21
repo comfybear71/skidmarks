@@ -159,6 +159,69 @@ export async function POST(req: Request) {
     await hydrateMobilePackOnDisk(job.styleId, job.folderName);
     const story = await readMobileStory(job.styleId, job.folderName);
 
+    if (drawPoll) {
+      const task = job.plateDraw;
+      if (!task?.taskId) {
+        const sid = shotId || "";
+        const plateFile =
+          job.shots.find((s) => s.shotId === sid)?.plateFile ||
+          story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === sid)?.plateFile ||
+          "";
+        if (plateFile && plateFile !== "__error__") {
+          return NextResponse.json({
+            ok: true,
+            pending: false,
+            recovered: true,
+            job,
+            plateFile,
+            staging: story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === sid)?.staging,
+            plateTakes: story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === sid)?.plateTakes,
+          });
+        }
+        return NextResponse.json(
+          { error: "No Draw in flight — tap Draw again. The episode is still there." },
+          { status: 400 },
+        );
+      }
+      try {
+        const fileName = await finishSirayScratchPlate({
+          taskId: task.taskId,
+          styleId: job.styleId,
+          castNames: task.castNames,
+          placeName: task.placeName,
+        });
+        if (!fileName) {
+          return NextResponse.json({ ok: true, pending: true, job });
+        }
+        const landed = await landEpisodePlateStill({
+          job,
+          story,
+          shotId: task.shotId,
+          fileName,
+          staging: task.staging,
+          bibleIds: task.bibleIds,
+        });
+        return NextResponse.json({
+          ok: true,
+          pending: false,
+          job: landed.job,
+          plateFile: landed.plateFile,
+          plateTakes: landed.plateTakes,
+          staging: landed.staging,
+          bibleIds: landed.bibleIds,
+        });
+      } catch (e) {
+        const failed = await patchMobileGenJob(jobId, {
+          plateDraw: null,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : String(e), job: failed || job },
+          { status: 502 },
+        );
+      }
+    }
+
     if (add) {
       // A location approved via Locations only lands in job.scenes — it's
       // meant to get carried into the real story doc when a script gets
@@ -232,9 +295,7 @@ export async function POST(req: Request) {
     let scene = story.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId));
     let shot = scene?.shots.find((sh) => sh.id === shotId);
     if (!scene || !shot) {
-      if (!drawPoll) {
-        return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
-      }
+      return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
     }
     const liveShot = shot;
 
@@ -509,9 +570,6 @@ export async function POST(req: Request) {
     }
 
     if (drawStart) {
-      if (!liveShot) {
-        return NextResponse.json({ error: "That shot is not in the story" }, { status: 404 });
-      }
       const staging = (stagingIn || "").trim();
       if (!staging) {
         return NextResponse.json(
@@ -592,69 +650,6 @@ export async function POST(req: Request) {
         staging: rebuilt.staging,
         bibleIds: rebuilt.bibleIds,
       });
-    }
-
-    if (drawPoll) {
-      const task = job.plateDraw;
-      if (!task?.taskId) {
-        const sid = shotId || "";
-        const plateFile =
-          job.shots.find((s) => s.shotId === sid)?.plateFile ||
-          story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === sid)?.plateFile ||
-          "";
-        if (plateFile && plateFile !== "__error__") {
-          return NextResponse.json({
-            ok: true,
-            pending: false,
-            recovered: true,
-            job,
-            plateFile,
-            staging: story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === sid)?.staging,
-            plateTakes: story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === sid)?.plateTakes,
-          });
-        }
-        return NextResponse.json(
-          { error: "No Draw in flight — tap Draw again. The episode is still there." },
-          { status: 400 },
-        );
-      }
-      try {
-        const fileName = await finishSirayScratchPlate({
-          taskId: task.taskId,
-          styleId: job.styleId,
-          castNames: task.castNames,
-          placeName: task.placeName,
-        });
-        if (!fileName) {
-          return NextResponse.json({ ok: true, pending: true, job });
-        }
-        const landed = await landEpisodePlateStill({
-          job,
-          story,
-          shotId: task.shotId,
-          fileName,
-          staging: task.staging,
-          bibleIds: task.bibleIds,
-        });
-        return NextResponse.json({
-          ok: true,
-          pending: false,
-          job: landed.job,
-          plateFile: landed.plateFile,
-          plateTakes: landed.plateTakes,
-          staging: landed.staging,
-          bibleIds: landed.bibleIds,
-        });
-      } catch (e) {
-        const failed = await patchMobileGenJob(jobId, {
-          plateDraw: null,
-          error: e instanceof Error ? e.message : String(e),
-        });
-        return NextResponse.json(
-          { error: e instanceof Error ? e.message : String(e), job: failed || job },
-          { status: 502 },
-        );
-      }
     }
 
     if (saveOnly) {
