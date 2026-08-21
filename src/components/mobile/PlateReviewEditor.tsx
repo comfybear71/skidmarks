@@ -2587,11 +2587,7 @@ function BeatLineEditor({
         <div style={{ fontSize: "12px", color: "var(--acid)", fontWeight: 700, flex: "0 0 auto" }}>
           {beat.speaker}
         </div>
-        {songDesk ? (
-          <div style={{ fontSize: "12px", color: "var(--chrome-dim)", flex: 1 }}>
-            Position this plate. Song slices are under Music video — song cuts.
-          </div>
-        ) : playable ? (
+        {songDesk ? null : playable ? (
           <MobileAudioPlayer
             src={`/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(
               folderName,

@@ -167,6 +167,8 @@ assert.match(songRoute, /add-plate/);
 assert.match(songUi, /addPlateToSong/);
 assert.match(editor, /addPlateToSong/);
 assert.doesNotMatch(editor, /Tap Add\. It goes on the song list/);
+assert.doesNotMatch(editor, /Position this plate/);
+assert.doesNotMatch(editor, /Song slices are under/);
 assert.doesNotMatch(songUi, /Singer plates sing/);
 assert.doesNotMatch(songUi, /Tap a plate\. Tap Add/);
 assert.match(songUi, /scratch-song-mp3/);
