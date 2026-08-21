@@ -205,14 +205,13 @@ assert.ok((namedShot?.staging || "").includes("COMFY"));
 assert.ok((namedShot?.staging || "").toLowerCase().includes("empty hands"));
 
 // Place-scoped graph must not invent a card — that's the old silent halt.
-// Client / Plate this place mints via appendPlacePlate when drew === 0.
 assert.equal(nextUnplatedEpisodeShot(rosterJob, rosterStory, "sc1"), null);
 
 const here = dirname(fileURLToPath(import.meta.url));
 const tree = readFileSync(join(here, "../src/components/mobile/StudioTree.tsx"), "utf8");
-assert.match(tree, /if \(drew === 0\)/);
 assert.match(tree, /action: "add"/);
 assert.match(tree, /Couldn't add a plate there/);
+assert.doesNotMatch(tree, /Plate this place/);
 const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 assert.match(editor, /void addPlaceCard\(""\)/);
 assert.doesNotMatch(editor, /New plate — pick who to test/);
