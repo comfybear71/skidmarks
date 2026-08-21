@@ -92,7 +92,7 @@ export function buildSirayScratchPrompt(opts: {
     placeLook: opts.placeLook,
     staging: opts.staging,
     refineFromStill: Boolean(opts.refineFromStill),
-    joPhone: padHasJo(opts.speakers) ? opts.joPhone !== false : false,
+    joPhone: padHasJo(opts.speakers) ? opts.joPhone === true : false,
   }).prompt;
 }
 
@@ -216,7 +216,7 @@ async function startSirayScratchPlate(
     placeLook,
     staging: shot.staging || "",
     refineFromStill,
-    joPhone: padHasJo(castNames) ? opts.joPhone !== false : false,
+    joPhone: padHasJo(castNames) ? opts.joPhone === true : false,
   });
   const prompt = send.prompt;
 

@@ -22,9 +22,9 @@ assert.match(ASSIST_CRITERIA_LOCK, /rape/i);
 assert.match(ASSIST_CRITERIA_LOCK, /\[VISUAL\]/);
 assert.match(ASSIST_CRITERIA_LOCK, /\[SPEECH\]/);
 assert.match(ASSIST_CRITERIA_LOCK, /keyboard warrior/i);
-assert.match(ASSIST_CRITERIA_LOCK, /crazed maniac/i);
-assert.match(ASSIST_CRITERIA_LOCK, /tennis racket/i);
 assert.match(ASSIST_CRITERIA_LOCK, /empty hands/i);
+assert.match(ASSIST_CRITERIA_LOCK, /no invented/i);
+assert.match(ASSIST_CRITERIA_LOCK, /tennis racket/i);
 assert.match(ASSIST_CRITERIA_LOCK, /Use the provided start image as the first frame/);
 assert.ok(ASSIST_CRITERIA_LOCK.includes(LTX_LIP_SYNC_LEAD));
 assert.match(ASSIST_CRITERIA_LOCK, /turnaround sheet/i);
@@ -41,7 +41,7 @@ for (const kind of ASSIST_KINDS) {
   assert.match(sys, /pinning/i);
   assert.match(sys, /holding someone down/i);
   assert.match(sys, /keyboard warrior/i);
-  assert.match(sys, /crazed maniac/i);
+  assert.match(sys, /empty hands/i);
   assert.match(sys, /\[VISUAL\]/);
   assert.match(sys, /\[SPEECH\]/);
   assert.match(sys, /Use the provided start image as the first frame/);
@@ -64,9 +64,9 @@ assert.match(hint, /Crazy Jo/);
 assert.match(hint, /Jo's bedroom/);
 assert.match(hint, /wild Territory woman/);
 assert.match(hint, /this room/i);
-assert.match(hint, /mobile phone/i);
-assert.match(hint, /texting/i);
-assert.match(hint, /crazed maniac/i);
+assert.match(hint, /empty hands/i);
+assert.match(hint, /no phone/i);
+assert.doesNotMatch(hint, /holding her mobile phone/i);
 
 const comfyPlate = platePositionAssistHint({
   people: ["Comfy"],

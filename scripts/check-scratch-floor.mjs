@@ -14,6 +14,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scratchPage = readFileSync(join(repoRoot, "src/app/(mobile)/scratch/page.tsx"), "utf8");
 assert.doesNotMatch(scratchPage, /JO on her back/);
 assert.doesNotMatch(scratchPage, /fillJoMattyBedroom/);
+assert.match(scratchPage, /const \[joPhone, setJoPhone\] = useState\(false\)/);
 assert.match(scratchPage, /clip-poll/);
 assert.match(scratchPage, /layout="strip"/);
 assert.match(scratchPage, /Siray confirmed/);

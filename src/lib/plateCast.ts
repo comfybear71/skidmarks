@@ -7,6 +7,7 @@ import {
   type ShowStyleId,
 } from "@/lib/showStylePresets";
 import { saveCplateMeta } from "@/lib/cplateManifest";
+import { emptyHandsStillLock } from "@/lib/mobileImageMotion";
 import { PLATE_FACES_PER_PASS } from "@/lib/plateConstants";
 import { sortableId } from "@/lib/types";
 
@@ -87,7 +88,7 @@ function buildPlatePrompt(opts: {
     : "Image 1 is the LOCKED background — keep that exact place, lighting and materials. Do not move the camera. Do not replace the location with a photo street. Remove any people or crowds already in image 1 — empty place only.";
 
   const poseLine =
-    "Keep the EXACT body pose from image 2 unless the tweak names a pose, crop, clothes, or held prop — then use the tweak. Same face from image 2. Do not invent a second person.";
+    "Keep the EXACT body pose from image 2 unless the tweak names a pose, crop, clothes, or held prop — then use the tweak. Same face from image 2. Do not invent a second person. No passer-by. No extra body in the distance.";
 
   const peopleLines =
     n === 1
@@ -130,6 +131,7 @@ function buildPlatePrompt(opts: {
         : chainPass
           ? "Staging: fit the new person naturally into the existing group."
           : "",
+    emptyHandsStillLock(tweak),
     "No writing, no signage text, no captions, no watermarks.",
   ]
     .filter(Boolean)

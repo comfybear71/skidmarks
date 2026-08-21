@@ -245,15 +245,34 @@ const joStill = plateCastStagingNote({
   speakers: ["CRAZY BIG HOLE JO"],
   staging: "CRAZY BIG HOLE JO alone, standing centre-frame, facing camera, mid body.",
 });
-assert.match(joStill, /mobile phone/i);
-assert.match(joStill, /texting/i);
-assert.match(joStill, /crazed maniac/i);
+assert.match(joStill, /empty hands/i);
+assert.match(joStill, /no phone/i);
+assert.match(joStill, /do not invent props/i);
+assert.doesNotMatch(joStill, /mobile phone/i);
+assert.doesNotMatch(joStill, /crazed maniac/i);
 assert.match(joStill, /Only CRAZY BIG HOLE JO in frame/);
 assert.match(joStill, /only person/i);
 assert.doesNotMatch(joStill, /\bComfy\b/);
 assert.doesNotMatch(joStill, /\bLand\b/);
 assert.doesNotMatch(joStill, /People inhabit the place/);
 assert.doesNotMatch(joStill, /Bodies in the room/);
+
+const joPhoneStill = plateCastStagingNote({
+  speakers: ["CRAZY BIG HOLE JO"],
+  staging: "CRAZY BIG HOLE JO alone, standing centre-frame, facing camera, mid body.",
+  joPhone: true,
+});
+assert.match(joPhoneStill, /mobile phone/i);
+assert.match(joPhoneStill, /crazed maniac/i);
+assert.doesNotMatch(joPhoneStill, /do not invent props/i);
+
+const sexyStill = plateCastStagingNote({
+  speakers: ["BIG SEXY"],
+  staging: "BIG SEXY alone, standing centre-frame, facing camera, mid body.",
+});
+assert.match(sexyStill, /empty hands/i);
+assert.match(sexyStill, /no mug/i);
+assert.doesNotMatch(sexyStill, /mobile phone/i);
 
 const racketStill = plateCastStagingNote({
   speakers: ["CRAZY BIG HOLE JO"],

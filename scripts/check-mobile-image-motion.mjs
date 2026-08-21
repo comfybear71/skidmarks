@@ -34,11 +34,9 @@ const jo = buildDefaultBeatMotion({
   lookLock: "sitting on her bed",
 });
 assert.match(jo, /^Use the provided start image as the first frame\./);
-assert.match(jo, /holding her mobile phone/);
-assert.match(jo, /texting/);
-assert.match(jo, /crazed maniac/);
-assert.match(jo, /keyboard warrior/);
-assert.match(jo, /speaks the line as she types/);
+assert.match(jo, /empty hands stay as the start image, no phone/);
+assert.doesNotMatch(jo, /holding her mobile phone/);
+assert.doesNotMatch(jo, /keyboard warrior/);
 assert.match(jo, /CRAZY BIG HOLE JO says: "get stuffed"/);
 assert.match(jo, /Only CRAZY BIG HOLE JO in frame, no one else appears/);
 assert.match(jo, /Nobody mentioned in the spoken line appears on screen/);
@@ -52,9 +50,21 @@ assert.doesNotMatch(jo, /^perfect lip sync/i);
 
 const sent = ltxSendPrompt(jo);
 assert.ok(sent.startsWith(LTX_LIP_SYNC_LEAD));
-assert.match(sent, /holding her mobile phone/);
+assert.match(sent, /empty hands stay as the start image, no phone/);
+assert.doesNotMatch(sent, /holding her mobile phone/);
 assert.equal(stripLtxLipSyncLead(sent), jo);
 assert.equal(withLtxLipSyncLead(sent), sent);
+
+const joPhoneMotion = buildDefaultBeatMotion({
+  styleId: "skidmarks",
+  speaker: "CRAZY BIG HOLE JO",
+  line: "get stuffed",
+  lookLock: "sitting on her bed",
+  staging: "Holding her mobile phone, texting.",
+});
+assert.match(joPhoneMotion, /holding her mobile phone/);
+assert.match(joPhoneMotion, /keyboard warrior/);
+assert.match(joPhoneMotion, /speaks the line as she types/);
 
 const racket = ltxSendPrompt(
   'Use the provided start image as the first frame. CRAZY BIG HOLE JO is prominent, tennis racket in hand, walking around the room. CRAZY BIG HOLE JO says: "get stuffed".',
@@ -99,10 +109,10 @@ const holdJo = buildDefaultBeatMotion({
   speaker: "CRAZY BIG HOLE JO",
   line: "",
 });
-assert.match(holdJo, /holding her phone|holding her mobile phone/);
+assert.match(holdJo, /empty hands, no phone/);
 assert.match(holdJo, /No dialogue/);
-assert.match(holdJo, /crazed maniac/);
-assert.match(holdJo, /mobile phone/);
+assert.doesNotMatch(holdJo, /holding her mobile phone/);
+assert.doesNotMatch(holdJo, /crazed maniac/);
 
 const joOnlyHold = buildDefaultBeatMotion({
   styleId: "skidmarks",
@@ -113,22 +123,25 @@ const joOnlyHold = buildDefaultBeatMotion({
 assert.doesNotMatch(joOnlyHold, /\bComfy\b/);
 assert.doesNotMatch(joOnlyHold, /\bLand\b/);
 assert.match(joOnlyHold, /Only CRAZY BIG HOLE JO in frame, no one else appears/);
-assert.match(joOnlyHold, /mobile phone/);
-assert.match(joOnlyHold, /texting/);
-assert.match(joOnlyHold, /crazed maniac/);
+assert.match(joOnlyHold, /empty hands, no phone/);
+assert.doesNotMatch(joOnlyHold, /mobile phone/);
 
 assert.equal(
   defaultSoloStaging("CRAZY BIG HOLE JO"),
-  "CRAZY BIG HOLE JO alone. Only CRAZY BIG HOLE JO in frame, no one else appears. Standing centre-frame, facing camera, mid body. Holding her mobile phone, texting, staring at the screen like a crazed maniac.",
+  "CRAZY BIG HOLE JO alone. Only CRAZY BIG HOLE JO in frame, no one else appears. Standing centre-frame, facing camera, mid body. Empty hands. No phone. No extra objects.",
 );
-assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "standing centre-frame").length > 0, true);
-assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "tennis racket in hand"), "");
-assert.equal(directorWantsEmptyHands("hands free or resting"), true);
+assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "standing centre-frame"), "");
 assert.equal(
-  storedMotionFightsEmptyHands(jo, "Empty hands in her lap. No phone."),
+  joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "standing centre-frame", true).length > 0,
   true,
 );
-assert.equal(storedMotionFightsEmptyHands(jo, "holding her mobile phone"), false);
+assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "tennis racket in hand", true), "");
+assert.equal(directorWantsEmptyHands("hands free or resting"), true);
+assert.equal(
+  storedMotionFightsEmptyHands(joPhoneMotion, "Empty hands in her lap. No phone."),
+  true,
+);
+assert.equal(storedMotionFightsEmptyHands(joPhoneMotion, "holding her mobile phone"), false);
 assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "sitting on the bed, hands free or resting"), "");
 assert.equal(directorWantsEmptyHands("arms down at her sides, no phone"), true);
 assert.equal(directorWantsEmptyHands("hands at her sides"), true);
@@ -147,7 +160,7 @@ assert.match(emptyJo, /empty hands|no phone/i);
 assert.doesNotMatch(emptyJo, /holding her mobile phone/);
 assert.doesNotMatch(emptyJo, /keyboard warrior/);
 
-const sentEmpty = ltxSendPrompt(jo, "Empty hands in her lap. No phone.");
+const sentEmpty = ltxSendPrompt(joPhoneMotion, "Empty hands in her lap. No phone.");
 assert.doesNotMatch(sentEmpty, /holding her mobile phone/);
 assert.match(sentEmpty, /empty hands|no phone/i);
 

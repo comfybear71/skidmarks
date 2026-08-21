@@ -638,7 +638,7 @@ export async function POST(req: Request) {
       const bibleIds = [
         ...new Set((body.bibleIds || []).map((id) => String(id || "").trim()).filter(Boolean)),
       ];
-      const joPhone = body.joPhone !== false;
+      const joPhone = body.joPhone === true;
       const nextStory: CrashStoryDoc = {
         ...story,
         scenes: story.scenes.map((sc) => ({
