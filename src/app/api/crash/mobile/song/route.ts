@@ -15,9 +15,12 @@ import {
   isMusicVideoSongJob,
   plateSliceWindows,
   skipSongPlateIds,
+  songDeskPlateIds,
   withoutPlateParkedCuts,
+  withoutSongPlate,
   withSkippedSongPlate,
   withoutSkippedSongPlate,
+  withSongPlate,
 } from "@/lib/musicVideoSong";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
@@ -38,8 +41,8 @@ export const maxDuration = 900;
  *   run — one LTX slice. Client polls the job if the phone drops.
  *   stitch — concat done cuts. Does not write job.finalVideoFile.
  *   remove-stitch — park the joined mp4. Song, plates, and cuts stay.
- *   skip-plate — hide a plate from the song desk. Plate card stays.
- *   unskip-plate — put that plate back on the song desk.
+ *   add-plate — put a plate on the song list. Does not park slices.
+ *   skip-plate — take a plate off the song list. Plate card stays.
  */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -319,6 +322,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, job: updated, stitchedFile });
     }
 
+    if (action === "add-plate") {
+      const song = job.scratchSong;
+      const shotId = String(body.shotId || "").trim();
+      if (!song || !shotId) {
+        return NextResponse.json({ error: "Need a plate to add." }, { status: 400 });
+      }
+      const onList = songDeskPlateIds(song);
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: {
+          ...song,
+          songPlateIds: withSongPlate(onList, shotId),
+          skipShotIds: withoutSkippedSongPlate(skipSongPlateIds(song), shotId),
+        },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
     if (action === "skip-plate") {
       const song = job.scratchSong;
       const shotId = String(body.shotId || "").trim();
@@ -328,29 +349,15 @@ export async function POST(req: Request) {
       const plateFile = (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim();
       const { next } = withoutPlateParkedCuts(song.cuts || [], shotId, plateFile);
       const nextWin = nextCutAfter(next, song.durationSec);
+      const onList = songDeskPlateIds(song);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,
           cuts: next,
+          songPlateIds: withoutSongPlate(onList, shotId),
           skipShotIds: withSkippedSongPlate(skipSongPlateIds(song), shotId),
           sliceStartSec: nextWin.startSec,
           sliceDurationSec: nextWin.durationSec,
-        },
-        error: "",
-      });
-      return NextResponse.json({ ok: true, job: updated });
-    }
-
-    if (action === "unskip-plate") {
-      const song = job.scratchSong;
-      const shotId = String(body.shotId || "").trim();
-      if (!song || !shotId) {
-        return NextResponse.json({ error: "Need a plate to put back." }, { status: 400 });
-      }
-      const updated = await patchMobileGenJob(jobId, {
-        scratchSong: {
-          ...song,
-          skipShotIds: withoutSkippedSongPlate(skipSongPlateIds(song), shotId),
         },
         error: "",
       });

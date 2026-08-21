@@ -82,6 +82,28 @@ export function withoutSkippedSongPlate(skip: string[], shotId: string): string[
   return skip.filter((s) => s !== id);
 }
 
+/** Song list = plates you Add. Empty until you tap Add on a plate. */
+export function songDeskPlateIds(song?: {
+  songPlateIds?: string[];
+  cuts?: { shotId?: string }[];
+} | null): string[] {
+  if (song && song.songPlateIds !== undefined) {
+    return [...new Set(song.songPlateIds.map((id) => id.trim()).filter(Boolean))];
+  }
+  return [...new Set((song?.cuts || []).map((c) => (c.shotId || "").trim()).filter(Boolean))];
+}
+
+export function withSongPlate(ids: string[], shotId: string): string[] {
+  const id = shotId.trim();
+  if (!id || ids.includes(id)) return ids;
+  return [...ids, id];
+}
+
+export function withoutSongPlate(ids: string[], shotId: string): string[] {
+  const id = shotId.trim();
+  return ids.filter((s) => s !== id);
+}
+
 export function songCutTallyLine(tally: SongCutTally): string {
   if (!tally.total) return "no slices yet";
   const bits = [`${tally.done}/${tally.total} done`];

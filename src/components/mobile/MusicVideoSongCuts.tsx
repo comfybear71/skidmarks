@@ -23,8 +23,8 @@ import {
   findSongCarrierBeatId,
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateLabel,
-  skipSongPlateIds,
   songCutTallyLine,
+  songDeskPlateIds,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
 import {
@@ -195,9 +195,6 @@ export function MusicVideoSongCuts({
     setBusy(`park-${shotId}`);
     setNote(`Adding ${n} × 15s…`);
     try {
-      if (skipSongPlateIds(job.scratchSong).includes(shotId)) {
-        await songAction("unskip-plate", { shotId });
-      }
       await songAction("assign", { shotId, count: n });
       setNote(`Added ${n} × 15s`);
     } catch (e) {
@@ -289,8 +286,8 @@ export function MusicVideoSongCuts({
   }, [song?.cuts]);
 
   const cuts = song?.cuts || [];
-  const skipped = skipSongPlateIds(song);
-  const deskPlates = plated.filter((s) => !skipped.includes(s.shotId));
+  const onSong = songDeskPlateIds(song);
+  const deskPlates = plated.filter((s) => onSong.includes(s.shotId));
   const tally = tallySongCuts(cuts);
   const cooking = cuts.find((c) => c.status === "running");
   const cookingN = cooking ? cuts.findIndex((c) => c.id === cooking.id) + 1 : 0;
@@ -334,7 +331,7 @@ export function MusicVideoSongCuts({
         </div>
       ) : null}
       <p className="scratch-song-hint">
-        Add 15s on a plate — empty stage or a person. Then Generate cuts.
+        Tap a plate. Tap Add. Then set 1 × 15s or 4 × 15s here. You pick.
       </p>
       {!song?.fileName ? (
         <label className="scratch-song-hint" style={{ display: "block" }}>
@@ -350,76 +347,6 @@ export function MusicVideoSongCuts({
             }}
           />
         </label>
-      ) : null}
-      {song?.fileName && skipped.length ? (
-        <ul className="scratch-song-cuts">
-          {skipped.map((id) => {
-            const s = plated.find((p) => p.shotId === id);
-            const n = clampPlateSliceCount(counts[id] ?? MUSIC_VIDEO_SLICE_DEFAULT);
-            const placeScene = s ? job.scenes.find((sc) => sc.id === s.sceneId) : undefined;
-            const placeFile = s
-              ? approvedCandidateFileName(job.locationCandidates, s.sceneId) || ""
-              : "";
-            const thumb = s?.plateFile
-              ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
-              : s
-                ? mobilePlacePreviewUrl(job, {
-                    fileName: placeFile,
-                    worldThumbKey: placeScene?.worldThumbKey || "",
-                  })
-                : "";
-            return (
-              <li key={`skip-${id}`} className="scratch-song-cut m-song-plate-row">
-                <div className="m-song-plate-head">
-                  {thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img className="m-song-cut-thumb" src={thumb} alt="" />
-                  ) : null}
-                  <span className="scratch-song-cut-meta">
-                    {plateLabel(story, id, 0)}
-                    <span className="m-song-cut-sub">Pick how many 15s, then Add.</span>
-                  </span>
-                </div>
-                <div className="m-song-plate-tools">
-                  <button
-                    type="button"
-                    disabled={Boolean(busy)}
-                    onClick={() =>
-                      setCounts((cur) => ({
-                        ...cur,
-                        [id]: clampPlateSliceCount(n - 1),
-                      }))
-                    }
-                  >
-                    −
-                  </button>
-                  <span className="scratch-song-cut-meta">{n} × 15s</span>
-                  <button
-                    type="button"
-                    disabled={Boolean(busy)}
-                    onClick={() =>
-                      setCounts((cur) => ({
-                        ...cur,
-                        [id]: clampPlateSliceCount(n + 1),
-                      }))
-                    }
-                  >
-                    +
-                  </button>
-                  <MobilePrimaryButton
-                    size="chip"
-                    tone="ghost"
-                    busy={busy === `park-${id}`}
-                    disabled={Boolean(busy) && busy !== `park-${id}`}
-                    onClick={() => void addPlateToSong(id)}
-                  >
-                    {busy === `park-${id}` ? "Adding…" : `Add ${n} × 15s`}
-                  </MobilePrimaryButton>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
       ) : null}
       {song?.fileName && deskPlates.length ? (
         <ul className="scratch-song-cuts">
@@ -462,9 +389,7 @@ export function MusicVideoSongCuts({
                         <span className="m-song-cut-sub">
                           {mineTally.total
                             ? songCutTallyLine(mineTally)
-                            : s.plateFile
-                            ? "No slices on this plate yet."
-                            : "Empty stage — Add 15s to put it on the song."}
+                            : "Set 1 × 15s or 4 × 15s. You pick."}
                         </span>
                       </span>
                     </div>
