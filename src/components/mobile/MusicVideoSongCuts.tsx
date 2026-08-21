@@ -500,9 +500,26 @@ export function MusicVideoSongCuts({
       {song?.stitchedFile ? (
         <div>
           <p className="scratch-song-done">Stitched: {song.stitchedFile}</p>
-          <button type="button" onClick={() => setPlaying(mobileClipSrc(job, song.stitchedFile || ""))}>
-            Play stitch
-          </button>
+          <div className="scratch-song-actions">
+            <button type="button" onClick={() => setPlaying(mobileClipSrc(job, song.stitchedFile || ""))}>
+              Play stitch
+            </button>
+            <MobilePrimaryButton
+              size="chip"
+              tone="ghost"
+              busy={busy === "drop-stitch"}
+              onClick={() => {
+                setBusy("drop-stitch");
+                setNote("");
+                void songAction("remove-stitch")
+                  .then(() => setNote("Stitch parked. Song and plates are still there."))
+                  .catch((e) => setNote(e instanceof Error ? e.message : "Couldn't drop the stitch"))
+                  .finally(() => setBusy(""));
+              }}
+            >
+              {busy === "drop-stitch" ? "Dropping…" : "Drop stitch"}
+            </MobilePrimaryButton>
+          </div>
         </div>
       ) : null}
       {playing ? (
