@@ -759,7 +759,9 @@ export function PlateReviewEditor({
                     disabled={Boolean(songAddFor) && songAddFor !== s.shotId}
                     onClick={() => void addPlateToSong(s.shotId)}
                   >
-                    {songAddFor === s.shotId ? "Adding…" : "Add 4 × 15s"}
+                    {songAddFor === s.shotId
+                      ? "Adding…"
+                      : `Add ${MUSIC_VIDEO_SLICE_DEFAULT} × 15s`}
                   </MobilePrimaryButton>
                 </div>
               ) : null}
@@ -2097,7 +2099,9 @@ function ShotLineEditor({
                 Empty stage. No one on it. Add it to the song — it animates.
               </div>
               <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
-                {songAdding ? "Adding…" : "Add 4 × 15s to the song"}
+                {songAdding
+                  ? "Adding…"
+                  : `Add ${MUSIC_VIDEO_SLICE_DEFAULT} × 15s to the song`}
               </MobilePrimaryButton>
               {onAddCast ? (
                 <MobilePrimaryButton tone="ghost" onClick={onAddCast}>

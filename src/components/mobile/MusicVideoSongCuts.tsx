@@ -190,11 +190,20 @@ export function MusicVideoSongCuts({
     }
   }
 
-  async function showPlateOnSong(shotId: string) {
+  async function addPlateToSong(shotId: string) {
+    const n = clampPlateSliceCount(counts[shotId] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+    setBusy(`park-${shotId}`);
+    setNote(`Adding ${n} × 15s…`);
     try {
-      await songAction("unskip-plate", { shotId });
+      if (skipSongPlateIds(job.scratchSong).includes(shotId)) {
+        await songAction("unskip-plate", { shotId });
+      }
+      await songAction("assign", { shotId, count: n });
+      setNote(`Added ${n} × 15s`);
     } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't put that plate back");
+      setNote(e instanceof Error ? e.message : "Couldn't add those slices");
+    } finally {
+      setBusy("");
     }
   }
 
@@ -221,20 +230,7 @@ export function MusicVideoSongCuts({
   }
 
   async function parkPlate(shotId: string) {
-    const n = clampPlateSliceCount(counts[shotId] ?? MUSIC_VIDEO_SLICE_DEFAULT);
-    setBusy("park");
-    setNote(`Parking ${n} × 15s…`);
-    try {
-      await songAction("assign", {
-        shotId,
-        count: n,
-      });
-      setNote(`Parked ${n} × 15s on that plate`);
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't park those slices");
-    } finally {
-      setBusy("");
-    }
+    await addPlateToSong(shotId);
   }
 
   async function runCuts() {
@@ -357,20 +353,72 @@ export function MusicVideoSongCuts({
       ) : null}
       {song?.fileName && skipped.length ? (
         <ul className="scratch-song-cuts">
-          {skipped.map((id) => (
-            <li key={`skip-${id}`} className="scratch-song-cut">
-              <span className="scratch-song-cut-meta">
-                {plateLabel(story, id, 0)} left out of this song
-              </span>
-              <MobilePrimaryButton
-                size="chip"
-                tone="ghost"
-                onClick={() => void showPlateOnSong(id)}
-              >
-                Put back
-              </MobilePrimaryButton>
-            </li>
-          ))}
+          {skipped.map((id) => {
+            const s = plated.find((p) => p.shotId === id);
+            const n = clampPlateSliceCount(counts[id] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+            const placeScene = s ? job.scenes.find((sc) => sc.id === s.sceneId) : undefined;
+            const placeFile = s
+              ? approvedCandidateFileName(job.locationCandidates, s.sceneId) || ""
+              : "";
+            const thumb = s?.plateFile
+              ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
+              : s
+                ? mobilePlacePreviewUrl(job, {
+                    fileName: placeFile,
+                    worldThumbKey: placeScene?.worldThumbKey || "",
+                  })
+                : "";
+            return (
+              <li key={`skip-${id}`} className="scratch-song-cut m-song-plate-row">
+                <div className="m-song-plate-head">
+                  {thumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className="m-song-cut-thumb" src={thumb} alt="" />
+                  ) : null}
+                  <span className="scratch-song-cut-meta">
+                    {plateLabel(story, id, 0)}
+                    <span className="m-song-cut-sub">Pick how many 15s, then Add.</span>
+                  </span>
+                </div>
+                <div className="m-song-plate-tools">
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    onClick={() =>
+                      setCounts((cur) => ({
+                        ...cur,
+                        [id]: clampPlateSliceCount(n - 1),
+                      }))
+                    }
+                  >
+                    −
+                  </button>
+                  <span className="scratch-song-cut-meta">{n} × 15s</span>
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    onClick={() =>
+                      setCounts((cur) => ({
+                        ...cur,
+                        [id]: clampPlateSliceCount(n + 1),
+                      }))
+                    }
+                  >
+                    +
+                  </button>
+                  <MobilePrimaryButton
+                    size="chip"
+                    tone="ghost"
+                    busy={busy === `park-${id}`}
+                    disabled={Boolean(busy) && busy !== `park-${id}`}
+                    onClick={() => void addPlateToSong(id)}
+                  >
+                    {busy === `park-${id}` ? "Adding…" : `Add ${n} × 15s`}
+                  </MobilePrimaryButton>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
       {song?.fileName && deskPlates.length ? (
@@ -421,42 +469,39 @@ export function MusicVideoSongCuts({
                       </span>
                     </div>
                     <div className="m-song-plate-tools">
-                      {mineTally.total ? (
-                        <>
-                          <button
-                            type="button"
-                            disabled={Boolean(busy)}
-                            onClick={() =>
-                              setCounts((cur) => ({
-                                ...cur,
-                                [s.shotId]: clampPlateSliceCount(n - 1),
-                              }))
-                            }
-                          >
-                            −
-                          </button>
-                          <span className="scratch-song-cut-meta">{n} × 15s</span>
-                          <button
-                            type="button"
-                            disabled={Boolean(busy)}
-                            onClick={() =>
-                              setCounts((cur) => ({
-                                ...cur,
-                                [s.shotId]: clampPlateSliceCount(n + 1),
-                              }))
-                            }
-                          >
-                            +
-                          </button>
-                        </>
-                      ) : null}
+                      <button
+                        type="button"
+                        disabled={Boolean(busy)}
+                        onClick={() =>
+                          setCounts((cur) => ({
+                            ...cur,
+                            [s.shotId]: clampPlateSliceCount(n - 1),
+                          }))
+                        }
+                      >
+                        −
+                      </button>
+                      <span className="scratch-song-cut-meta">{n} × 15s</span>
+                      <button
+                        type="button"
+                        disabled={Boolean(busy)}
+                        onClick={() =>
+                          setCounts((cur) => ({
+                            ...cur,
+                            [s.shotId]: clampPlateSliceCount(n + 1),
+                          }))
+                        }
+                      >
+                        +
+                      </button>
                       <MobilePrimaryButton
                         size="chip"
                         tone="ghost"
-                        disabled={Boolean(busy)}
+                        busy={busy === `park-${s.shotId}`}
+                        disabled={Boolean(busy) && busy !== `park-${s.shotId}`}
                         onClick={() => void parkPlate(s.shotId)}
                       >
-                        {busy === "park" ? "Adding…" : `Add ${n} × 15s`}
+                        {busy === `park-${s.shotId}` ? "Adding…" : `Add ${n} × 15s`}
                       </MobilePrimaryButton>
                       <button
                         type="button"

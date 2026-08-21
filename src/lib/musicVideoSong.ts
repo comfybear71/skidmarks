@@ -91,7 +91,7 @@ export function songCutTallyLine(tally: SongCutTally): string {
   return bits.join(" · ");
 }
 
-export const MUSIC_VIDEO_SLICE_DEFAULT = 4;
+export const MUSIC_VIDEO_SLICE_DEFAULT = 1;
 export const MUSIC_VIDEO_SLICE_MAX = 16;
 
 export function isMusicVideoSongJob(job: { styleId?: string }): boolean {
