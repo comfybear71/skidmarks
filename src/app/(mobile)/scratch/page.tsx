@@ -285,7 +285,7 @@ export default function ScratchPage() {
   const [stillBackend, setStillBackend] = useState<ScratchBackendId>("unknown");
   const [clipStamp, setClipStamp] = useState("");
   const [clipPhase, setClipPhase] = useState<"" | "sending" | "siray">("");
-  const [joPhone, setJoPhone] = useState(true);
+  const [joPhone, setJoPhone] = useState(false);
   const [sirayReady, setSirayReady] = useState(false);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   /** Which beat the draft belongs to — ignore draft after mouth / beat switch. */

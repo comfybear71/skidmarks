@@ -1,5 +1,5 @@
 import { voiceNamesMatch } from "./voiceNameMatch";
-import { directorWantsEmptyHands, joPhoneStagingExtra } from "./mobileImageMotion";
+import { emptyHandsStillLock, joPhoneStagingExtra } from "./mobileImageMotion";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
 
 export function leftoverHydrateBeat(shotId: string, beatId: string): boolean {
@@ -202,22 +202,23 @@ export function plateCastStagingNote(opts: {
   staging?: string;
   looks?: string;
   placeLook?: string;
-  /** False = never inject Jo phone. Default true (Jo on pad still uses the extra). */
+  /** True = Jo phone layer on (Scratch toggle). Default off — no props unless Position names them. */
   joPhone?: boolean;
 }): string {
   const speakers = [...new Set(opts.speakers.map((s) => s.trim()).filter(Boolean))];
   const solo = speakers.length === 1;
   const name = speakers[0] || "The character";
-  const joPhone = opts.joPhone !== false;
+  const joPhone = Boolean(opts.joPhone);
   const staging =
     (opts.staging || "").trim() ||
     (solo
       ? `${name} alone. Only ${name} in frame, no one else appears.`
       : "People inhabit the place — sitting, leaning, presenting, using the furniture.");
+  const phoneExtra = joPhoneStagingExtra(speakers, staging, joPhone);
   return [
     staging,
-    joPhoneStagingExtra(speakers, staging, joPhone),
-    directorWantsEmptyHands(staging) ? "Empty hands. No phone in anyone's hands." : "",
+    phoneExtra,
+    phoneExtra ? "" : emptyHandsStillLock(staging),
     opts.looks,
     opts.placeLook ? `This place: ${opts.placeLook}` : "",
     solo

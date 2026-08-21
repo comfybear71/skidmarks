@@ -37,9 +37,9 @@ export const ASSIST_CRITERIA_LOCK = [
   "Episode = the paste layout only (EPISODE / GAG / --- SHOT n --- / Place: / Title: / Action: / Plate: / NAME / line). Place: must match a locked place, spelled exactly. Use only locked cast names. Plate: on every shot. Refine a draft — do not throw a working draft away unless it is an empty template.",
   "LTX Image motion = ONE continuous paragraph. Cloud IA2V gets plate still + mp3 + this one string. No [VISUAL]. No [SPEECH]. Do not write the locked lip-sync lead — it is prepended on send. The lead is: " +
     JSON.stringify(LTX_LIP_SYNC_LEAD),
-  "Image motion shape: Use the provided start image as the first frame. NAME, look lock is prominent, held prop + action, mouth and head move naturally while speaking. Props and background stay exactly as the start image, nothing new enters frame. NAME says: \"the spoken line\". Camera holds. Same person and objects as the start image.",
-  "Held props work — name the object in their hands the same way pies and tennis rackets already work: phone, pie, racket, whatever they are holding. Affirmative only. Naming a thing puts it in the picture.",
-  "CRAZY BIG HOLE JO (and Jo Too): on plate / shot / episode Action+Plate / Image motion, she is holding her phone, staring at the screen like a crazed maniac, thumbs on the keys, saying the line as she texts — keyboard warrior. Unless the current text already asks for empty hands, no phone, hands free, or a different held prop (racket, pie, walking). Spoken-line and cast-look boxes do not write the phone action unless the director already did.",
+  "Image motion shape: Use the provided start image as the first frame. NAME, look lock is prominent, empty hands unless Position already named a held prop, mouth and head move naturally while speaking. Props and background stay exactly as the start image, nothing new enters frame. NAME says: \"the spoken line\". Camera holds. Same person and objects as the start image.",
+  "Held props work only when the current box or Position already names the object the same way pies and tennis rackets already work: phone, pie, racket. Affirmative only. Naming a thing puts it in the picture. Do not invent a mug, cooler, bottle, or extra object.",
+  "Default for everyone including CRAZY BIG HOLE JO (and Jo Too): empty hands, no phone, no invented props. Jo phone / keyboard warrior only if the current text already names her phone. Spoken-line and cast-look boxes do not write a held prop unless the director already did.",
   "Do not invent people or places. Spell locked names exactly. English and Australian comic taste. Never American sitcom warmth.",
 ].join("\n");
 
@@ -100,7 +100,7 @@ Spoken line.
 - Use ONLY the locked cast names. Do not invent people.
 - Every Place: must be one of the locked places, spelled exactly.
 - Include a Plate: line on every shot — who sits, leans, walks, presents, uses the furniture. Willing bodies. Never a lineup in the foreground. Never pinning or holding someone down.
-- CRAZY BIG HOLE JO: Action and Plate have her on her phone, staring like a crazed maniac, texting while she talks, unless the draft already asks for a different prop.
+- Held props only if the draft already names them. Default empty hands, no phone, for everyone including CRAZY BIG HOLE JO.
 - If the box already has a draft, refine it — keep what works, fix what is weak. Do not throw the whole thing away unless it is an empty template.
 - ElevenLabs tags in square brackets are allowed on lines: [grunts] [smugly].
 - No [VISUAL]. No [SPEECH]. No lip-sync lead.`,
@@ -111,21 +111,21 @@ Spoken line.
 - Everyone is into it. Hands on hips, climbing on, looking back grinning.
 - Never a lineup of faces standing in the foreground like cutouts.
 - Never pinning, holding someone down, or forced sex.
-- CRAZY BIG HOLE JO holds her phone unless the current text already says empty hands, no phone, or names a different held prop.
+- Empty hands, no phone, no invented props unless the current text already names a held object. Same for CRAZY BIG HOLE JO.
 - Not LTX. Not the spoken line.`,
 
   shot: `WRITE: what we see in this shot — the action paragraph a director would type.
 - Bodies, the place, what happens, the held prop. Not spoken dialogue. Not a camera list.
 - Keep the locked people and the place. Willing energy.
 - Never pinning, holding someone down, or forced sex.
-- CRAZY BIG HOLE JO is on her phone, keyboard warrior, unless the current text already says empty hands, no phone, or names a different held prop.`,
+- Empty hands, no phone, no invented props unless the current text already names a held object. Same for CRAZY BIG HOLE JO.`,
 
   image_motion: `WRITE: IMAGE MOTION body — the one LTX Cloud prompt.
 - One continuous paragraph. No [VISUAL]. No [SPEECH].
 - Do not write the locked lip-sync lead. It is prepended on send.
-- Shape: Use the provided start image as the first frame. NAME, look lock is prominent, held prop + action, mouth and head move naturally while speaking. Props and background stay exactly as the start image, nothing new enters frame. NAME says: "the spoken line". Camera holds. Same person and objects as the start image.
-- Held prop: name what is in their hands (phone, pie, racket) the same way those prompts already work.
-- CRAZY BIG HOLE JO default: holding her phone, staring at the screen like a crazed maniac, thumbs hammering the keys as she texts, speaking the line as she types, keyboard warrior — unless the current text already asks for empty hands, no phone, or a different experiment.
+- Shape: Use the provided start image as the first frame. NAME, look lock is prominent, empty hands unless the current text already named a held prop, mouth and head move naturally while speaking. Props and background stay exactly as the start image, nothing new enters frame. NAME says: "the spoken line". Camera holds. Same person and objects as the start image.
+- Held prop only if the current text already names it (phone, pie, racket). Do not invent a mug, cooler, or extra object.
+- Default for everyone including CRAZY BIG HOLE JO: empty hands, no phone. Jo phone / keyboard warrior only if the current text already names her phone.
 - If the box already has a custom experiment, refine it. Do not throw it away.
 - Affirmative only.`,
 };
@@ -167,7 +167,7 @@ export function platePositionAssistHint(opts: {
   );
   if (opts.people.some((n) => isJoKeyboardWarrior(n))) {
     lines.push(
-      "CRAZY BIG HOLE JO is holding her mobile phone, texting, staring at the screen like a crazed maniac, unless this box already says empty hands, no phone, hands free, or names a different held prop.",
+      "Default empty hands, no phone, no invented props — same as everyone. Jo phone / keyboard warrior only if this box already names her phone.",
     );
   }
   return lines.join("\n");

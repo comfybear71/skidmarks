@@ -117,10 +117,9 @@ export function ltxSendPrompt(imageMotion: string, staging = ""): string {
 }
 
 /**
- * CRAZY BIG HOLE JO (and Jo Too) — majority of her clips: phone in her
- * hands, staring like a maniac, saying the line as she texts. Same held-prop
- * shape that already works for pies and tennis rackets. Editable in the LTX
- * box when a shot is the exception.
+ * CRAZY BIG HOLE JO (and Jo Too) — phone / keyboard warrior only when
+ * Position or the Scratch toggle names it. Same held-prop shape as pies and
+ * tennis rackets. Default for everyone including Jo is empty hands.
  */
 export function isJoKeyboardWarrior(speaker: string): boolean {
   const n = speaker.trim().toLowerCase().replace(/\s+/g, " ");
@@ -155,19 +154,43 @@ export function withScratchEmptyHands(staging: string, skip = false): string {
   return `${t}\n\nEmpty hands. Arms down at her sides. No phone. Do not copy a phone from the face card.`;
 }
 
-function stagingAlreadyNamesHeldProp(staging: string): boolean {
+/** Still lock when Position did not name a held object. Everyone including Jo. */
+export const NO_PROPS_STILL_LOCK =
+  "Empty hands. No phone. No mug, cup, cooler, bottle, or extra objects in anyone's hands. Do not invent props. Do not copy a phone or held object from the face card.";
+
+/** Position named a thing in their hands — keep that, do not inject empty hands or Jo's phone. */
+export function stagingNamesHeldProp(staging: string): boolean {
   const text = staging.toLowerCase();
-  if (directorWantsEmptyHands(text)) return true;
-  if (/\b(racket|pie)\b/.test(text)) return true;
-  if (/\bno (phone|mobile)\b/.test(text)) return true;
-  return /\b(phone|mobile)\b/.test(text);
+  if (!text.trim()) return false;
+  if (directorWantsEmptyHands(text)) return false;
+  if (/\b(racket|pie|phone|mobile)\b/.test(text)) return true;
+  if (/\bholding\b/.test(text)) return true;
+  return /\bin (her|his|their) hands?\b/.test(text);
 }
 
-/** Extra sentence for the plate still when Jo is on the card and no other prop is named. */
+/** Empty-hands line for the still, or "" when Position already named a held prop. */
+export function emptyHandsStillLock(staging: string): string {
+  if (directorWantsEmptyHands(staging)) {
+    return "Empty hands. No phone in anyone's hands.";
+  }
+  if (stagingNamesHeldProp(staging)) {
+    return "Only the held object named in the position. Do not invent extra objects.";
+  }
+  return NO_PROPS_STILL_LOCK;
+}
+
+function stagingAlreadyNamesHeldProp(staging: string): boolean {
+  return stagingNamesHeldProp(staging) || directorWantsEmptyHands(staging);
+}
+
+/**
+ * Extra sentence for the plate still when the Jo-phone toggle is on and
+ * Position did not name empty hands or a different held prop.
+ */
 export function joPhoneStagingExtra(
   speakers: string[],
   staging: string,
-  allow = true,
+  allow = false,
 ): string {
   if (!allow) return "";
   if (!speakers.some((n) => isJoKeyboardWarrior(n))) return "";
@@ -178,26 +201,24 @@ export function joPhoneStagingExtra(
 
 export function defaultSoloStaging(speaker: string): string {
   const who = speaker.trim() || "The character";
-  const alone = `${who} alone. Only ${who} in frame, no one else appears. Standing centre-frame, facing camera, mid body.`;
-  if (!isJoKeyboardWarrior(who)) return alone;
-  return `${alone} Holding her mobile phone, texting, staring at the screen like a crazed maniac.`;
+  return `${who} alone. Only ${who} in frame, no one else appears. Standing centre-frame, facing camera, mid body. Empty hands. No phone. No extra objects.`;
 }
 
-function speakingAction(speaker: string, emptyHands = false): string {
-  if (emptyHands) {
+function speakingAction(speaker: string, staging = ""): string {
+  if (directorWantsEmptyHands(staging) || !stagingNamesHeldProp(staging)) {
     return "empty hands stay as the start image, no phone, mouth and head move naturally while speaking, subtle gesture";
   }
-  if (isJoKeyboardWarrior(speaker)) {
+  if (isJoKeyboardWarrior(speaker) && /\b(phone|mobile)\b/i.test(staging)) {
     return `${JO_PHONE_LOCK}, thumbs hammering the keys as she texts, mouth and head move naturally while she speaks the line as she types, keyboard warrior`;
   }
   return "mouth and head move naturally while speaking, subtle gesture";
 }
 
-function holdAction(speaker: string, emptyHands = false): string {
-  if (emptyHands) {
+function holdAction(speaker: string, staging = ""): string {
+  if (directorWantsEmptyHands(staging) || !stagingNamesHeldProp(staging)) {
     return "is prominent, empty hands, no phone, holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies";
   }
-  if (isJoKeyboardWarrior(speaker)) {
+  if (isJoKeyboardWarrior(speaker) && /\b(phone|mobile)\b/i.test(staging)) {
     return `is prominent, ${JO_PHONE_LOCK}, thumbs tapping the keys, holds her pose, subtle idle motion, weight shift, breathing, heat haze, flies`;
   }
   return "holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies";
@@ -332,17 +353,16 @@ export function buildSpeakingMotion(opts: {
   /** The character's look, so the plate's subject is named and held. */
   lookLock?: string;
   shotSpeakers?: string[];
-  /** Position / staging — empty hands here beats Jo's phone default. */
+  /** Position / staging — named held prop only; otherwise empty hands. */
   staging?: string;
 }): string {
   const name = clean(opts.speaker) || "The character";
   const look = shortLtxLookLock(opts.lookLock || "");
   const who = look ? `${name}, ${look}` : name;
-  const emptyHands = directorWantsEmptyHands(opts.staging || "");
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} is prominent, ${speakingAction(opts.speaker, emptyHands)}.`,
+      `${who} is prominent, ${speakingAction(opts.speaker, opts.staging || "")}.`,
       onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
       "Props and background stay exactly as the start image, nothing new enters frame.",
       GOLD_NO_TEXT,
@@ -366,11 +386,10 @@ export function buildHoldMotion(opts: {
   const name = clean(opts.speaker) || "The character";
   const look = shortLtxLookLock(opts.lookLock || "");
   const who = look ? `${name}, ${look}` : name;
-  const emptyHands = directorWantsEmptyHands(opts.staging || "");
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} ${holdAction(opts.speaker, emptyHands)}.`,
+      `${who} ${holdAction(opts.speaker, opts.staging || "")}.`,
       onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
       "Props and background stay exactly as the start image, nothing new enters frame.",
       GOLD_NO_TEXT,
