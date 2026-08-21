@@ -963,9 +963,9 @@ span.scratch-history-blob {
 
 .scratch-gold-btn {
   padding: 6px 10px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--chrome);
+  border: 1px solid var(--gold);
+  background: var(--gold);
+  color: var(--gold-ink);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -973,8 +973,9 @@ span.scratch-history-blob {
 
 .scratch-gold-btn.is-open,
 .scratch-gold-btn:hover:not(:disabled) {
-  border-color: var(--acid);
-  color: var(--acid);
+  border-color: #f0d060;
+  background: #f0d060;
+  color: var(--gold-ink);
 }
 
 .scratch-gold-btn:disabled {
@@ -1060,6 +1061,30 @@ span.scratch-history-blob {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 700;
+}
+
+.scratch-bible-gold {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--gold);
+  background: var(--gold);
+  color: var(--gold-ink);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.scratch-bible-gold:hover:not(:disabled),
+.scratch-bible-gold:focus-visible {
+  border-color: #f0d060;
+  background: #f0d060;
+  outline: none;
+}
+
+.scratch-bible-gold:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .scratch-bible-modes {

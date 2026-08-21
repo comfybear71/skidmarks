@@ -20,6 +20,7 @@ export function ScratchPromptBible({
   onModeChange,
   onPick,
   disabled,
+  gold,
 }: {
   activeIds?: string[];
   activeId?: string | null;
@@ -27,6 +28,8 @@ export function ScratchPromptBible({
   onModeChange: (mode: ScratchBiblePickMode) => void;
   onPick: (sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => void;
   disabled?: boolean;
+  /** /m add-cast: GOLD positioning for this look, left of Replace. */
+  gold?: { title: string; onClick: () => void } | null;
 }) {
   const [openId, setOpenId] = useState<ScratchBibleSectionId | null>(null);
   const highlighted = new Set([...activeIds, ...(activeId ? [activeId] : [])]);
@@ -45,6 +48,17 @@ export function ScratchPromptBible({
       <div className="scratch-bible-head">
         <span className="scratch-bible-title">Prompt bible</span>
         <div className="scratch-bible-modes" role="group" aria-label="Insert mode">
+          {gold ? (
+            <button
+              type="button"
+              className="scratch-bible-gold"
+              disabled={disabled}
+              title={gold.title}
+              onClick={gold.onClick}
+            >
+              GOLD
+            </button>
+          ) : null}
           <button
             type="button"
             className={`scratch-bible-mode${mode === "replace" ? " is-on" : ""}`}
