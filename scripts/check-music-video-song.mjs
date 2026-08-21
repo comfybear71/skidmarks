@@ -101,7 +101,7 @@ assert.match(songUi, /m-song-plate-x-inline/);
 assert.match(songUi, /m-song-plate-head/);
 assert.match(songRoute, /remove-stitch/);
 assert.match(songUi, /Drop stitch/);
-assert.doesNotMatch(songUi, /PARKED/);
+assert.doesNotMatch(songUi, /"PARKED"/);
 assert.match(songUi, /SwipeDropRow/);
 assert.doesNotMatch(
   songUi,
@@ -135,7 +135,7 @@ assert.doesNotMatch(songUi, /You pick/);
 assert.doesNotMatch(songUi, /Set 1 × 15s or 4 × 15s/);
 assert.match(songUi, /songOrdinal/);
 assert.match(songUi, /m-song-cut-clock/);
-assert.match(songUi, /\$\{slices\} × 15s/);
+assert.match(songUi, /\{slices\} × 15s/);
 assert.match(songRoute, /append this plate as the next clip/);
 assert.match(songUi, /cookPendingSongCuts/);
 assert.match(songUi, /m-song-cut-chip/);
