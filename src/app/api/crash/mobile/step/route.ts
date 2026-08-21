@@ -23,6 +23,7 @@ import {
   clipQueueError,
   findBeatHome,
   nextClipToAnimate,
+  queueOneBeatForAnimate,
 } from "@/lib/mobileClipQueue";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { isOffEpisodeDeskShot } from "@/lib/mobileScratch";
@@ -67,7 +68,7 @@ async function ensureComfyReady(): Promise<string> {
 }
 
 /**
- * POST { jobId, approveReview? } — advances the AUTOMATIC phases one
+ * POST { jobId, approveReview?, beatId? } — advances the AUTOMATIC phases one
  * bounded unit at a time (plates -> voices -> [review, human-gated] ->
  * animate -> stitch -> done). Stitch is parked (MOBILE_STITCH_MOVIES) —
  * Generate video still sends clips to LTX; animate then returns to review.
@@ -81,6 +82,8 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as {
       jobId?: string;
       approveReview?: boolean;
+      /** Generate on one plate line — do not re-queue every Saved mp3. */
+      beatId?: string;
     };
     const jobId = (body.jobId || "").trim();
     if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
@@ -148,6 +151,35 @@ export async function POST(req: Request) {
       // Rebuild one shot at a time from Tweak. In-flight jobs already in
       // this phase skip the lottery the same way.
       job = (await patchMobileGenJob(jobId, { phase: "review" }))!;
+      return NextResponse.json({ ok: true, job, advanced: true });
+    }
+
+    const oneBeatId = (body.beatId || "").trim();
+    if (
+      body.approveReview &&
+      oneBeatId &&
+      (job.phase === "review" ||
+        job.phase === "animate" ||
+        job.phase === "done" ||
+        job.phase === "error")
+    ) {
+      const live = job;
+      if (!live.folderName) throw new Error("Job has no folder — screenplay phase incomplete");
+      await hydrateMobilePackOnDisk(live.styleId, live.folderName);
+      const story = await readMobileStory(live.styleId, live.folderName);
+      const one = queueOneBeatForAnimate(live, story, oneBeatId);
+      if (one.error) {
+        job = (await patchMobileGenJob(jobId, {
+          phase: live.phase === "animate" ? "animate" : "review",
+          error: one.error,
+        }))!;
+        return NextResponse.json({ ok: true, job, advanced: false });
+      }
+      job = (await patchMobileGenJob(jobId, {
+        clips: one.clips,
+        phase: "animate",
+        error: "",
+      }))!;
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
