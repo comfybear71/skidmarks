@@ -52,6 +52,12 @@ import {
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { episodeJobShots } from "@/lib/mobileScratch";
+import {
+  cutsForPlate,
+  isMusicVideoSongJob,
+  songCutTallyLine,
+  tallySongCuts,
+} from "@/lib/musicVideoSong";
 import { CutawayBeatPanel } from "@/components/mobile/CutawayBeatPanel";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
@@ -547,6 +553,10 @@ export function PlateReviewEditor({
           const storyShot = displayShot(s.shotId);
           const beatIds = storyShot?.beats.map((b) => b.id) || [];
           const underClips = clipsUnderPlate(s.shotId, beatIds, job.clips);
+          const songMine = isMusicVideoSongJob(job)
+            ? cutsForPlate(job.scratchSong?.cuts, s.shotId, s.plateFile)
+            : [];
+          const songTally = tallySongCuts(songMine);
           return (
             <div
               key={s.shotId}
@@ -666,6 +676,9 @@ export function PlateReviewEditor({
                   </button>
                 ) : null}
               </div>
+              {!collapsed && songTally.total ? (
+                <div className="m-song-plate-tally">{songCutTallyLine(songTally)}</div>
+              ) : null}
               {!collapsed && underClips.length ? (
                 <div
                   style={{

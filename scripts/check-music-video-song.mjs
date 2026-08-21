@@ -8,6 +8,8 @@ import {
   isMusicVideoSongJob,
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateSliceWindows,
+  songCutTallyLine,
+  tallySongCuts,
 } from "../src/lib/musicVideoSong.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
 import { songCookStorageKey } from "../src/lib/songCutCook.ts";
@@ -33,6 +35,14 @@ assert.equal(parked[0].durationSec, 15);
 assert.equal(parked[3].startSec, 45);
 const more = plateSliceWindows(parked, 180, 2);
 assert.equal(more[0].startSec, 60);
+assert.deepEqual(tallySongCuts([{ status: "done" }, { status: "running" }, { status: "pending" }]), {
+  total: 3,
+  parked: 1,
+  cooking: 1,
+  done: 1,
+  error: 0,
+});
+assert.match(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1, error: 0 }), /1\/3 done/);
 
 assert.equal(isInstrumentalStaging("on stage playing saxophone"), true);
 assert.equal(isInstrumentalStaging("Facing camera, mouth clear"), false);
@@ -58,6 +68,9 @@ assert.match(songRoute, /action === "assign"/);
 assert.match(songRoute, /Does not write job.finalVideoFile/);
 assert.match(songUi, /Park \$\{n\} × 15s/);
 assert.match(songUi, /cookPendingSongCuts/);
+assert.match(songUi, /m-song-cut-chip/);
+assert.match(songUi, /now cooking/);
+assert.match(editor, /m-song-plate-tally/);
 assert.match(tree, /MusicVideoSongCuts/);
 assert.match(tree, /isMusicVideoSongJob/);
 assert.doesNotMatch(tree, /from "fs"/);

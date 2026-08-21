@@ -18,9 +18,12 @@ import {
 } from "@/lib/scratchSongWindow";
 import {
   clampPlateSliceCount,
+  cutsForPlate,
   findSongCarrierBeatId,
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateLabel,
+  songCutTallyLine,
+  tallySongCuts,
 } from "@/lib/musicVideoSong";
 import {
   cookPendingSongCuts,
@@ -47,6 +50,8 @@ export function MusicVideoSongCuts({
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playing, setPlaying] = useState("");
+  const [flashId, setFlashId] = useState("");
+  const cutCount = useRef(job.scratchSong?.cuts?.length || 0);
   const song = job.scratchSong;
   const beatId = findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
 
@@ -100,13 +105,15 @@ export function MusicVideoSongCuts({
   }
 
   async function parkPlate(shotId: string) {
+    const n = clampPlateSliceCount(counts[shotId] ?? MUSIC_VIDEO_SLICE_DEFAULT);
     setBusy("park");
-    setNote("");
+    setNote(`Parking ${n} × 15s…`);
     try {
       await songAction("assign", {
         shotId,
-        count: clampPlateSliceCount(counts[shotId] ?? MUSIC_VIDEO_SLICE_DEFAULT),
+        count: n,
       });
+      setNote(`Parked ${n} × 15s on that plate`);
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't park those slices");
     } finally {
@@ -157,17 +164,61 @@ export function MusicVideoSongCuts({
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [job.id]);
 
+  useEffect(() => {
+    const next = song?.cuts?.length || 0;
+    if (next > cutCount.current) {
+      const newest = song?.cuts?.[next - 1];
+      if (newest) setFlashId(newest.id);
+      const t = window.setTimeout(() => setFlashId(""), 2800);
+      cutCount.current = next;
+      return () => window.clearTimeout(t);
+    }
+    cutCount.current = next;
+  }, [song?.cuts]);
+
   const cuts = song?.cuts || [];
+  const tally = tallySongCuts(cuts);
+  const cooking = cuts.find((c) => c.status === "running");
+  const cookingN = cooking ? cuts.findIndex((c) => c.id === cooking.id) + 1 : 0;
   const done = cuts.filter((c) => c.status === "done" && c.clipFile).length;
   const label = song?.fileName
     ? songWindowLabel(song.durationSec, cuts)
     : "Drop the song, then park N × 15s on each plate. Same plate can come back later.";
+  const progress =
+    song?.fileName && cuts.length
+      ? cooking
+        ? `${tally.done}/${tally.total} done · now cooking ${cookingN} · ${plateLabel(story, cooking.shotId || "", cookingN)}`
+        : songCutTallyLine(tally)
+      : "";
 
   return (
     <div className="scratch-song">
       <div className="scratch-song-title">Music video — song cuts</div>
       <p className="scratch-song-clock">{label}</p>
+      {progress ? <p className="scratch-song-parked">{progress}</p> : null}
       {note ? <p className="scratch-song-parked">{note}</p> : null}
+      {cuts.length ? (
+        <div
+          className="m-animate-meter"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={cuts.length}
+          aria-valuenow={tally.done}
+          aria-label="Song cut progress"
+        >
+          {cuts.map((cut) => (
+            <span
+              key={cut.id}
+              className={`m-animate-meter-cell${
+                cut.status === "done" ? " is-done" : ""
+              }${cut.status === "error" ? " is-error" : ""}${
+                cut.status === "running" ? " is-run" : ""
+              }`}
+              title={`${formatSongClock(cut.startSec)} · ${cut.status || "parked"}`}
+            />
+          ))}
+        </div>
+      ) : null}
       <p className="scratch-song-hint">
         Position stays on the plate. Singer plates sing. A sax plate plays the
         instrumental — write that in Position. Leave the screen — cooking keeps
@@ -193,10 +244,23 @@ export function MusicVideoSongCuts({
           {plated.map((s, i) => {
             const n = clampPlateSliceCount(counts[s.shotId] ?? MUSIC_VIDEO_SLICE_DEFAULT);
             const name = plateLabel(story, s.shotId, i + 1);
+            const mine = cutsForPlate(cuts, s.shotId, s.plateFile);
+            const mineTally = tallySongCuts(mine);
+            const thumb = s.plateFile
+              ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
+              : "";
             return (
-              <li key={s.shotId} className="scratch-song-cut">
-                <span className="scratch-song-cut-n">{i + 1}</span>
-                <span className="scratch-song-cut-meta">{name}</span>
+              <li key={s.shotId} className="scratch-song-cut m-song-plate-row">
+                {thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="m-song-cut-thumb" src={thumb} alt="" />
+                ) : (
+                  <span className="scratch-song-cut-n">{i + 1}</span>
+                )}
+                <span className="scratch-song-cut-meta">
+                  {name}
+                  <span className="m-song-cut-sub">{songCutTallyLine(mineTally)}</span>
+                </span>
                 <button
                   type="button"
                   disabled={Boolean(busy)}
@@ -262,21 +326,37 @@ export function MusicVideoSongCuts({
       {cuts.length ? (
         <ol className="scratch-song-cuts">
           {cuts.map((cut, i) => {
-            const status =
-              cut.status === "done"
-                ? " · done"
-                : cut.status === "error"
-                  ? ` · ${cut.error || "fail"}`
-                  : cut.status === "running"
-                    ? " · cooking"
-                    : " · parked";
+            const kind = cut.status || "pending";
+            const chip =
+              kind === "done"
+                ? "DONE"
+                : kind === "error"
+                  ? "FAIL"
+                  : kind === "running"
+                    ? "COOKING"
+                    : "PARKED";
+            const thumb = cut.plateFile
+              ? `/api/crash/gen/file?name=${encodeURIComponent(cut.plateFile)}`
+              : "";
             return (
-              <li key={cut.id} className={`scratch-song-cut is-${cut.status || "pending"}`}>
-                <span className="scratch-song-cut-n">{i + 1}</span>
+              <li
+                key={cut.id}
+                className={`scratch-song-cut is-${kind}${flashId === cut.id ? " is-just-added" : ""}`}
+              >
+                {thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="m-song-cut-thumb" src={thumb} alt="" />
+                ) : (
+                  <span className="scratch-song-cut-n">{i + 1}</span>
+                )}
                 <span className="scratch-song-cut-meta">
-                  {plateLabel(story, cut.shotId || "", i + 1)} · {formatSongClock(cut.startSec)} ·{" "}
-                  {cut.durationSec}s{status}
+                  {i + 1}. {plateLabel(story, cut.shotId || "", i + 1)} · {formatSongClock(cut.startSec)} ·{" "}
+                  {cut.durationSec}s
+                  {kind === "error" && cut.error ? (
+                    <span className="m-song-cut-sub">{cut.error}</span>
+                  ) : null}
                 </span>
+                <span className={`m-song-cut-chip is-${kind}`}>{chip}</span>
                 {cut.clipFile ? (
                   <button type="button" onClick={() => setPlaying(mobileClipSrc(job, cut.clipFile || ""))}>
                     Play

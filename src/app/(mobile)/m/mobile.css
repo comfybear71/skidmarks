@@ -275,6 +275,60 @@ body {
   background: color-mix(in srgb, var(--acid) 10%, transparent);
 }
 
+.m-song-cut-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+
+.m-song-cut-sub {
+  display: block;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.m-song-cut-chip {
+  flex: 0 0 auto;
+  min-width: 4.6em;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  color: var(--chrome-dim);
+}
+
+.m-song-cut-chip.is-running,
+.m-song-cut-chip.is-cooking {
+  color: #111;
+  background: var(--acid);
+  border-color: var(--acid);
+}
+
+.m-song-cut-chip.is-done {
+  color: var(--acid);
+  border-color: var(--acid);
+}
+
+.m-song-cut-chip.is-error {
+  color: var(--magenta-hot);
+  border-color: var(--magenta-hot);
+}
+
+.m-song-plate-tally {
+  width: 100%;
+  color: var(--acid);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
 .scratch-pad-markers {
   position: absolute;
   inset: 0;
