@@ -203,6 +203,7 @@ export function PlateReviewEditor({
   collapsed,
   onExpand,
   defaultPlaceId,
+  focusShotId,
 }: {
   job: MobileGenJob;
   onJobChange?: (job: MobileGenJob) => void;
@@ -211,6 +212,8 @@ export function PlateReviewEditor({
   onExpand?: () => void;
   /** Place currently open under Locations — new + cards land here. */
   defaultPlaceId?: string;
+  /** Shot just minted from Locations — open it on the strip. */
+  focusShotId?: string | null;
 }) {
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -245,6 +248,11 @@ export function PlateReviewEditor({
       cancelled = true;
     };
   }, [job.styleId, job.folderName, shotIdsKey]);
+
+  useEffect(() => {
+    const id = (focusShotId || "").trim();
+    if (id) setOpenShotId(id);
+  }, [focusShotId]);
 
   if (!shots.length && !story) return null;
 
