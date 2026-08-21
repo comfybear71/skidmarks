@@ -11,6 +11,7 @@ import {
   plateSliceWindows,
   songCutTallyLine,
   tallySongCuts,
+  withoutPlateParkedCuts,
 } from "../src/lib/musicVideoSong.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
 import { songCookStorageKey } from "../src/lib/songCutCook.ts";
@@ -50,6 +51,27 @@ assert.deepEqual(tallySongCuts([{ status: "done" }, { status: "running" }, { sta
 });
 assert.match(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1, error: 0 }), /1\/3 done/);
 
+const kept = withoutPlateParkedCuts(
+  [
+    { id: "a", plateFile: "p.png", shotId: "s1", startSec: 0, durationSec: 15, status: "done", clipFile: "a.mp4" },
+    { id: "b", plateFile: "p.png", shotId: "s1", startSec: 15, durationSec: 15, status: "pending" },
+    { id: "c", plateFile: "q.png", shotId: "s2", startSec: 30, durationSec: 15, status: "pending" },
+  ],
+  "s1",
+  "p.png",
+);
+assert.equal(kept.dropped, 1);
+assert.deepEqual(kept.next.map((c) => c.id), ["a", "c"]);
+
+assert.match(songRoute, /remove-plate-parked/);
+assert.match(songUi, /Drop parked/);
+assert.match(songUi, /SwipeDropRow/);
+assert.doesNotMatch(
+  songUi,
+  /\? "DONE"/,
+  "Finished cuts use green text — do not show a DONE chip",
+);
+
 assert.equal(isInstrumentalStaging("on stage playing saxophone"), true);
 assert.equal(isInstrumentalStaging("Facing camera, mouth clear"), false);
 const sax = buildScratchSongLtxMotion({
@@ -75,6 +97,8 @@ assert.match(songRoute, /Does not write job.finalVideoFile/);
 assert.match(songUi, /Park \$\{n\} × 15s/);
 assert.match(songUi, /cookPendingSongCuts/);
 assert.match(songUi, /m-song-cut-chip/);
+const songCss = readFileSync(join(here, "../src/app/(mobile)/m/mobile.css"), "utf8");
+assert.match(songCss, /\.m-swipe-drop-action/);
 assert.match(songUi, /now cooking/);
 assert.match(editor, /m-song-plate-tally/);
 assert.match(tree, /MusicVideoSongCuts/);

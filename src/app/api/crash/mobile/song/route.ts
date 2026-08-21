@@ -14,6 +14,7 @@ import {
   findSongCarrierBeatId,
   isMusicVideoSongJob,
   plateSliceWindows,
+  withoutPlateParkedCuts,
 } from "@/lib/musicVideoSong";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 
@@ -25,6 +26,7 @@ export const maxDuration = 900;
  * POST { action, jobId, ... }
  *   assign — park N × 15s on one plate (reuse the same plate later).
  *   remove — drop one parked cut.
+ *   remove-plate-parked — drop pending/fail slices on one plate. Plate stays.
  *   unstick — running with no clip → pending (left the screen too long).
  *   run — one LTX slice. Client polls the job if the phone drops.
  *   stitch — concat done cuts. Does not write job.finalVideoFile.
@@ -91,6 +93,35 @@ export async function POST(req: Request) {
         job: updated,
         added: extra.length,
         label: songWindowLabel(song.durationSec, cuts),
+      });
+    }
+
+    if (action === "remove-plate-parked") {
+      const song = job.scratchSong;
+      const shotId = String(body.shotId || "").trim();
+      if (!song || !shotId) {
+        return NextResponse.json({ error: "Need a plate to drop parked slices from." }, { status: 400 });
+      }
+      const plateFile = (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim();
+      const { next, dropped } = withoutPlateParkedCuts(song.cuts || [], shotId, plateFile);
+      if (!dropped) {
+        return NextResponse.json({ error: "Nothing parked on that plate." }, { status: 400 });
+      }
+      const nextWin = nextCutAfter(next, song.durationSec);
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: {
+          ...song,
+          cuts: next,
+          sliceStartSec: nextWin.startSec,
+          sliceDurationSec: nextWin.durationSec,
+        },
+        error: "",
+      });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        dropped,
+        label: songWindowLabel(song.durationSec, next),
       });
     }
 
