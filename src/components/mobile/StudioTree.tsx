@@ -812,6 +812,7 @@ export function StudioTree({
   const [addingPlateFor, setAddingPlateFor] = useState<string | null>(null);
   const [addPlateError, setAddPlateError] = useState("");
   const [addPlateDoneFor, setAddPlateDoneFor] = useState<string | null>(null);
+  const [focusPlateShotId, setFocusPlateShotId] = useState<string | null>(null);
   const [scriptDraft, setScriptDraft] = useState("");
   const [plating, setPlating] = useState(false);
   const [plateGraphHint, setPlateGraphHint] = useState("");
@@ -829,6 +830,18 @@ export function StudioTree({
   );
   const [vibeBusy, setVibeBusy] = useState(false);
   const [vibeError, setVibeError] = useState("");
+
+  function revealPlates(shotId?: string) {
+    setPlatesOpen(true);
+    setOpenPlace(null);
+    setFocusPlateShotId(shotId?.trim() || null);
+    window.requestAnimationFrame(() => {
+      document.getElementById("m-plates-strip")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
 
   async function addLocationToPlate(sceneId: string, speaker: string) {
     const who = speaker.trim();
@@ -848,7 +861,7 @@ export function StudioTree({
       if (!res.ok) throw new Error(data.error || "Couldn't add a plate there");
       if (data.job) onJobChange(data.job);
       setAddPlateDoneFor(sceneId);
-      setPlatesOpen(true);
+      revealPlates(data.shotId);
     } catch (e) {
       setAddPlateError(e instanceof Error ? e.message : "Couldn't add a plate there");
     } finally {
@@ -906,7 +919,7 @@ export function StudioTree({
         if (data.job) onJobChange(data.job);
       }
       setAddPlateDoneFor(sceneId);
-      setPlatesOpen(true);
+      revealPlates();
     } catch (e) {
       setAddPlateError(e instanceof Error ? e.message : "Couldn't plate that place");
       setPlateGraphHint(e instanceof Error ? e.message : "Plate stopped");
@@ -1629,26 +1642,29 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {job.folderName ? (
-          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "0 0 10px" }}>
-            Crash Lab: Open <span style={{ color: "var(--acid)" }}>{job.folderName}</span>
-          </div>
-        ) : null}
-
         {job.phase === "plates" ? (
           <div style={{ padding: "4px 0 12px" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Opening the shot strip…</ShimmerText>
           </div>
         ) : null}
 
-        {job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error" ? (
-          <PlateReviewEditor
-            job={job}
-            onJobChange={onJobChange}
-            collapsed={!platesOpen}
-            onExpand={() => setPlatesOpen(true)}
-            defaultPlaceId={placeFocus || undefined}
-          />
+        <div id="m-plates-strip">
+          {job.phase === "review" || job.phase === "animate" || job.phase === "stitch" || job.phase === "done" || job.phase === "error" ? (
+            <PlateReviewEditor
+              job={job}
+              onJobChange={onJobChange}
+              collapsed={!platesOpen}
+              onExpand={() => setPlatesOpen(true)}
+              defaultPlaceId={placeFocus || undefined}
+              focusShotId={focusPlateShotId}
+            />
+          ) : null}
+        </div>
+
+        {job.folderName ? (
+          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", margin: "0 0 10px" }}>
+            Crash Lab: Open <span style={{ color: "var(--acid)" }}>{job.folderName}</span>
+          </div>
         ) : null}
 
         {platesOpen && isMusicVideoSongJob(job) && (job.phase === "review" || job.phase === "animate" || job.phase === "done" || job.phase === "error") ? (
