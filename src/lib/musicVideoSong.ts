@@ -96,7 +96,7 @@ export function songDeskPlateIds(song?: {
 
 export function withSongPlate(ids: string[], shotId: string): string[] {
   const id = shotId.trim();
-  if (!id || ids.includes(id)) return ids;
+  if (!id) return ids;
   return [...ids, id];
 }
 

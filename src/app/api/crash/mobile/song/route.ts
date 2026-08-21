@@ -11,7 +11,6 @@ import { CRASH_DIR } from "@/lib/paths";
 import { newId } from "@/lib/types";
 import { nextCutAfter, songWindowLabel, type ScratchSongCut } from "@/lib/scratchSongSlice";
 import {
-  cutsForPlate,
   findSongCarrierBeatId,
   isMusicVideoSongJob,
   plateSliceWindows,
@@ -42,7 +41,7 @@ export const maxDuration = 900;
  *   run — one LTX slice. Client polls the job if the phone drops.
  *   stitch — concat done cuts. Does not write job.finalVideoFile.
  *   remove-stitch — park the joined mp4. Song, plates, and cuts stay.
- *   add-plate — put a plate on the song list and park 1 × 15s if it has none.
+ *   add-plate — append this plate as the next clip (Jack again = 6th).
  *   skip-plate — take a plate off the song list. Plate card stays.
  */
 export async function POST(req: Request) {
@@ -357,28 +356,24 @@ export async function POST(req: Request) {
         plateFile = copied;
       }
       const onList = songDeskPlateIds(song);
-      const existing = cutsForPlate(song.cuts || [], shotId, plateFile);
-      let cuts = song.cuts || [];
-      if (!existing.length) {
-        const extra = plateSliceWindows(cuts, song.durationSec, 1);
-        if (!extra.length) {
-          return NextResponse.json(
-            { error: "Nothing left to park — at the end of the track." },
-            { status: 400 },
-          );
-        }
-        cuts = [
-          ...cuts,
-          ...extra.map((window) => ({
-            id: newId("cut"),
-            plateFile,
-            shotId,
-            startSec: window.startSec,
-            durationSec: window.durationSec,
-            status: "pending" as const,
-          })),
-        ];
+      const extra = plateSliceWindows(song.cuts || [], song.durationSec, 1);
+      if (!extra.length) {
+        return NextResponse.json(
+          { error: "Nothing left on the track." },
+          { status: 400 },
+        );
       }
+      const cuts: ScratchSongCut[] = [
+        ...(song.cuts || []),
+        ...extra.map((window) => ({
+          id: newId("cut"),
+          plateFile,
+          shotId,
+          startSec: window.startSec,
+          durationSec: window.durationSec,
+          status: "pending" as const,
+        })),
+      ];
       const nextWin = nextCutAfter(cuts, song.durationSec);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
