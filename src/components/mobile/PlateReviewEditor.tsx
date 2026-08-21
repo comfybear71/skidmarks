@@ -290,30 +290,38 @@ export function PlateReviewEditor({
     }
   }
 
-  async function dropPlate(shotId: string) {
+  async function removePlate(shotId: string) {
     setActionError("");
     try {
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, shotId, action: "drop" }),
+        body: JSON.stringify({ jobId: job.id, shotId, action: "remove" }),
       });
-      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      const data = await readApiJson<{
+        job?: MobileGenJob;
+        removedShot?: CrashStoryShot;
+        sceneId?: string;
+        error?: string;
+      }>(res);
+      if (openShotId === shotId) setOpenShotId(null);
+      if (castPickerShotId === shotId) setCastPickerShotId(null);
       setStory((cur) => {
         if (!cur) return cur;
         return {
           ...cur,
           scenes: cur.scenes.map((sc) => ({
             ...sc,
-            shots: sc.shots.map((sh) =>
-              sh.id === shotId ? { ...sh, plateFile: "", plateTakes: [] } : sh,
-            ),
+            shots: sc.shots.filter((sh) => sh.id !== shotId),
           })),
         };
       });
       if (data.job) onJobChange?.(data.job);
+      if (data.removedShot && data.sceneId) {
+        setRemovedBuffer([{ sceneId: data.sceneId, shot: data.removedShot }]);
+      }
     } catch (e) {
-      setActionError(studioFetchError(e, "Couldn't park that plate"));
+      setActionError(studioFetchError(e, "Couldn't remove that plate"));
     }
   }
 
@@ -544,14 +552,14 @@ export function PlateReviewEditor({
                     </div>
                   )}
                 </button>
-                {!collapsed && plated ? (
+                {!collapsed ? (
                   <button
                     type="button"
-                    aria-label="Park this shot plate and its clips"
-                    title="Park this still and the clips under it. Files stay in _cleared/ — not deleted."
+                    aria-label="Remove this plate"
+                    title="Remove this plate, its clips, and the lines below. Files park in _cleared/ — not deleted."
                     onClick={(e) => {
                       e.stopPropagation();
-                      void dropPlate(s.shotId);
+                      void removePlate(s.shotId);
                     }}
                     style={{
                       position: "absolute",
