@@ -30,10 +30,10 @@ export function SingleCandidateCard({
     <div style={{ display: "flex", flexDirection: "column" }}>
       <div
         onClick={() => setZoomed(true)}
+        className="m-candidate-still"
         style={{
           ...mobileCard,
           position: "relative",
-          height: "300px",
           overflow: "hidden",
           cursor: "zoom-in",
         }}

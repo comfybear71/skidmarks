@@ -9,11 +9,80 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Phone column on a PC — full-bleed cards on a 1920 screen looked broken. */
+/* Phone column on a PC — full-bleed cards on a 1920 screen looked broken.
+ * black-translucent status bar sits on the page — pad the notch. */
 .mobile-shell {
   width: 100%;
   max-width: 42rem;
   margin: 0 auto;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Place / cast extras sit under Undo + More, not beside them. */
+.m-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.m-picker-extra {
+  width: 100%;
+  min-width: 0;
+  margin-top: 12px;
+}
+
+.m-place-lock-hint {
+  color: var(--chrome-dim);
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.m-place-plate-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.m-place-plate-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.m-place-plate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-place-plate-note {
+  font-size: 12px;
+  color: var(--acid);
+  line-height: 1.4;
+}
+
+.m-place-plate-error {
+  font-size: 12px;
+  color: var(--magenta-hot);
+  line-height: 1.4;
+}
+
+/* Phone: shorter still so Place + chips stay on the first screen. */
+.m-candidate-still {
+  height: min(38dvh, 220px);
+}
+
+@media (min-width: 700px) and (hover: hover) {
+  .m-candidate-still {
+    height: 300px;
+  }
 }
 
 /* Scratch is a PC test console — wide command deck, bible chips on-screen. */
