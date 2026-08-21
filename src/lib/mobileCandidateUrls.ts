@@ -16,3 +16,27 @@ export function mobileLocationStillUrl(
     `&fileName=${encodeURIComponent(fileName)}`
   );
 }
+
+export function mobileWorldShelfStillUrl(styleId: string, thumbKey: string): string {
+  return (
+    `/api/crash/world-cards/file?styleId=${encodeURIComponent(styleId)}` +
+    `&thumb=${encodeURIComponent(thumbKey)}`
+  );
+}
+
+/**
+ * Place preview on /m. The approved take lives under the job in Blob
+ * (`location-still`). `g:place_…` is a local-gallery copy and is not in
+ * Blob — never point an <img> at world-cards/file for those keys (that
+ * is the green [? ] box on the phone).
+ */
+export function mobilePlacePreviewUrl(
+  job: { id: string; styleId: string; folderName: string },
+  opts: { fileName?: string; worldThumbKey?: string },
+): string {
+  const file = (opts.fileName || "").trim();
+  if (file) return mobileLocationStillUrl(job, file);
+  const world = (opts.worldThumbKey || "").trim();
+  if (!world || world.startsWith("g:")) return "";
+  return mobileWorldShelfStillUrl(job.styleId, world);
+}

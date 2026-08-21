@@ -36,6 +36,17 @@ body {
   margin-top: 12px;
 }
 
+.m-place-lock-still {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px solid var(--acid);
+  background: var(--void);
+  margin-bottom: 8px;
+}
+
 .m-place-lock-hint {
   color: var(--chrome-dim);
   font-size: 12px;
