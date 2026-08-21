@@ -149,6 +149,8 @@ export type MobileGenJob = {
   scratchPlate?: ScratchPlateRef;
   /** Siray Draw in flight. Cleared when the still lands. */
   scratchDraw?: ScratchDrawTask | null;
+  /** Episode plate Draw in flight — same Siray wait as scratch, not the Scratch shot. */
+  plateDraw?: ScratchDrawTask | null;
   /** Siray i2v clip in flight. Cleared when the mp4 lands. */
   scratchClip?: ScratchClipTask | null;
   /** Hide the last still on /scratch. Plate file stays — refresh must not put it back. */
