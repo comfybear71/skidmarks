@@ -556,15 +556,16 @@ export function PlateReviewEditor({
               {!collapsed ? (
                 <button
                   type="button"
-                  aria-label="Add cast to this plate"
+                  aria-label="Add someone to this plate"
+                  title="Add someone"
                   onClick={(e) => {
                     e.stopPropagation();
                     setOpenShotId(s.shotId);
                     setCastPickerShotId((cur) => (cur === s.shotId ? null : s.shotId));
                   }}
                   style={{
-                    width: "22px",
-                    height: "22px",
+                    width: "28px",
+                    height: "28px",
                     padding: 0,
                     borderRadius: "2px",
                     border: "1px solid var(--acid)",
@@ -811,6 +812,10 @@ export function PlateReviewEditor({
               shots.find((s) => s.shotId === openShotId)?.plateFile !== "__error__",
           )}
           clipRemoveDisabled={clipBusy}
+          onAddCast={() => {
+            if (!openShotId) return;
+            setCastPickerShotId(openShotId);
+          }}
           onDismissClipError={(beatId) => void postClipAction({ action: "dismiss", beatId })}
           onPlateRebuilt={(plateFile, staging, summary, plateTakes, bibleIds) => {
             setStory((cur) => {
@@ -1478,6 +1483,7 @@ function ShotLineEditor({
   onPlateRebuilt,
   onLineAdded,
   onLineRemoved,
+  onAddCast,
 }: {
   styleId: string;
   folderName: string;
@@ -1496,8 +1502,9 @@ function ShotLineEditor({
   onDismissClipError?: (beatId: string) => void;
   onBeatSaved: (beatId: string, text: string, voiceFile: string, imageMotion?: string, job?: MobileGenJob) => void;
   onLineAdded?: (beat: CrashStoryBeat) => void;
-  onLineRemoved?: (beatId: string, job?: MobileGenJob) => void;
-  onPlateRebuilt: (
+          onLineRemoved?: (beatId: string, job?: MobileGenJob) => void;
+          onAddCast?: () => void;
+          onPlateRebuilt: (
     plateFile: string | undefined,
     staging: string,
     summary: string,
@@ -1665,8 +1672,13 @@ function ShotLineEditor({
         );
       })}
       {!speakingBeats.length ? (
-        <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
-          Tap + above the picture — pick someone, position them, that draws the still.
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={{ fontSize: "13px", color: "var(--chrome-dim)" }}>
+            Nobody on this plate yet. Tap Add someone — or the small + on this card in the row.
+          </div>
+          {onAddCast ? (
+            <MobilePrimaryButton onClick={onAddCast}>Add someone</MobilePrimaryButton>
+          ) : null}
         </div>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
