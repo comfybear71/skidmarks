@@ -18,15 +18,16 @@ import {
 } from "@/lib/scratchSongWindow";
 import {
   clampPlateSliceCount,
-  cutsForPlate,
-  deskPlateClocks,
-  droppablePlateCuts,
+  cutsForDeskRow,
+  deskRowAllDone,
   findSongCarrierBeatId,
   formatSongSpan,
   MUSIC_VIDEO_SLICE_DEFAULT,
-  plateLabel,
+  plateCutSpan,
+  shortPlateLabel,
   songCutTallyLine,
   songDeskPlateIds,
+  songDeskRowSlices,
   songOrdinal,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
@@ -122,14 +123,14 @@ export function MusicVideoSongCuts({
   jobRef.current = job;
   const cookLock = useRef(false);
   const resumeCook = useRef<() => void>(() => {});
-  const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playing, setPlaying] = useState("");
-  const [flashId, setFlashId] = useState("");
-  const cutCount = useRef(job.scratchSong?.cuts?.length || 0);
   const song = job.scratchSong;
   const beatId = findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
+  const cuts = song?.cuts || [];
+  const cooking = Boolean(cuts.some((c) => c.status === "running") || busy === "cook");
+  const listLocked = cooking || cuts.some((c) => c.status === "done");
 
   async function songAction(action: string, extra: Record<string, unknown> = {}) {
     const res = await fetch("/api/crash/mobile/song", {
@@ -182,10 +183,9 @@ export function MusicVideoSongCuts({
 
   async function hidePlateFromSong(shotId: string, listIndex: number) {
     setBusy(`skip-${listIndex}`);
-    setNote("Taking that plate off the song. The plate stays.");
+    setNote("");
     try {
       await songAction("skip-plate", { shotId, listIndex });
-      setNote("Off the song. Plate is still under PLATES.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't take that plate off the song");
     } finally {
@@ -193,46 +193,22 @@ export function MusicVideoSongCuts({
     }
   }
 
-  async function parkPlate(shotId: string, listIndex: number) {
-    const n = clampPlateSliceCount(counts[String(listIndex)] ?? MUSIC_VIDEO_SLICE_DEFAULT);
-    setBusy(`park-${listIndex}`);
-    setNote(`Adding ${n} × 15s…`);
+  async function setRowSlices(listIndex: number, count: number) {
+    setBusy(`slice-${listIndex}`);
+    setNote("");
     try {
-      await songAction("assign", { shotId, count: n });
-      setNote(`Added ${n} × 15s`);
+      await songAction("set-row-slices", { listIndex, count });
     } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't add those slices");
+      setNote(e instanceof Error ? e.message : "Couldn't set that length");
     } finally {
       setBusy("");
-    }
-  }
-
-  async function dropPlateParked(shotId: string, listIndex: number) {
-    setBusy(`drop-${listIndex}`);
-    setNote("Dropping parked slices — plate stays.");
-    try {
-      await songAction("remove-plate-parked", { shotId });
-      setNote("Parked slices dropped. Plate is still there.");
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't drop those slices");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function dropOneCut(cutId: string) {
-    if (!cutId) return;
-    try {
-      await songAction("remove", { cutId });
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't remove");
     }
   }
 
   async function runCuts() {
     if (cookLock.current) return;
     if (!pendingSongCuts(job).length) {
-      setNote("Set 1 × 15s (or more) on a list plate, then Add.");
+      setNote("Add a plate to the song first.");
       return;
     }
     cookLock.current = true;
@@ -272,20 +248,8 @@ export function MusicVideoSongCuts({
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [job.id]);
 
-  useEffect(() => {
-    const next = song?.cuts?.length || 0;
-    if (next > cutCount.current) {
-      const newest = song?.cuts?.[next - 1];
-      if (newest) setFlashId(newest.id);
-      const t = window.setTimeout(() => setFlashId(""), 2800);
-      cutCount.current = next;
-      return () => window.clearTimeout(t);
-    }
-    cutCount.current = next;
-  }, [song?.cuts]);
-
-  const cuts = song?.cuts || [];
   const onSong = songDeskPlateIds(song);
+  const rowSlices = songDeskRowSlices(song, onSong);
   const platedById = new Map(plated.map((s) => [s.shotId, s]));
   const deskPlates = onSong
     .map((shotId, listIndex) => {
@@ -294,23 +258,17 @@ export function MusicVideoSongCuts({
       return { unit, listIndex, shotId };
     })
     .filter((row): row is { unit: MobileShotUnit; listIndex: number; shotId: string } => Boolean(row));
-  const clocks = deskPlateClocks(
-    deskPlates.map((r) => r.shotId),
-    cuts,
-    counts,
-    song?.durationSec || 0,
-  );
   const tally = tallySongCuts(cuts);
-  const cooking = cuts.find((c) => c.status === "running");
-  const cookingN = cooking ? cuts.findIndex((c) => c.id === cooking.id) + 1 : 0;
+  const cookingCut = cuts.find((c) => c.status === "running");
+  const cookingN = cookingCut ? cuts.findIndex((c) => c.id === cookingCut.id) + 1 : 0;
   const done = cuts.filter((c) => c.status === "done" && c.clipFile).length;
   const label = song?.fileName
     ? songWindowLabel(song.durationSec, cuts)
-    : "Drop the song, then Add a plate. Set 1 × 15s or more on the list, then Add.";
+    : "Drop the song, then Add plates. − / + sets the length.";
   const progress =
     song?.fileName && cuts.length
-      ? cooking
-        ? `${tally.done}/${tally.total} done · now cooking ${cookingN} · ${plateLabel(story, cooking.shotId || "", cookingN)}`
+      ? cookingCut
+        ? `${tally.done}/${tally.total} done · cooking ${cookingN}`
         : songCutTallyLine(tally)
       : "";
 
@@ -354,7 +312,7 @@ export function MusicVideoSongCuts({
               }${cut.status === "error" ? " is-error" : ""}${
                 cut.status === "running" ? " is-run" : ""
               }`}
-              title={`${formatSongClock(cut.startSec)} · ${cut.status || "parked"}`}
+              title={`${formatSongClock(cut.startSec)} · ${cut.status || "pending"}`}
             />
           ))}
         </div>
@@ -378,17 +336,12 @@ export function MusicVideoSongCuts({
         <ul className="scratch-song-cuts">
           {deskPlates.map((row, i) => {
             const s = row.unit;
-            const n = clampPlateSliceCount(counts[String(row.listIndex)] ?? MUSIC_VIDEO_SLICE_DEFAULT);
-            const name = plateLabel(story, s.shotId, i + 1);
-            const mine = cutsForPlate(cuts, s.shotId, s.plateFile);
-            const mineTally = tallySongCuts(mine);
-            const clock = clocks[i];
-            const sliceN = clock?.slices ?? n;
-            const span =
-              clock && clock.endSec > clock.startSec
-                ? formatSongSpan(clock.startSec, clock.endSec)
-                : "";
-            const parkedHere = droppablePlateCuts(mine);
+            const n = clampPlateSliceCount(rowSlices[row.listIndex] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+            const name = shortPlateLabel(story, s.shotId, i + 1);
+            const mine = cutsForDeskRow(cuts, rowSlices, row.listIndex);
+            const spanObj = plateCutSpan(mine);
+            const span = spanObj ? formatSongSpan(spanObj.startSec, spanObj.endSec) : "";
+            const rowDone = deskRowAllDone(mine);
             const placeScene = job.scenes.find((sc) => sc.id === s.sceneId);
             const placeFile = approvedCandidateFileName(job.locationCandidates, s.sceneId) || "";
             const thumb = s.plateFile
@@ -398,16 +351,15 @@ export function MusicVideoSongCuts({
                   worldThumbKey: placeScene?.worldThumbKey || "",
                 });
             const skipBusy = busy === `skip-${row.listIndex}`;
-            const parkBusy = busy === `park-${row.listIndex}`;
-            const dropBusy = busy === `drop-${row.listIndex}`;
+            const sliceBusy = busy === `slice-${row.listIndex}`;
             return (
               <li key={`${s.shotId}-${row.listIndex}`}>
                 <SwipeDropRow
                   label="Leave song"
-                  disabled={skipBusy}
+                  disabled={skipBusy || listLocked}
                   onDrop={() => void hidePlateFromSong(s.shotId, row.listIndex)}
                 >
-                  <div className="scratch-song-cut m-song-plate-row">
+                  <div className={`scratch-song-cut m-song-plate-row${rowDone ? " is-done" : ""}`}>
                     <div className="m-song-plate-head">
                       <div className="m-song-plate-thumb-wrap">
                         {thumb ? (
@@ -420,76 +372,43 @@ export function MusicVideoSongCuts({
                           type="button"
                           className="m-song-plate-x"
                           aria-label="Take this plate off the song"
-                          disabled={skipBusy}
+                          disabled={skipBusy || listLocked}
                           onClick={() => void hidePlateFromSong(s.shotId, row.listIndex)}
                         >
                           {skipBusy ? "…" : "×"}
                         </button>
                       </div>
-                      <span className="scratch-song-cut-meta">
-                        {songOrdinal(i + 1)} · {sliceN} × 15s
+                      <span className={`scratch-song-cut-meta${rowDone ? " is-done" : ""}`}>
+                        {songOrdinal(i + 1)} · {n} × 15s
                         {span ? <span className="m-song-cut-clock">{span}</span> : null}
-                        <span className="m-song-cut-sub">
-                          {name}
-                          {mineTally.total ? ` · ${songCutTallyLine(mineTally)}` : ""}
-                        </span>
+                        <span className="m-song-cut-sub">{name}</span>
                       </span>
                     </div>
                     <div className="m-song-plate-tools">
                       <button
                         type="button"
-                        disabled={Boolean(busy)}
-                        onClick={() =>
-                          setCounts((cur) => ({
-                            ...cur,
-                            [String(row.listIndex)]: clampPlateSliceCount(n - 1),
-                          }))
-                        }
+                        disabled={Boolean(busy) || listLocked}
+                        onClick={() => void setRowSlices(row.listIndex, n - 1)}
                       >
                         −
                       </button>
                       <span className="scratch-song-cut-meta">{n} × 15s</span>
                       <button
                         type="button"
-                        disabled={Boolean(busy)}
-                        onClick={() =>
-                          setCounts((cur) => ({
-                            ...cur,
-                            [String(row.listIndex)]: clampPlateSliceCount(n + 1),
-                          }))
-                        }
+                        disabled={Boolean(busy) || listLocked}
+                        onClick={() => void setRowSlices(row.listIndex, n + 1)}
                       >
                         +
                       </button>
-                      <MobilePrimaryButton
-                        size="chip"
-                        tone="ghost"
-                        busy={parkBusy}
-                        disabled={Boolean(busy) && !parkBusy}
-                        onClick={() => void parkPlate(s.shotId, row.listIndex)}
-                      >
-                        {parkBusy ? "Adding…" : "Add"}
-                      </MobilePrimaryButton>
                       <button
                         type="button"
                         className="m-song-plate-x-inline"
                         aria-label="Take this plate off the song"
-                        disabled={skipBusy}
+                        disabled={skipBusy || listLocked}
                         onClick={() => void hidePlateFromSong(s.shotId, row.listIndex)}
                       >
-                        {skipBusy ? "…" : "×"}
+                        {skipBusy || sliceBusy ? "…" : "×"}
                       </button>
-                      {parkedHere.length ? (
-                        <MobilePrimaryButton
-                          size="chip"
-                          tone="ghost"
-                          busy={dropBusy}
-                          disabled={busy.startsWith("drop-") && !dropBusy}
-                          onClick={() => void dropPlateParked(s.shotId, row.listIndex)}
-                        >
-                          {dropBusy ? "Dropping…" : `Drop parked (${parkedHere.length})`}
-                        </MobilePrimaryButton>
-                      ) : null}
                     </div>
                   </div>
                 </SwipeDropRow>
@@ -502,7 +421,7 @@ export function MusicVideoSongCuts({
         <MobilePrimaryButton
           size="chip"
           tone="ghost"
-          disabled={Boolean(busy) || !cuts.length}
+          disabled={Boolean(busy) || !cuts.length || !pendingSongCuts(job).length}
           onClick={() => void runCuts()}
         >
           {busy === "cook" ? "Cooking…" : "Generate cuts"}
@@ -522,58 +441,6 @@ export function MusicVideoSongCuts({
           {busy === "stitch" ? "Stitching…" : "Stitch song"}
         </MobilePrimaryButton>
       </div>
-      {cuts.length ? (
-        <ol className="scratch-song-cuts">
-          {cuts.map((cut, i) => {
-            const kind = cut.status || "pending";
-            const chip =
-              kind === "error" ? "FAIL" : kind === "running" ? "COOKING" : "";
-            const thumb = cut.plateFile
-              ? `/api/crash/gen/file?name=${encodeURIComponent(cut.plateFile)}`
-              : "";
-            return (
-              <li key={cut.id}>
-                <SwipeDropRow
-                  label="Drop"
-                  disabled={kind === "running" && Boolean(cut.clipFile)}
-                  onDrop={() => void dropOneCut(cut.id)}
-                >
-                  <div
-                    className={`scratch-song-cut is-${kind}${flashId === cut.id ? " is-just-added" : ""}`}
-                  >
-                    {thumb ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img className="m-song-cut-thumb" src={thumb} alt="" />
-                    ) : (
-                      <span className="scratch-song-cut-n">{i + 1}</span>
-                    )}
-                    <span className="scratch-song-cut-meta">
-                      {i + 1}. {plateLabel(story, cut.shotId || "", i + 1)} · {formatSongClock(cut.startSec)} ·{" "}
-                      {cut.durationSec}s
-                      {kind === "error" && cut.error ? (
-                        <span className="m-song-cut-sub">{cut.error}</span>
-                      ) : null}
-                    </span>
-                    {chip ? <span className={`m-song-cut-chip is-${kind}`}>{chip}</span> : null}
-                    {cut.clipFile ? (
-                      <button type="button" onClick={() => setPlaying(mobileClipSrc(job, cut.clipFile || ""))}>
-                        Play
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      disabled={kind === "running" && Boolean(cut.clipFile)}
-                      onClick={() => void dropOneCut(cut.id)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                </SwipeDropRow>
-              </li>
-            );
-          })}
-        </ol>
-      ) : null}
       {song?.stitchedFile ? (
         <div>
           <p className="scratch-song-done">Stitched: {song.stitchedFile}</p>
