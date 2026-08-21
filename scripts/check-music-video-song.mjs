@@ -155,5 +155,8 @@ assert.match(editor, /addPlateToSong/);
 assert.match(editor, /Tap Add\. It goes on the song list/);
 assert.doesNotMatch(songUi, /Singer plates sing/);
 assert.match(songUi, /Tap a plate\. Tap Add/);
+assert.match(songUi, /scratch-song-mp3/);
+assert.match(songUi, /Song · \{song\.fileName\}/);
+assert.match(songCss, /\.scratch-song-mp3/);
 
 console.log("check-music-video-song: ok");

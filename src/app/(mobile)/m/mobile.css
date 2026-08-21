@@ -347,6 +347,17 @@ body {
   padding-bottom: 6px;
 }
 
+.scratch-song-mp3 {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--acid);
+  font-size: 13px;
+  font-weight: 700;
+  word-break: break-all;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .scratch-song-actions {
   display: flex;
   flex-wrap: wrap;
