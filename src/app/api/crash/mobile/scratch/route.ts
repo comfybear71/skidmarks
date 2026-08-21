@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import {
@@ -14,7 +15,7 @@ import {
   sirayI2vSpec,
 } from "@/lib/sirayI2v";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
-import { uploadMobileMedia } from "@/lib/mobileMediaStore";
+import { resolveMobileMedia, uploadMobileMedia } from "@/lib/mobileMediaStore";
 import {
   jobHasEpisodePack,
   patchMobileGenJob,
@@ -48,6 +49,14 @@ import {
   stackedClipFiles,
 } from "@/lib/mobilePlateClips";
 import { runScratchLtxClip } from "@/lib/mobileScratchClip";
+import { mobileFinalVideoPath, stitchClips } from "@/lib/mobileStitch";
+import { mobileMediaFolder } from "@/lib/mobileJobFolder";
+import {
+  clampSongWindow,
+  nextCutAfter,
+  songWindowLabel,
+  type ScratchSongCut,
+} from "@/lib/scratchSongSlice";
 import { deskLabel, jobDeskId } from "@/lib/mobileDesk";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { newId } from "@/lib/types";
@@ -331,6 +340,17 @@ async function restoreScratchPlate(opts: {
  *   — park a place on the pad. Hides the last composite. Faces stay.
  * POST { action: "clip", jobId, beatId?, clipEngine? }
  *   — LTX waits on this request. Siray i2v submits and returns `{ pending: true }`.
+ *     Scratch song window (if set) is sliced before LTX. Live episode Generate
+ *     is a different route and is unchanged.
+ * POST { action: "song-window", jobId, sliceStartSec, sliceDurationSec }
+ * POST { action: "song-cut-add", jobId, plateFile?, endPlateFile?, startSec?, durationSec? }
+ * POST { action: "song-cut-remove", jobId, cutId }
+ * POST { action: "song-cut-end", jobId, cutId, plateFile }
+ *   — park a last-frame still. Not sent to IA2V.
+ * POST { action: "song-cut-run", jobId, cutId? }
+ *   — one cut, one LTX. Client walks the list.
+ * POST { action: "song-stitch", jobId }
+ *   — concat done Scratch cuts. Does not write job.finalVideoFile.
  * POST { action: "clip-poll", jobId }
  *   — one Siray video tick. `{ pending: true }` until the mp4 lands. Same episode.
  * POST { action: "remove-clip", jobId, beatId, fileName }
@@ -372,6 +392,12 @@ export async function POST(req: Request) {
       joPhone?: boolean;
       plateFile?: string;
       fileName?: string;
+      cutId?: string;
+      endPlateFile?: string;
+      sliceStartSec?: number;
+      sliceDurationSec?: number;
+      startSec?: number;
+      durationSec?: number;
     };
     const jobId = (body.jobId || "").trim();
     const action = (body.action || "ensure").trim().toLowerCase();
@@ -929,6 +955,8 @@ export async function POST(req: Request) {
             shotId,
             sceneId: scene.id,
             beatId,
+            sliceStartSec: body.sliceStartSec,
+            sliceDurationSec: body.sliceDurationSec,
           });
           return NextResponse.json({
             ok: true,
@@ -1026,6 +1054,225 @@ export async function POST(req: Request) {
           { status: 502 },
         );
       }
+    }
+
+    if (action === "song-window") {
+      const song = job.scratchSong;
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop a song mp3 on Scratch first." }, { status: 400 });
+      }
+      const window = clampSongWindow(
+        Number(body.sliceStartSec ?? body.startSec ?? song.sliceStartSec),
+        Number(body.sliceDurationSec ?? body.durationSec ?? song.sliceDurationSec),
+        song.durationSec,
+      );
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, sliceStartSec: window.startSec, sliceDurationSec: window.durationSec },
+        error: "",
+      });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        window,
+        label: songWindowLabel(song.durationSec, song.cuts || []),
+      });
+    }
+
+    if (action === "song-cut-add") {
+      const song = job.scratchSong;
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop a song mp3 on Scratch first." }, { status: 400 });
+      }
+      const plateFile = (body.plateFile || shot.plateFile || "").trim();
+      if (!plateFile || plateFile === "__error__") {
+        return NextResponse.json({ error: "Draw the still first, then add this camera." }, { status: 400 });
+      }
+      const fallback = nextCutAfter(song.cuts || [], song.durationSec);
+      const window = clampSongWindow(
+        Number(body.startSec ?? song.sliceStartSec ?? fallback.startSec),
+        Number(body.durationSec ?? song.sliceDurationSec ?? fallback.durationSec),
+        song.durationSec,
+      );
+      const cut: ScratchSongCut = {
+        id: newId("cut"),
+        plateFile,
+        endPlateFile: (body.endPlateFile || "").trim() || undefined,
+        startSec: window.startSec,
+        durationSec: window.durationSec,
+        status: "pending",
+      };
+      const cuts = [...(song.cuts || []), cut];
+      const nextWin = nextCutAfter(cuts, song.durationSec);
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: {
+          ...song,
+          cuts,
+          sliceStartSec: nextWin.startSec,
+          sliceDurationSec: nextWin.durationSec,
+        },
+        error: "",
+      });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        cut,
+        label: songWindowLabel(song.durationSec, cuts),
+      });
+    }
+
+    if (action === "song-cut-remove") {
+      const song = job.scratchSong;
+      const cutId = (body.cutId || "").trim();
+      if (!song || !cutId) {
+        return NextResponse.json({ error: "Need a cut to remove." }, { status: 400 });
+      }
+      const cuts = (song.cuts || []).filter((c) => c.id !== cutId);
+      const nextWin = nextCutAfter(cuts, song.durationSec);
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: {
+          ...song,
+          cuts,
+          sliceStartSec: nextWin.startSec,
+          sliceDurationSec: nextWin.durationSec,
+        },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated, label: songWindowLabel(song.durationSec, cuts) });
+    }
+
+    if (action === "song-cut-end") {
+      const song = job.scratchSong;
+      const cutId = (body.cutId || "").trim();
+      const endPlate = (body.plateFile || body.endPlateFile || shot.plateFile || "").trim();
+      if (!song || !cutId) {
+        return NextResponse.json({ error: "Need a cut to park the end still." }, { status: 400 });
+      }
+      if (!endPlate || endPlate === "__error__") {
+        return NextResponse.json({ error: "Draw or pick the end still first." }, { status: 400 });
+      }
+      const cuts = (song.cuts || []).map((c) =>
+        c.id === cutId ? { ...c, endPlateFile: endPlate } : c,
+      );
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, cuts },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (action === "song-cut-run") {
+      const song = job.scratchSong;
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop a song mp3 on Scratch first." }, { status: 400 });
+      }
+      const wantId = (body.cutId || "").trim();
+      const cut =
+        (wantId ? (song.cuts || []).find((c) => c.id === wantId) : undefined) ||
+        (song.cuts || []).find((c) => c.status !== "done") ||
+        (song.cuts || [])[0];
+      if (!cut) {
+        return NextResponse.json({ error: "Add a camera cut first." }, { status: 400 });
+      }
+      const beatId =
+        (body.beatId || "").trim() ||
+        shot.beats.find((b) => isMobileSavedVoiceFile(b.voiceFile))?.id ||
+        shot.beats[0]?.id ||
+        "";
+      if (!beatId) {
+        return NextResponse.json(
+          { error: "Drop the song on Scratch first — Play appears when the mp3 is ready." },
+          { status: 400 },
+        );
+      }
+      try {
+        const running: ScratchSongCut[] = (song.cuts || []).map((c) =>
+          c.id === cut.id ? { ...c, status: "running", error: "" } : c,
+        );
+        job = (await patchMobileGenJob(jobId, {
+          scratchSong: { ...song, cuts: running },
+          error: "",
+        }))!;
+        const updated = await runScratchLtxClip({
+          job,
+          story,
+          shotId,
+          sceneId: scene.id,
+          beatId,
+          plateFile: cut.plateFile,
+          sliceStartSec: cut.startSec,
+          sliceDurationSec: cut.durationSec,
+          cutId: cut.id,
+        });
+        return NextResponse.json({
+          ok: true,
+          job: updated,
+          backend: "ltx",
+          clipLabel: "LTX (song slice)",
+          cutId: cut.id,
+          label: songWindowLabel(song.durationSec, updated.scratchSong?.cuts || running),
+        });
+      } catch (e) {
+        const latest = await readMobileGenJob(jobId);
+        return NextResponse.json(
+          {
+            error: e instanceof Error ? e.message : String(e),
+            job: latest || job,
+          },
+          { status: 502 },
+        );
+      }
+    }
+
+    if (action === "song-stitch") {
+      const song = job.scratchSong;
+      const cuts = (song?.cuts || []).filter((c) => c.clipFile && c.status === "done");
+      if (cuts.length < 2) {
+        return NextResponse.json(
+          { error: "Need two finished cuts to stitch. Generate each camera first." },
+          { status: 400 },
+        );
+      }
+      const mediaFolder = mobileMediaFolder(job);
+      const paths: string[] = [];
+      for (const cut of cuts) {
+        const name = path.basename(cut.clipFile || "");
+        const localPath = path.join(CRASH_DIR, "ltx", name);
+        const genPath = path.join(CRASH_DIR, "gen", name);
+        const found =
+          (fs.existsSync(localPath) && localPath) ||
+          (fs.existsSync(genPath) && genPath) ||
+          (await resolveMobileMedia({
+            styleId: job.styleId,
+            folderName: mediaFolder,
+            kind: "mp4",
+            fileName: name,
+            destPath: localPath,
+          }));
+        if (!found) {
+          return NextResponse.json(
+            { error: `Cut clip ${name} is missing — generate that camera again.` },
+            { status: 404 },
+          );
+        }
+        paths.push(found);
+      }
+      const stitchedFile = stitchClips(paths);
+      const stitchedPath = mobileFinalVideoPath(stitchedFile);
+      try {
+        await uploadMobileMedia({
+          styleId: job.styleId,
+          folderName: mediaFolder,
+          kind: "mp4",
+          localPath: stitchedPath,
+        });
+      } catch {
+        /* local stitch still plays this request */
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song!, stitchedFile },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated, stitchedFile });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

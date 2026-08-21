@@ -27,6 +27,7 @@ import {
   ScratchPromptBible,
   ScratchGoldPrompts,
   ScratchFloorPanel,
+  ScratchSongCuts,
   ScratchScoreToggles,
   type ScratchBiblePickMode,
 } from "@/components/scratch";
@@ -1134,6 +1135,38 @@ export default function ScratchPage() {
     }
   }
 
+  async function songAction(action: string, extra: Record<string, unknown> = {}) {
+    if (!job) return;
+    const data = await postJson<{ job?: MobileGenJob; error?: string }>("/api/crash/mobile/scratch", {
+      action,
+      jobId: job.id,
+      ...extra,
+    });
+    if (data.job) setJob(data.job);
+    return data;
+  }
+
+  async function runSongCuts() {
+    if (!job) return;
+    const pending = (job.scratchSong?.cuts || []).filter((c) => c.status !== "done");
+    if (!pending.length) {
+      setError("Add a camera cut first.");
+      return;
+    }
+    setBusy("clip");
+    setError("");
+    try {
+      for (const cut of pending) {
+        const data = await songAction("song-cut-run", { cutId: cut.id, beatId: beat?.id });
+        if (data?.job) setJob(data.job);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't generate that cut");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function pollSirayClipUntilDone(
     jobId: string,
     beatId: string,
@@ -1861,6 +1894,51 @@ export default function ScratchPage() {
                     : "Drop mp3 here — or click to choose"}
               </span>
             </div>
+            {job?.scratchSong?.fileName ? (
+              <ScratchSongCuts
+                job={job}
+                plateFile={plateFile}
+                disabled={Boolean(busy)}
+                onWindow={(startSec, durationSec) => {
+                  void songAction("song-window", {
+                    sliceStartSec: startSec,
+                    sliceDurationSec: durationSec,
+                  }).catch((e) =>
+                    setError(e instanceof Error ? e.message : "Couldn't set the song window"),
+                  );
+                }}
+                onAddCut={() => {
+                  void songAction("song-cut-add", { plateFile }).catch((e) =>
+                    setError(e instanceof Error ? e.message : "Couldn't add that camera"),
+                  );
+                }}
+                onRemoveCut={(cutId) => {
+                  void songAction("song-cut-remove", { cutId }).catch((e) =>
+                    setError(e instanceof Error ? e.message : "Couldn't remove that cut"),
+                  );
+                }}
+                onParkEnd={(cutId) => {
+                  void songAction("song-cut-end", { cutId, plateFile }).catch((e) =>
+                    setError(e instanceof Error ? e.message : "Couldn't park the end still"),
+                  );
+                }}
+                onRunCut={(cutId) => {
+                  setBusy("clip");
+                  setError("");
+                  void songAction("song-cut-run", { cutId, beatId: beat?.id })
+                    .catch((e) => setError(e instanceof Error ? e.message : "Couldn't generate that cut"))
+                    .finally(() => setBusy(""));
+                }}
+                onRunAll={() => void runSongCuts()}
+                onStitch={() => {
+                  setBusy("clip");
+                  setError("");
+                  void songAction("song-stitch")
+                    .catch((e) => setError(e instanceof Error ? e.message : "Couldn't stitch the song"))
+                    .finally(() => setBusy(""));
+                }}
+              />
+            ) : null}
 
             <div
               style={{

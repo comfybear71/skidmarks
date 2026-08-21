@@ -8,4 +8,5 @@ export { ScratchCanvasOverlay } from "./ScratchCanvasOverlay";
 export { ScratchPromptBible } from "./ScratchPromptBible";
 export { ScratchGoldPrompts } from "./ScratchGoldPrompts";
 export { ScratchFloorPanel } from "./ScratchFloorPanel";
+export { ScratchSongCuts } from "./ScratchSongCuts";
 export type { ScratchBiblePickMode } from "./ScratchPromptBible";

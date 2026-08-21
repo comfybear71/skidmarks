@@ -509,6 +509,26 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
   return clean([LTX_LIP_SYNC_LEAD, motionStyleLock(styleId)].join(" "));
 }
 
+/** Scratch song slice — mouth follows the track, not a spoken Save line. */
+export function buildScratchSongLtxMotion(opts: {
+  styleId: ShowStyleId;
+  speaker: string;
+  lookLock?: string;
+}): string {
+  const name = clean(opts.speaker) || "The performer";
+  const look = shortLtxLookLock(opts.lookLock || "");
+  const who = look ? `${name}, ${look}` : name;
+  return clean(
+    [
+      "Use the provided start image as the first frame.",
+      `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`,
+      "Props and background stay exactly as the start image, nothing new enters frame.",
+      `${name} sings this slice of the track. Camera holds. Same person and objects as the start image.`,
+      motionStyleLock(opts.styleId),
+    ].join(" "),
+  );
+}
+
 /** Scratch LTX default — gold speaking plate only. Empty stored motion only. */
 export function buildScratchPadLtxMotion(opts: {
   styleId: ShowStyleId;

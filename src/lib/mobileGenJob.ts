@@ -9,6 +9,7 @@ import type { ScriptCharacterData } from "./types";
 import { jobVoiceForSpeaker, withJobSpeakerVoice } from "./mobileJobVoices";
 import type { PlateLtxCampaign } from "./mobilePlateLtxCampaign";
 import type { ScratchClipTask, ScratchDrawTask, ScratchPlateRef } from "./mobileScratch";
+import type { ScratchSong } from "./scratchSongWindow";
 import { DEFAULT_DESK_ID, normalizeDeskId } from "./mobileDesk";
 
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
@@ -153,6 +154,8 @@ export type MobileGenJob = {
   plateDraw?: ScratchDrawTask | null;
   /** Siray i2v clip in flight. Cleared when the mp4 lands. */
   scratchClip?: ScratchClipTask | null;
+  /** Scratch-only full song + cut list. Never an episode stitch. */
+  scratchSong?: ScratchSong | null;
   /** Hide the last still on /scratch. Plate file stays — refresh must not put it back. */
   scratchPadCleared?: boolean;
   finalVideoFile: string;

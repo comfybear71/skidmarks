@@ -157,6 +157,112 @@ body {
   pointer-events: none;
 }
 
+.scratch-song {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.scratch-song-title {
+  color: var(--acid);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.scratch-song-clock,
+.scratch-song-hint,
+.scratch-song-done {
+  margin: 0;
+  color: var(--chrome-dim);
+  font-size: 12px;
+}
+
+.scratch-song-window {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.scratch-song-window label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--chrome-dim);
+  font-size: 11px;
+}
+
+.scratch-song-window input {
+  width: 72px;
+  min-height: 32px;
+  border: 1px solid var(--line);
+  background: var(--void);
+  color: var(--chrome);
+  padding: 4px 6px;
+}
+
+.scratch-song-len {
+  color: var(--chrome);
+  font-size: 12px;
+  padding-bottom: 6px;
+}
+
+.scratch-song-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scratch-song-cuts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scratch-song-cut {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.scratch-song-cut-n {
+  color: var(--acid);
+  font-weight: 700;
+  min-width: 1.2em;
+}
+
+.scratch-song-cut-meta {
+  flex: 1 1 auto;
+  color: var(--chrome);
+}
+
+.scratch-song-cut button {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--chrome-dim);
+  min-height: 28px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.scratch-song-cut.is-done .scratch-song-cut-meta {
+  color: var(--acid);
+}
+
+.scratch-song-cut.is-error .scratch-song-cut-meta {
+  color: var(--magenta-hot);
+}
+
 .scratch-pad-markers {
   position: absolute;
   inset: 0;

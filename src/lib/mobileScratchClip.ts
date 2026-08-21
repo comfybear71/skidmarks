@@ -14,12 +14,20 @@ import {
 import { CRASH_DIR } from "./paths";
 import {
   buildScratchPadLtxMotion,
+  buildScratchSongLtxMotion,
   buildSegmentText,
   buildGlobalPrompt,
   ltxSendPrompt,
   stripLtxLipSyncLead,
   looksLikePlatePositionPrompt,
 } from "./mobileImageMotion";
+import {
+  clampSongWindow,
+  isDroppedPlaceholderLine,
+  scratchSongSliceTempPath,
+  sliceSongMp3,
+  type ScratchSong,
+} from "./scratchSongSlice";
 import {
   mobileCandidateFolders,
   mobileMediaFolder,
@@ -51,6 +59,11 @@ export async function runScratchLtxClip(opts: {
   shotId: string;
   sceneId: string;
   beatId: string;
+  /** Override pad still — one cut in a song list. */
+  plateFile?: string;
+  sliceStartSec?: number;
+  sliceDurationSec?: number;
+  cutId?: string;
 }): Promise<MobileGenJob> {
   const { story, shotId, sceneId, beatId } = opts;
   let job = opts.job;
@@ -60,21 +73,23 @@ export async function runScratchLtxClip(opts: {
   const storyShot = scene?.shots.find((sh) => sh.id === shotId);
   const beat = storyShot?.beats.find((b) => b.id === beatId);
   if (!shot) throw new Error("Scratch plate is not on this job");
-  if (shot.plateFile === "__error__") {
-    throw new Error(shot.error ? `Plate failed — ${shot.error}` : "Plate failed — pick the face and the place first");
+  const wantPlate = (opts.plateFile || shot.plateFile || "").trim();
+  if (!wantPlate || wantPlate === "__error__") {
+    throw new Error(
+      shot.error ? `Plate failed — ${shot.error}` : "Draw the still first",
+    );
   }
-  if (!shot.plateFile) throw new Error("Draw the still first");
   if (!storyShot || !beat) throw new Error("That line is missing from the scratch plate");
 
   const mediaFolder = mobileMediaFolder(job);
   const defaultPlatePath =
-    resolveGenOrPackPlate(shot.plateFile) ||
+    resolveGenOrPackPlate(wantPlate) ||
     (await resolveMobileMedia({
       styleId: job.styleId,
       folderName: mediaFolder,
       kind: "plates",
-      fileName: shot.plateFile,
-      destPath: path.join(CRASH_DIR, "gen", shot.plateFile),
+      fileName: wantPlate,
+      destPath: path.join(CRASH_DIR, "gen", wantPlate),
     }));
   if (!defaultPlatePath) throw new Error("Plate file missing on disk");
 
@@ -84,25 +99,41 @@ export async function runScratchLtxClip(opts: {
   const voiceFile = (clipRow?.voiceFile || beat.voiceFile || "").trim();
   const speaker = (clipRow?.speaker || beat.speaker || "").trim();
   const line = (clipRow?.line || beat.text || "").trim();
-  const audioPath = await resolveMobileBeatAudio({
+  const sourceAudio = await resolveMobileBeatAudio({
     styleId: job.styleId,
     folderName: mediaFolder,
     folderCandidates: mobileCandidateFolders(job),
     beatId: beat.id,
     voiceFile,
   });
-  if (!audioPath) {
+  if (!sourceAudio) {
     throw new Error(
       voiceFile
         ? `Beat mp3 not reachable — voiceFile="${voiceFile}" folderName="${mediaFolder}" beatId=${beat.id}`
         : "Save the spoken line first — Play appears when the mp3 is ready.",
     );
   }
-  if (looksLikePlatePositionPrompt(line)) {
+  const song = job.scratchSong;
+  const singing = Boolean(song?.fileName) && isDroppedPlaceholderLine(line);
+  if (looksLikePlatePositionPrompt(line) && !singing) {
     throw new Error("That's the still position, not speech. Wipe the line box, type what they say, then Save.");
   }
+  const window = clampSongWindow(
+    opts.sliceStartSec ?? song?.sliceStartSec ?? 0,
+    opts.sliceDurationSec ?? song?.sliceDurationSec ?? 15,
+    song?.durationSec || 0,
+  );
+  const needsSlice = Boolean(song?.fileName) && (window.startSec > 0.05 || (song?.durationSec || 0) > window.durationSec + 0.4);
+  const audioPath = needsSlice
+    ? sliceSongMp3({
+        srcPath: sourceAudio,
+        destPath: scratchSongSliceTempPath(jobId),
+        startSec: window.startSec,
+        durationSec: window.durationSec,
+      })
+    : sourceAudio;
 
-  const speaking = line.length > 0;
+  const speaking = line.length > 0 && !singing;
   const lookLock =
     candidateLookPrompt(job.castCandidates, speaker) ||
     job.roster.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())?.appearance;
@@ -123,13 +154,15 @@ export async function runScratchLtxClip(opts: {
     !looksLikePlatePositionPrompt(stored);
   const body =
     (storedOk ? stored : "") ||
-    buildScratchPadLtxMotion({
-      styleId: job.styleId,
-      speaker,
-      line,
-      lookLock,
-      shotSpeakers: shotCast,
-    });
+    (singing
+      ? buildScratchSongLtxMotion({ styleId: job.styleId, speaker, lookLock })
+      : buildScratchPadLtxMotion({
+          styleId: job.styleId,
+          speaker,
+          line,
+          lookLock,
+          shotSpeakers: shotCast,
+        }));
   const imageMotion = ltxSendPrompt(body, storyShot.staging);
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
@@ -197,15 +230,42 @@ export async function runScratchLtxClip(opts: {
         ? { ...c, ...rememberClipTake(c, result.localMp4), clipStatus: "done" as const }
         : c,
     );
-    job = (await patchMobileGenJob(jobId, { clips: next }))!;
+    const clipName = path.basename(result.localMp4);
+    job = (await patchMobileGenJob(jobId, {
+      clips: next,
+      scratchSong: patchScratchSongCut(job.scratchSong, opts.cutId, {
+        clipFile: clipName,
+        status: "done",
+        error: "",
+      }),
+    }))!;
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
     const next = job.clips.map((c) =>
       c.beatId === beatId
-        ? { ...c, clipStatus: "error" as const, error: e instanceof Error ? e.message : String(e) }
+        ? { ...c, clipStatus: "error" as const, error: msg }
         : c,
     );
-    job = (await patchMobileGenJob(jobId, { clips: next }))!;
+    job = (await patchMobileGenJob(jobId, {
+      clips: next,
+      scratchSong: patchScratchSongCut(job.scratchSong, opts.cutId, {
+        status: "error",
+        error: msg,
+      }),
+    }))!;
     throw e;
   }
   return job;
+}
+
+function patchScratchSongCut(
+  song: ScratchSong | null | undefined,
+  cutId: string | undefined,
+  patch: { clipFile?: string; status?: "pending" | "running" | "done" | "error"; error?: string },
+): ScratchSong | null | undefined {
+  if (!song || !cutId) return song;
+  return {
+    ...song,
+    cuts: (song.cuts || []).map((c) => (c.id === cutId ? { ...c, ...patch } : c)),
+  };
 }
