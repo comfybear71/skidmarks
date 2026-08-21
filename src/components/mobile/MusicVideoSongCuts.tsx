@@ -17,10 +17,16 @@ import {
   songWindowLabel,
 } from "@/lib/scratchSongWindow";
 import {
+  clampPlateSliceCount,
+  cutsForPlate,
+  deskPlateClocks,
+  droppablePlateCuts,
   findSongCarrierBeatId,
   formatSongSpan,
+  MUSIC_VIDEO_SLICE_DEFAULT,
   plateLabel,
   songCutTallyLine,
+  songDeskPlateIds,
   songOrdinal,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
@@ -29,6 +35,8 @@ import {
   pendingSongCuts,
   songCookFlagOn,
 } from "@/lib/songCutCook";
+import { approvedCandidateFileName } from "@/lib/mobileJobReady";
+import { mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
 
 function SwipeDropRow({
   children,
@@ -114,6 +122,7 @@ export function MusicVideoSongCuts({
   jobRef.current = job;
   const cookLock = useRef(false);
   const resumeCook = useRef<() => void>(() => {});
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playing, setPlaying] = useState("");
@@ -171,6 +180,46 @@ export function MusicVideoSongCuts({
     }
   }
 
+  async function hidePlateFromSong(shotId: string, listIndex: number) {
+    setBusy(`skip-${listIndex}`);
+    setNote("Taking that plate off the song. The plate stays.");
+    try {
+      await songAction("skip-plate", { shotId, listIndex });
+      setNote("Off the song. Plate is still under PLATES.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't take that plate off the song");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function parkPlate(shotId: string, listIndex: number) {
+    const n = clampPlateSliceCount(counts[String(listIndex)] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+    setBusy(`park-${listIndex}`);
+    setNote(`Adding ${n} × 15s…`);
+    try {
+      await songAction("assign", { shotId, count: n });
+      setNote(`Added ${n} × 15s`);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't add those slices");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function dropPlateParked(shotId: string, listIndex: number) {
+    setBusy(`drop-${listIndex}`);
+    setNote("Dropping parked slices — plate stays.");
+    try {
+      await songAction("remove-plate-parked", { shotId });
+      setNote("Parked slices dropped. Plate is still there.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't drop those slices");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function dropOneCut(cutId: string) {
     if (!cutId) return;
     try {
@@ -183,7 +232,7 @@ export function MusicVideoSongCuts({
   async function runCuts() {
     if (cookLock.current) return;
     if (!pendingSongCuts(job).length) {
-      setNote("Add a clip first.");
+      setNote("Set 1 × 15s (or more) on a list plate, then Add.");
       return;
     }
     cookLock.current = true;
@@ -236,13 +285,28 @@ export function MusicVideoSongCuts({
   }, [song?.cuts]);
 
   const cuts = song?.cuts || [];
+  const onSong = songDeskPlateIds(song);
+  const platedById = new Map(plated.map((s) => [s.shotId, s]));
+  const deskPlates = onSong
+    .map((shotId, listIndex) => {
+      const unit = platedById.get(shotId);
+      if (!unit) return null;
+      return { unit, listIndex, shotId };
+    })
+    .filter((row): row is { unit: MobileShotUnit; listIndex: number; shotId: string } => Boolean(row));
+  const clocks = deskPlateClocks(
+    deskPlates.map((r) => r.shotId),
+    cuts,
+    counts,
+    song?.durationSec || 0,
+  );
   const tally = tallySongCuts(cuts);
   const cooking = cuts.find((c) => c.status === "running");
   const cookingN = cooking ? cuts.findIndex((c) => c.id === cooking.id) + 1 : 0;
   const done = cuts.filter((c) => c.status === "done" && c.clipFile).length;
   const label = song?.fileName
     ? songWindowLabel(song.durationSec, cuts)
-    : "Drop the song, then Add N × 15s on each plate. Same plate can come back later.";
+    : "Drop the song, then Add a plate. Set 1 × 15s or more on the list, then Add.";
   const progress =
     song?.fileName && cuts.length
       ? cooking
@@ -310,27 +374,40 @@ export function MusicVideoSongCuts({
           />
         </label>
       ) : null}
-      {song?.fileName && cuts.length ? (
-        <ol className="scratch-song-cuts">
-          {cuts.map((cut, i) => {
-            const kind = cut.status || "pending";
-            const chip =
-              kind === "error" ? "FAIL" : kind === "running" ? "COOKING" : "";
-            const thumb = cut.plateFile
-              ? `/api/crash/gen/file?name=${encodeURIComponent(cut.plateFile)}`
-              : "";
-            const span = formatSongSpan(cut.startSec, cut.startSec + cut.durationSec);
-            const slices = Math.max(1, Math.round((cut.durationSec || 15) / 15));
+      {song?.fileName && deskPlates.length ? (
+        <ul className="scratch-song-cuts">
+          {deskPlates.map((row, i) => {
+            const s = row.unit;
+            const n = clampPlateSliceCount(counts[String(row.listIndex)] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+            const name = plateLabel(story, s.shotId, i + 1);
+            const mine = cutsForPlate(cuts, s.shotId, s.plateFile);
+            const mineTally = tallySongCuts(mine);
+            const clock = clocks[i];
+            const sliceN = clock?.slices ?? n;
+            const span =
+              clock && clock.endSec > clock.startSec
+                ? formatSongSpan(clock.startSec, clock.endSec)
+                : "";
+            const parkedHere = droppablePlateCuts(mine);
+            const placeScene = job.scenes.find((sc) => sc.id === s.sceneId);
+            const placeFile = approvedCandidateFileName(job.locationCandidates, s.sceneId) || "";
+            const thumb = s.plateFile
+              ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
+              : mobilePlacePreviewUrl(job, {
+                  fileName: placeFile,
+                  worldThumbKey: placeScene?.worldThumbKey || "",
+                });
+            const skipBusy = busy === `skip-${row.listIndex}`;
+            const parkBusy = busy === `park-${row.listIndex}`;
+            const dropBusy = busy === `drop-${row.listIndex}`;
             return (
-              <li key={cut.id}>
+              <li key={`${s.shotId}-${row.listIndex}`}>
                 <SwipeDropRow
-                  label="Drop"
-                  disabled={kind === "running" && Boolean(cut.clipFile)}
-                  onDrop={() => void dropOneCut(cut.id)}
+                  label="Leave song"
+                  disabled={skipBusy}
+                  onDrop={() => void hidePlateFromSong(s.shotId, row.listIndex)}
                 >
-                  <div
-                    className={`scratch-song-cut m-song-plate-row is-${kind}${flashId === cut.id ? " is-just-added" : ""}`}
-                  >
+                  <div className="scratch-song-cut m-song-plate-row">
                     <div className="m-song-plate-head">
                       <div className="m-song-plate-thumb-wrap">
                         {thumb ? (
@@ -342,47 +419,84 @@ export function MusicVideoSongCuts({
                         <button
                           type="button"
                           className="m-song-plate-x"
-                          aria-label="Take this clip off the song"
-                          disabled={kind === "running" && Boolean(cut.clipFile)}
-                          onClick={() => void dropOneCut(cut.id)}
+                          aria-label="Take this plate off the song"
+                          disabled={skipBusy}
+                          onClick={() => void hidePlateFromSong(s.shotId, row.listIndex)}
                         >
-                          ×
+                          {skipBusy ? "…" : "×"}
                         </button>
                       </div>
                       <span className="scratch-song-cut-meta">
-                        {songOrdinal(i + 1)} · {slices} × 15s
-                        <span className="m-song-cut-clock">{span}</span>
+                        {songOrdinal(i + 1)} · {sliceN} × 15s
+                        {span ? <span className="m-song-cut-clock">{span}</span> : null}
                         <span className="m-song-cut-sub">
-                          {plateLabel(story, cut.shotId || "", i + 1)}
+                          {name}
+                          {mineTally.total ? ` · ${songCutTallyLine(mineTally)}` : ""}
                         </span>
                       </span>
                     </div>
                     <div className="m-song-plate-tools">
-                      {kind === "error" && cut.error ? (
-                        <span className="m-song-cut-sub">{cut.error}</span>
-                      ) : null}
-                      {chip ? <span className={`m-song-cut-chip is-${kind}`}>{chip}</span> : null}
-                      {cut.clipFile ? (
-                        <button type="button" onClick={() => setPlaying(mobileClipSrc(job, cut.clipFile || ""))}>
-                          Play
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        disabled={Boolean(busy)}
+                        onClick={() =>
+                          setCounts((cur) => ({
+                            ...cur,
+                            [String(row.listIndex)]: clampPlateSliceCount(n - 1),
+                          }))
+                        }
+                      >
+                        −
+                      </button>
+                      <span className="scratch-song-cut-meta">{n} × 15s</span>
+                      <button
+                        type="button"
+                        disabled={Boolean(busy)}
+                        onClick={() =>
+                          setCounts((cur) => ({
+                            ...cur,
+                            [String(row.listIndex)]: clampPlateSliceCount(n + 1),
+                          }))
+                        }
+                      >
+                        +
+                      </button>
+                      <MobilePrimaryButton
+                        size="chip"
+                        tone="ghost"
+                        busy={parkBusy}
+                        disabled={Boolean(busy) && !parkBusy}
+                        onClick={() => void parkPlate(s.shotId, row.listIndex)}
+                      >
+                        {parkBusy ? "Adding…" : "Add"}
+                      </MobilePrimaryButton>
                       <button
                         type="button"
                         className="m-song-plate-x-inline"
-                        aria-label="Take this clip off the song"
-                        disabled={kind === "running" && Boolean(cut.clipFile)}
-                        onClick={() => void dropOneCut(cut.id)}
+                        aria-label="Take this plate off the song"
+                        disabled={skipBusy}
+                        onClick={() => void hidePlateFromSong(s.shotId, row.listIndex)}
                       >
-                        ×
+                        {skipBusy ? "…" : "×"}
                       </button>
+                      {parkedHere.length ? (
+                        <MobilePrimaryButton
+                          size="chip"
+                          tone="ghost"
+                          busy={dropBusy}
+                          disabled={busy.startsWith("drop-") && !dropBusy}
+                          onClick={() => void dropPlateParked(s.shotId, row.listIndex)}
+                        >
+                          {dropBusy ? "Dropping…" : `Drop parked (${parkedHere.length})`}
+                        </MobilePrimaryButton>
+                      ) : null}
                     </div>
                   </div>
                 </SwipeDropRow>
               </li>
             );
           })}
-        </ol>
+        </ul>
       ) : null}
       <div className="scratch-song-actions">
         <MobilePrimaryButton
@@ -408,6 +522,58 @@ export function MusicVideoSongCuts({
           {busy === "stitch" ? "Stitching…" : "Stitch song"}
         </MobilePrimaryButton>
       </div>
+      {cuts.length ? (
+        <ol className="scratch-song-cuts">
+          {cuts.map((cut, i) => {
+            const kind = cut.status || "pending";
+            const chip =
+              kind === "error" ? "FAIL" : kind === "running" ? "COOKING" : "";
+            const thumb = cut.plateFile
+              ? `/api/crash/gen/file?name=${encodeURIComponent(cut.plateFile)}`
+              : "";
+            return (
+              <li key={cut.id}>
+                <SwipeDropRow
+                  label="Drop"
+                  disabled={kind === "running" && Boolean(cut.clipFile)}
+                  onDrop={() => void dropOneCut(cut.id)}
+                >
+                  <div
+                    className={`scratch-song-cut is-${kind}${flashId === cut.id ? " is-just-added" : ""}`}
+                  >
+                    {thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="m-song-cut-thumb" src={thumb} alt="" />
+                    ) : (
+                      <span className="scratch-song-cut-n">{i + 1}</span>
+                    )}
+                    <span className="scratch-song-cut-meta">
+                      {i + 1}. {plateLabel(story, cut.shotId || "", i + 1)} · {formatSongClock(cut.startSec)} ·{" "}
+                      {cut.durationSec}s
+                      {kind === "error" && cut.error ? (
+                        <span className="m-song-cut-sub">{cut.error}</span>
+                      ) : null}
+                    </span>
+                    {chip ? <span className={`m-song-cut-chip is-${kind}`}>{chip}</span> : null}
+                    {cut.clipFile ? (
+                      <button type="button" onClick={() => setPlaying(mobileClipSrc(job, cut.clipFile || ""))}>
+                        Play
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={kind === "running" && Boolean(cut.clipFile)}
+                      onClick={() => void dropOneCut(cut.id)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </SwipeDropRow>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
       {song?.stitchedFile ? (
         <div>
           <p className="scratch-song-done">Stitched: {song.stitchedFile}</p>
