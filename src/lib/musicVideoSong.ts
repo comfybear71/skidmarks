@@ -67,6 +67,21 @@ export function withoutPlateParkedCuts(
   };
 }
 
+export function skipSongPlateIds(song?: { skipShotIds?: string[] } | null): string[] {
+  return [...new Set((song?.skipShotIds || []).map((id) => id.trim()).filter(Boolean))];
+}
+
+export function withSkippedSongPlate(skip: string[], shotId: string): string[] {
+  const id = shotId.trim();
+  if (!id || skip.includes(id)) return skip;
+  return [...skip, id];
+}
+
+export function withoutSkippedSongPlate(skip: string[], shotId: string): string[] {
+  const id = shotId.trim();
+  return skip.filter((s) => s !== id);
+}
+
 export function songCutTallyLine(tally: SongCutTally): string {
   if (!tally.total) return "no slices yet";
   const bits = [`${tally.done}/${tally.total} done`];

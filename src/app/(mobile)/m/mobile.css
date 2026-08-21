@@ -359,7 +359,7 @@ body {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
 }
 
 .m-swipe-drop {
@@ -393,9 +393,43 @@ body {
 .scratch-song-cut {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
-  font-size: 12px;
+  font-size: 13px;
+}
+
+.m-song-plate-row {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.m-song-plate-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.m-song-plate-head .m-song-cut-thumb {
+  width: 56px;
+  height: 56px;
+}
+
+.m-song-plate-head .scratch-song-cut-meta {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.m-song-plate-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .scratch-song-cut-n {
