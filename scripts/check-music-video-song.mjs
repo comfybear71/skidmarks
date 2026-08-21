@@ -98,6 +98,7 @@ assert.match(songRoute, /action === "assign"/);
 assert.match(songRoute, /Does not write job.finalVideoFile/);
 assert.match(songUi, /Add \$\{n\} × 15s/);
 assert.match(songUi, /No slices on this plate yet/);
+assert.match(songUi, /mineTally\.total \? \(/);
 assert.match(songUi, /cookPendingSongCuts/);
 assert.match(songUi, /m-song-cut-chip/);
 const songCss = readFileSync(join(here, "../src/app/(mobile)/m/mobile.css"), "utf8");

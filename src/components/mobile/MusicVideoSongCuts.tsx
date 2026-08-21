@@ -342,13 +342,7 @@ export function MusicVideoSongCuts({
             const thumb = s.plateFile
               ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
               : "";
-            return (
-              <li key={s.shotId}>
-                <SwipeDropRow
-                  label="Drop parked"
-                  disabled={!parkedHere.length}
-                  onDrop={() => void dropPlateParked(s.shotId)}
-                >
+            const row = (
                   <div className="scratch-song-cut m-song-plate-row">
                     {thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -361,34 +355,38 @@ export function MusicVideoSongCuts({
                       <span className="m-song-cut-sub">
                         {mineTally.total
                           ? songCutTallyLine(mineTally)
-                          : "No slices on this plate yet. − / + is how many you add."}
+                          : "No slices on this plate yet."}
                       </span>
                     </span>
-                    <button
-                      type="button"
-                      disabled={Boolean(busy)}
-                      onClick={() =>
-                        setCounts((cur) => ({
-                          ...cur,
-                          [s.shotId]: clampPlateSliceCount(n - 1),
-                        }))
-                      }
-                    >
-                      −
-                    </button>
-                    <span className="scratch-song-cut-meta">{n} × 15s</span>
-                    <button
-                      type="button"
-                      disabled={Boolean(busy)}
-                      onClick={() =>
-                        setCounts((cur) => ({
-                          ...cur,
-                          [s.shotId]: clampPlateSliceCount(n + 1),
-                        }))
-                      }
-                    >
-                      +
-                    </button>
+                    {mineTally.total ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={Boolean(busy)}
+                          onClick={() =>
+                            setCounts((cur) => ({
+                              ...cur,
+                              [s.shotId]: clampPlateSliceCount(n - 1),
+                            }))
+                          }
+                        >
+                          −
+                        </button>
+                        <span className="scratch-song-cut-meta">{n} × 15s</span>
+                        <button
+                          type="button"
+                          disabled={Boolean(busy)}
+                          onClick={() =>
+                            setCounts((cur) => ({
+                              ...cur,
+                              [s.shotId]: clampPlateSliceCount(n + 1),
+                            }))
+                          }
+                        >
+                          +
+                        </button>
+                      </>
+                    ) : null}
                     <MobilePrimaryButton
                       size="chip"
                       tone="ghost"
@@ -411,7 +409,19 @@ export function MusicVideoSongCuts({
                       </MobilePrimaryButton>
                     ) : null}
                   </div>
-                </SwipeDropRow>
+            );
+            return (
+              <li key={s.shotId}>
+                {parkedHere.length ? (
+                  <SwipeDropRow
+                    label="Drop parked"
+                    onDrop={() => void dropPlateParked(s.shotId)}
+                  >
+                    {row}
+                  </SwipeDropRow>
+                ) : (
+                  row
+                )}
               </li>
             );
           })}
