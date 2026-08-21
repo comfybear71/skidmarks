@@ -51,9 +51,9 @@ function patchShotFields(
  * POST { jobId, shotId, action: "save", summary?, staging? } — write the
  * action / tweak text. Does not composite.
  * POST { jobId, shotId, action: "drop" } — clear the shot still pointer
- * and its take list so the carousel dots go with it. Clips under that
- * plate park in _cleared/ (not deleted) and leave the job. Blob/disk
- * stills stay. The strip shows an empty slot.
+ * and its take list. Clips park in _cleared/. The card stays. Strip ×
+ * uses "remove" instead, so an empty slot cannot fill with the location
+ * still (Matty's bar) and keep the lines below.
  * POST { jobId, shotId, takeId, action: "drop-take" } — park one still
  * from the carousel. Files stay.
  * POST { jobId, sceneId, speaker, action: "add" } — add a shot card at
@@ -68,10 +68,10 @@ function patchShotFields(
  * take from the plate. Audio/clip files stay in Blob (park). The thumb
  * under the plate goes with it. Last real line leaves an empty box
  * (`beat`) so they can Save again.
- * POST { jobId, shotId, action: "remove" } — take the shot out of the
- * strip entirely. Plate still stays on disk/Blob. Clips under it park
- * in _cleared/. Returns the removed shot + its sceneId so the caller
- * can offer Undo.
+ * POST { jobId, shotId, action: "remove" } — take the shot off the strip.
+ * Lines under it, clips, and the open editor go. Plate still stays on
+ * disk/Blob. Clips park in _cleared/. Returns removed shot + sceneId
+ * for Undo.
  * POST { jobId, action: "clear" } — remove every shot on this job in one
  * go (start fresh). Returns the full removed list for Undo.
  * POST { jobId, sceneId, shot, action: "restore" } — undo for "remove"/
