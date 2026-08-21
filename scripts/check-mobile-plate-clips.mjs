@@ -56,4 +56,9 @@ const clearedDir = path.join(CRASH_DIR, "ltx", "_cleared");
 assert.ok(fs.readdirSync(clearedDir).some((name) => name.endsWith("park_me.mp4")));
 assert.equal(clipFileBasename("/tmp/foo/bar.mp4"), "bar.mp4");
 
+const thumbs = fs.readFileSync(new URL("../src/components/mobile/PlateClipThumbs.tsx", import.meta.url), "utf8");
+assert.match(thumbs, /createPortal/);
+assert.match(thumbs, /scratch-clip-overlay/);
+assert.doesNotMatch(thumbs, /zIndex: 70/);
+
 console.log("check-mobile-plate-clips: ok");

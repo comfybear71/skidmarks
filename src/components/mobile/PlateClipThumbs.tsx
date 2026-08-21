@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import type { MobileClipUnit } from "@/lib/mobileGenJob";
 import { mobileClipSrc, stackedClipFiles } from "@/lib/mobilePlateClips";
 
 export { clipsUnderPlate, mobileClipSrc, stackedClipFiles } from "@/lib/mobilePlateClips";
-/** Match the still and the mp4 — controls need this width on a phone. */
+/** Match the still and the mp4 — this width on a phone. */
 export const PLATE_TILE_PX = 160;
 
 /**
  * /m strip: square plate, then 16:9 players stacked under it — same width.
  * Scratch pad uses `layout="strip"` — oldest take left, newest right, swipe sideways.
  * Every Generate take stays. Empty pending slots stay hidden.
+ * Play opens a body portal — native controls inside the overflow rail
+ * sit under the pad on iPhone.
  */
 export function PlateClipThumbs({
   job,
@@ -99,46 +102,80 @@ function ClipPlayer({
   onRemove?: () => void;
   removeDisabled?: boolean;
 }) {
-  const ref = useRef<HTMLVideoElement>(null);
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const el = ref.current;
-    if (el) el.pause();
-  }, [open]);
+  const overlay =
+    mounted && open
+      ? createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Full screen clip"
+            className="scratch-clip-overlay"
+            onClick={() => setOpen(false)}
+          >
+            <video
+              src={src}
+              controls
+              autoPlay
+              playsInline
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "100%",
+                maxHeight: "100%",
+                objectFit: "contain",
+                background: "#000",
+              }}
+            />
+            <span className="scratch-clip-overlay-x" aria-hidden>
+              ✕
+            </span>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <>
       <div style={frame}>
         <video
-          ref={ref}
           src={src}
           poster={poster || undefined}
-          controls
           playsInline
-          preload="metadata"
-          onLoadedMetadata={(e) => {
-            const el = e.currentTarget;
-            if (el.currentTime < 0.05) el.currentTime = 0.08;
-          }}
+          muted
+          preload={preload ? "metadata" : "none"}
+          onClick={() => setOpen(true)}
           style={{
             width: "100%",
             height: "100%",
             objectFit: "contain",
             display: "block",
             background: "#000",
+            cursor: "zoom-in",
           }}
         />
+        <button type="button" className="scratch-clip-play" aria-label="Play clip" onClick={() => setOpen(true)}>
+          ▶
+        </button>
         {takeLabel ? (
           <span
             style={{
@@ -158,28 +195,6 @@ function ClipPlayer({
             {takeLabel}
           </span>
         ) : null}
-        <button
-          type="button"
-          aria-label="Enlarge clip"
-          onClick={() => setOpen(true)}
-          style={{
-            position: "absolute",
-            top: "4px",
-            right: onRemove ? "30px" : "4px",
-            width: "22px",
-            height: "22px",
-            padding: 0,
-            borderRadius: "2px",
-            border: "1px solid var(--acid)",
-            background: "rgba(0,0,0,0.72)",
-            color: "var(--acid)",
-            fontSize: "12px",
-            lineHeight: 1,
-            cursor: "zoom-in",
-          }}
-        >
-          ⤢
-        </button>
         {onRemove ? (
           <button
             type="button"
@@ -211,41 +226,7 @@ function ClipPlayer({
           </button>
         ) : null}
       </div>
-      {open ? (
-        <div
-          role="dialog"
-          aria-label="Full screen clip"
-          onClick={() => setOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 70,
-            background: "rgba(0,0,0,0.94)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "12px",
-            cursor: "zoom-out",
-          }}
-        >
-          <video
-            src={src}
-            controls
-            autoPlay
-            playsInline
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxHeight: "100%",
-              objectFit: "contain",
-              background: "#000",
-            }}
-          />
-          <span style={{ position: "absolute", top: "16px", right: "18px", color: "var(--chrome)", fontSize: "24px" }}>
-            ✕
-          </span>
-        </div>
-      ) : null}
+      {overlay}
     </>
   );
 }
