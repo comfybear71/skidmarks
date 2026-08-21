@@ -7,7 +7,7 @@ import {
   formatSongClock,
   songWindowLabel,
   type ScratchSongCut,
-} from "@/lib/scratchSongSlice";
+} from "@/lib/scratchSongWindow";
 
 export function ScratchSongCuts({
   job,

@@ -11,9 +11,11 @@ import {
   songWindowLeftSec,
   SCRATCH_SONG_SLICE_DEFAULT_SEC,
   SCRATCH_SONG_SLICE_MAX_SEC,
-} from "../src/lib/scratchSongSlice.ts";
+} from "../src/lib/scratchSongWindow.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
+const slice = readFileSync(join(here, "../src/lib/scratchSongSlice.ts"), "utf8");
+const ui = readFileSync(join(here, "../src/components/scratch/ScratchSongCuts.tsx"), "utf8");
 const clip = readFileSync(join(here, "../src/lib/mobileScratchClip.ts"), "utf8");
 const route = readFileSync(join(here, "../src/app/api/crash/mobile/scratch/route.ts"), "utf8");
 const upload = readFileSync(join(here, "../src/app/api/crash/mobile/beat-audio/upload/route.ts"), "utf8");
@@ -41,5 +43,8 @@ assert.doesNotMatch(step, /scratchSong/);
 assert.doesNotMatch(step, /song-cut-run/);
 assert.match(page, /ScratchSongCuts/);
 assert.match(page, /song-cut-run/);
+assert.match(slice, /from "\.\/scratchSongWindow"/);
+assert.doesNotMatch(ui, /scratchSongSlice/);
+assert.doesNotMatch(ui, /from "fs"/);
 
 console.log("check-scratch-song-slice: ok");

@@ -9,7 +9,7 @@ import type { ScriptCharacterData } from "./types";
 import { jobVoiceForSpeaker, withJobSpeakerVoice } from "./mobileJobVoices";
 import type { PlateLtxCampaign } from "./mobilePlateLtxCampaign";
 import type { ScratchClipTask, ScratchDrawTask, ScratchPlateRef } from "./mobileScratch";
-import type { ScratchSong } from "./scratchSongSlice";
+import type { ScratchSong } from "./scratchSongWindow";
 import { DEFAULT_DESK_ID, normalizeDeskId } from "./mobileDesk";
 
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
