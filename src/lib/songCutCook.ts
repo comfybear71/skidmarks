@@ -7,8 +7,13 @@ import { readApiJson } from "./studioFetchError";
 import type { MobileGenJob } from "./mobileGenJob";
 import type { ScratchSongCut } from "./scratchSongWindow";
 
+/** How long we wait for a cut that is actually running on the server. */
 export const SONG_COOK_MS_PER_CUT = 720_000;
+/** After a failed start (still pending), don't sit for 12 minutes — retry sooner. */
+export const SONG_COOK_PENDING_WAIT_MS = 20_000;
 export const SONG_COOK_POLL_MS = 4000;
+/** Unstick the same stuck cut this many times, then stop and show an error. */
+export const SONG_COOK_MAX_UNSTICK = 2;
 
 export function songCookStorageKey(jobId: string): string {
   return `skidmarks.songCook.${(jobId || "").trim()}`;
@@ -48,9 +53,13 @@ export function songCutById(
 }
 
 export async function refreshMobileJob(jobId: string): Promise<MobileGenJob | null> {
-  const res = await fetch(`/api/crash/mobile/job/${encodeURIComponent(jobId)}`);
-  const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
-  return data.job || null;
+  try {
+    const res = await fetch(`/api/crash/mobile/job/${encodeURIComponent(jobId)}`);
+    const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+    return data.job || null;
+  } catch {
+    return null;
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -63,10 +72,13 @@ export async function waitForSongCut(opts: {
   setJob: (job: MobileGenJob) => void;
   timeoutMs?: number;
   cancelled?: () => boolean;
+  /** If true, return early when the cut is still pending (start never stuck). */
+  bailIfPending?: boolean;
 }): Promise<MobileGenJob | null> {
   const timeout = opts.timeoutMs ?? SONG_COOK_MS_PER_CUT;
   const started = Date.now();
   let latest: MobileGenJob | null = null;
+  let sawRunning = false;
   while (Date.now() - started < timeout) {
     if (opts.cancelled?.()) return latest;
     await sleep(SONG_COOK_POLL_MS);
@@ -76,6 +88,10 @@ export async function waitForSongCut(opts: {
     opts.setJob(job);
     const cut = songCutById(job, opts.cutId);
     if (!cut || cut.status === "done" || cut.status === "error") return job;
+    if (cut.status === "running") sawRunning = true;
+    if (opts.bailIfPending && !sawRunning && cut.status === "pending" && Date.now() - started >= SONG_COOK_PENDING_WAIT_MS) {
+      return job;
+    }
   }
   return latest;
 }
@@ -91,17 +107,18 @@ export async function cookPendingSongCuts(opts: {
 }): Promise<MobileGenJob | null> {
   setSongCookFlag(opts.jobId, true);
   let live = opts.getJob();
+  const unstickCount: Record<string, number> = {};
   try {
     for (;;) {
       if (opts.cancelled?.()) return live;
       live = opts.getJob() || live;
       const pending = pendingSongCuts(live);
       if (!pending.length) {
-        setSongCookFlag(opts.jobId, false);
         opts.onNote?.("");
         return live;
       }
       const cut = pending.find((c) => c.status === "running") || pending[0]!;
+      let startFailed = false;
       if (cut.status !== "running") {
         try {
           const data = await opts.runCut(cut.id);
@@ -116,16 +133,41 @@ export async function cookPendingSongCuts(opts: {
             opts.onNote?.("Connection dropped — still making clips. Waiting…");
           } else {
             opts.onNote?.(msg);
+            startFailed = true;
           }
         }
       } else {
-        opts.onNote?.("Still on a clip. You can leave — it keeps going.");
+        const doneN = (live?.scratchSong?.cuts || []).filter((c) => c.status === "done").length;
+        const total = (live?.scratchSong?.cuts || []).length;
+        opts.onNote?.(
+          total
+            ? `Still on a clip (${doneN}/${total}). You can leave — it keeps going.`
+            : "Still on a clip. You can leave — it keeps going.",
+        );
       }
+
+      live = opts.getJob() || live;
+      const afterStart = songCutById(live, cut.id);
+      // Hard fail and never left pending — don't sit for 12 minutes.
+      if (startFailed && afterStart && (afterStart.status === "pending" || !afterStart.status)) {
+        continue;
+      }
+      if (afterStart?.status === "error") {
+        opts.onNote?.(afterStart.error?.trim() || "That clip failed.");
+        continue;
+      }
+      if (afterStart?.status === "done") {
+        continue;
+      }
+
+      const waitingOnRunning = afterStart?.status === "running";
       const afterWait = await waitForSongCut({
         jobId: opts.jobId,
         cutId: cut.id,
         setJob: opts.setJob,
         cancelled: opts.cancelled,
+        bailIfPending: !waitingOnRunning,
+        timeoutMs: waitingOnRunning ? SONG_COOK_MS_PER_CUT : SONG_COOK_PENDING_WAIT_MS,
       });
       if (afterWait) live = afterWait;
       const after = songCutById(live, cut.id);
@@ -133,7 +175,18 @@ export async function cookPendingSongCuts(opts: {
         opts.onNote?.(after.error?.trim() || "That clip failed.");
         continue;
       }
+      if (after?.status === "done") {
+        continue;
+      }
       if (after?.status === "running" && !after.clipFile && opts.unstickCut) {
+        const n = (unstickCount[cut.id] || 0) + 1;
+        unstickCount[cut.id] = n;
+        if (n > SONG_COOK_MAX_UNSTICK) {
+          opts.onNote?.(
+            "That clip is stuck on the server. Close this tab and open the episode again — don't Start directing.",
+          );
+          return live;
+        }
         opts.onNote?.("That cut sat too long — sending it again.");
         try {
           const stuck = await opts.unstickCut(cut.id);
@@ -141,13 +194,16 @@ export async function cookPendingSongCuts(opts: {
             opts.setJob(stuck.job);
             live = stuck.job;
           }
-        } catch {
-          /* next loop retries */
+        } catch (e) {
+          opts.onNote?.(e instanceof Error ? e.message : "Couldn't unstick that clip.");
+          return live;
         }
       }
     }
   } catch (e) {
-    opts.onNote?.(e instanceof Error ? e.message : "Couldn't cook that cut");
+    opts.onNote?.(e instanceof Error ? e.message : "Couldn't make that cut");
     return opts.getJob() || live;
+  } finally {
+    setSongCookFlag(opts.jobId, false);
   }
 }
