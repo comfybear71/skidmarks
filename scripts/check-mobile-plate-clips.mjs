@@ -61,4 +61,12 @@ assert.match(thumbs, /createPortal/);
 assert.match(thumbs, /scratch-clip-overlay/);
 assert.doesNotMatch(thumbs, /zIndex: 70/);
 
+const editor = fs.readFileSync(new URL("../src/components/mobile/PlateReviewEditor.tsx", import.meta.url), "utf8");
+assert.match(editor, /m-plate-clip-rail/);
+assert.match(editor, /layout="strip"/);
+
+const css = fs.readFileSync(new URL("../src/app/(mobile)/m/mobile.css", import.meta.url), "utf8");
+assert.match(css, /\.m-plate-clip-rail/);
+assert.match(css, /touch-action: pan-x pan-y/);
+
 console.log("check-mobile-plate-clips: ok");

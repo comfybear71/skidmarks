@@ -10,8 +10,9 @@ export { clipsUnderPlate, mobileClipSrc, stackedClipFiles } from "@/lib/mobilePl
 export const PLATE_TILE_PX = 160;
 
 /**
- * /m strip: square plate, then 16:9 players stacked under it — same width.
- * Scratch pad uses `layout="strip"` — oldest take left, newest right, swipe sideways.
+ * /m strip: square plate, then 16:9 players under it — same width.
+ * `layout="strip"` — oldest take left, newest right, swipe sideways
+ * (Scratch pad + /m plate Clips). Default stack kept for callers that want it.
  * Every Generate take stays. Empty pending slots stay hidden.
  * Play opens a body portal — native controls inside the overflow rail
  * sit under the pad on iPhone.

@@ -877,6 +877,34 @@ body {
   scrollbar-color: color-mix(in srgb, var(--acid) 55%, transparent) transparent;
 }
 
+/** /m plate card — takes swipe sideways under the still (same as Scratch rail). */
+.m-plate-clip-rail {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0 6px;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--acid) 55%, transparent) transparent;
+}
+
+.m-plate-clip-rail::-webkit-scrollbar {
+  height: 3px;
+}
+
+.m-plate-clip-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.m-plate-clip-rail::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--acid) 55%, transparent);
+}
+
 .scratch-clip-rail::-webkit-scrollbar {
   height: 3px;
 }
