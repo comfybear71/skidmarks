@@ -3,6 +3,10 @@ import path from "path";
 import { CRASH_DIR } from "./paths";
 import { resolveMobileMedia, resolveMobileMediaByFilename } from "./mobileMediaStore";
 import type { ShowStyleId } from "./showStylePresets";
+import { approvedCandidateFileName } from "./mobileJobReady";
+import { mobileCandidateFolders } from "./mobileJobFolder";
+import type { MobileGenJob } from "./mobileGenJob";
+import { newId } from "./types";
 
 export { approvedCandidateFileName } from "./mobileJobReady";
 export { mobileCandidateFolders } from "./mobileJobFolder";
@@ -33,4 +37,28 @@ export async function cacheJobPlateFile(opts: {
     fileName,
     destPath: dest,
   });
+}
+
+/**
+ * Copy the locked place still onto a new plate file. Do not reuse the
+ * location filename — dropping the plate must not park the place still.
+ */
+export async function copyPlaceStillAsEmptyPlate(opts: {
+  job: MobileGenJob;
+  sceneId: string;
+}): Promise<string | null> {
+  const srcName = approvedCandidateFileName(opts.job.locationCandidates, opts.sceneId);
+  if (!srcName) return null;
+  const srcPath = await cacheJobPlateFile({
+    styleId: opts.job.styleId,
+    folders: mobileCandidateFolders(opts.job),
+    fileName: srcName,
+  });
+  if (!srcPath) return null;
+  const ext = path.extname(srcName) || ".png";
+  const destName = `plate_empty_${newId("p")}${ext}`;
+  const destPath = path.join(CRASH_DIR, "gen", destName);
+  fs.mkdirSync(path.dirname(destPath), { recursive: true });
+  fs.copyFileSync(srcPath, destPath);
+  return destName;
 }

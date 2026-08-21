@@ -189,6 +189,8 @@ const emptyShot = emptyMint.story.scenes
   ?.shots.find((s) => s.id === emptyMint.shotId);
 assert.equal(emptyShot?.beats[0]?.speaker, "");
 assert.equal(emptyShot?.plateFile, "");
+assert.match(emptyShot?.staging || "", /Far out/);
+assert.match(emptyShot?.staging || "", /No people/);
 assert.ok(emptyMint.shots.some((s) => s.shotId === emptyMint.shotId && s.sceneId === "llbed"));
 
 const namedMint = appendPlacePlate({
@@ -218,6 +220,7 @@ assert.doesNotMatch(editor, /New plate — pick who to test/);
 const addRoute = readFileSync(join(here, "../src/app/api/crash/mobile/plate/route.ts"), "utf8");
 assert.doesNotMatch(addRoute, /Pick who is in this place before Add to plate/);
 assert.match(addRoute, /appendPlacePlate/);
+assert.match(addRoute, /copyPlaceStillAsEmptyPlate/);
 assert.match(addRoute, /phaseAfterPlateAdd/);
 
 console.log("check-mobile-plate-graph: ok");

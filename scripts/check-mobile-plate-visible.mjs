@@ -37,6 +37,7 @@ assert.doesNotMatch(
 );
 assert.match(tree, /Add \$\{plateSpeaker\.trim\(\)\}/);
 assert.match(tree, /Add empty plate/);
+assert.match(tree, /Add empty stage/);
 assert.match(tree, /Tap a name, or Empty\. Then Add/);
 assert.doesNotMatch(
   tree,

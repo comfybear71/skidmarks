@@ -21,6 +21,9 @@ import {
 } from "@/lib/musicVideoSong";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
+import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
+import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
+import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -66,9 +69,34 @@ export async function POST(req: Request) {
       }
       const shotId = String(body.shotId || "").trim();
       const shot = job.shots.find((s) => s.shotId === shotId);
-      const plateFile = (shot?.plateFile || "").trim();
-      if (!shotId || !plateFile || plateFile === "__error__") {
-        return NextResponse.json({ error: "Draw that plate first, then park 15s slices." }, { status: 400 });
+      let plateFile = (shot?.plateFile || "").trim();
+      if (!shotId) {
+        return NextResponse.json({ error: "Need a plate to park 15s slices." }, { status: 400 });
+      }
+      if (!plateFile || plateFile === "__error__") {
+        const copied = await copyPlaceStillAsEmptyPlate({
+          job,
+          sceneId: shot?.sceneId || "",
+        });
+        if (!copied) {
+          return NextResponse.json(
+            { error: "Need the place still first — then Add empty stage." },
+            { status: 400 },
+          );
+        }
+        const placeName =
+          job.scenes.find((sc) => sc.id === shot?.sceneId)?.placeName ||
+          story.scenes.find((sc) => sc.id === shot?.sceneId)?.placeName ||
+          "";
+        const landed = await landEpisodePlateStill({
+          job,
+          story,
+          shotId,
+          fileName: copied,
+          staging: emptyStageFarOutStaging(placeName),
+        });
+        job = landed.job;
+        plateFile = copied;
       }
       const extra = plateSliceWindows(song.cuts || [], song.durationSec, Number(body.count));
       if (!extra.length) {
