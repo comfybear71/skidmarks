@@ -61,28 +61,39 @@ export async function POST(req: Request) {
       // Covers faces approved before the shelf-upload fix existed, so a
       // saved band stays reusable without a manual re-pick per member.
       const jobId = (body.jobId || "").trim();
+      // Report exactly what happened for every member, not just the ones
+      // that made it onto the shelf — "no approved take on this job" and
+      // "couldn't resolve the file bytes" are different failures and both
+      // need to be visible, not silently folded into a generic skip.
+      const noApprovedTake: string[] = [];
+      let synced: string[] = [];
+      let skipped: string[] = [];
       if (jobId) {
         const job = await readMobileGenJob(jobId);
-        if (job) {
-          const approved: Record<string, string> = {};
-          for (const member of members) {
-            const take = (job.castCandidates[member] || []).find((c) => c.approved);
-            if (take?.fileName) approved[member] = take.fileName;
-          }
-          if (Object.keys(approved).length) {
-            await syncApprovedCastToShelf({
-              styleId,
-              folderName: mobileMediaFolder(job),
-              altFolders: mobileCandidateFolders(job),
-              approved,
-            });
-          }
+        if (!job) {
+          return NextResponse.json({ error: `Job ${jobId} not found` }, { status: 404 });
+        }
+        const approved: Record<string, string> = {};
+        for (const member of members) {
+          const take = (job.castCandidates[member] || []).find((c) => c.approved);
+          if (take?.fileName) approved[member] = take.fileName;
+          else noApprovedTake.push(member);
+        }
+        if (Object.keys(approved).length) {
+          const result = await syncApprovedCastToShelf({
+            styleId,
+            folderName: mobileMediaFolder(job),
+            altFolders: mobileCandidateFolders(job),
+            approved,
+          });
+          synced = result.synced;
+          skipped = result.skipped;
         }
       }
 
       await saveCastBand(styleId, name, members);
       const bands = await listCastBands(styleId);
-      return NextResponse.json({ ok: true, bands });
+      return NextResponse.json({ ok: true, bands, synced, skipped, noApprovedTake });
     }
 
     if (body.action === "apply") {

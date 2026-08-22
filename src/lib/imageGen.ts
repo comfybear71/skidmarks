@@ -91,11 +91,19 @@ export function buildFacePrompt(opts: {
     // With a styleId the note is the whole story prompt (mobile Auto Studio),
     // so it has to read as background for ONE cast member — dumping it raw
     // made the generator draw the entire scene: both speakers, mid-dialogue.
-    opts.styleId && who
-      ? `Design ONE character only — ${opts.name}. ${opts.name} is: ${who}`
+    // A name with no note (e.g. a band member added with no bio) used to drop
+    // out of the prompt entirely, leaving nothing but "do not humanise it" —
+    // the generator drew the literal word ("Saxophone") as a creature/object
+    // instead of a person. Always name the character, and when there's no
+    // note, say outright that they're a person so a literal/instrument-sounding
+    // name doesn't get taken at face value.
+    opts.styleId
+      ? who
+        ? `Design ONE character only — ${opts.name}. ${opts.name} is: ${who}`
+        : `Design ONE character only — ${opts.name}, a human being. ${opts.name} is a person — a band member nicknamed "${opts.name}" — not the literal object, animal or instrument the name might suggest.`
       : who
         ? `Who they are: ${who}`
-        : "",
+        : `Who they are: ${opts.name}, a human being — not the literal object, animal or instrument the name might suggest.`,
     opts.rejectHints.length
       ? `Fix previous rejects: ${opts.rejectHints.join("; ")}`
       : "",
