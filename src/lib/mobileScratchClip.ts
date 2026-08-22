@@ -103,8 +103,28 @@ export async function runScratchLtxClip(opts: {
   const song = job.scratchSong;
   const songFile = (song?.fileName || "").trim();
   const voiceFile = (songFile || clipRow?.voiceFile || beat.voiceFile || "").trim();
-  const speaker = (clipRow?.speaker || beat.speaker || "").trim();
   const line = (clipRow?.line || beat.text || "").trim();
+  const leftovers = leftoverHydrateSpeakers(storyShot.id, storyShot.beats);
+  const shotCast = shotSpeakersOnCard({
+    shotId: storyShot.id,
+    title: storyShot.title,
+    staging: storyShot.staging,
+    summary: storyShot.summary,
+    plateFile: storyShot.plateFile,
+    jobSpeakers: job.speakers,
+    beats: storyShot.beats,
+  });
+  const singing =
+    Boolean(songFile) &&
+    (isDroppedPlaceholderLine(line) || job.styleId === "music_video" || Boolean(opts.cutId));
+  // Song look must follow who is on the plate (sax / singer), not a leftover
+  // carrier-beat speaker that points at someone else → "intruder" face.
+  const speaker = (
+    singing
+      ? shotCast[0] || clipRow?.speaker || beat.speaker
+      : clipRow?.speaker || beat.speaker || shotCast[0]
+  )
+    .trim();
   const sourceAudio = await resolveMobileBeatAudio({
     styleId: job.styleId,
     folderName: mediaFolder,
@@ -119,9 +139,6 @@ export async function runScratchLtxClip(opts: {
         : "Save the spoken line first — Play appears when the mp3 is ready.",
     );
   }
-  const singing =
-    Boolean(songFile) &&
-    (isDroppedPlaceholderLine(line) || job.styleId === "music_video" || Boolean(opts.cutId));
   if (looksLikePlatePositionPrompt(line) && !singing) {
     throw new Error("That's the still position, not speech. Wipe the line box, type what they say, then Save.");
   }
@@ -144,16 +161,6 @@ export async function runScratchLtxClip(opts: {
   const lookLock =
     candidateLookPrompt(job.castCandidates, speaker) ||
     job.roster.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())?.appearance;
-  const leftovers = leftoverHydrateSpeakers(storyShot.id, storyShot.beats);
-  const shotCast = shotSpeakersOnCard({
-    shotId: storyShot.id,
-    title: storyShot.title,
-    staging: storyShot.staging,
-    summary: storyShot.summary,
-    plateFile: storyShot.plateFile,
-    jobSpeakers: job.speakers,
-    beats: storyShot.beats,
-  });
   const stored = stripLtxLipSyncLead(beat.imageMotion || "");
   const storedOk =
     Boolean(stored) &&

@@ -13,6 +13,7 @@ import { nextCutAfter, songWindowLabel, type ScratchSongCut } from "@/lib/scratc
 import {
   findSongCarrierBeatId,
   isMusicVideoSongJob,
+  orderSongCutsTimeline,
   plateSliceWindows,
   clearStuckSongCooks,
   rebuildSongCutsFromDesk,
@@ -326,7 +327,9 @@ export async function POST(req: Request) {
 
     if (action === "stitch") {
       const song = job.scratchSong;
-      const cuts = (song?.cuts || []).filter((c) => c.clipFile && c.status === "done");
+      const cuts = orderSongCutsTimeline(
+        (song?.cuts || []).filter((c) => c.clipFile && c.status === "done"),
+      );
       if (cuts.length < 2) {
         return NextResponse.json(
           { error: "Need two finished clips to stitch." },

@@ -93,7 +93,7 @@ export function syncSongCutsToDesk(opts: {
     if (c.status !== "done" || !(c.clipFile || "").trim()) continue;
     doneByKey.set(`${(c.shotId || "").trim()}|${c.startSec}|${c.durationSec}`, c);
   }
-  return rebuilt.map((c) => {
+  const merged = rebuilt.map((c) => {
     const prev = doneByKey.get(`${(c.shotId || "").trim()}|${c.startSec}|${c.durationSec}`);
     if (!prev) return c;
     return {
@@ -104,6 +104,7 @@ export function syncSongCutsToDesk(opts: {
       error: "",
     };
   });
+  return orderSongCutsTimeline(merged);
 }
 
 /** Pending / fail / stuck cook — not a finished clip. Plate stays. */
@@ -242,6 +243,24 @@ export function cutsForDeskRow(
 
 export function deskRowAllDone(cuts: Pick<ScratchSongCut, "status" | "clipFile">[]): boolean {
   return Boolean(cuts.length) && cuts.every((c) => c.status === "done" && (c.clipFile || "").trim());
+}
+
+/**
+ * Stitch / playback order = song clock, not whatever order the cuts array
+ * ended up in after cooks or list edits. Same startSec keeps array order.
+ */
+export function orderSongCutsTimeline<T extends Pick<ScratchSongCut, "startSec">>(
+  cuts: T[],
+): T[] {
+  return cuts
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => {
+      const as = Number(a.c.startSec) || 0;
+      const bs = Number(b.c.startSec) || 0;
+      if (as !== bs) return as - bs;
+      return a.i - b.i;
+    })
+    .map(({ c }) => c);
 }
 
 export function shortPlateLabel(

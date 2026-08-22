@@ -25,6 +25,7 @@ import {
   rebuildSongCutsFromDesk,
   cutsForDeskRow,
   deskRowAllDone,
+  orderSongCutsTimeline,
   shortPlateLabel,
   clearStuckSongCooks,
   hasStuckSongCook,
@@ -180,11 +181,24 @@ assert.match(sing, /wide-brim black hat/);
 assert.match(sax, /Same face, same hair, same hat, same clothes/);
 assert.match(sax, /Keep lighting and shadows exactly as the start image/);
 assert.match(clip, /Song slices must rebuild the identity lock/);
+assert.match(clip, /who is on the plate/);
 assert.match(clip, /skipLipSyncLead: singing/);
 assert.doesNotMatch(
   clip,
   /skipLipSyncLead: singing && isInstrumentalStaging/,
 );
+assert.match(songRoute, /orderSongCutsTimeline/);
+{
+  const shuffled = [
+    { id: "b", startSec: 30, clipFile: "b.mp4", status: "done" },
+    { id: "a", startSec: 0, clipFile: "a.mp4", status: "done" },
+    { id: "c", startSec: 15, clipFile: "c.mp4", status: "done" },
+  ];
+  assert.deepEqual(
+    orderSongCutsTimeline(shuffled).map((c) => c.id),
+    ["a", "c", "b"],
+  );
+}
 
 assert.equal(songCookStorageKey("abc"), "skidmarks.songCook.abc");
 assert.match(scratchPage, /cookPendingSongCuts/);
