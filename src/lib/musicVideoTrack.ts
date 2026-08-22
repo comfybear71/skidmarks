@@ -283,3 +283,58 @@ export function lyricHoldMs(cues: LyricCue[], lineIndex: number | null): number 
   if (!Number.isFinite(nextAt)) return FALLBACK;
   return Math.max(MIN, Math.min(MAX, nextAt - mine.atMs));
 }
+
+/* ── Plate filmstrip ───────────────────────────────────────────────────── */
+
+/** Rail scale. 6px a second puts a 4:30 song on about 1600px of strip. */
+export const FILMSTRIP_PX_PER_SEC = 6;
+
+export type FilmstripCell = {
+  plateId: string;
+  label: string;
+  startMs: number;
+  endMs: number;
+  /** Rail offset and size in px, so the strip lines up with the song clock. */
+  leftPx: number;
+  widthPx: number;
+};
+
+export function filmstripRailWidth(songMs: number): number {
+  if (!Number.isFinite(songMs) || songMs <= 0) return 0;
+  return Math.round((songMs / 1000) * FILMSTRIP_PX_PER_SEC);
+}
+
+/** Where the playhead sits along the rail. Same scale as the cells. */
+export function filmstripPlayheadPx(playheadMs: number): number {
+  if (!Number.isFinite(playheadMs) || playheadMs <= 0) return 0;
+  return Math.round((playheadMs / 1000) * FILMSTRIP_PX_PER_SEC);
+}
+
+/**
+ * Timed plates laid along the rail in song order. Untimed plates are not on
+ * the strip at all — they have no place on the song yet, and inventing one
+ * would put a picture on screen that the render will not match.
+ */
+export function filmstripCells(
+  timings: PlateTiming[],
+  labelFor: (plateId: string) => string,
+): FilmstripCell[] {
+  return sortPlateTimings(timings || [])
+    .filter((t) => t.endMs > t.startMs)
+    .map((t) => ({
+      plateId: t.plateId,
+      label: labelFor(t.plateId),
+      startMs: t.startMs,
+      endMs: t.endMs,
+      leftPx: Math.round((t.startMs / 1000) * FILMSTRIP_PX_PER_SEC),
+      widthPx: Math.max(24, Math.round(((t.endMs - t.startMs) / 1000) * FILMSTRIP_PX_PER_SEC)),
+    }));
+}
+
+/** Which cell the song is inside right now — the one on the playhead. */
+export function filmstripCellAt(cells: FilmstripCell[], atMs: number): FilmstripCell | null {
+  for (const cell of cells) {
+    if (atMs >= cell.startMs && atMs < cell.endMs) return cell;
+  }
+  return null;
+}
