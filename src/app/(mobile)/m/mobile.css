@@ -877,16 +877,43 @@ body {
   scrollbar-color: color-mix(in srgb, var(--acid) 55%, transparent) transparent;
 }
 
-/** /m plate card — takes swipe sideways under the still (same as Scratch rail). */
+/** /m Clips — full phone width under the plate strip (not under one 160px card). */
+.m-plate-clips-bleed {
+  width: calc(100% + 32px);
+  margin: 4px -16px 10px;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.m-plate-clips-bleed-label {
+  color: var(--chrome-dim);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.m-plate-clips-bleed-focus {
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--chrome);
+  font-size: 10px;
+}
+
+/** /m plate takes — swipe sideways across the full bleed (same feel as Scratch). */
 .m-plate-clip-rail {
   display: flex;
   flex-direction: row;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 2px 0 6px;
+  padding: 4px 0 10px;
   touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;

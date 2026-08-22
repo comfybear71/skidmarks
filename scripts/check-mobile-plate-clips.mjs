@@ -97,11 +97,15 @@ assert.doesNotMatch(thumbs, /\$\{n \+ 1\}\/\$\{stacked\.length\}/);
 assert.doesNotMatch(thumbs, /zIndex: 70/);
 
 const editor = fs.readFileSync(new URL("../src/components/mobile/PlateReviewEditor.tsx", import.meta.url), "utf8");
+assert.match(editor, /m-plate-clips-bleed/);
 assert.match(editor, /m-plate-clip-rail/);
 assert.match(editor, /layout="strip"/);
+assert.doesNotMatch(editor, /width: `\$\{PLATE_TILE_PX\}px`[\s\S]{0,200}Clips/);
 
 const css = fs.readFileSync(new URL("../src/app/(mobile)/m/mobile.css", import.meta.url), "utf8");
+assert.match(css, /\.m-plate-clips-bleed/);
 assert.match(css, /\.m-plate-clip-rail/);
 assert.match(css, /touch-action: pan-x pan-y/);
+assert.match(css, /width: calc\(100% \+ 32px\)/);
 
 console.log("check-mobile-plate-clips: ok");

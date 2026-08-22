@@ -283,6 +283,45 @@ export function PlateReviewEditor({
     return { ...fromStory, plateFile: "", plateTakes: [], beats };
   };
 
+  /** Full-bleed Clips rail under the plate strip — not trapped in a 160px column. */
+  const plateClipRail = useMemo(() => {
+    const focus = (openShotId || "").trim();
+    const gather = (list: typeof shots) => {
+      const out: MobileClipUnit[] = [];
+      for (const s of list) {
+        const beatIds = displayShot(s.shotId)?.beats.map((b) => b.id) || [];
+        out.push(...clipsUnderPlate(s.shotId, beatIds, job.clips));
+      }
+      return out;
+    };
+    let clips = gather(focus ? shots.filter((s) => s.shotId === focus) : shots);
+    let focused = Boolean(focus && clips.length);
+    if (focus && !clips.length) {
+      clips = gather(shots);
+      focused = false;
+    }
+    const posterRow =
+      (focus ? shots.find((s) => s.shotId === focus) : null) ||
+      shots.find((s) => {
+        const beatIds = displayShot(s.shotId)?.beats.map((b) => b.id) || [];
+        return clipsUnderPlate(s.shotId, beatIds, job.clips).length > 0;
+      });
+    const plated = Boolean(posterRow?.plateFile && posterRow.plateFile !== "__error__");
+    const poster = plated
+      ? `/api/crash/gen/file?name=${encodeURIComponent(posterRow!.plateFile)}`
+      : posterRow
+        ? placeStillUrl(job, posterRow.sceneId)
+        : undefined;
+    const focusIdx = focus ? shots.findIndex((s) => s.shotId === focus) : -1;
+    return {
+      clips,
+      poster,
+      focusLabel: focused && focusIdx >= 0 ? `plate ${focusIdx + 1}` : "",
+    };
+    // displayShot closes over story + shots; list those rather than the fn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayShot is local
+  }, [openShotId, shots, story, job]);
+
   function defaultSceneId(): string | null {
     const known = (id: string | undefined): string | null => {
       if (!id) return null;
@@ -603,9 +642,6 @@ export function PlateReviewEditor({
             ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
             : placeSrc;
           const addingCast = castPickerShotId === s.shotId;
-          const storyShot = displayShot(s.shotId);
-          const beatIds = storyShot?.beats.map((b) => b.id) || [];
-          const underClips = clipsUnderPlate(s.shotId, beatIds, job.clips);
           const songMine = isMusicVideoSongJob(job)
             ? cutsForPlate(job.scratchSong?.cuts, s.shotId, s.plateFile)
             : [];
@@ -761,42 +797,6 @@ export function PlateReviewEditor({
                   </MobilePrimaryButton>
                 </div>
               ) : null}
-              {!collapsed && underClips.length ? (
-                <div
-                  style={{
-                    width: `${PLATE_TILE_PX}px`,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                    alignSelf: "stretch",
-                  }}
-                >
-                  <div
-                    style={{
-                      color: "var(--chrome-dim)",
-                      fontSize: "9px",
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                      textAlign: "left",
-                    }}
-                  >
-                    Clips
-                  </div>
-                  <div className="m-plate-clip-rail">
-                    <PlateClipThumbs
-                      job={job}
-                      clips={underClips}
-                      poster={plated ? thumbSrc : undefined}
-                      preload={s.shotId === openShotId}
-                      layout="strip"
-                      removeDisabled={clipBusy}
-                      onRemoveTake={({ beatId, fileName }) =>
-                        void postClipAction({ action: "remove-clip", beatId, fileName })
-                      }
-                    />
-                  </div>
-                </div>
-              ) : null}
             </div>
           );
         })}
@@ -826,6 +826,31 @@ export function PlateReviewEditor({
             {addBusySpeaker === "__empty__" ? "…" : "+"}
           </button>
       </div>
+
+      {!collapsed && plateClipRail.clips.length ? (
+        <div className="m-plate-clips-bleed">
+          <div className="m-plate-clips-bleed-label">
+            Clips
+            {plateClipRail.focusLabel ? (
+              <span className="m-plate-clips-bleed-focus">{plateClipRail.focusLabel}</span>
+            ) : null}
+          </div>
+          <div className="m-plate-clip-rail">
+            <PlateClipThumbs
+              job={job}
+              clips={plateClipRail.clips}
+              poster={plateClipRail.poster}
+              preload
+              layout="strip"
+              removeDisabled={clipBusy}
+              onRemoveTake={({ beatId, fileName }) =>
+                void postClipAction({ action: "remove-clip", beatId, fileName })
+              }
+            />
+          </div>
+        </div>
+      ) : null}
+
       {addError ? (
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)", margin: "0 0 10px" }}>{addError}</div>
       ) : null}

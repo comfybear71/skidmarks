@@ -12,7 +12,8 @@ export const PLATE_TILE_PX = 160;
 /**
  * /m strip: square plate, then 16:9 players under it — same width.
  * `layout="strip"` — oldest take left, newest right, swipe sideways
- * (Scratch pad + /m plate Clips). Default stack kept for callers that want it.
+ * across the full /m Clips bleed (and Scratch pad). Default stack kept
+ * for callers that want it.
  * Labels use song clock / file id — never "4/10" that renumbers on delete.
  * Every Generate take stays. Empty pending slots stay hidden.
  * Play opens a body portal — native controls inside the overflow rail
