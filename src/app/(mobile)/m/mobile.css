@@ -2769,30 +2769,27 @@ span.scratch-history-blob {
 }
 
 @keyframes m-lyric-pass {
+  /* One word, on its own. In from the left small and faint, biggest at the
+     centre, then shrinking and fading away past it. */
   0% {
-    transform: translateX(46vw) scale(0.55);
+    transform: translateX(-42vw) scale(0.5);
     opacity: 0;
-    font-size: 15px;
   }
-  22% {
-    transform: translateX(24vw) scale(0.85);
+  25% {
+    transform: translateX(-21vw) scale(0.8);
     opacity: 1;
-    font-size: 15px;
   }
   50% {
-    transform: translateX(0) scale(1.25);
+    transform: translateX(0) scale(1.6);
     opacity: 1;
-    font-size: 22px;
   }
-  78% {
-    transform: translateX(-24vw) scale(0.85);
-    opacity: 1;
-    font-size: 15px;
+  75% {
+    transform: translateX(21vw) scale(0.8);
+    opacity: 0.55;
   }
   100% {
-    transform: translateX(-46vw) scale(0.55);
+    transform: translateX(42vw) scale(0.5);
     opacity: 0;
-    font-size: 15px;
   }
 }
 

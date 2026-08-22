@@ -32,6 +32,9 @@ export type PlateTiming = {
 };
 
 export type MusicVideoTrackDraft = {
+  /** Saved the moment the mp3 is dropped, so a refresh cannot lose it. */
+  songFile?: string;
+  songDurationSec?: number;
   waveformPeaks?: number[];
   sectionMarkers?: TrackSectionMarker[];
   plateTimings?: PlateTiming[];
@@ -49,17 +52,18 @@ export const TRACK_SECTION_LABELS: {
   color: string;
 }[] = [
   { id: "intro", label: "Intro", color: "#35d6d0" },
-  { id: "verse", label: "Verse", color: "#c8ff2e" },
+  // Not the acid of the waveform — a verse band has to read against it.
+  { id: "verse", label: "Verse", color: "#f5f2ff" },
   { id: "chorus", label: "Chorus", color: "#ff3ea5" },
   { id: "bridge", label: "Bridge", color: "#9b7bff" },
   { id: "crescendo", label: "Crescendo", color: "#ff9f1c" },
   { id: "lead_break", label: "Lead break", color: "#4db8ff" },
   { id: "sax_break", label: "Sax break", color: "#ffd23f" },
   { id: "outro", label: "Outro", color: "#8fa2b8" },
-  { id: "custom", label: "Custom", color: "#d7d7db" },
+  { id: "custom", label: "Custom", color: "#9aa4b0" },
 ];
 
-const SECTION_FALLBACK_COLOR = "#d7d7db";
+const SECTION_FALLBACK_COLOR = "#9aa4b0";
 
 /** Colour for a marker. Anything typed by hand falls back to Custom's. */
 export function sectionColor(label: string): string {
