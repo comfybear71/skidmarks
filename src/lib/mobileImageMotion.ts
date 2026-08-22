@@ -141,6 +141,26 @@ export function isInstrumentalStaging(staging: string): boolean {
 }
 
 /**
+ * Face-in-shadow / silhouette staging — keep the lively lip-sync lead OFF and
+ * lock lighting so LTX does not brighten a hidden singer. Lit close-ups must
+ * NOT match this (clip 1 singer used to fail when every song cut got the lock).
+ */
+export function isSilhouetteStaging(staging: string): boolean {
+  const t = (staging || "").toLowerCase();
+  if (!t) return false;
+  return (
+    /\bsilhouette\b/.test(t) ||
+    /\bface[- ]in[- ]shadow\b/.test(t) ||
+    /\bin shadow\b/.test(t) ||
+    /\bbacklit\b/.test(t) ||
+    /\bagainst (?:the )?(?:light|sun|window)\b/.test(t) ||
+    /\bhat brim\b/.test(t) ||
+    /\bhidden face\b/.test(t) ||
+    /\bno (?:readable )?facial features\b/.test(t)
+  );
+}
+
+/**
  * CRAZY BIG HOLE JO (and Jo Too) — phone / keyboard warrior only when
  * Position or the Scratch toggle names it. Same held-prop shape as pies and
  * tennis rackets. Default for everyone including Jo is empty hands.
@@ -525,11 +545,11 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
 }
 
 /**
- * Song slices — keep lighting/shadows of the plate. The dialogue lip-sync lead
- * ("facial expressions are lively", "clear lip movement") lights hidden faces
- * and kills silhouette singers; song body already asks for mouth/head with music.
+ * Silhouette / shadow song slices only — keep lighting of the plate. Do not
+ * put this on a lit singer: "do not reveal the face" fights lip-sync and
+ * broke clip-1 singer after it was applied to every song cut.
  */
-const GOLD_SONG_LIGHTING_LOCK =
+const GOLD_SONG_SILHOUETTE_LIGHTING_LOCK =
   "Keep lighting and shadows exactly as the start image. Do not brighten or reveal the face. If the start image is a silhouette or face-in-shadow, stay that way — hat brim and darkness hide the eyes, no readable facial features.";
 
 /** Scratch / Music video song slice — singing, or playing if Position names an instrument. */
@@ -544,18 +564,22 @@ export function buildScratchSongLtxMotion(opts: {
   const look = shortLtxLookLock(opts.lookLock || "", 160);
   const who = look ? `${name}, ${look}` : name;
   const instrumental = isInstrumentalStaging(opts.staging || "");
+  const silhouette = !instrumental && isSilhouetteStaging(opts.staging || "");
   const identityLock =
     "Same face, same hair, same hat, same clothes as the start image — not a different person, not younger, not a new face. Do not invent or change letters on the hat or clothing.";
+  const singBody = silhouette
+    ? `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync — only as much mouth as the start image already shows.`
+    : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`;
   return clean(
     [
       GOLD_START_FRAME,
       instrumental
         ? `${who} is prominent, hands and body play the same instrument as the start image, in time with the music.`
-        : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync — only as much mouth as the start image already shows.`,
+        : singBody,
       GOLD_PROPS_LOCK,
       GOLD_NO_TEXT,
       identityLock,
-      GOLD_SONG_LIGHTING_LOCK,
+      silhouette ? GOLD_SONG_SILHOUETTE_LIGHTING_LOCK : "",
       instrumental
         ? `${name} plays this instrumental slice. ${GOLD_CAMERA_HOLDS} Same person, same instrument, same objects as the start image. Not a new player. Not singing unless the start image is already singing.`
         : `${name} sings this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`,

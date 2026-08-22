@@ -17,6 +17,8 @@ import {
   buildScratchSongLtxMotion,
   buildSegmentText,
   buildGlobalPrompt,
+  isInstrumentalStaging,
+  isSilhouetteStaging,
   ltxSendPrompt,
   stripLtxLipSyncLead,
   looksLikePlatePositionPrompt,
@@ -117,12 +119,17 @@ export async function runScratchLtxClip(opts: {
   const singing =
     Boolean(songFile) &&
     (isDroppedPlaceholderLine(line) || job.styleId === "music_video" || Boolean(opts.cutId));
-  // Song look must follow who is on the plate (sax / singer), not a leftover
-  // carrier-beat speaker that points at someone else → "intruder" face.
+  // Song look: prefer the cut/beat speaker when they are on this plate (singer
+  // on clip 1). Fall back to first plate cast so leftover carrier beats do not
+  // invent an intruder — but never ignore a named singer who is on the pad.
+  const beatSpeaker = (clipRow?.speaker || beat.speaker || "").trim();
+  const beatOnPlate =
+    Boolean(beatSpeaker) &&
+    shotCast.some((n) => n.trim().toLowerCase() === beatSpeaker.toLowerCase());
   const speaker = (
     singing
-      ? shotCast[0] || clipRow?.speaker || beat.speaker
-      : clipRow?.speaker || beat.speaker || shotCast[0]
+      ? (beatOnPlate ? beatSpeaker : "") || shotCast[0] || beatSpeaker
+      : beatSpeaker || shotCast[0]
   )
     .trim();
   const sourceAudio = await resolveMobileBeatAudio({
@@ -185,10 +192,14 @@ export async function runScratchLtxClip(opts: {
       lookLock,
       shotSpeakers: shotCast,
     });
-  // Song singing must not get LTX_LIP_SYNC_LEAD — that lead demands clear lips
-  // and lively facial expressions, which lights silhouette / shadow plates.
-  const imageMotion = ltxSendPrompt(body, storyShot.staging, {
-    skipLipSyncLead: singing,
+  // Skip lively lip-sync lead only for instrumental or silhouette/shadow
+  // plates. Lit singers need the lead — #259 skipped it on every song cut and
+  // clip-1 singer started failing.
+  const stagingText = storyShot.staging || "";
+  const imageMotion = ltxSendPrompt(body, stagingText, {
+    skipLipSyncLead:
+      singing &&
+      (isInstrumentalStaging(stagingText) || isSilhouetteStaging(stagingText)),
   });
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
