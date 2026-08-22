@@ -69,6 +69,8 @@ export async function POST(req: Request) {
       const noApprovedTake: string[] = [];
       let synced: string[] = [];
       let skipped: string[] = [];
+      const platesBuilt: string[] = [];
+      const platesFailed: string[] = [];
       if (jobId) {
         const job = await readMobileGenJob(jobId);
         if (!job) {
@@ -90,11 +92,41 @@ export async function POST(req: Request) {
           synced = result.synced;
           skipped = result.skipped;
         }
+
+        // Saving a band is also the one moment we know for certain a member
+        // has an approved face on THIS job — the reliable trigger to backfill
+        // a missing series character plate for members whose plate never got
+        // built (existing bands saved before the apply-time build existed, or
+        // approved outside the normal picker flow). Skips instantly for
+        // anyone who already has one.
+        const approvedNames = Object.keys(approved);
+        if (approvedNames.length) {
+          const plateResults = await Promise.allSettled(
+            approvedNames.map((member) => ensureCharacterPlate(job, member)),
+          );
+          plateResults.forEach((result, i) => {
+            const member = approvedNames[i];
+            if (result.status === "fulfilled") platesBuilt.push(member);
+            else {
+              const why = result.reason instanceof Error ? result.reason.message : String(result.reason);
+              console.error(`Character plate failed for ${member}: ${why}`);
+              platesFailed.push(member);
+            }
+          });
+        }
       }
 
       await saveCastBand(styleId, name, members);
       const bands = await listCastBands(styleId);
-      return NextResponse.json({ ok: true, bands, synced, skipped, noApprovedTake });
+      return NextResponse.json({
+        ok: true,
+        bands,
+        synced,
+        skipped,
+        noApprovedTake,
+        platesBuilt,
+        platesFailed,
+      });
     }
 
     if (body.action === "apply") {

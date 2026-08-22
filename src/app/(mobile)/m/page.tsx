@@ -452,6 +452,8 @@ export default function MobileHomePage() {
           synced?: string[];
           skipped?: string[];
           noApprovedTake?: string[];
+          platesBuilt?: string[];
+          platesFailed?: string[];
         }>("/api/crash/mobile/bands", {
           action: "save",
           styleId: job.styleId,
@@ -463,10 +465,14 @@ export default function MobileHomePage() {
         const synced = data.synced || [];
         const skipped = data.skipped || [];
         const noTake = data.noApprovedTake || [];
+        const platesBuilt = data.platesBuilt || [];
+        const platesFailed = data.platesFailed || [];
         const parts: string[] = [];
         if (synced.length) parts.push(`Synced to shelf: ${synced.join(", ")}.`);
         if (skipped.length) parts.push(`Couldn't read the photo file for: ${skipped.join(", ")}.`);
         if (noTake.length) parts.push(`No approved photo on this job for: ${noTake.join(", ")}.`);
+        if (platesBuilt.length) parts.push(`Character plate ready: ${platesBuilt.join(", ")}.`);
+        if (platesFailed.length) parts.push(`Character plate failed for: ${platesFailed.join(", ")}.`);
         setBandSyncNote(parts.join(" ") || "Band saved.");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't save that band");
