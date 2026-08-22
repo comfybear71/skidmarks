@@ -15,7 +15,6 @@ import { SingleCandidateCard } from "./SingleCandidateCard";
 import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { MusicVideoSongCuts } from "./MusicVideoSongCuts";
-import { MusicVideoStart } from "./MusicVideoStart";
 import { MusicVideoTrack } from "./MusicVideoTrack";
 import { isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong";
 import {
@@ -1762,6 +1761,9 @@ export function StudioTree({
             plated={songPlates}
             onJobChange={onJobChange}
             compact={!platesOpen}
+            busy={busy}
+            canStart={canWrite && !lockingScript && !job.folderName}
+            onStart={onStartMusicVideo}
           />
         ) : null}
 
@@ -1778,12 +1780,9 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {platesOpen && canWrite && !lockingScript && !job.folderName ? (
-          isMusicVideoSongJob(job) ? (
-            <div style={{ marginBottom: "12px" }}>
-              <MusicVideoStart job={job} busy={busy} onStart={onStartMusicVideo} />
-            </div>
-          ) : (
+        {/* Music video has one UI, empty or full — the track above is it.
+            Only the other shows get the paste-a-script panel. */}
+        {platesOpen && canWrite && !lockingScript && !job.folderName && !isMusicVideoSongJob(job) ? (
           <div style={{ marginBottom: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
               {job.folderName
@@ -1820,7 +1819,6 @@ export function StudioTree({
               </MobilePrimaryButton>
             </div>
           </div>
-          )
         ) : null}
 
         <div id="m-plates-strip">

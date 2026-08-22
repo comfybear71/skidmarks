@@ -227,82 +227,6 @@ export function activeLyricLineIndex(cues: LyricCue[], atMs: number): number | n
   return best ? best.lineIndex : null;
 }
 
-/* ── Seeing the video before it is rendered ────────────────────────────── */
-
-export type TrackCoverage = {
-  coveredMs: number;
-  songMs: number;
-  /** Song with no plate on it — these render as nothing. */
-  gaps: { startMs: number; endMs: number }[];
-  /** Two plates claiming the same seconds. */
-  overlaps: { startMs: number; endMs: number }[];
-  pct: number;
-};
-
-/**
- * What the stitched video will actually be, read off the plate timings —
- * so a hole in the song is visible before any LTX credit is spent.
- */
-export function trackCoverage(
-  timings: PlateTiming[],
-  songMs: number,
-): TrackCoverage {
-  const empty: TrackCoverage = { coveredMs: 0, songMs: 0, gaps: [], overlaps: [], pct: 0 };
-  if (!Number.isFinite(songMs) || songMs <= 0) return empty;
-
-  const spans = (timings || [])
-    .map((t) => ({
-      startMs: Math.max(0, Math.min(songMs, Math.round(t.startMs))),
-      endMs: Math.max(0, Math.min(songMs, Math.round(t.endMs))),
-    }))
-    .filter((s) => s.endMs > s.startMs)
-    .sort((a, b) => a.startMs - b.startMs);
-
-  const overlaps: { startMs: number; endMs: number }[] = [];
-  const merged: { startMs: number; endMs: number }[] = [];
-  for (const span of spans) {
-    const last = merged[merged.length - 1];
-    if (last && span.startMs < last.endMs) {
-      overlaps.push({ startMs: span.startMs, endMs: Math.min(span.endMs, last.endMs) });
-    }
-    if (!last || span.startMs > last.endMs) {
-      merged.push({ ...span });
-      continue;
-    }
-    last.endMs = Math.max(last.endMs, span.endMs);
-  }
-
-  const gaps: { startMs: number; endMs: number }[] = [];
-  let cursor = 0;
-  for (const span of merged) {
-    if (span.startMs > cursor) gaps.push({ startMs: cursor, endMs: span.startMs });
-    cursor = span.endMs;
-  }
-  if (cursor < songMs) gaps.push({ startMs: cursor, endMs: songMs });
-
-  const coveredMs = merged.reduce((sum, s) => sum + (s.endMs - s.startMs), 0);
-  return {
-    coveredMs,
-    songMs,
-    gaps,
-    overlaps,
-    pct: Math.round((coveredMs / songMs) * 100),
-  };
-}
-
-/** One line for the desk: what is covered, and what is still a hole. */
-export function coverageLine(cov: TrackCoverage): string {
-  if (!cov.songMs) return "";
-  const bits = [`${formatTrackClock(cov.coveredMs)} / ${formatTrackClock(cov.songMs)} covered`];
-  if (cov.gaps.length) {
-    bits.push(`${cov.gaps.length} gap${cov.gaps.length === 1 ? "" : "s"}`);
-  }
-  if (cov.overlaps.length) {
-    bits.push(`${cov.overlaps.length} overlap${cov.overlaps.length === 1 ? "" : "s"}`);
-  }
-  return bits.join(" · ");
-}
-
 /**
  * How long the current line holds the marquee: until the next pinned line,
  * or a readable default when it is the last one. Clamped so a long instrumental
@@ -323,57 +247,98 @@ export function lyricHoldMs(cues: LyricCue[], lineIndex: number | null): number 
   return Math.max(MIN, Math.min(MAX, nextAt - mine.atMs));
 }
 
-/* ── Plate filmstrip ───────────────────────────────────────────────────── */
-
-/** Rail scale. 6px a second puts a 4:30 song on about 1600px of strip. */
-export const FILMSTRIP_PX_PER_SEC = 6;
-
-export type FilmstripCell = {
-  plateId: string;
-  label: string;
-  startMs: number;
-  endMs: number;
-  /** Rail offset and size in px, so the strip lines up with the song clock. */
-  leftPx: number;
-  widthPx: number;
-};
-
-export function filmstripRailWidth(songMs: number): number {
-  if (!Number.isFinite(songMs) || songMs <= 0) return 0;
-  return Math.round((songMs / 1000) * FILMSTRIP_PX_PER_SEC);
+/**
+ * The section a moment of the song falls in. The plate bar under the wave is
+ * drawn in this section's colour, so a plate reads as belonging to the chorus
+ * or the sax break without a second legend to look at.
+ */
+export function sectionAtMs(
+  markers: TrackSectionMarker[],
+  atMs: number,
+): TrackSectionMarker | null {
+  for (const m of markers || []) {
+    if (m.endMs > m.startMs && atMs >= m.startMs && atMs < m.endMs) return m;
+  }
+  return null;
 }
 
-/** Where the playhead sits along the rail. Same scale as the cells. */
-export function filmstripPlayheadPx(playheadMs: number): number {
-  if (!Number.isFinite(playheadMs) || playheadMs <= 0) return 0;
-  return Math.round((playheadMs / 1000) * FILMSTRIP_PX_PER_SEC);
+/** Colour for one plate's bar: its section's, or plain when it sits outside one. */
+export function plateBarColor(
+  markers: TrackSectionMarker[],
+  timing: { startMs: number; endMs: number },
+): string {
+  // Judge by the middle: a plate that just clips the edge of the next section
+  // still belongs to the one it mostly plays over.
+  const mid = timing.startMs + (timing.endMs - timing.startMs) / 2;
+  const hit = sectionAtMs(markers, mid) || sectionAtMs(markers, timing.startMs);
+  return hit ? sectionColor(hit.label) : PLATE_BAR_NO_SECTION;
+}
+
+/** No section marked yet — neutral, never a colour that means something else. */
+export const PLATE_BAR_NO_SECTION = "#78c8ff";
+
+/* ── Typed section times ───────────────────────────────────────────────────
+   Dragging a range gave 15-second blobs and two half-right Intros. A section
+   is a number you know — type it. */
+
+/** "0:35", "35", "1:04.5" → ms. Returns null when it is not a time. */
+export function parseTrackClock(text: string): number | null {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  const m = raw.match(/^(?:(\d+):)?(\d{1,2}(?:\.\d+)?)$/);
+  if (!m) return null;
+  const mins = m[1] ? Number(m[1]) : 0;
+  const secs = Number(m[2]);
+  if (!Number.isFinite(mins) || !Number.isFinite(secs)) return null;
+  if (m[1] && secs >= 60) return null;
+  return Math.round((mins * 60 + secs) * 1000);
 }
 
 /**
- * Timed plates laid along the rail in song order. Untimed plates are not on
- * the strip at all — they have no place on the song yet, and inventing one
- * would put a picture on screen that the render will not match.
+ * Move one edge of a section and hand back the whole list. Keeps at least a
+ * second on the section and never runs past the end of the song, so a typo
+ * cannot produce a marker that draws backwards.
  */
-export function filmstripCells(
-  timings: PlateTiming[],
-  labelFor: (plateId: string) => string,
-): FilmstripCell[] {
-  return sortPlateTimings(timings || [])
-    .filter((t) => t.endMs > t.startMs)
-    .map((t) => ({
-      plateId: t.plateId,
-      label: labelFor(t.plateId),
-      startMs: t.startMs,
-      endMs: t.endMs,
-      leftPx: Math.round((t.startMs / 1000) * FILMSTRIP_PX_PER_SEC),
-      widthPx: Math.max(24, Math.round(((t.endMs - t.startMs) / 1000) * FILMSTRIP_PX_PER_SEC)),
-    }));
+export function withSectionTime(
+  markers: TrackSectionMarker[],
+  id: string,
+  edge: "start" | "end",
+  ms: number,
+  songMs: number,
+): TrackSectionMarker[] {
+  const MIN = 1000;
+  const cap = Number.isFinite(songMs) && songMs > 0 ? songMs : Infinity;
+  return (markers || []).map((m) => {
+    if (m.id !== id) return m;
+    const at = Math.max(0, Math.min(cap, Math.round(ms)));
+    if (edge === "start") {
+      const startMs = Math.min(at, m.endMs - MIN);
+      return { ...m, startMs: Math.max(0, startMs) };
+    }
+    const endMs = Math.max(at, m.startMs + MIN);
+    return { ...m, endMs: Math.min(cap, endMs) };
+  });
 }
 
-/** Which cell the song is inside right now — the one on the playhead. */
-export function filmstripCellAt(cells: FilmstripCell[], atMs: number): FilmstripCell | null {
-  for (const cell of cells) {
-    if (atMs >= cell.startMs && atMs < cell.endMs) return cell;
+/** Rename a section (Custom, mostly). Blank keeps what was there. */
+export function withSectionLabel(
+  markers: TrackSectionMarker[],
+  id: string,
+  label: string,
+): TrackSectionMarker[] {
+  const next = String(label || "").trim();
+  if (!next) return markers;
+  return (markers || []).map((m) => (m.id === id ? { ...m, label: next } : m));
+}
+
+/**
+ * Where a new section should start: the end of the last one, so sections lay
+ * end to end instead of piling up as overlapping 15s blobs.
+ */
+export function nextSectionStartMs(markers: TrackSectionMarker[]): number {
+  let end = 0;
+  for (const m of markers || []) {
+    if (m.endMs > end) end = m.endMs;
   }
-  return null;
+  return end;
 }

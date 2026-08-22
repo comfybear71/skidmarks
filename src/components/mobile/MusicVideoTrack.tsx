@@ -7,21 +7,19 @@ import {
   TRACK_ACID,
   TRACK_SECTION_LABELS,
   activeLyricLineIndex,
-  coverageLine,
   formatTrackClock,
-  filmstripCellAt,
-  filmstripCells,
-  filmstripPlayheadPx,
-  filmstripRailWidth,
   lyricHoldMs,
   lyricCueFor,
   lyricLinesFrom,
   plateTimingForShot,
+  nextSectionStartMs,
+  parseTrackClock,
+  plateBarColor,
   sectionColor,
   sectionTint,
   sectionTitle,
   sortPlateTimings,
-  trackCoverage,
+  withSectionTime,
   withLyricCue,
   withoutLyricCue,
   type LyricCue,
@@ -34,10 +32,67 @@ import { findSongCarrierBeatId, musicVideoCreditLine } from "@/lib/musicVideoSon
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { readApiJson } from "@/lib/studioFetchError";
+import { MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
 const TRACK_WAVE_HEIGHT = 84;
+
+/** Same hex at an alpha — canvas has no colour-mix(). */
+function hexTint(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
+}
+
+/** m:ss box. Commits on blur or Enter; a typo just snaps back. */
+function TimeField({
+  value,
+  label,
+  onCommit,
+}: {
+  value: number;
+  label: string;
+  onCommit: (ms: number) => void;
+}) {
+  // Draft only exists while the box is being typed in; the rest of the time
+  // the value is read straight off the marker. No effect syncing the two.
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? formatTrackClock(value);
+
+  function commit() {
+    const typed = draft;
+    setDraft(null);
+    if (typed === null) return;
+    const ms = parseTrackClock(typed);
+    if (ms !== null) onCommit(ms);
+  }
+
+  return (
+    <input
+      className="m-track-time"
+      value={text}
+      aria-label={label}
+      inputMode="numeric"
+      spellCheck={false}
+      onFocus={(e) => {
+        setDraft(formatTrackClock(value));
+        e.currentTarget.select();
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setDraft(null);
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
 
 async function trackAction(
   action: string,
@@ -183,11 +238,13 @@ function WaveformCanvas({
       const x0 = xAt(p.startMs);
       const bw = Math.max(3, xAt(p.endMs) - x0);
       const r = Math.min(4, bw / 2);
+      // The bar wears its section's colour: chorus plates read as chorus.
+      const barColor = plateBarColor(markers, p);
       ctx.beginPath();
       ctx.roundRect(x0 + 0.5, laneY, Math.max(2, bw - 1), laneBoxH, r);
-      ctx.fillStyle = "rgba(120, 200, 255, 0.32)";
+      ctx.fillStyle = hexTint(barColor, 0.38);
       ctx.fill();
-      ctx.strokeStyle = "rgba(120, 200, 255, 0.75)";
+      ctx.strokeStyle = hexTint(barColor, 0.9);
       ctx.lineWidth = 1;
       ctx.stroke();
       if (bw > 40) {
@@ -195,7 +252,7 @@ function WaveformCanvas({
         ctx.beginPath();
         ctx.rect(x0, laneY, bw - 4, laneBoxH);
         ctx.clip();
-        ctx.fillStyle = "rgba(230, 245, 255, 0.92)";
+        ctx.fillStyle = "rgba(12, 14, 18, 0.95)";
         ctx.fillText(p.label, x0 + 5, laneY + 3);
         ctx.restore();
       }
@@ -289,13 +346,20 @@ export function MusicVideoTrack({
   plated,
   onJobChange,
   compact = false,
+  busy: startBusy = false,
+  canStart = false,
+  onStart,
 }: {
   job: MobileGenJob;
   story: CrashStoryDoc | null;
   plated: MobileShotUnit[];
   onJobChange: (job: MobileGenJob) => void;
-  /** Collapsed: the wave, the clock and the player only — no editing tools. */
+  /** Collapsed: the wave and the player only — no editing tools. */
   compact?: boolean;
+  busy?: boolean;
+  /** Not locked yet — the Start button belongs in this same UI. */
+  canStart?: boolean;
+  onStart?: (lyrics: string) => void;
 }) {
   const song = job.scratchSong;
   const parked = usePendingSong(job.id);
@@ -331,8 +395,6 @@ export function MusicVideoTrack({
   const lyricLines = useMemo(() => lyricLinesFrom(job.lyrics || ""), [job.lyrics]);
   const activeLyric = activeLyricLineIndex(lyricCues, playheadMs);
 
-  const railRef = useRef<HTMLDivElement | null>(null);
-  const handScroll = useRef(0);
 
   const plateRows = useMemo(() => {
     return plated.map((row, i) => {
@@ -418,6 +480,19 @@ export function MusicVideoTrack({
     }
   }, [audioSrc, parked?.file, peaks.length, busy, decodeAndSave, song?.fileName, song?.waveformPeaks]);
 
+  async function saveLyricCues(next: LyricCue[]) {
+    setBusy("cues");
+    setNote("");
+    try {
+      const updated = await trackAction("set-lyric-cues", { jobId: job.id, lyricCues: next });
+      if (updated) onJobChange(updated);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't pin that line");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function saveMarkers(next: typeof markers) {
     setBusy("markers");
     setNote("");
@@ -458,44 +533,6 @@ export function MusicVideoTrack({
     }
   }
 
-  const coverage = useMemo(
-    () => trackCoverage(song?.plateTimings || job.trackDraft?.plateTimings || [], durationMs),
-    [song?.plateTimings, job.trackDraft?.plateTimings, durationMs],
-  );
-
-  async function saveLyricCues(next: LyricCue[]) {
-    setBusy("cues");
-    setNote("");
-    try {
-      const updated = await trackAction("set-lyric-cues", { jobId: job.id, lyricCues: next });
-      if (updated) onJobChange(updated);
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't pin that line");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  const cells = useMemo(
-    () =>
-      filmstripCells(song?.plateTimings || job.trackDraft?.plateTimings || [], (id) => {
-        const row = plateRows.find((p) => p.shotId === id);
-        return row?.title || id;
-      }),
-    [song?.plateTimings, job.trackDraft?.plateTimings, plateRows],
-  );
-  const railWidth = filmstripRailWidth(durationMs);
-  const onNow = filmstripCellAt(cells, playheadMs);
-
-  // Follow the song: keep the playhead under the centre marker unless a hand
-  // is on the strip.
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail || !railWidth) return;
-    if (Date.now() - handScroll.current < 1200) return;
-    rail.scrollLeft = filmstripPlayheadPx(playheadMs) - rail.clientWidth / 2;
-  }, [playheadMs, railWidth]);
-
   async function dropSong() {
     // Pre-lock the mp3 is only parked in the browser, so dropping it is local.
     // Post-lock it is a real attached take: leave that to the song desk rather
@@ -508,17 +545,12 @@ export function MusicVideoTrack({
     setNote("The song is attached to this episode — drop it from the song desk.");
   }
 
-  const hasSong = Boolean(song?.fileName || parked?.file);
-
   return (
     <div className="m-track">
-      {!hasSong ? (
-        <div className="m-track-empty">
-          <p className="m-track-note">Add the song before you time plates.</p>
-          <SongDropRow jobId={job.id} job={job} />
-        </div>
-      ) : (
-        <>
+      {/* One UI, empty or full. No separate "add the song" screen: the same
+          title row, player slot, wave, sections and plates are always here —
+          they just have nothing in them until a song lands. */}
+      <>
           {/* Title line owns the card: name left, Lyrics and drop right.
               Lyrics stay shut — that box is for entering them, not reading. */}
           <div className="m-track-song-top">
@@ -605,7 +637,9 @@ export function MusicVideoTrack({
                 audioRef={audioRef}
                 onTime={(sec) => setPlayheadMs(Math.round(sec * 1000))}
               />
-            ) : null}
+            ) : (
+              <SongDropRow jobId={job.id} />
+            )}
           </div>
 
           {peaks.length ? (
@@ -655,16 +689,17 @@ export function MusicVideoTrack({
               className="m-track-btn"
               disabled={Boolean(busy) || rangeEndMs <= rangeStartMs}
               onClick={() => {
-                const next = [
+                // Start where the last section ended so they lay end to end,
+                // instead of stacking 15-second blobs wherever the drag landed.
+                const startMs = nextSectionStartMs(markers);
+                const endMs = Math.min(
+                  durationMs || startMs + 15000,
+                  Math.max(startMs + 1000, startMs + 15000),
+                );
+                void saveMarkers([
                   ...markers,
-                  {
-                    id: `marker_${Date.now()}`,
-                    label: markerLabel,
-                    startMs: rangeStartMs,
-                    endMs: rangeEndMs,
-                  },
-                ];
-                void saveMarkers(next);
+                  { id: `marker_${Date.now()}`, label: markerLabel, startMs, endMs },
+                ]);
               }}
             >
               Add section
@@ -683,12 +718,23 @@ export function MusicVideoTrack({
                     <i className="m-track-swatch" style={{ background: sectionColor(m.label) }} />
                     {sectionTitle(m.label)}
                   </span>
-                  <span>
-                    {formatTrackClock(m.startMs)} – {formatTrackClock(m.endMs)}
-                  </span>
+                  {/* Type the times. A section is a number you know — dragging
+                      for it gave 15s blobs and two half-right Intros. */}
+                  <TimeField
+                    value={m.startMs}
+                    label={`${sectionTitle(m.label)} start`}
+                    onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "start", ms, durationMs))}
+                  />
+                  <span className="m-track-dash">–</span>
+                  <TimeField
+                    value={m.endMs}
+                    label={`${sectionTitle(m.label)} end`}
+                    onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "end", ms, durationMs))}
+                  />
                   <button
                     type="button"
                     className="m-track-x"
+                    aria-label={`Remove ${sectionTitle(m.label)}`}
                     onClick={() => void saveMarkers(markers.filter((x) => x.id !== m.id))}
                   >
                     ×
@@ -698,88 +744,17 @@ export function MusicVideoTrack({
             </ul>
           ) : null}
 
-          {coverage.songMs ? (
-            <div className="m-track-cover">
-              <div className="m-track-cover-bar">
-                <div className="m-track-cover-fill" style={{ width: `${coverage.pct}%` }} />
-              </div>
-              <span className="m-track-cover-line">{coverageLine(coverage)}</span>
-            </div>
-          ) : null}
-
-          {/* One line, not the sheet. It comes in from the right, fades up and
-              scales, then leaves to the left — against the playhead. The full
-              words live behind the LYRICS toggle, where they get pinned. */}
-          {!compact && lyricLines.length ? (
+          {/* Nothing playing, nothing shown — the strip is for the line, not
+              for instructions about the line. */}
+          {!compact && activeLyric !== null ? (
             <div className="m-track-marquee">
-              {activeLyric !== null ? (
-                <span
-                  key={activeLyric}
-                  className="m-track-marquee-line"
-                  style={{ animationDuration: `${lyricHoldMs(lyricCues, activeLyric)}ms` }}
-                >
-                  {lyricLines.find((l) => l.index === activeLyric)?.text || ""}
-                </span>
-              ) : (
-                <span className="m-track-marquee-idle">
-                  {lyricCues.length
-                    ? "Play — the pinned line rides through here."
-                    : "Open LYRICS, tap a line to pin it at the playhead."}
-                </span>
-              )}
-            </div>
-          ) : null}
-
-          {/* The plates as a filmstrip on the song clock: it slides right to
-              left past the playhead, the same way the words do. Drag it by
-              hand to scrub; it picks the song back up when you let go. */}
-          {!compact && cells.length ? (
-            <div className="m-film">
-              <div className="m-film-head">
-                <span>Plates on the song</span>
-                <span className="m-film-now">{onNow ? onNow.label : "—"}</span>
-              </div>
-              <div
-                ref={railRef}
-                className="m-film-scroll"
-                onPointerDown={() => {
-                  handScroll.current = Date.now();
-                }}
-                onScroll={() => {
-                  // A hand on the strip wins for a moment, then the song has it
-                  // back — otherwise the follow fights the drag.
-                  if (Date.now() - handScroll.current > 1200) return;
-                  handScroll.current = Date.now();
-                }}
+              <span
+                key={activeLyric}
+                className="m-track-marquee-line"
+                style={{ animationDuration: `${lyricHoldMs(lyricCues, activeLyric)}ms` }}
               >
-                <div className="m-film-rail" style={{ width: `${railWidth}px` }}>
-                  {cells.map((cell) => {
-                    const row = plateRows.find((p) => p.shotId === cell.plateId);
-                    const live = onNow?.plateId === cell.plateId;
-                    return (
-                      <button
-                        type="button"
-                        key={cell.plateId}
-                        className={`m-film-cell${live ? " is-now" : ""}`}
-                        style={{ left: `${cell.leftPx}px`, width: `${cell.widthPx}px` }}
-                        onClick={() => {
-                          setPlayheadMs(cell.startMs);
-                          if (audioRef.current) audioRef.current.currentTime = cell.startMs / 1000;
-                        }}
-                      >
-                        {row?.plateFile ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={mobileLocationStillUrl(job, row.plateFile)} alt="" />
-                        ) : (
-                          <span className="m-film-cell-empty" />
-                        )}
-                        <span className="m-film-cell-label">{cell.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="m-film-playhead" aria-hidden="true" />
+                {lyricLines.find((l) => l.index === activeLyric)?.text || ""}
+              </span>
             </div>
           ) : null}
 
@@ -822,13 +797,16 @@ export function MusicVideoTrack({
                 </div>
               ))}
             </div>
-          ) : job.folderName ? (
-            <p className="m-track-note">Draw plates first — then drag a range and tap Use range.</p>
-          ) : (
-            <p className="m-track-note">Start the video — then time plates on this track.</p>
-          )}
-        </>
-      )}
+          ) : null}
+
+          {/* Same UI before and after Start: this is a button in it, not a
+              different screen in front of it. */}
+          {!compact && canStart ? (
+            <MobilePrimaryButton disabled={startBusy} onClick={() => onStart?.(job.lyrics || "")}>
+              {startBusy ? "Starting…" : "Start the video"}
+            </MobilePrimaryButton>
+          ) : null}
+      </>
       {note ? <p className="m-track-err">{note}</p> : null}
     </div>
   );

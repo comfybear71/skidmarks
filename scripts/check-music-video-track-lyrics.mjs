@@ -3,10 +3,8 @@ import assert from "node:assert/strict";
 import {
   TRACK_ACID,
   activeLyricLineIndex,
-  coverageLine,
   lyricCueFor,
   lyricLinesFrom,
-  trackCoverage,
   withLyricCue,
   withoutLyricCue,
 } from "../src/lib/musicVideoTrack.ts";
@@ -41,52 +39,6 @@ assert.equal(activeLyricLineIndex(timed, 9_999), 0);
 assert.equal(activeLyricLineIndex(timed, 10_000), 1);
 assert.equal(activeLyricLineIndex(timed, 19_500), 1, "not the nearest — the last started");
 assert.equal(activeLyricLineIndex([], 5000), null);
-
-// Coverage: the holes in the song, before any LTX credit is spent.
-const song = 60_000;
-const full = trackCoverage(
-  [
-    { plateId: "a", startMs: 0, endMs: 30_000, sortIndex: 0 },
-    { plateId: "b", startMs: 30_000, endMs: 60_000, sortIndex: 1 },
-  ],
-  song,
-);
-assert.equal(full.pct, 100);
-assert.deepEqual(full.gaps, [], "back-to-back plates leave no gap");
-assert.deepEqual(full.overlaps, []);
-
-const holed = trackCoverage(
-  [
-    { plateId: "a", startMs: 0, endMs: 15_000, sortIndex: 0 },
-    { plateId: "b", startMs: 45_000, endMs: 60_000, sortIndex: 1 },
-  ],
-  song,
-);
-assert.equal(holed.coveredMs, 30_000);
-assert.equal(holed.pct, 50);
-assert.deepEqual(holed.gaps, [{ startMs: 15_000, endMs: 45_000 }]);
-
-// A trailing hole counts — the song outlasting the plates is the common one.
-const short = trackCoverage([{ plateId: "a", startMs: 0, endMs: 20_000, sortIndex: 0 }], song);
-assert.deepEqual(short.gaps, [{ startMs: 20_000, endMs: 60_000 }]);
-
-// Two plates on the same seconds is a real mistake, not silent overwrite.
-const clash = trackCoverage(
-  [
-    { plateId: "a", startMs: 0, endMs: 30_000, sortIndex: 0 },
-    { plateId: "b", startMs: 20_000, endMs: 60_000, sortIndex: 1 },
-  ],
-  song,
-);
-assert.equal(clash.overlaps.length, 1);
-assert.deepEqual(clash.overlaps[0], { startMs: 20_000, endMs: 30_000 });
-assert.equal(clash.coveredMs, 60_000, "overlap is not double counted");
-
-// No song, no numbers — never a divide by zero on screen.
-assert.equal(trackCoverage([], 0).pct, 0);
-assert.equal(coverageLine(trackCoverage([], 0)), "");
-assert.match(coverageLine(holed), /0:30 \/ 1:00 covered · 1 gap$/);
-assert.match(coverageLine(clash), /1 overlap$/);
 
 console.log("check-music-video-track-lyrics OK");
 
@@ -123,66 +75,37 @@ console.log("check-music-video-track-lyrics OK");
     "utf8",
   );
   assert.match(ui, /m-track-marquee/);
+  // The strip carries the line or nothing — never instructions about the line.
+  assert.doesNotMatch(ui, /m-track-marquee-idle/, "no placeholder text in the marquee");
+  assert.doesNotMatch(ui, /tap a line to pin it at the playhead/i);
   const marqueeAt = ui.indexOf("m-track-marquee");
   const listAt = ui.indexOf("m-track-lyric-list");
   assert.ok(listAt > 0 && listAt < marqueeAt, "the pin list sits inside the LyricsBox pinRail");
   assert.match(ui, /pinRail=/, "pin list is passed into the collapsed lyrics panel");
+
+  // One UI, empty or full. No second screen in front of the track.
+  assert.doesNotMatch(ui, /m-track-empty/, "no separate empty-state layout");
+  assert.doesNotMatch(ui, /Add the song before you time plates/);
+  assert.equal(
+    (ui.match(/<SongDropRow/g) || []).length,
+    1,
+    "exactly one drop box in the music video UI",
+  );
+
+  const tree = readFileSync(
+    new URL("../src/components/mobile/StudioTree.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(tree, /MusicVideoStart/, "the pre-lock panel is gone");
+  assert.match(
+    tree,
+    /!isMusicVideoSongJob\(job\)/,
+    "the paste-a-script panel is for the other shows only",
+  );
 }
 
 console.log("check-music-video-marquee OK");
 
-// ── Plate filmstrip: the plates laid on the song clock ──────────────────────
-{
-  const {
-    FILMSTRIP_PX_PER_SEC,
-    filmstripCellAt,
-    filmstripCells,
-    filmstripPlayheadPx,
-    filmstripRailWidth,
-  } = await import("../src/lib/musicVideoTrack.ts");
-
-  const label = (id) => `plate ${id}`;
-  const timings = [
-    { plateId: "b", startMs: 30_000, endMs: 45_000, sortIndex: 1 },
-    { plateId: "a", startMs: 0, endMs: 15_000, sortIndex: 0 },
-  ];
-  const cells = filmstripCells(timings, label);
-
-  assert.deepEqual(cells.map((c) => c.plateId), ["a", "b"], "strip runs in song order");
-  assert.equal(cells[0].leftPx, 0);
-  assert.equal(cells[0].widthPx, 15 * FILMSTRIP_PX_PER_SEC);
-  assert.equal(cells[1].leftPx, 30 * FILMSTRIP_PX_PER_SEC, "offset follows the song clock");
-  assert.equal(cells[0].label, "plate a");
-
-  // A plate with no time on the song is not on the strip: showing it somewhere
-  // would put a picture on screen the render will not match.
-  assert.equal(
-    filmstripCells([{ plateId: "z", startMs: 5000, endMs: 5000, sortIndex: 0 }], label).length,
-    0,
-  );
-
-  // Very short cells stay tappable rather than collapsing to a hairline.
-  const tiny = filmstripCells(
-    [{ plateId: "t", startMs: 0, endMs: 500, sortIndex: 0 }],
-    label,
-  );
-  assert.ok(tiny[0].widthPx >= 24, "a tiny cut is still wide enough to hit");
-
-  // The playhead and the rail share one scale, or the strip drifts off the song.
-  assert.equal(filmstripRailWidth(60_000), 60 * FILMSTRIP_PX_PER_SEC);
-  assert.equal(filmstripPlayheadPx(30_000), 30 * FILMSTRIP_PX_PER_SEC);
-  assert.equal(filmstripRailWidth(0), 0);
-  assert.equal(filmstripPlayheadPx(-5), 0);
-
-  // Which plate is playing right now.
-  assert.equal(filmstripCellAt(cells, 0)?.plateId, "a");
-  assert.equal(filmstripCellAt(cells, 14_999)?.plateId, "a");
-  assert.equal(filmstripCellAt(cells, 15_000), null, "the end is exclusive — no double hit");
-  assert.equal(filmstripCellAt(cells, 20_000), null, "a gap has no plate on it");
-  assert.equal(filmstripCellAt(cells, 44_999)?.plateId, "b");
-}
-
-console.log("check-music-video-filmstrip OK");
 
 // ── Section colours: Intro and Outro, and every type its own colour ─────────
 {
@@ -225,3 +148,89 @@ console.log("check-music-video-filmstrip OK");
 }
 
 console.log("check-music-video-sections OK");
+
+// ── The plate bar wears its section's colour ───────────────────────────────
+{
+  const { PLATE_BAR_NO_SECTION, plateBarColor, sectionAtMs, sectionColor } =
+    await import("../src/lib/musicVideoTrack.ts");
+
+  const markers = [
+    { id: "m1", label: "intro", startMs: 0, endMs: 20_000 },
+    { id: "m2", label: "chorus", startMs: 20_000, endMs: 60_000 },
+  ];
+
+  assert.equal(sectionAtMs(markers, 0)?.label, "intro");
+  assert.equal(sectionAtMs(markers, 19_999)?.label, "intro");
+  assert.equal(sectionAtMs(markers, 20_000)?.label, "chorus", "ends are exclusive");
+  assert.equal(sectionAtMs(markers, 90_000), null, "past the last marker is no section");
+  assert.equal(sectionAtMs([], 1000), null);
+  // A zero-width marker is not a section anything can sit in.
+  assert.equal(sectionAtMs([{ id: "z", label: "verse", startMs: 5, endMs: 5 }], 5), null);
+
+  // A plate inside the chorus draws chorus-coloured.
+  assert.equal(
+    plateBarColor(markers, { startMs: 25_000, endMs: 40_000 }),
+    sectionColor("chorus"),
+  );
+  // One that only clips the chorus edge still belongs to the intro it plays over.
+  assert.equal(
+    plateBarColor(markers, { startMs: 2000, endMs: 21_000 }),
+    sectionColor("intro"),
+  );
+  // Nothing marked yet: neutral, never a colour that means a section.
+  assert.equal(plateBarColor([], { startMs: 0, endMs: 15_000 }), PLATE_BAR_NO_SECTION);
+  assert.equal(
+    plateBarColor(markers, { startMs: 80_000, endMs: 95_000 }),
+    PLATE_BAR_NO_SECTION,
+  );
+}
+
+console.log("check-music-video-plate-bar OK");
+
+// ── Typed section times: one Intro 0:00–0:35, not two 15s blobs ─────────────
+{
+  const { nextSectionStartMs, parseTrackClock, withSectionLabel, withSectionTime } =
+    await import("../src/lib/musicVideoTrack.ts");
+
+  assert.equal(parseTrackClock("0:35"), 35_000);
+  assert.equal(parseTrackClock("35"), 35_000, "bare seconds work");
+  assert.equal(parseTrackClock("1:04"), 64_000);
+  assert.equal(parseTrackClock("2:07.5"), 127_500);
+  assert.equal(parseTrackClock(" 0:35 "), 35_000);
+  assert.equal(parseTrackClock(""), null);
+  assert.equal(parseTrackClock("banana"), null);
+  assert.equal(parseTrackClock("1:75"), null, "75 seconds past a minute is a typo");
+
+  const song = 120_000;
+  const markers = [{ id: "a", label: "intro", startMs: 0, endMs: 15_000 }];
+
+  // The whole point: stretch one Intro out to 0:35.
+  const stretched = withSectionTime(markers, "a", "end", 35_000, song);
+  assert.equal(stretched[0].endMs, 35_000);
+  assert.equal(stretched.length, 1, "editing never adds a row");
+
+  // A backwards typo cannot make a section that draws inside out.
+  assert.equal(withSectionTime(markers, "a", "end", 0, song)[0].endMs, 1000);
+  assert.equal(withSectionTime(markers, "a", "start", 99_000, song)[0].startMs, 14_000);
+  // Nor run past the song, or before it starts.
+  assert.equal(withSectionTime(markers, "a", "end", 999_000, song)[0].endMs, song);
+  assert.equal(withSectionTime(markers, "a", "start", -5000, song)[0].startMs, 0);
+  // Other rows are left alone.
+  assert.equal(withSectionTime(markers, "nope", "end", 1000, song)[0].endMs, 15_000);
+
+  // A new section starts where the last one ended — end to end, not stacked.
+  assert.equal(nextSectionStartMs([]), 0);
+  assert.equal(nextSectionStartMs(stretched), 35_000);
+  assert.equal(
+    nextSectionStartMs([
+      { id: "a", label: "intro", startMs: 0, endMs: 35_000 },
+      { id: "b", label: "verse", startMs: 35_000, endMs: 70_000 },
+    ]),
+    70_000,
+  );
+
+  assert.equal(withSectionLabel(markers, "a", "Chainsaw solo")[0].label, "Chainsaw solo");
+  assert.equal(withSectionLabel(markers, "a", "  ")[0].label, "intro", "blank keeps the name");
+}
+
+console.log("check-music-video-section-times OK");
