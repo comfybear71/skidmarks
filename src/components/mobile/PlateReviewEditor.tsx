@@ -1671,8 +1671,8 @@ function PlatePreview({
   onPicked: (plateFile: string, staging: string, plateTakes?: PlateTake[]) => void;
 }) {
   const [zoomed, setZoomed] = useState(false);
-  const [busy, setBusy] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const pickSeq = useRef(0);
 
   const takes: PlateTake[] =
     jobPlated === false
@@ -1693,49 +1693,77 @@ function PlatePreview({
     : placeSrc || "";
   if (!src) return null;
 
-  async function pick(index: number) {
+  /** Flip the still now; Neon save runs in the background. Waiting on pick
+   * is why swipe / × felt stuck for seconds on the phone. */
+  function pick(index: number) {
     const take = takes[index];
-    if (!take || index === activeIndex || busy) return;
+    if (!take || index === activeIndex) return;
     if (take.id === "legacy") {
       onPicked(take.fileName, take.staging);
       return;
     }
-    setBusy(true);
-    try {
-      const res = await fetch("/api/crash/mobile/plate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, shotId: shot.id, action: "pick", takeId: take.id }),
-      });
-      const data = (await res.json()) as { plateFile?: string; staging?: string; plateTakes?: PlateTake[] };
-      if (res.ok) onPicked(data.plateFile ?? take.fileName, data.staging ?? take.staging, data.plateTakes);
-    } catch {
-      /* strip stays on the current take */
-    } finally {
-      setBusy(false);
-    }
+    const plateTakes = takes.map((t) => ({ ...t, approved: t.id === take.id }));
+    onPicked(take.fileName, take.staging, plateTakes);
+    const seq = ++pickSeq.current;
+    void (async () => {
+      try {
+        const res = await fetch("/api/crash/mobile/plate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId, shotId: shot.id, action: "pick", takeId: take.id }),
+        });
+        if (!res.ok || seq !== pickSeq.current) return;
+        const data = (await res.json()) as {
+          plateFile?: string;
+          staging?: string;
+          plateTakes?: PlateTake[];
+        };
+        if (data.plateTakes) {
+          onPicked(data.plateFile ?? take.fileName, data.staging ?? take.staging, data.plateTakes);
+        }
+      } catch {
+        /* UI already flipped; next Open / refresh reconciles */
+      }
+    })();
   }
 
-  async function dropActiveTake() {
-    if (!active || active.id === "legacy" || busy) return;
-    setBusy(true);
-    try {
-      const res = await fetch("/api/crash/mobile/plate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, shotId: shot.id, action: "drop-take", takeId: active.id }),
-      });
-      const data = (await res.json()) as {
-        plateFile?: string;
-        staging?: string;
-        plateTakes?: PlateTake[];
-      };
-      if (res.ok) onPicked(data.plateFile ?? "", data.staging ?? "", data.plateTakes ?? []);
-    } catch {
-      /* take stays until the next refresh */
-    } finally {
-      setBusy(false);
+  function dropActiveTake() {
+    if (!active || active.id === "legacy") return;
+    const takeId = active.id;
+    let remaining = takes.filter((t) => t.id !== takeId);
+    let plateFile = "";
+    let staging = "";
+    if (remaining.length) {
+      if (active.fileName === shot.plateFile || remaining.every((t) => !t.approved)) {
+        const nextTake = remaining[remaining.length - 1]!;
+        remaining = remaining.map((t) => ({ ...t, approved: t.id === nextTake.id }));
+        plateFile = nextTake.fileName;
+        staging = nextTake.staging;
+      } else {
+        plateFile = shot.plateFile || "";
+        staging = shot.staging || "";
+      }
     }
+    onPicked(plateFile, staging, remaining);
+    const seq = ++pickSeq.current;
+    void (async () => {
+      try {
+        const res = await fetch("/api/crash/mobile/plate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId, shotId: shot.id, action: "drop-take", takeId }),
+        });
+        if (!res.ok || seq !== pickSeq.current) return;
+        const data = (await res.json()) as {
+          plateFile?: string;
+          staging?: string;
+          plateTakes?: PlateTake[];
+        };
+        onPicked(data.plateFile ?? "", data.staging ?? "", data.plateTakes ?? remaining);
+      } catch {
+        /* UI already dropped; next Open / refresh reconciles */
+      }
+    })();
   }
 
   const arrowStyle = {
@@ -1767,8 +1795,8 @@ function PlatePreview({
           if (startX === null) return;
           const dx = (e.changedTouches[0]?.clientX ?? startX) - startX;
           if (Math.abs(dx) < 40) return;
-          if (dx < 0) void pick(activeIndex + 1);
-          else void pick(activeIndex - 1);
+          if (dx < 0) pick(activeIndex + 1);
+          else pick(activeIndex - 1);
         }}
         aria-label="Enlarge this plate"
         style={{
@@ -1786,15 +1814,14 @@ function PlatePreview({
         <img
           src={src}
           alt={shot.title}
-          style={{ width: "100%", maxHeight: "260px", objectFit: "contain", display: "block", opacity: busy ? 0.6 : 1 }}
+          style={{ width: "100%", maxHeight: "260px", objectFit: "contain", display: "block" }}
         />
       </button>
       {takes.length > 0 && active?.id !== "legacy" ? (
         <button
           type="button"
           aria-label="Park this still"
-          disabled={busy}
-          onClick={() => void dropActiveTake()}
+          onClick={() => dropActiveTake()}
           style={{
             position: "absolute",
             top: "8px",
@@ -1808,7 +1835,7 @@ function PlatePreview({
             color: "var(--acid)",
             fontSize: "14px",
             lineHeight: 1,
-            cursor: busy ? "default" : "pointer",
+            cursor: "pointer",
             zIndex: 2,
           }}
         >
@@ -1820,8 +1847,8 @@ function PlatePreview({
           <button
             type="button"
             aria-label="Previous take"
-            disabled={busy || activeIndex === 0}
-            onClick={() => void pick(activeIndex - 1)}
+            disabled={activeIndex === 0}
+            onClick={() => pick(activeIndex - 1)}
             style={{ ...arrowStyle, left: "6px", opacity: activeIndex === 0 ? 0.3 : 1 }}
           >
             ‹
@@ -1829,8 +1856,8 @@ function PlatePreview({
           <button
             type="button"
             aria-label="Next take"
-            disabled={busy || activeIndex === takes.length - 1}
-            onClick={() => void pick(activeIndex + 1)}
+            disabled={activeIndex === takes.length - 1}
+            onClick={() => pick(activeIndex + 1)}
             style={{ ...arrowStyle, right: "6px", opacity: activeIndex === takes.length - 1 ? 0.3 : 1 }}
           >
             ›

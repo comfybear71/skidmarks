@@ -159,7 +159,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Lock the episode first" }, { status: 400 });
     }
 
-    await hydrateMobilePackOnDisk(job.styleId, job.folderName);
+    // pick / drop-take only touch Neon story + job — no local pack shell.
+    // Hydrate was making every still swipe wait on a full cloud pull.
+    if (!pick && !dropTake) {
+      await hydrateMobilePackOnDisk(job.styleId, job.folderName);
+    }
     const story = await readMobileStory(job.styleId, job.folderName);
 
     if (drawPoll) {
