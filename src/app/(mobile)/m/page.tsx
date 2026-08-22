@@ -14,6 +14,7 @@ import { OpenEpisodePicker } from "@/components/mobile/OpenEpisodePicker";
 import { useMobileAssist } from "@/components/mobile/useMobileAssist";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
+import { MUSIC_VIDEO_SHOW_NAME } from "@/lib/musicVideoSong";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CastBand } from "@/lib/castBands";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
@@ -53,6 +54,10 @@ export default function MobileHomePage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftingNew, setDraftingNew] = useState(false);
   const pollRef = useRef<number | null>(null);
+  // Declared early (before startRun below, which reads it to auto-apply a
+  // band on cold start) — the fetch effect that actually populates this
+  // still lives further down, near the other band handlers.
+  const [bands, setBands] = useState<CastBand[]>([]);
 
   const stopPoll = useCallback(() => {
     if (pollRef.current) window.clearInterval(pollRef.current);
@@ -202,12 +207,12 @@ export default function MobileHomePage() {
   // locations are built freeform first now, so this just creates the job —
   // it lands on "cast_build". The episode is a template + AI draft + refine,
   // then Lock — Grok does not write-and-lock in one tap.
-  // Music video has no "vibe" prompt — Artist/Song stand in for it, since
-  // that's what actually identifies the pack for that style.
+  // Music video has no "vibe" prompt — every music video pack lives under
+  // one channel name, with the band/song as the credit line underneath
+  // (musicVideoCreditLine, driven by the separate artist/songTitle fields
+  // saved alongside prompt) — matches the two-line Vibe display convention.
   const isMusicVideoStyle = styleId === "music_video";
-  const effectivePrompt = isMusicVideoStyle
-    ? [artist.trim(), songTitle.trim()].filter(Boolean).join(" — ")
-    : prompt;
+  const effectivePrompt = isMusicVideoStyle ? MUSIC_VIDEO_SHOW_NAME : prompt;
   const startRun = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -220,7 +225,25 @@ export default function MobileHomePage() {
         artist,
         songTitle,
       });
-      setJob(created);
+      // Cold start should not need a manual tap when the Artist you typed is
+      // already a saved band for this style — apply it immediately.
+      const matchedBand = isMusicVideoStyle
+        ? bands.find((b) => b.name.trim().toLowerCase() === artist.trim().toLowerCase())
+        : undefined;
+      let finalJob = created;
+      if (matchedBand) {
+        try {
+          const applied = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/bands", {
+            action: "apply",
+            jobId: created.id,
+            name: matchedBand.name,
+          });
+          finalJob = applied.job;
+        } catch {
+          /* job still created fine — cast just stays empty, same as before */
+        }
+      }
+      setJob(finalJob);
       setDraftingNew(false);
       setResumeError("");
       setPickerOpen(false);
@@ -229,7 +252,7 @@ export default function MobileHomePage() {
     } finally {
       setBusy(false);
     }
-  }, [effectivePrompt, styleId, styleRealism, artist, songTitle]);
+  }, [effectivePrompt, styleId, styleRealism, artist, songTitle, isMusicVideoStyle, bands]);
 
   const openEpisode = useCallback(async (jobId: string) => {
     const id = jobId.trim();
@@ -392,7 +415,6 @@ export default function MobileHomePage() {
     [job],
   );
 
-  const [bands, setBands] = useState<CastBand[]>([]);
   // In an episode, bands follow that job's style. On the pre-episode "vibe"
   // screen there's no job yet — follow whichever style tile is selected so
   // the Artist field can still suggest a saved band before Start directing.
