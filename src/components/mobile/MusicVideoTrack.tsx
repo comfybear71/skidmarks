@@ -9,14 +9,11 @@ import {
   activeLyricLineIndex,
   coverageLine,
   formatTrackClock,
-  filmstripCellAt,
-  filmstripCells,
-  filmstripPlayheadPx,
-  filmstripRailWidth,
   lyricHoldMs,
   lyricCueFor,
   lyricLinesFrom,
   plateTimingForShot,
+  plateBarColor,
   sectionColor,
   sectionTint,
   sectionTitle,
@@ -38,6 +35,15 @@ import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideo
 
 /** Tall enough to read the bars and the plate lane on a phone. */
 const TRACK_WAVE_HEIGHT = 84;
+
+/** Same hex at an alpha — canvas has no colour-mix(). */
+function hexTint(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
+}
 
 async function trackAction(
   action: string,
@@ -183,11 +189,13 @@ function WaveformCanvas({
       const x0 = xAt(p.startMs);
       const bw = Math.max(3, xAt(p.endMs) - x0);
       const r = Math.min(4, bw / 2);
+      // The bar wears its section's colour: chorus plates read as chorus.
+      const barColor = plateBarColor(markers, p);
       ctx.beginPath();
       ctx.roundRect(x0 + 0.5, laneY, Math.max(2, bw - 1), laneBoxH, r);
-      ctx.fillStyle = "rgba(120, 200, 255, 0.32)";
+      ctx.fillStyle = hexTint(barColor, 0.38);
       ctx.fill();
-      ctx.strokeStyle = "rgba(120, 200, 255, 0.75)";
+      ctx.strokeStyle = hexTint(barColor, 0.9);
       ctx.lineWidth = 1;
       ctx.stroke();
       if (bw > 40) {
@@ -195,7 +203,7 @@ function WaveformCanvas({
         ctx.beginPath();
         ctx.rect(x0, laneY, bw - 4, laneBoxH);
         ctx.clip();
-        ctx.fillStyle = "rgba(230, 245, 255, 0.92)";
+        ctx.fillStyle = "rgba(12, 14, 18, 0.95)";
         ctx.fillText(p.label, x0 + 5, laneY + 3);
         ctx.restore();
       }
@@ -331,8 +339,6 @@ export function MusicVideoTrack({
   const lyricLines = useMemo(() => lyricLinesFrom(job.lyrics || ""), [job.lyrics]);
   const activeLyric = activeLyricLineIndex(lyricCues, playheadMs);
 
-  const railRef = useRef<HTMLDivElement | null>(null);
-  const handScroll = useRef(0);
 
   const plateRows = useMemo(() => {
     return plated.map((row, i) => {
@@ -475,26 +481,6 @@ export function MusicVideoTrack({
       setBusy("");
     }
   }
-
-  const cells = useMemo(
-    () =>
-      filmstripCells(song?.plateTimings || job.trackDraft?.plateTimings || [], (id) => {
-        const row = plateRows.find((p) => p.shotId === id);
-        return row?.title || id;
-      }),
-    [song?.plateTimings, job.trackDraft?.plateTimings, plateRows],
-  );
-  const railWidth = filmstripRailWidth(durationMs);
-  const onNow = filmstripCellAt(cells, playheadMs);
-
-  // Follow the song: keep the playhead under the centre marker unless a hand
-  // is on the strip.
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail || !railWidth) return;
-    if (Date.now() - handScroll.current < 1200) return;
-    rail.scrollLeft = filmstripPlayheadPx(playheadMs) - rail.clientWidth / 2;
-  }, [playheadMs, railWidth]);
 
   async function dropSong() {
     // Pre-lock the mp3 is only parked in the browser, so dropping it is local.
@@ -727,59 +713,6 @@ export function MusicVideoTrack({
                     : "Open LYRICS, tap a line to pin it at the playhead."}
                 </span>
               )}
-            </div>
-          ) : null}
-
-          {/* The plates as a filmstrip on the song clock: it slides right to
-              left past the playhead, the same way the words do. Drag it by
-              hand to scrub; it picks the song back up when you let go. */}
-          {!compact && cells.length ? (
-            <div className="m-film">
-              <div className="m-film-head">
-                <span>Plates on the song</span>
-                <span className="m-film-now">{onNow ? onNow.label : "—"}</span>
-              </div>
-              <div
-                ref={railRef}
-                className="m-film-scroll"
-                onPointerDown={() => {
-                  handScroll.current = Date.now();
-                }}
-                onScroll={() => {
-                  // A hand on the strip wins for a moment, then the song has it
-                  // back — otherwise the follow fights the drag.
-                  if (Date.now() - handScroll.current > 1200) return;
-                  handScroll.current = Date.now();
-                }}
-              >
-                <div className="m-film-rail" style={{ width: `${railWidth}px` }}>
-                  {cells.map((cell) => {
-                    const row = plateRows.find((p) => p.shotId === cell.plateId);
-                    const live = onNow?.plateId === cell.plateId;
-                    return (
-                      <button
-                        type="button"
-                        key={cell.plateId}
-                        className={`m-film-cell${live ? " is-now" : ""}`}
-                        style={{ left: `${cell.leftPx}px`, width: `${cell.widthPx}px` }}
-                        onClick={() => {
-                          setPlayheadMs(cell.startMs);
-                          if (audioRef.current) audioRef.current.currentTime = cell.startMs / 1000;
-                        }}
-                      >
-                        {row?.plateFile ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={mobileLocationStillUrl(job, row.plateFile)} alt="" />
-                        ) : (
-                          <span className="m-film-cell-empty" />
-                        )}
-                        <span className="m-film-cell-label">{cell.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="m-film-playhead" aria-hidden="true" />
             </div>
           ) : null}
 

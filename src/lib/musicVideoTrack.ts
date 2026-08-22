@@ -323,57 +323,32 @@ export function lyricHoldMs(cues: LyricCue[], lineIndex: number | null): number 
   return Math.max(MIN, Math.min(MAX, nextAt - mine.atMs));
 }
 
-/* ── Plate filmstrip ───────────────────────────────────────────────────── */
-
-/** Rail scale. 6px a second puts a 4:30 song on about 1600px of strip. */
-export const FILMSTRIP_PX_PER_SEC = 6;
-
-export type FilmstripCell = {
-  plateId: string;
-  label: string;
-  startMs: number;
-  endMs: number;
-  /** Rail offset and size in px, so the strip lines up with the song clock. */
-  leftPx: number;
-  widthPx: number;
-};
-
-export function filmstripRailWidth(songMs: number): number {
-  if (!Number.isFinite(songMs) || songMs <= 0) return 0;
-  return Math.round((songMs / 1000) * FILMSTRIP_PX_PER_SEC);
-}
-
-/** Where the playhead sits along the rail. Same scale as the cells. */
-export function filmstripPlayheadPx(playheadMs: number): number {
-  if (!Number.isFinite(playheadMs) || playheadMs <= 0) return 0;
-  return Math.round((playheadMs / 1000) * FILMSTRIP_PX_PER_SEC);
-}
-
 /**
- * Timed plates laid along the rail in song order. Untimed plates are not on
- * the strip at all — they have no place on the song yet, and inventing one
- * would put a picture on screen that the render will not match.
+ * The section a moment of the song falls in. The plate bar under the wave is
+ * drawn in this section's colour, so a plate reads as belonging to the chorus
+ * or the sax break without a second legend to look at.
  */
-export function filmstripCells(
-  timings: PlateTiming[],
-  labelFor: (plateId: string) => string,
-): FilmstripCell[] {
-  return sortPlateTimings(timings || [])
-    .filter((t) => t.endMs > t.startMs)
-    .map((t) => ({
-      plateId: t.plateId,
-      label: labelFor(t.plateId),
-      startMs: t.startMs,
-      endMs: t.endMs,
-      leftPx: Math.round((t.startMs / 1000) * FILMSTRIP_PX_PER_SEC),
-      widthPx: Math.max(24, Math.round(((t.endMs - t.startMs) / 1000) * FILMSTRIP_PX_PER_SEC)),
-    }));
-}
-
-/** Which cell the song is inside right now — the one on the playhead. */
-export function filmstripCellAt(cells: FilmstripCell[], atMs: number): FilmstripCell | null {
-  for (const cell of cells) {
-    if (atMs >= cell.startMs && atMs < cell.endMs) return cell;
+export function sectionAtMs(
+  markers: TrackSectionMarker[],
+  atMs: number,
+): TrackSectionMarker | null {
+  for (const m of markers || []) {
+    if (m.endMs > m.startMs && atMs >= m.startMs && atMs < m.endMs) return m;
   }
   return null;
 }
+
+/** Colour for one plate's bar: its section's, or plain when it sits outside one. */
+export function plateBarColor(
+  markers: TrackSectionMarker[],
+  timing: { startMs: number; endMs: number },
+): string {
+  // Judge by the middle: a plate that just clips the edge of the next section
+  // still belongs to the one it mostly plays over.
+  const mid = timing.startMs + (timing.endMs - timing.startMs) / 2;
+  const hit = sectionAtMs(markers, mid) || sectionAtMs(markers, timing.startMs);
+  return hit ? sectionColor(hit.label) : PLATE_BAR_NO_SECTION;
+}
+
+/** No section marked yet — neutral, never a colour that means something else. */
+export const PLATE_BAR_NO_SECTION = "#78c8ff";

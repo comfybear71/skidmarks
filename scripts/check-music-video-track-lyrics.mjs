@@ -131,58 +131,6 @@ console.log("check-music-video-track-lyrics OK");
 
 console.log("check-music-video-marquee OK");
 
-// ── Plate filmstrip: the plates laid on the song clock ──────────────────────
-{
-  const {
-    FILMSTRIP_PX_PER_SEC,
-    filmstripCellAt,
-    filmstripCells,
-    filmstripPlayheadPx,
-    filmstripRailWidth,
-  } = await import("../src/lib/musicVideoTrack.ts");
-
-  const label = (id) => `plate ${id}`;
-  const timings = [
-    { plateId: "b", startMs: 30_000, endMs: 45_000, sortIndex: 1 },
-    { plateId: "a", startMs: 0, endMs: 15_000, sortIndex: 0 },
-  ];
-  const cells = filmstripCells(timings, label);
-
-  assert.deepEqual(cells.map((c) => c.plateId), ["a", "b"], "strip runs in song order");
-  assert.equal(cells[0].leftPx, 0);
-  assert.equal(cells[0].widthPx, 15 * FILMSTRIP_PX_PER_SEC);
-  assert.equal(cells[1].leftPx, 30 * FILMSTRIP_PX_PER_SEC, "offset follows the song clock");
-  assert.equal(cells[0].label, "plate a");
-
-  // A plate with no time on the song is not on the strip: showing it somewhere
-  // would put a picture on screen the render will not match.
-  assert.equal(
-    filmstripCells([{ plateId: "z", startMs: 5000, endMs: 5000, sortIndex: 0 }], label).length,
-    0,
-  );
-
-  // Very short cells stay tappable rather than collapsing to a hairline.
-  const tiny = filmstripCells(
-    [{ plateId: "t", startMs: 0, endMs: 500, sortIndex: 0 }],
-    label,
-  );
-  assert.ok(tiny[0].widthPx >= 24, "a tiny cut is still wide enough to hit");
-
-  // The playhead and the rail share one scale, or the strip drifts off the song.
-  assert.equal(filmstripRailWidth(60_000), 60 * FILMSTRIP_PX_PER_SEC);
-  assert.equal(filmstripPlayheadPx(30_000), 30 * FILMSTRIP_PX_PER_SEC);
-  assert.equal(filmstripRailWidth(0), 0);
-  assert.equal(filmstripPlayheadPx(-5), 0);
-
-  // Which plate is playing right now.
-  assert.equal(filmstripCellAt(cells, 0)?.plateId, "a");
-  assert.equal(filmstripCellAt(cells, 14_999)?.plateId, "a");
-  assert.equal(filmstripCellAt(cells, 15_000), null, "the end is exclusive — no double hit");
-  assert.equal(filmstripCellAt(cells, 20_000), null, "a gap has no plate on it");
-  assert.equal(filmstripCellAt(cells, 44_999)?.plateId, "b");
-}
-
-console.log("check-music-video-filmstrip OK");
 
 // ── Section colours: Intro and Outro, and every type its own colour ─────────
 {
@@ -225,3 +173,41 @@ console.log("check-music-video-filmstrip OK");
 }
 
 console.log("check-music-video-sections OK");
+
+// ── The plate bar wears its section's colour ───────────────────────────────
+{
+  const { PLATE_BAR_NO_SECTION, plateBarColor, sectionAtMs, sectionColor } =
+    await import("../src/lib/musicVideoTrack.ts");
+
+  const markers = [
+    { id: "m1", label: "intro", startMs: 0, endMs: 20_000 },
+    { id: "m2", label: "chorus", startMs: 20_000, endMs: 60_000 },
+  ];
+
+  assert.equal(sectionAtMs(markers, 0)?.label, "intro");
+  assert.equal(sectionAtMs(markers, 19_999)?.label, "intro");
+  assert.equal(sectionAtMs(markers, 20_000)?.label, "chorus", "ends are exclusive");
+  assert.equal(sectionAtMs(markers, 90_000), null, "past the last marker is no section");
+  assert.equal(sectionAtMs([], 1000), null);
+  // A zero-width marker is not a section anything can sit in.
+  assert.equal(sectionAtMs([{ id: "z", label: "verse", startMs: 5, endMs: 5 }], 5), null);
+
+  // A plate inside the chorus draws chorus-coloured.
+  assert.equal(
+    plateBarColor(markers, { startMs: 25_000, endMs: 40_000 }),
+    sectionColor("chorus"),
+  );
+  // One that only clips the chorus edge still belongs to the intro it plays over.
+  assert.equal(
+    plateBarColor(markers, { startMs: 2000, endMs: 21_000 }),
+    sectionColor("intro"),
+  );
+  // Nothing marked yet: neutral, never a colour that means a section.
+  assert.equal(plateBarColor([], { startMs: 0, endMs: 15_000 }), PLATE_BAR_NO_SECTION);
+  assert.equal(
+    plateBarColor(markers, { startMs: 80_000, endMs: 95_000 }),
+    PLATE_BAR_NO_SECTION,
+  );
+}
+
+console.log("check-music-video-plate-bar OK");
