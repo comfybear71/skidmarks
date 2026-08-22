@@ -102,6 +102,8 @@ export type MobileGenJob = {
   /** Music video only. Older jobs omit these. */
   artist?: string;
   songTitle?: string;
+  /** Music video only. Pasted words — never sent as a spoken line. */
+  lyrics?: string;
   /** Leftover from the old "How long?" step. Not a planning input —
    * runtime comes from voiced lines + plates. Kept so older jobs still parse. */
   targetDurationSec: number;
