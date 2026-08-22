@@ -77,10 +77,15 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: `Job ${jobId} not found` }, { status: 404 });
         }
         const approved: Record<string, string> = {};
+        const looks: Record<string, string> = {};
         for (const member of members) {
           const take = (job.castCandidates[member] || []).find((c) => c.approved);
-          if (take?.fileName) approved[member] = take.fileName;
-          else noApprovedTake.push(member);
+          if (take?.fileName) {
+            approved[member] = take.fileName;
+            // Save the words with the face. A band saved without them puts a
+            // picture on the shelf that nothing describes.
+            if (take.prompt?.trim()) looks[member] = take.prompt.trim();
+          } else noApprovedTake.push(member);
         }
         if (Object.keys(approved).length) {
           const result = await syncApprovedCastToShelf({
@@ -88,6 +93,7 @@ export async function POST(req: Request) {
             folderName: mobileMediaFolder(job),
             altFolders: mobileCandidateFolders(job),
             approved,
+            looks,
           });
           synced = result.synced;
           skipped = result.skipped;
@@ -158,7 +164,14 @@ export async function POST(req: Request) {
       const castCandidates = { ...job.castCandidates };
       for (const [member, card] of Object.entries(reusable)) {
         castCandidates[member] = [
-          { id: card.fileName, fileName: card.fileName, approved: true },
+          {
+            id: card.fileName,
+            fileName: card.fileName,
+            approved: true,
+            // Without this the reused member arrives as a face with no words,
+            // and every shot re-invents whatever the picture does not pin down.
+            prompt: card.look || "",
+          },
         ];
       }
 

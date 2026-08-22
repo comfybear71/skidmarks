@@ -11,6 +11,9 @@ import type { ShowStyleId } from "./showStylePresets";
 export type ReusableCastCard = {
   name: string;
   fileName: string;
+  /** The words saved with the face. A card reused without them is why a
+   * character drifts: the next episode gets the picture and nothing else. */
+  look: string;
 };
 
 function toMtime(v: number | string | null | undefined): number {
@@ -46,11 +49,17 @@ export async function findReusableCastCards(
   // the newest upload for that name is always the one that should win —
   // sort newest-first so .find() below never locks onto a stale face.
   const cards = rows
-    .map((row) => ({
-      name: (row.label_name || "").trim(),
-      fileName: row.filename,
-      mtime: toMtime(row.mtime),
-    }))
+    .map((row) => {
+      const name = (row.label_name || "").trim();
+      const brief = (row.label_brief || "").trim();
+      return {
+        name,
+        fileName: row.filename,
+        // Older rows stored the name in label_brief; that is not a look.
+        look: brief && brief.toLowerCase() !== name.toLowerCase() ? brief : "",
+        mtime: toMtime(row.mtime),
+      };
+    })
     .filter((c) => c.name && c.fileName)
     .sort((a, b) => b.mtime - a.mtime);
   if (!cards.length) return {};

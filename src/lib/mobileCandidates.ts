@@ -206,6 +206,8 @@ export async function approveCastCandidate(
   fileName: string,
   /** Job id + pack — faces minted before screenplay live under the job id. */
   altFolders: string[] = [],
+  /** The candidate's look words, kept with the face on the show shelf. */
+  look = "",
 ): Promise<void> {
   const character = setAttemptStatus(characterId, attemptId, "approved");
   const name = character?.name || "";
@@ -227,11 +229,11 @@ export async function approveCastCandidate(
     ext,
     styleId,
     name: name || fileName,
-    brief: name || fileName,
+    brief: look.trim() || name || fileName,
   });
 
   if (name) {
-    await uploadCastFaceToShelf(styleId, name, buffer, ext);
+    await uploadCastFaceToShelf(styleId, name, buffer, ext, look);
   }
 }
 
@@ -243,6 +245,10 @@ export async function uploadCastFaceToShelf(
   name: string,
   buffer: Buffer,
   ext: string,
+  /** The words that describe this face. Stored beside it so a later episode
+   * gets the look as well as the picture — a reused card with no words is why
+   * a character drifts from shot to shot. */
+  look = "",
 ): Promise<void> {
   if (!cloudStoreEnabled()) return;
   const cloudFileName = `upload_${Date.now()}_${sortableId("cast")}${ext.toLowerCase() === ".jpeg" ? ".jpg" : ext}`;
@@ -260,7 +266,9 @@ export async function uploadCastFaceToShelf(
     filename: cloudFileName,
     blobPathname: put.pathname,
     labelName: name,
-    labelBrief: name,
+    // The look, not the name. labelBrief used to repeat the name, so the shelf
+    // held a face and nothing describing it.
+    labelBrief: look.trim() || name,
   });
 }
 
@@ -283,6 +291,8 @@ export async function syncApprovedCastToShelf(opts: {
   altFolders?: string[];
   /** speaker name -> approved candidate fileName */
   approved: Record<string, string>;
+  /** speaker name -> look words, so the shelf keeps the face and the words. */
+  looks?: Record<string, string>;
 }): Promise<{ synced: string[]; skipped: string[] }> {
   const synced: string[] = [];
   const skipped: string[] = [];
@@ -305,7 +315,13 @@ export async function syncApprovedCastToShelf(opts: {
       }
       const buffer = fs.readFileSync(resolved);
       const ext = path.extname(fileName) || ".png";
-      await uploadCastFaceToShelf(opts.styleId, trimmedName, buffer, ext);
+      await uploadCastFaceToShelf(
+        opts.styleId,
+        trimmedName,
+        buffer,
+        ext,
+        (opts.looks || {})[trimmedName] || "",
+      );
       synced.push(trimmedName);
     } catch {
       skipped.push(trimmedName);

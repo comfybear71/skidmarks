@@ -280,6 +280,8 @@ export async function POST(req: Request) {
         candidateId,
         candidate.fileName,
         mobileCandidateFolders(job),
+        // The words that made this face go onto the shelf with it.
+        candidate.prompt || "",
       );
       const nextCandidates = (job.castCandidates[target] || []).map((c) => ({
         ...c,
