@@ -1,24 +1,7 @@
+import fs from "fs";
 import os from "os";
 import path from "path";
 import { runningOnVercel } from "./cloudEnv";
-
-/**
- * PC root for MY MOVIES.
- * - Local Studio: two levels above the repo, where the real MY MOVIES tree lives.
- * - On Vercel that tree doesn't exist and /var/task is read-only, so any
- *   Crash Lab pack write there throws ENOENT/EROFS. Redirect to the OS temp
- *   dir like DATA_DIR — per-invocation scratch only; the cloud-sync helpers
- *   in cursorCloudSync.ts mirror packs to/from Neon+Blob around that scratch.
- */
-export const MOVIES_ROOT = runningOnVercel()
-  ? path.join(os.tmpdir(), "skidmarks-movies-root")
-  : path.resolve(process.cwd(), "..", "..");
-
-export const SKIDMARKS_EPISODES = path.join(
-  MOVIES_ROOT,
-  "Skidmarks",
-  "episodes",
-);
 
 /**
  * Writable data root.
@@ -32,6 +15,32 @@ export const SKIDMARKS_EPISODES = path.join(
 export const DATA_DIR = runningOnVercel()
   ? path.join(os.tmpdir(), "skidmarks-data")
   : path.join(process.cwd(), "data");
+
+function isFilesystemRoot(p: string): boolean {
+  return path.parse(p).root === p;
+}
+
+function resolveMoviesRoot(): string {
+  if (runningOnVercel()) return path.join(os.tmpdir(), "skidmarks-movies-root");
+  const real = path.resolve(process.cwd(), "..", "..");
+  if (!isFilesystemRoot(real) && fs.existsSync(real)) return real;
+  // Agent VM / no real MY MOVIES tree at that depth — use the git-ignored local
+  // data dir instead of a path that doesn't exist (or is the filesystem root).
+  return DATA_DIR;
+}
+
+/**
+ * PC root for MY MOVIES when that tree exists two levels above the repo.
+ * Falls back to DATA_DIR on agent VMs where ../.. is the filesystem root.
+ */
+export const MOVIES_ROOT = resolveMoviesRoot();
+
+export const SKIDMARKS_EPISODES = path.join(
+  MOVIES_ROOT,
+  "Skidmarks",
+  "episodes",
+);
+
 export const EPISODES_FILE = path.join(DATA_DIR, "episodes.json");
 export const CHARACTERS_FILE = path.join(DATA_DIR, "characters.json");
 export const CHARACTERS_DIR = path.join(DATA_DIR, "characters");
