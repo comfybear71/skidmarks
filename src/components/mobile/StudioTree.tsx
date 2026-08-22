@@ -1544,6 +1544,7 @@ export function StudioTree({
         headerRight={<CollapseToggle open={locationsOpen} onToggle={() => setLocationsOpen((v) => !v)} />}
       >
         <div
+          id="m-locations-strip"
           onDragOver={(e) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
@@ -1764,6 +1765,20 @@ export function StudioTree({
             busy={busy}
             canStart={canWrite && !lockingScript && !job.folderName}
             onStart={onStartMusicVideo}
+            onOpenPlate={(shotId) => revealPlates(shotId)}
+            onAddPlate={() => {
+              // Plates are made in Locations — open the place card rather than
+              // putting a second place picker inside Plates.
+              setLocationsOpen(true);
+              const first = job.scenes[0]?.id || "";
+              setOpenPlace(first || null);
+              window.requestAnimationFrame(() => {
+                document.getElementById("m-locations-strip")?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                });
+              });
+            }}
           />
         ) : null}
 

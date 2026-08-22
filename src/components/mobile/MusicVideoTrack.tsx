@@ -348,6 +348,8 @@ export function MusicVideoTrack({
   busy: startBusy = false,
   canStart = false,
   onStart,
+  onOpenPlate,
+  onAddPlate,
 }: {
   job: MobileGenJob;
   story: CrashStoryDoc | null;
@@ -359,6 +361,10 @@ export function MusicVideoTrack({
   /** Not locked yet — the Start button belongs in this same UI. */
   canStart?: boolean;
   onStart?: (lyrics: string) => void;
+  /** Tap a plate — opens its Position and LTX prompts. */
+  onOpenPlate?: (shotId: string) => void;
+  /** The + goes to Locations, which is where plates are made. */
+  onAddPlate?: () => void;
 }) {
   const song = job.scratchSong;
   const parked = usePendingSong(job.id);
@@ -569,6 +575,41 @@ export function MusicVideoTrack({
           title row, player slot, wave, sections and plates are always here —
           they just have nothing in them until a song lands. */}
       <>
+          {/* Plates live at the top of this section, above the title, as one
+              horizontal strip. LOCATIONS still makes them — a second place
+              picker in here would put the same thing on screen twice. */}
+          {!compact ? (
+            <div className="m-track-rail">
+              <div className="m-track-rail-scroll">
+                {plateRows.map((row) => (
+                  <button
+                    type="button"
+                    key={row.shotId}
+                    className={`m-track-rail-cell${row.timing ? " is-timed" : ""}`}
+                    onClick={() => onOpenPlate?.(row.shotId)}
+                    title={row.title}
+                  >
+                    {row.plateFile ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={mobileLocationStillUrl(job, row.plateFile)} alt="" />
+                    ) : (
+                      <span className="m-track-rail-empty" />
+                    )}
+                    <span className="m-track-rail-label">{row.title}</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="m-track-rail-add"
+                  onClick={() => onAddPlate?.()}
+                  aria-label="Add a plate from Locations"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {/* Title line owns the card: name left, Lyrics and drop right.
               Lyrics stay shut — that box is for entering them, not reading. */}
           <div className="m-track-song-top">
@@ -645,19 +686,6 @@ export function MusicVideoTrack({
               {busy === "peaks" ? "Reading waveform…" : "Waveform…"}
             </div>
           )}
-
-          {/* Where the plates are going: a horizontal rail under the wave.
-              Placeholder for now so the space is held and the layout below it
-              does not move when the real thumbnails land. */}
-          {!compact ? (
-            <div className="m-track-rail" aria-label="Plates (coming)">
-              <div className="m-track-rail-scroll">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="m-track-rail-cell" />
-                ))}
-              </div>
-            </div>
-          ) : null}
 
           {/* Once the markers are set this is just a record — fold it away. */}
           {!compact && markers.length ? (

@@ -88,7 +88,17 @@ console.log("check-music-video-track-lyrics OK");
     "marquee sits above the player",
   );
   // Where the plate thumbnails are going.
-  assert.match(ui, /m-track-rail/, "plates rail placeholder is held open");
+  // The plates are a strip at the top of the section, above the title, and
+  // they are real plates now — not a placeholder.
+  assert.match(ui, /m-track-rail/);
+  assert.ok(
+    ui.indexOf("m-track-rail") < ui.indexOf("m-track-song-top"),
+    "the plates strip sits above the title row",
+  );
+  assert.match(ui, /onOpenPlate/, "tapping a plate opens its prompts");
+  assert.match(ui, /onAddPlate/, "the plus goes to Locations, which makes plates");
+  // One place picker in the app, not two.
+  assert.doesNotMatch(ui, /locationCandidates/, "no second place picker inside Plates");
   // Music does not come in 15s blocks — Add section must not assume one.
   assert.doesNotMatch(ui, /startMs \+ 15000/, "no hardwired 15s section");
   assert.doesNotMatch(ui, /m-track-range/, "no range readout beside Add section");
