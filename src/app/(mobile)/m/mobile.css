@@ -2449,30 +2449,6 @@ span.scratch-history-blob {
   white-space: nowrap;
 }
 
-.m-track-lyrics {
-  margin-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 8px;
-}
-
-.m-track-lyrics-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--chrome-dim);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-
-.m-track-lyrics-note {
-  text-transform: none;
-  letter-spacing: 0;
-  opacity: 0.7;
-}
-
 .m-track-lyric-list {
   list-style: none;
   margin: 0;
@@ -2729,4 +2705,75 @@ span.scratch-history-blob {
 .m-track-toolbar .m-song-player {
   flex: 1;
   min-width: 0;
+}
+
+
+/* ── Lyric marquee ─────────────────────────────────────────────────────────
+   One line only. In from the right, fade up and scale, then out to the left —
+   travelling against the playhead. The sheet stays behind the LYRICS toggle;
+   the page does not carry it. */
+
+.m-track-marquee {
+  position: relative;
+  height: 30px;
+  margin: 4px 0 2px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.m-track-marquee-line {
+  position: absolute;
+  white-space: nowrap;
+  color: var(--acid);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  will-change: transform, opacity;
+  animation-name: m-lyric-pass;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-iteration-count: 1;
+}
+
+@keyframes m-lyric-pass {
+  0% {
+    transform: translateX(46vw) scale(0.82);
+    opacity: 0;
+  }
+  18% {
+    transform: translateX(22vw) scale(1);
+    opacity: 1;
+  }
+  78% {
+    transform: translateX(-22vw) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-46vw) scale(0.82);
+    opacity: 0;
+  }
+}
+
+.m-track-marquee-idle {
+  color: var(--chrome-dim);
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-track-marquee-line {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* The pin list only appears inside the opened LYRICS panel now. */
+.m-mv-lyrics .m-track-lyric-list {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 6px;
 }
