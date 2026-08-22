@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore, useEffect } from "react";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import { probeBrowserAudioDurationSec, dropScratchSongViaBlob, SCRATCH_SONG_DIRECT_POST_MAX_BYTES } from "@/lib/scratchSongDrop";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
@@ -152,12 +152,17 @@ export async function attachTakenPendingSong(opts: {
   return attachParkedSongToBeat({ ...opts, pending: pending as PendingSong<File> });
 }
 
-async function saveLyrics(jobId: string, lyrics: string): Promise<void> {
-  await fetch("/api/crash/mobile/song", {
+async function saveLyrics(jobId: string, lyrics: string): Promise<MobileGenJob | null> {
+  const res = await fetch("/api/crash/mobile/song", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "set-lyrics", jobId, lyrics }),
   });
+  const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+  if (!res.ok) {
+    throw new Error(data.error?.trim() || `Couldn't save lyrics (${res.status})`);
+  }
+  return data.job || null;
 }
 
 /**
@@ -168,26 +173,58 @@ export function LyricsBox({
   job,
   onSaved,
   onChange,
+  onJobChange,
 }: {
   job: MobileGenJob;
   onSaved?: (lyrics: string) => void;
   onChange?: (lyrics: string) => void;
+  onJobChange?: (job: MobileGenJob) => void;
 }) {
   const [text, setText] = useState(job.lyrics || "");
   const [saved, setSaved] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+  const [saving, setSaving] = useState(false);
+  const saveTimer = useRef<number | null>(null);
   const lines = lyricLineCount(text);
+
+  useEffect(() => {
+    setText(job.lyrics || "");
+    setSaved(false);
+    setSaveErr("");
+  }, [job.id, job.lyrics]);
 
   function update(next: string) {
     setText(next);
     setSaved(false);
+    setSaveErr("");
     onChange?.(next);
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      void persist(next);
+    }, 1200);
+  }
+
+  async function persist(next: string) {
+    setSaving(true);
+    try {
+      const updated = await saveLyrics(job.id, next);
+      setSaved(true);
+      setSaveErr("");
+      onSaved?.(next);
+      if (updated) onJobChange?.(updated);
+    } catch (e) {
+      setSaveErr(studioFetchError(e, "Couldn't save lyrics — tap out and try again"));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div className="m-mv-lyrics">
       <div className="m-mv-lyrics-note">
         {lines ? `${lines} line${lines === 1 ? "" : "s"}` : "paste the words"}
-        {saved ? " · saved" : ""}
+        {saved ? " · saved" : saving ? " · saving…" : ""}
+        {saveErr ? ` · ${saveErr}` : ""}
       </div>
       {(
         <textarea
@@ -198,10 +235,11 @@ export function LyricsBox({
           placeholder="Paste the words…"
           onChange={(e) => update(e.target.value)}
           onBlur={() => {
-            void saveLyrics(job.id, text).then(() => {
-              setSaved(true);
-              onSaved?.(text);
-            });
+            if (saveTimer.current) {
+              window.clearTimeout(saveTimer.current);
+              saveTimer.current = null;
+            }
+            void persist(text);
           }}
         />
       )}

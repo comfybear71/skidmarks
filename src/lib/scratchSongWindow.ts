@@ -25,6 +25,8 @@ export type ScratchSongCut = {
 
 export type ScratchSong = {
   fileName: string;
+  /** Beat the mp3 hangs on — survives refresh without re-loading the story. */
+  carrierBeatId?: string;
   durationSec: number;
   sliceStartSec: number;
   sliceDurationSec: number;

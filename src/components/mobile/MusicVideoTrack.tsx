@@ -10,16 +10,25 @@ import {
   evenLineStartMs,
   evenLyricHoldMs,
   evenLyricIndexAt,
+  activeLyricLineIndex,
+  lyricCueFor,
+  lyricHoldMs,
   lyricLinesFrom,
   lyricWords,
+  withLyricCue,
+  withoutLyricCue,
   plateTimingForShot,
+  importSectionMarkersFromLyrics,
   nextSectionStartMs,
   parseTrackClock,
   plateBarColor,
+  sectionCastHint,
   sectionColor,
+  sectionNeedsStartHere,
   sectionTint,
   sectionTitle,
   sortPlateTimings,
+  withSectionStartAt,
   withSectionTime,
   type LyricCue,
   type TrackSectionLabel,
@@ -29,6 +38,7 @@ import { clearPendingSong, songChipName } from "@/lib/musicVideoStart";
 import { findSongCarrierBeatId, musicVideoCreditLine } from "@/lib/musicVideoSong";
 
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
+import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { readApiJson } from "@/lib/studioFetchError";
 import { MobilePrimaryButton } from "./MobileUi";
@@ -155,10 +165,12 @@ function TimeField({
   value,
   label,
   onCommit,
+  onBadTime,
 }: {
   value: number;
   label: string;
   onCommit: (ms: number) => void;
+  onBadTime?: (msg: string) => void;
 }) {
   // Draft only exists while the box is being typed in; the rest of the time
   // the value is read straight off the marker. No effect syncing the two.
@@ -167,10 +179,14 @@ function TimeField({
 
   function commit() {
     const typed = draft;
-    setDraft(null);
     if (typed === null) return;
     const ms = parseTrackClock(typed);
-    if (ms !== null) onCommit(ms);
+    if (ms !== null) {
+      setDraft(null);
+      onCommit(ms);
+      return;
+    }
+    onBadTime?.("Could not read that time — try 1:30 or 90");
   }
 
   return (
@@ -209,6 +225,97 @@ async function trackAction(
   const raw = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
   if (!res.ok) throw new Error(raw.error?.trim() || `Request failed (${res.status})`);
   return raw.job || null;
+}
+
+/** Pin sung lines to the playhead — saved as lyricCues on the job. */
+function LyricPinPanel({
+  job,
+  lyricLines,
+  lyricCues,
+  playheadMs,
+  busy,
+  onBusy,
+  onJobChange,
+  onSeek,
+}: {
+  job: MobileGenJob;
+  lyricLines: ReturnType<typeof lyricLinesFrom>;
+  lyricCues: LyricCue[];
+  playheadMs: number;
+  busy: string;
+  onBusy: (v: string) => void;
+  onJobChange: (job: MobileGenJob) => void;
+  onSeek: (ms: number) => void;
+}) {
+  const activeLine = activeLyricLineIndex(lyricCues, playheadMs);
+
+  async function saveCues(next: LyricCue[]) {
+    onBusy("lyrics");
+    try {
+      const updated = await trackAction("set-lyric-cues", {
+        jobId: job.id,
+        lyricCues: next,
+      });
+      if (updated) onJobChange(updated);
+    } finally {
+      onBusy("");
+    }
+  }
+
+  if (!lyricLines.length) {
+    return (
+      <p className="m-track-lyric-hint">Paste lyrics first — then play the song and pin each line here.</p>
+    );
+  }
+
+  return (
+    <ul className="m-track-lyric-list">
+      {lyricLines.map((line) => {
+        const cue = lyricCueFor(lyricCues, line.index);
+        const isNow = activeLine === line.index;
+        return (
+          <li
+            key={line.index}
+            className={`m-track-lyric${cue ? " is-pinned" : ""}${isNow ? " is-now" : ""}`}
+          >
+            <button
+              type="button"
+              className="m-track-lyric-text"
+              onClick={() => {
+                if (cue) onSeek(cue.atMs);
+              }}
+            >
+              {line.text}
+            </button>
+            {cue ? (
+              <button
+                type="button"
+                className="m-track-lyric-at"
+                aria-label={`Pinned at ${formatTrackClock(cue.atMs)}`}
+                onClick={() => onSeek(cue.atMs)}
+              >
+                {formatTrackClock(cue.atMs)}
+              </button>
+            ) : null}
+            <MobilePrimaryButton
+              size="chip"
+              tone="ghost"
+              disabled={Boolean(busy)}
+              onClick={() => {
+                if (cue) {
+                  void saveCues(withoutLyricCue(lyricCues, line.index));
+                  return;
+                }
+                void saveCues(withLyricCue(lyricCues, line.index, playheadMs));
+              }}
+            >
+              {cue ? "×" : "Pin"}
+            </MobilePrimaryButton>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 function WaveformCanvas({
@@ -477,12 +584,15 @@ export function MusicVideoTrack({
 }) {
   const song = job.scratchSong;
   const parked = usePendingSong(job.id);
-  const beatId = findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
+  const beatId =
+    (song?.carrierBeatId || "").trim() ||
+    findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playheadMs, setPlayheadMs] = useState(0);
   const [markerLabel, setMarkerLabel] = useState<TrackSectionLabel>("verse");
-  const [lyricsOpen, setLyricsOpen] = useState(false);
+  const [lyricsOpen, setLyricsOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
+  const [marqueeOpen, setMarqueeOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
@@ -510,6 +620,7 @@ export function MusicVideoTrack({
     (localPeaks.length ? localPeaks : []);
 
   const markers = song?.sectionMarkers || job.trackDraft?.sectionMarkers || [];
+  const leadSinger = (job.speakers?.[0] || job.artist || "").trim();
 
   const lyricCues = useMemo<LyricCue[]>(
     () => song?.lyricCues || job.trackDraft?.lyricCues || [],
@@ -519,19 +630,30 @@ export function MusicVideoTrack({
   // Lines are pasted, not pinned — spread them across the song, then split
   // each line's slot between its words. The whole line rides through as one
   // ribbon; the word crossing the centre is the one that grows and lights up.
-  const activeLyric = evenLyricIndexAt(lyricLines.length, playheadMs, durationMs);
+  const usePinnedMarquee = lyricCues.length > 0;
+  const activeLyric = usePinnedMarquee
+    ? activeLyricLineIndex(lyricCues, playheadMs)
+    : evenLyricIndexAt(lyricLines.length, playheadMs, durationMs);
   const ribbon = useMemo(() => {
     if (activeLyric === null) return null;
     const text = lyricLines.find((l) => l.index === activeLyric)?.text || "";
     const words = lyricWords(text);
     if (!words.length) return null;
+    const cue = usePinnedMarquee ? lyricCueFor(lyricCues, activeLyric) : null;
+    if (usePinnedMarquee && !cue) return null;
+    const lineStartMs = cue
+      ? cue.atMs
+      : evenLineStartMs(activeLyric, lyricLines.length, durationMs);
+    const lineHoldMs = cue
+      ? lyricHoldMs(lyricCues, activeLyric)
+      : evenLyricHoldMs(lyricLines.length, durationMs);
     return {
       lineIndex: activeLyric,
       words,
-      lineStartMs: evenLineStartMs(activeLyric, lyricLines.length, durationMs),
-      lineHoldMs: evenLyricHoldMs(lyricLines.length, durationMs),
+      lineStartMs,
+      lineHoldMs,
     };
-  }, [activeLyric, lyricLines, durationMs]);
+  }, [activeLyric, lyricLines, durationMs, lyricCues, usePinnedMarquee]);
 
   const plateRows = useMemo(() => {
     return plated.map((row, i) => {
@@ -551,13 +673,16 @@ export function MusicVideoTrack({
   );
 
   const audioSrc = useMemo(() => {
-    if (song?.fileName && beatId && job.folderName) {
-      return (
-        `/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}` +
-        `&folderName=${encodeURIComponent(job.folderName)}` +
-        `&beatId=${encodeURIComponent(beatId)}` +
-        `&fileName=${encodeURIComponent(song.fileName)}`
-      );
+    if (song?.fileName && job.folderName) {
+      if (beatId) {
+        return (
+          `/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}` +
+          `&folderName=${encodeURIComponent(job.folderName)}` +
+          `&beatId=${encodeURIComponent(beatId)}` +
+          `&fileName=${encodeURIComponent(song.fileName)}`
+        );
+      }
+      return `/api/crash/mobile/song/audio?jobId=${encodeURIComponent(job.id)}`;
     }
     if (parked?.file) {
       if (blobRef.current) URL.revokeObjectURL(blobRef.current);
@@ -708,9 +833,23 @@ export function MusicVideoTrack({
               type="button"
               className={`m-mv-lyr-toggle${lyricsOpen ? " is-open" : ""}`}
               aria-expanded={lyricsOpen}
-              onClick={() => setLyricsOpen((v) => !v)}
+              onClick={() => {
+                setLyricsOpen((v) => !v);
+                if (!lyricsOpen) setMarqueeOpen(false);
+              }}
             >
               Lyrics <span className="m-mv-lyr-caret">{lyricsOpen ? "▾" : "▸"}</span>
+            </button>
+            <button
+              type="button"
+              className={`m-mv-lyr-toggle${marqueeOpen ? " is-open" : ""}`}
+              aria-expanded={marqueeOpen}
+              onClick={() => {
+                setMarqueeOpen((v) => !v);
+                if (!marqueeOpen) setLyricsOpen(false);
+              }}
+            >
+              Marquee <span className="m-mv-lyr-caret">{marqueeOpen ? "▾" : "▸"}</span>
             </button>
             <button
               type="button"
@@ -721,7 +860,22 @@ export function MusicVideoTrack({
               ×
             </button>
           </div>
-          {lyricsOpen ? <LyricsBox job={job} /> : null}
+          {lyricsOpen ? <LyricsBox job={job} onJobChange={onJobChange} /> : null}
+          {!compact && marqueeOpen ? (
+            <LyricPinPanel
+              job={job}
+              lyricLines={lyricLines}
+              lyricCues={lyricCues}
+              playheadMs={playheadMs}
+              busy={busy}
+              onBusy={setBusy}
+              onJobChange={onJobChange}
+              onSeek={(ms) => {
+                setPlayheadMs(ms);
+                if (audioRef.current) audioRef.current.currentTime = ms / 1000;
+              }}
+            />
+          ) : null}
 
           {/* Nothing playing, nothing shown — the strip is for the line, not
               for instructions about the line. */}
@@ -882,7 +1036,33 @@ export function MusicVideoTrack({
           ) : null}
 
           {!compact && (sectionsOpen || !markers.length) ? (
+          <>
+          <p className="m-track-lyric-hint">
+            Paste <strong>[Intro]</strong> <strong>[Verse]</strong> <strong>[Chorus]</strong>{" "}
+            <strong>[Sax break]</strong> in Lyrics — then import and tap{" "}
+            <strong>Start here</strong> while the song plays. No typing times.
+          </p>
           <div className="m-track-marker-row">
+            <button
+              type="button"
+              className="m-track-btn"
+              disabled={Boolean(busy) || !durationMs}
+              onClick={() => {
+                const next = importSectionMarkersFromLyrics({
+                  lyrics: job.lyrics || "",
+                  durationMs,
+                  lyricCues,
+                });
+                if (!next.length) {
+                  setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");
+                  return;
+                }
+                setNote("");
+                void saveMarkers(next);
+              }}
+            >
+              Import from lyrics
+            </button>
             <select
               className="m-track-select"
               value={markerLabel}
@@ -903,9 +1083,6 @@ export function MusicVideoTrack({
               className="m-track-btn"
               disabled={Boolean(busy) || rangeEndMs <= rangeStartMs}
               onClick={() => {
-                // No assumed length. Music does not come in 15s blocks, so a
-                // new section runs from the last one to the end of the song and
-                // you type the end you actually want.
                 const startMs = nextSectionStartMs(markers);
                 const endMs = Math.max(startMs + 1000, durationMs || startMs + 1000);
                 void saveMarkers([
@@ -917,39 +1094,59 @@ export function MusicVideoTrack({
               Add section
             </button>
           </div>
+          </>
           ) : null}
 
           {!compact && sectionsOpen && markers.length ? (
             <ul className="m-track-marker-list">
-              {markers.map((m) => (
+              {markers.map((m) => {
+                const waiting = durationMs > 0 && sectionNeedsStartHere(m, durationMs);
+                const cast = sectionCastHint(m.label, leadSinger);
+                return (
                 <li key={m.id} style={{ borderLeftColor: sectionColor(m.label) }}>
-                  <span className="m-track-marker-name">
-                    <i className="m-track-swatch" style={{ background: sectionColor(m.label) }} />
-                    {sectionTitle(m.label)}
-                  </span>
-                  {/* Type the times. A section is a number you know — dragging
-                      for it gave 15s blobs and two half-right Intros. */}
-                  <TimeField
-                    value={m.startMs}
-                    label={`${sectionTitle(m.label)} start`}
-                    onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "start", ms, durationMs))}
-                  />
-                  <span className="m-track-dash">–</span>
-                  <TimeField
-                    value={m.endMs}
-                    label={`${sectionTitle(m.label)} end`}
-                    onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "end", ms, durationMs))}
-                  />
-                  <button
-                    type="button"
-                    className="m-track-x"
-                    aria-label={`Remove ${sectionTitle(m.label)}`}
-                    onClick={() => void saveMarkers(markers.filter((x) => x.id !== m.id))}
-                  >
-                    ×
-                  </button>
+                  <div className="m-track-section-top">
+                    <span className="m-track-marker-name">
+                      <i className="m-track-swatch" style={{ background: sectionColor(m.label) }} />
+                      {sectionTitle(m.label)}
+                    </span>
+                    <span className="m-track-section-cast">{cast}</span>
+                  </div>
+                  <div className="m-track-section-row">
+                    <button
+                      type="button"
+                      className={`m-track-here-btn${waiting ? " is-waiting" : ""}`}
+                      disabled={Boolean(busy)}
+                      onClick={() =>
+                        void saveMarkers(withSectionStartAt(markers, m.id, playheadMs, durationMs))
+                      }
+                    >
+                      {waiting ? "Start here ▶" : "Start here"}
+                    </button>
+                    <TimeField
+                      value={m.startMs}
+                      label={`${sectionTitle(m.label)} start`}
+                      onBadTime={(msg) => setNote(msg)}
+                      onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "start", ms, durationMs))}
+                    />
+                    <span className="m-track-dash">–</span>
+                    <TimeField
+                      value={m.endMs}
+                      label={`${sectionTitle(m.label)} end`}
+                      onBadTime={(msg) => setNote(msg)}
+                      onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "end", ms, durationMs))}
+                    />
+                    <button
+                      type="button"
+                      className="m-track-x"
+                      aria-label={`Remove ${sectionTitle(m.label)}`}
+                      onClick={() => void saveMarkers(markers.filter((x) => x.id !== m.id))}
+                    >
+                      ×
+                    </button>
+                  </div>
                 </li>
-              ))}
+              );
+              })}
             </ul>
           ) : null}
 

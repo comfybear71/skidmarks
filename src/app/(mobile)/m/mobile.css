@@ -920,13 +920,57 @@ body {
 
 .m-track-marker-list li {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   font-size: 12px;
   color: var(--chrome);
-  /* Colour set inline per section — the stripe is what you scan down. */
   border-left: 2px solid transparent;
   padding-left: 7px;
+}
+
+.m-track-section-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.m-track-section-cast {
+  font-size: 10px;
+  color: var(--chrome-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.m-track-section-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.m-track-here-btn {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid rgba(200, 255, 46, 0.45);
+  border-radius: 6px;
+  background: rgba(200, 255, 46, 0.08);
+  color: var(--acid, #c8ff2e);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.m-track-here-btn.is-waiting {
+  border-color: var(--acid, #c8ff2e);
+  background: rgba(200, 255, 46, 0.16);
+}
+
+.m-track-here-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .m-track-swatch {
@@ -2513,6 +2557,13 @@ span.scratch-history-blob {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.m-track-lyric-hint {
+  margin: 0 0 10px;
+  color: var(--chrome-dim);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .m-track-lyric {

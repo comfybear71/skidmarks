@@ -75,12 +75,13 @@ console.log("check-music-video-track-lyrics OK");
     "utf8",
   );
   assert.match(ui, /m-track-marquee/);
+  assert.match(ui, /Marquee/, "marquee pin tab beside Lyrics");
+  assert.match(ui, /m-track-lyric-list/, "pin list under Marquee tab");
+  assert.match(ui, /activeLyricLineIndex/, "marquee uses pinned cues when set");
   // The strip carries the line or nothing — never instructions about the line.
   assert.doesNotMatch(ui, /m-track-marquee-idle/, "no placeholder text in the marquee");
   assert.doesNotMatch(ui, /tap a line to pin it at the playhead/i);
-  // LYRICS is a paste box and nothing else — no list of lines under it.
-  assert.doesNotMatch(ui, /pinRail/, "no pin list in the lyrics panel");
-  assert.doesNotMatch(ui, /m-track-lyric-list/, "no lyric list anywhere on the page");
+  assert.doesNotMatch(ui, /pinRail/, "no pin list in the lyrics paste panel");
 
   // The lyric line reads above the player, not buried under the section list.
   assert.ok(
@@ -128,6 +129,9 @@ console.log("check-music-video-track-lyrics OK");
   assert.doesNotMatch(ui, /m-track-marquee-word/);
   assert.ok(ui.includes("playing && ribbon"), "nothing moves before Play");
   assert.match(ui, /sectionsOpen/, "the section list folds away");
+  assert.match(ui, /Import from lyrics/, "sections import from lyric tags");
+  assert.match(ui, /Start here/, "pin section start at playhead");
+  assert.match(ui, /sectionCastHint/, "who plates each section");
 
   // One UI, empty or full. No second screen in front of the track.
   assert.doesNotMatch(ui, /m-track-empty/, "no separate empty-state layout");
@@ -279,6 +283,54 @@ console.log("check-music-video-plate-bar OK");
 
   assert.equal(withSectionLabel(markers, "a", "Chainsaw solo")[0].label, "Chainsaw solo");
   assert.equal(withSectionLabel(markers, "a", "  ")[0].label, "intro", "blank keeps the name");
+
+  const {
+    importSectionMarkersFromLyrics,
+    meaningfulLyricTags,
+    sectionCastHint,
+    sectionNeedsStartHere,
+    withSectionStartAt,
+  } = await import("../src/lib/musicVideoTrack.ts");
+
+  const jackLyrics = [
+    "[Instrumental Intro]",
+    "[Verse 1] Silver glass",
+    "[Chorus] Blow the glass",
+    "[Sax break]",
+    "[Outro]",
+  ].join("\n");
+  assert.equal(meaningfulLyricTags(jackLyrics).map((t) => t.label).join(","), "intro,verse,chorus,sax_break,outro");
+
+  const fresh = importSectionMarkersFromLyrics({ lyrics: jackLyrics, durationMs: 268_000 });
+  assert.equal(fresh.length, 5);
+  assert.equal(fresh[0].startMs, 0);
+  assert.equal(fresh[0].endMs, 268_000);
+  assert.ok(sectionNeedsStartHere(fresh[1], 268_000), "verse waits for Start here");
+
+  const pinned = importSectionMarkersFromLyrics({
+    lyrics: jackLyrics,
+    durationMs: 268_000,
+    lyricCues: [
+      { lineIndex: 0, atMs: 0 },
+      { lineIndex: 1, atMs: 35_000 },
+      { lineIndex: 2, atMs: 101_000 },
+    ],
+  });
+  assert.equal(pinned[0].endMs, 35_000);
+  assert.equal(pinned[1].startMs, 35_000);
+
+  const split = withSectionStartAt(
+    fresh,
+    fresh[1].id,
+    35_000,
+    268_000,
+  );
+  assert.equal(split[0].endMs, 35_000);
+  assert.equal(split[1].startMs, 35_000);
+
+  assert.equal(sectionCastHint("verse", "JACK GHOST"), "JACK GHOST");
+  assert.equal(sectionCastHint("sax_break", "JACK GHOST"), "SAXOPHONE");
+  assert.equal(sectionCastHint("lead_break", "JACK GHOST"), "GUITAR");
 }
 
 console.log("check-music-video-section-times OK");
@@ -567,3 +619,43 @@ console.log("check-music-video-plate-picker OK");
 }
 
 console.log("check-music-video-drop-song OK");
+
+// ── One + for plates, not three ────────────────────────────────────────────
+{
+  const { readFileSync } = await import("node:fs");
+  const editor = readFileSync(
+    new URL("../src/components/mobile/PlateReviewEditor.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // Music video makes plates from the + on the strip above. The hint line and
+  // the big empty card underneath were a second and third way to do the same
+  // thing, taking a screen's worth of room to say so.
+  assert.match(
+    editor,
+    /musicVideoTrackOwnsEmptyPlates/,
+    "music video with no plates hides the duplicate empty hint",
+  );
+  assert.match(
+    editor,
+    /isMusicVideoSongJob\(job\) \? null : \(\s*<button/,
+    "the big empty + card is for the other shows",
+  );
+  // The other shows keep both — this is a music-video-only trim.
+  assert.match(editor, /No plates yet\. Tap \+ for an empty card/);
+  assert.match(editor, /aria-label="Add a new plate"/);
+
+  const attach = readFileSync(
+    new URL("../src/lib/scratchSongAttach.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(attach, /carrierBeatId: opts\.beatId/, "attached song remembers its beat");
+
+  const songAudio = readFileSync(
+    new URL("../src/app/api/crash/mobile/song/audio/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(songAudio, /findSongCarrierBeatId/, "cold refresh can stream without deskStory");
+}
+
+console.log("check-music-video-one-plus OK");

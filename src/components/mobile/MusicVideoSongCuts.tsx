@@ -132,7 +132,9 @@ export function MusicVideoSongCuts({
   const [note, setNote] = useState("");
   const [playing, setPlaying] = useState("");
   const song = job.scratchSong;
-  const beatId = findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
+  const beatId =
+    (song?.carrierBeatId || "").trim() ||
+    findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
   const cuts = song?.cuts || [];
   /** Only lock controls while this phone is actively generating — not a hung server flag. */
   const workingNow = busy === "cook";
