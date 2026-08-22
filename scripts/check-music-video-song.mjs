@@ -158,6 +158,9 @@ assert.doesNotMatch(
 
 assert.equal(isInstrumentalStaging("on stage playing saxophone"), true);
 assert.equal(isInstrumentalStaging("Facing camera, mouth clear"), false);
+// Bible "clear silhouette against the place" must NOT flip singer prompts —
+// that was the bleed that hit lit singers and other characters.
+assert.equal(isInstrumentalStaging("Full-body shot, clear silhouette against the place"), false);
 const sax = buildScratchSongLtxMotion({
   styleId: "music_video",
   speaker: "Frank",
@@ -172,22 +175,28 @@ const sing = buildScratchSongLtxMotion({
   lookLock: "wide-brim black hat, teal shirt, short beard",
 });
 assert.match(sing, /singing, lip-sync/);
-assert.match(sing, /only as much mouth as the start image already shows/);
+assert.doesNotMatch(sing, /only as much mouth as the start image already shows/);
+assert.doesNotMatch(sing, /Do not brighten or reveal the face/);
+assert.doesNotMatch(sing, /If the start image is a silhouette/);
 assert.match(sing, /Same face, same hair, same hat, same clothes/);
 assert.match(sing, /Do not invent or change letters/);
-assert.match(sing, /Keep lighting and shadows exactly as the start image/);
-assert.match(sing, /If the start image is a silhouette/);
 assert.match(sing, /No readable text or signage/);
 assert.match(sing, /wide-brim black hat/);
+const fullBodyBible = buildScratchSongLtxMotion({
+  styleId: "music_video",
+  speaker: "Frank",
+  staging: "Full-body shot of Frank at the stage. Head to feet visible, natural stance, clear silhouette against the place.",
+  lookLock: "wide-brim black hat, teal shirt, short beard",
+});
+assert.match(fullBodyBible, /singing, lip-sync/);
+assert.doesNotMatch(fullBodyBible, /Do not brighten or reveal the face/);
+assert.doesNotMatch(fullBodyBible, /only as much mouth/);
 assert.match(sax, /Same face, same hair, same hat, same clothes/);
-assert.match(sax, /Keep lighting and shadows exactly as the start image/);
+assert.doesNotMatch(sax, /Do not brighten or reveal the face/);
 assert.match(clip, /Song slices must rebuild the identity lock/);
-assert.match(clip, /who is on the plate/);
-assert.match(clip, /skipLipSyncLead: singing/);
-assert.doesNotMatch(
-  clip,
-  /skipLipSyncLead: singing && isInstrumentalStaging/,
-);
+assert.match(clip, /who is actually on this plate/);
+assert.match(clip, /skipLipSyncLead: singing && isInstrumentalStaging/);
+assert.doesNotMatch(clip, /isSilhouetteStaging/);
 assert.match(songRoute, /orderSongCutsTimeline/);
 {
   const shuffled = [
