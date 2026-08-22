@@ -202,12 +202,18 @@ export default function MobileHomePage() {
   // locations are built freeform first now, so this just creates the job —
   // it lands on "cast_build". The episode is a template + AI draft + refine,
   // then Lock — Grok does not write-and-lock in one tap.
+  // Music video has no "vibe" prompt — Artist/Song stand in for it, since
+  // that's what actually identifies the pack for that style.
+  const isMusicVideoStyle = styleId === "music_video";
+  const effectivePrompt = isMusicVideoStyle
+    ? [artist.trim(), songTitle.trim()].filter(Boolean).join(" — ")
+    : prompt;
   const startRun = useCallback(async () => {
     setBusy(true);
     setError("");
     try {
       const { job: created } = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/job", {
-        prompt,
+        prompt: effectivePrompt,
         styleId,
         styleRealism,
         deskId: DEFAULT_DESK_ID,
@@ -223,7 +229,7 @@ export default function MobileHomePage() {
     } finally {
       setBusy(false);
     }
-  }, [prompt, styleId, styleRealism, artist, songTitle]);
+  }, [effectivePrompt, styleId, styleRealism, artist, songTitle]);
 
   const openEpisode = useCallback(async (jobId: string) => {
     const id = jobId.trim();
@@ -687,20 +693,31 @@ export default function MobileHomePage() {
           </div>
         </div>
       ) : showVibeForm ? (
-        <ActiveStepPanel title="What's the vibe?" subtitle="You direct. We hold the cast, the places, and the plates.">
-          <MobileTextInput
-            value={prompt}
-            onChange={setPrompt}
-            placeholder="A crew lands on Mars and immediately regrets it..."
-            multiline
-            rows={3}
-            onAi={() => void vibeAssist.runAssist()}
-            aiBusy={vibeAssist.aiBusy}
-          />
-          {vibeAssist.aiError ? (
-            <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
-              {vibeAssist.aiError}
-            </div>
+        <ActiveStepPanel
+          title={isMusicVideoStyle ? "What's the track?" : "What's the vibe?"}
+          subtitle={
+            isMusicVideoStyle
+              ? "We hold the cast, the places, and the plates."
+              : "You direct. We hold the cast, the places, and the plates."
+          }
+        >
+          {!isMusicVideoStyle ? (
+            <>
+              <MobileTextInput
+                value={prompt}
+                onChange={setPrompt}
+                placeholder="A crew lands on Mars and immediately regrets it..."
+                multiline
+                rows={3}
+                onAi={() => void vibeAssist.runAssist()}
+                aiBusy={vibeAssist.aiBusy}
+              />
+              {vibeAssist.aiError ? (
+                <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
+                  {vibeAssist.aiError}
+                </div>
+              ) : null}
+            </>
           ) : null}
 
           {styleId === "music_video" ? (
@@ -811,7 +828,7 @@ export default function MobileHomePage() {
           </div>
 
           <div style={{ marginTop: "14px" }}>
-            <MobilePrimaryButton disabled={!prompt.trim() || busy} onClick={() => void startRun()}>
+            <MobilePrimaryButton disabled={!effectivePrompt.trim() || busy} onClick={() => void startRun()}>
               {busy ? "Starting…" : "Start directing"}
             </MobilePrimaryButton>
           </div>
