@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import { probeBrowserAudioDurationSec, dropScratchSongViaBlob, SCRATCH_SONG_DIRECT_POST_MAX_BYTES } from "@/lib/scratchSongDrop";
 import { readApiJson } from "@/lib/studioFetchError";
@@ -156,13 +156,10 @@ export function LyricsBox({
   job,
   onSaved,
   onChange,
-  pinRail,
 }: {
   job: MobileGenJob;
   onSaved?: (lyrics: string) => void;
   onChange?: (lyrics: string) => void;
-  /** Tap-to-pin list. It lives in here so the page keeps only the marquee. */
-  pinRail?: ReactNode;
 }) {
   const [text, setText] = useState(job.lyrics || "");
   const [saved, setSaved] = useState(false);
@@ -196,7 +193,6 @@ export function LyricsBox({
           }}
         />
       )}
-      {pinRail}
     </div>
   );
 }
