@@ -9,6 +9,7 @@ import {
   mobileMediaFrame,
 } from "./MobileUi";
 import { episodeTemplateFromJob } from "@/lib/mobilePasteParse";
+import type { CastBand } from "@/lib/castBands";
 import { useMobileAssist } from "./useMobileAssist";
 import { SingleCandidateCard } from "./SingleCandidateCard";
 import { CastVoiceRow } from "./CastVoiceRow";
@@ -762,6 +763,9 @@ export function StudioTree({
   onMakeCharacterPlate,
   onAddCast,
   onUploadCast,
+  bands,
+  onSaveBand,
+  onApplyBand,
   onGenerateLocation,
   onApproveLocation,
   onAddLocation,
@@ -786,6 +790,10 @@ export function StudioTree({
   onMakeCharacterPlate: (name: string) => void | Promise<void>;
   onAddCast: (name: string, description?: string, file?: File) => void;
   onUploadCast: (name: string, file: File) => void;
+  /** Saved cast groups for this show — e.g. "THE JACK ASH BAND". */
+  bands: CastBand[];
+  onSaveBand: (name: string) => void;
+  onApplyBand: (name: string) => void;
   onGenerateLocation: (sceneId: string, customPrompt?: string) => void;
   onApproveLocation: (sceneId: string, candidateId: string) => void;
   onAddLocation: (name: string, file?: File) => void;
@@ -804,6 +812,8 @@ export function StudioTree({
   onJobChange: (job: MobileGenJob) => void;
 }) {
   const [adding, setAdding] = useState<"cast" | "location" | null>(null);
+  const [savingBand, setSavingBand] = useState(false);
+  const [bandNameDraft, setBandNameDraft] = useState("");
   const [openCast, setOpenCast] = useState<string | null>(null);
   const [openPlace, setOpenPlace] = useState<string | null>(null);
   const [castOpen, setCastOpen] = useState(true);
@@ -1296,6 +1306,111 @@ export function StudioTree({
             );
           })}
         </div>
+        {bands.length ? (
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              flexWrap: "wrap",
+              padding: "0 2px 8px",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ color: "var(--chrome-dim)", fontSize: "10px", textTransform: "uppercase" }}>
+              Bands:
+            </span>
+            {bands.map((band) => (
+              <button
+                key={band.name}
+                type="button"
+                disabled={busy}
+                onClick={() => onApplyBand(band.name)}
+                title={band.members.join(", ")}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: "999px",
+                  border: "1px solid var(--acid)",
+                  background: "transparent",
+                  color: "var(--acid)",
+                  fontSize: "11px",
+                  cursor: busy ? "not-allowed" : "pointer",
+                  opacity: busy ? 0.5 : 1,
+                }}
+              >
+                {band.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {castOpen && job.speakers.length ? (
+          savingBand ? (
+            <div style={{ display: "flex", gap: "8px", padding: "0 2px 8px", alignItems: "center" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <MobileTextInput
+                  value={bandNameDraft}
+                  onChange={setBandNameDraft}
+                  placeholder="Band name, e.g. THE JACK ASH BAND"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={busy || !bandNameDraft.trim()}
+                onClick={() => {
+                  onSaveBand(bandNameDraft.trim());
+                  setBandNameDraft("");
+                  setSavingBand(false);
+                }}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: "2px",
+                  border: "1px solid var(--acid)",
+                  background: "var(--acid)",
+                  color: "#000",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSavingBand(false);
+                  setBandNameDraft("");
+                }}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: "2px",
+                  border: "1px solid var(--chrome-dim)",
+                  background: "transparent",
+                  color: "var(--chrome-dim)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSavingBand(true)}
+              style={{
+                margin: "0 2px 8px",
+                padding: "4px 10px",
+                borderRadius: "2px",
+                border: "1px solid var(--chrome-dim)",
+                background: "transparent",
+                color: "var(--chrome-dim)",
+                fontSize: "11px",
+                cursor: "pointer",
+                alignSelf: "flex-start",
+              }}
+            >
+              Save this cast as a band
+            </button>
+          )
+        ) : null}
         {castOpen && adding === "cast" ? (
           <AddForm
             styleId={job.styleId}

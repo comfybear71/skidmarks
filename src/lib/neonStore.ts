@@ -102,6 +102,40 @@ export async function upsertNeonShow(id: ShowStyleId, name: string): Promise<voi
   `;
 }
 
+export type NeonCastBandRow = {
+  show_id: string;
+  name: string;
+  members: string[];
+};
+
+export async function listNeonCastBands(showId: ShowStyleId): Promise<NeonCastBandRow[]> {
+  return safeQuery(async (sql) => {
+    const rows = await sql`
+      SELECT show_id, name, members FROM cast_bands
+      WHERE show_id = ${showId}
+      ORDER BY name
+    `;
+    return rows as NeonCastBandRow[];
+  }, []);
+}
+
+/** Throws on a real DB error (e.g. table missing — migration not run) instead
+ * of silently no-oping, so a failed save surfaces to the person saving it. */
+export async function saveNeonCastBand(
+  showId: ShowStyleId,
+  name: string,
+  members: string[],
+): Promise<void> {
+  const sql = getSql();
+  if (!sql) return;
+  await sql`
+    INSERT INTO cast_bands (show_id, name, members, updated_at)
+    VALUES (${showId}, ${name}, ${JSON.stringify(members)}, now())
+    ON CONFLICT (show_id, name) DO UPDATE
+      SET members = EXCLUDED.members, updated_at = now()
+  `;
+}
+
 export async function listNeonEpisodes(
   showId: ShowStyleId,
 ): Promise<NeonEpisodeRow[]> {

@@ -15,6 +15,7 @@ import { useMobileAssist } from "@/components/mobile/useMobileAssist";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
+import type { CastBand } from "@/lib/castBands";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId, clearResumedJobId } from "@/lib/mobileJobResume";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
@@ -385,6 +386,70 @@ export default function MobileHomePage() {
     [job],
   );
 
+  const [bands, setBands] = useState<CastBand[]>([]);
+
+  useEffect(() => {
+    if (!job?.styleId) {
+      setBands([]);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/crash/mobile/bands?styleId=${encodeURIComponent(job.styleId)}`)
+      .then((res) => res.json())
+      .then((data: { bands?: CastBand[] }) => {
+        if (!cancelled) setBands(data.bands || []);
+      })
+      .catch(() => {
+        if (!cancelled) setBands([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [job?.styleId]);
+
+  const saveCastBand = useCallback(
+    async (name: string) => {
+      if (!job || !job.speakers.length) return;
+      setBusy(true);
+      setError("");
+      try {
+        const data = await postJson<{ bands: CastBand[] }>("/api/crash/mobile/bands", {
+          action: "save",
+          styleId: job.styleId,
+          name,
+          members: job.speakers,
+        });
+        setBands(data.bands || []);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't save that band");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [job],
+  );
+
+  const applyCastBand = useCallback(
+    async (name: string) => {
+      if (!job) return;
+      setBusy(true);
+      setError("");
+      try {
+        const data = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/bands", {
+          action: "apply",
+          jobId: job.id,
+          name,
+        });
+        setJob(data.job);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't add that band");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [job],
+  );
+
   const addWorldLocation = useCallback(
     async (thumbKey: string, name?: string) => {
       if (!job) return;
@@ -739,6 +804,9 @@ export default function MobileHomePage() {
           onAddCast={(name, description, file) =>
             addRosterItem("cast", name, description, file)
           }
+          bands={bands}
+          onSaveBand={(name) => void saveCastBand(name)}
+          onApplyBand={(name) => void applyCastBand(name)}
           onUploadCast={(name, file) => uploadCandidate("cast", name, file)}
           onGenerateLocation={(id, customPrompt) => genCandidates("location", id, customPrompt)}
           onApproveLocation={(id, candidateId) => approveCandidate("location", id, candidateId)}
