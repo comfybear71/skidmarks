@@ -800,6 +800,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* The Collapse button sits right above this — without a gap the song title
+     and the LYRICS chip run straight into it. */
+  padding-top: 14px;
 }
 
 .m-track-empty {
@@ -2645,7 +2648,10 @@ span.scratch-history-blob {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  /* The LYRICS chip and × are taller than the name — keep them off the
+     header line above. */
+  min-height: 34px;
 }
 
 .m-track-song-name,
