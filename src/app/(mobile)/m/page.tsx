@@ -426,6 +426,7 @@ export default function MobileHomePage() {
         const data = await postJson<{ bands: CastBand[] }>("/api/crash/mobile/bands", {
           action: "save",
           styleId: job.styleId,
+          jobId: job.id,
           name,
           members: job.speakers,
         });

@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { listCastBands, saveCastBand } from "@/lib/castBands";
 import { findReusableCastCards } from "@/lib/mobileCastReuse";
+import { syncApprovedCastToShelf } from "@/lib/mobileCandidates";
 import { createCharacter, listCharacters } from "@/lib/characters";
-import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import {
+  mobileCandidateFolders,
+  mobileMediaFolder,
+  patchMobileGenJob,
+  readMobileGenJob,
+} from "@/lib/mobileGenJob";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
 export const runtime = "nodejs";
@@ -22,7 +28,7 @@ type Body = {
   styleId?: ShowStyleId;
   name?: string;
   members?: string[];
-  /** action "apply" */
+  /** action "save" (to sync approved faces to the shelf) and "apply" */
   jobId?: string;
 };
 
@@ -48,6 +54,32 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
+
+      // Saving a band means "these faces are the definitive cast" — the
+      // moment to also make sure every one of them actually made it onto
+      // the reusable shelf, not just this one job's local candidate list.
+      // Covers faces approved before the shelf-upload fix existed, so a
+      // saved band stays reusable without a manual re-pick per member.
+      const jobId = (body.jobId || "").trim();
+      if (jobId) {
+        const job = await readMobileGenJob(jobId);
+        if (job) {
+          const approved: Record<string, string> = {};
+          for (const member of members) {
+            const take = (job.castCandidates[member] || []).find((c) => c.approved);
+            if (take?.fileName) approved[member] = take.fileName;
+          }
+          if (Object.keys(approved).length) {
+            await syncApprovedCastToShelf({
+              styleId,
+              folderName: mobileMediaFolder(job),
+              altFolders: mobileCandidateFolders(job),
+              approved,
+            });
+          }
+        }
+      }
+
       await saveCastBand(styleId, name, members);
       const bands = await listCastBands(styleId);
       return NextResponse.json({ ok: true, bands });
