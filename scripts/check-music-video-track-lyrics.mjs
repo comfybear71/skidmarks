@@ -123,6 +123,9 @@ console.log("check-music-video-track-lyrics OK");
     "utf8",
   );
   assert.match(ui, /m-track-marquee/);
+  // The strip carries the line or nothing — never instructions about the line.
+  assert.doesNotMatch(ui, /m-track-marquee-idle/, "no placeholder text in the marquee");
+  assert.doesNotMatch(ui, /tap a line to pin it at the playhead/i);
   const marqueeAt = ui.indexOf("m-track-marquee");
   const listAt = ui.indexOf("m-track-lyric-list");
   assert.ok(listAt > 0 && listAt < marqueeAt, "the pin list sits inside the LyricsBox pinRail");

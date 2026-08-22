@@ -2808,11 +2808,6 @@ span.scratch-history-blob {
   }
 }
 
-.m-track-marquee-idle {
-  color: var(--chrome-dim);
-  font-size: 11px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .m-track-marquee-line {
     animation: none;

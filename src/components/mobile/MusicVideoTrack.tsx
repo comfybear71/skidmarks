@@ -758,21 +758,17 @@ export function MusicVideoTrack({
           {/* One line, not the sheet. It comes in from the right, fades up and
               scales, then leaves to the left — against the playhead. The full
               words live behind the LYRICS toggle, where they get pinned. */}
-          {!compact && lyricLines.length ? (
+          {/* Nothing playing, nothing shown — the strip is for the line, not
+              for instructions about the line. */}
+          {!compact && activeLyric !== null ? (
             <div className="m-track-marquee">
-              {activeLyric !== null ? (
-                <span
-                  key={activeLyric}
-                  className="m-track-marquee-line"
-                  style={{ animationDuration: `${lyricHoldMs(lyricCues, activeLyric)}ms` }}
-                >
-                  {lyricLines.find((l) => l.index === activeLyric)?.text || ""}
-                </span>
-              ) : (
-                <span className="m-track-marquee-idle">
-                  {lyricCues.length ? "—" : "Pin lines in LYRICS"}
-                </span>
-              )}
+              <span
+                key={activeLyric}
+                className="m-track-marquee-line"
+                style={{ animationDuration: `${lyricHoldMs(lyricCues, activeLyric)}ms` }}
+              >
+                {lyricLines.find((l) => l.index === activeLyric)?.text || ""}
+              </span>
             </div>
           ) : null}
 
