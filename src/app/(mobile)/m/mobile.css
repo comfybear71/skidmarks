@@ -2756,227 +2756,29 @@ span.scratch-history-blob {
 
 
 
-@media (prefers-reduced-motion: reduce) {
-  .m-track-ribbon {
-    transition: none;
-  }
-}
-
-/* The pin list only appears inside the opened LYRICS panel now. */
-.m-mv-lyrics .m-track-lyric-list {
-  margin-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 6px;
-}
-
-/* ── Song desk: marquee above a low dark player ────────────────────────────
-   The player sits back so the lyric line above it is the bright thing. */
-
-.m-song-player {
-  padding: 4px 8px;
-  gap: 8px;
-  border-color: rgba(255, 255, 255, 0.1);
-  background: #0a0a0c;
-}
-
-.m-song-play {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  font-size: 10px;
-}
-
-.m-song-scrub {
-  height: 4px;
-}
-
-.m-song-clock {
-  font-size: 10px;
-  opacity: 0.75;
-}
-
-.m-track-marquee {
-  height: 34px;
-  margin: 2px 0 6px;
-}
-
-
-
-/* Plates rail — placeholder until the thumbnails land. */
-.m-track-rail {
-  margin: 2px 0 4px;
-}
-
-.m-track-rail-scroll {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  /* /m scrolls the window: a vertical flick must still move the page. */
-  touch-action: pan-x pan-y;
-  scrollbar-width: none;
-  padding-bottom: 2px;
-}
-
-.m-track-rail-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.m-track-rail-cell {
-  flex: 0 0 auto;
-  width: 56px;
-  height: 40px;
-  border-radius: 6px;
-  border: 1px dashed rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-/* Sections fold — once the markers are set, this is a record, not a form. */
-.m-track-fold {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  padding: 4px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--chrome-dim);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.m-track-fold.is-open {
-  color: var(--acid);
-  border-color: rgba(200, 255, 46, 0.35);
-}
-
-.m-track-fold-n {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.75;
-}
-
-.m-track-fold-caret {
-  font-size: 9px;
-}
-
-/* Plates rail — the plates themselves, at the top of the section. */
-.m-track-rail-cell {
-  position: relative;
-  padding: 0;
-  overflow: hidden;
-  width: 62px;
-  height: 46px;
-  cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.m-track-rail-cell img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  opacity: 0.85;
-}
-
-.m-track-rail-cell.is-timed {
-  border-color: var(--acid);
-}
-
-.m-track-rail-empty {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.05) 4px,
-    transparent 4px,
-    transparent 8px
-  );
-}
-
-.m-track-rail-label {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 1px 3px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
-  color: #eef4ff;
-  font-size: 8px;
-  font-weight: 700;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.m-track-rail-add {
-  flex: 0 0 auto;
-  width: 46px;
-  height: 46px;
-  border: 1px dashed rgba(200, 255, 46, 0.5);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--acid);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-
-/* ── Lyric ribbon ──────────────────────────────────────────────────────────
-   The whole line rides through as one strip. The word crossing the centre is
-   big and lit; its neighbours sit smaller and dimmer, the rest fade out. */
-
 .m-track-ribbon {
   display: flex;
   align-items: center;
-  gap: 0.45em;
+  gap: 0.5em;
   white-space: nowrap;
   will-change: transform;
-  transition-property: transform;
-  transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .m-track-ribbon-word {
   flex: 0 0 auto;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   line-height: 1;
-  transition:
-    color 220ms ease,
-    opacity 220ms ease,
-    font-size 220ms ease,
-    text-shadow 220ms ease;
-}
-
-.m-track-ribbon-word.is-0 {
-  font-size: 26px;
   color: #ffffff;
-  opacity: 1;
-  text-shadow: 0 0 22px rgba(255, 255, 255, 0.45);
+  /* Scale, opacity and glow are written every frame from the song clock —
+     a transition here would fight the drift and turn it back into steps. */
+  transform-origin: center center;
 }
 
-.m-track-ribbon-word.is-1 {
-  font-size: 19px;
-  color: #cdd3da;
-  opacity: 0.72;
-}
-
-.m-track-ribbon-word.is-2 {
-  font-size: 15px;
-  color: #8d959e;
-  opacity: 0.4;
-}
-
-.m-track-ribbon-word.is-3 {
-  font-size: 13px;
-  color: #6d747c;
-  opacity: 0.18;
+@media (prefers-reduced-motion: reduce) {
+  .m-track-ribbon {
+    will-change: auto;
+  }
 }

@@ -374,26 +374,44 @@ console.log("check-music-video-song-saved OK");
 // ── The ribbon's shape ─────────────────────────────────────────────────────
 {
   const { readFileSync } = await import("node:fs");
+  const ui = readFileSync(
+    new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url),
+    "utf8",
+  );
   const css = readFileSync(
     new URL("../src/app/(mobile)/m/mobile.css", import.meta.url),
     "utf8",
   );
-  // Four distance steps: centre, either neighbour, then fading out.
+
+  // A marquee drifts. Stepping the row once per word lurched, so the position
+  // comes off the song clock every frame.
+  assert.match(ui, /requestAnimationFrame/, "the ribbon is driven per frame");
+  assert.match(ui, /audio\.currentTime/, "position comes from the song, not a timer");
+  assert.doesNotMatch(ui, /transitionDuration/, "no per-word transition to lurch on");
+
+  // Exactly one word is at full size and full light: the one on the centre.
+  // Everything else falls away on the same arc, so the classes that used to
+  // bucket words into four fixed steps are gone.
   for (const step of ["is-0", "is-1", "is-2", "is-3"]) {
-    assert.ok(css.includes(`.m-track-ribbon-word.${step}`), `ribbon step ${step}`);
+    assert.ok(!css.includes(`.m-track-ribbon-word.${step}`), `no fixed step ${step}`);
   }
-  // The centre word is the biggest and brightest, or it does not read as the
-  // word being sung.
-  const size = (step) => {
-    const at = css.indexOf(`.m-track-ribbon-word.${step}`);
-    return Number(css.slice(at, at + 200).match(/font-size:\s*(\d+)px/)[1]);
-  };
-  assert.ok(size("is-0") > size("is-1"), "centre word is biggest");
-  assert.ok(size("is-1") > size("is-2"));
-  assert.ok(size("is-2") > size("is-3"));
-  // The old single-word flight is gone.
-  assert.ok(!css.includes("m-lyric-pass"), "no single-word keyframes left");
-  assert.ok(!css.includes(".m-track-marquee-word"), "no single-word rule left");
+  // Strip comments first — the rule explains why there is no transition, and
+  // the word in that sentence is not a transition.
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.ok(
+    !/\.m-track-ribbon(-word)?\s*\{[^}]*\btransition\s*:/.test(bare),
+    "no CSS transition fighting the per-frame drift",
+  );
+
+  // The old single-word flight is gone for good.
+  assert.ok(!css.includes("m-lyric-pass"));
+  assert.ok(!css.includes(".m-track-marquee-word"));
+
+  // The strip is a window onto a longer line — words off either end are not
+  // on screen at all.
+  assert.ok(css.includes("mask-image"), "the ends fade rather than cut hard");
+  const marquee = css.slice(css.indexOf(".m-track-marquee {"));
+  assert.match(marquee.slice(0, 400), /overflow:\s*hidden/, "the line is clipped to the window");
 }
 
 console.log("check-music-video-ribbon OK");
