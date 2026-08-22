@@ -34,11 +34,7 @@ import {
   expectedDeskCutCount,
 } from "../src/lib/musicVideoSong.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
-import {
-  isInstrumentalStaging,
-  isSilhouetteStaging,
-  buildScratchSongLtxMotion,
-} from "../src/lib/mobileImageMotion.ts";
+import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
 import { songCookStorageKey } from "../src/lib/songCutCook.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -162,8 +158,9 @@ assert.doesNotMatch(
 
 assert.equal(isInstrumentalStaging("on stage playing saxophone"), true);
 assert.equal(isInstrumentalStaging("Facing camera, mouth clear"), false);
-assert.equal(isSilhouetteStaging("Facing camera, mouth clear"), false);
-assert.equal(isSilhouetteStaging("Backlit silhouette, face in shadow, hat brim"), true);
+// Bible "clear silhouette against the place" must NOT flip singer prompts —
+// that was the bleed that hit lit singers and other characters.
+assert.equal(isInstrumentalStaging("Full-body shot, clear silhouette against the place"), false);
 const sax = buildScratchSongLtxMotion({
   styleId: "music_video",
   speaker: "Frank",
@@ -180,27 +177,26 @@ const sing = buildScratchSongLtxMotion({
 assert.match(sing, /singing, lip-sync/);
 assert.doesNotMatch(sing, /only as much mouth as the start image already shows/);
 assert.doesNotMatch(sing, /Do not brighten or reveal the face/);
+assert.doesNotMatch(sing, /If the start image is a silhouette/);
 assert.match(sing, /Same face, same hair, same hat, same clothes/);
 assert.match(sing, /Do not invent or change letters/);
 assert.match(sing, /No readable text or signage/);
 assert.match(sing, /wide-brim black hat/);
-const sil = buildScratchSongLtxMotion({
+const fullBodyBible = buildScratchSongLtxMotion({
   styleId: "music_video",
   speaker: "Frank",
-  staging: "Backlit silhouette, face in shadow, hat brim hides eyes",
+  staging: "Full-body shot of Frank at the stage. Head to feet visible, natural stance, clear silhouette against the place.",
   lookLock: "wide-brim black hat, teal shirt, short beard",
 });
-assert.match(sil, /singing, lip-sync/);
-assert.match(sil, /only as much mouth as the start image already shows/);
-assert.match(sil, /Keep lighting and shadows exactly as the start image/);
-assert.match(sil, /If the start image is a silhouette/);
+assert.match(fullBodyBible, /singing, lip-sync/);
+assert.doesNotMatch(fullBodyBible, /Do not brighten or reveal the face/);
+assert.doesNotMatch(fullBodyBible, /only as much mouth/);
 assert.match(sax, /Same face, same hair, same hat, same clothes/);
 assert.doesNotMatch(sax, /Do not brighten or reveal the face/);
 assert.match(clip, /Song slices must rebuild the identity lock/);
-assert.match(clip, /prefer the cut\/beat speaker/);
-assert.match(clip, /isInstrumentalStaging/);
-assert.match(clip, /isSilhouetteStaging/);
-assert.doesNotMatch(clip, /skipLipSyncLead:\s*singing\s*,/);
+assert.match(clip, /who is actually on this plate/);
+assert.match(clip, /skipLipSyncLead: singing && isInstrumentalStaging/);
+assert.doesNotMatch(clip, /isSilhouetteStaging/);
 assert.match(songRoute, /orderSongCutsTimeline/);
 {
   const shuffled = [

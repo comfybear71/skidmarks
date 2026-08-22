@@ -18,7 +18,6 @@ import {
   buildSegmentText,
   buildGlobalPrompt,
   isInstrumentalStaging,
-  isSilhouetteStaging,
   ltxSendPrompt,
   stripLtxLipSyncLead,
   looksLikePlatePositionPrompt,
@@ -119,16 +118,20 @@ export async function runScratchLtxClip(opts: {
   const singing =
     Boolean(songFile) &&
     (isDroppedPlaceholderLine(line) || job.styleId === "music_video" || Boolean(opts.cutId));
-  // Song look: prefer the cut/beat speaker when they are on this plate (singer
-  // on clip 1). Fall back to first plate cast so leftover carrier beats do not
-  // invent an intruder — but never ignore a named singer who is on the pad.
+  // Song look follows who is actually on this plate (pad order), not a leftover
+  // carrier-beat speaker that can name someone off-camera → wrong look / "intruder".
+  // One person on the pad → that person. Several → beat speaker if they are on
+  // the pad, else first on the pad. Never invent silhouette rules from Position text.
   const beatSpeaker = (clipRow?.speaker || beat.speaker || "").trim();
-  const beatOnPlate =
-    Boolean(beatSpeaker) &&
-    shotCast.some((n) => n.trim().toLowerCase() === beatSpeaker.toLowerCase());
+  const onPad = (name: string) =>
+    shotCast.some((n) => n.trim().toLowerCase() === name.trim().toLowerCase());
   const speaker = (
     singing
-      ? (beatOnPlate ? beatSpeaker : "") || shotCast[0] || beatSpeaker
+      ? (shotCast.length === 1
+          ? shotCast[0]
+          : beatSpeaker && onPad(beatSpeaker)
+            ? beatSpeaker
+            : shotCast[0] || beatSpeaker)
       : beatSpeaker || shotCast[0]
   )
     .trim();
@@ -192,14 +195,12 @@ export async function runScratchLtxClip(opts: {
       lookLock,
       shotSpeakers: shotCast,
     });
-  // Skip lively lip-sync lead only for instrumental or silhouette/shadow
-  // plates. Lit singers need the lead — #259 skipped it on every song cut and
-  // clip-1 singer started failing.
+  // Skip lively lip-sync lead only for instrumental plates (sax etc.).
+  // Lit singers need the lead — same as Scratch yesterday before #259.
+  // Do not skip for guessed "silhouette" staging: that bled into other characters.
   const stagingText = storyShot.staging || "";
   const imageMotion = ltxSendPrompt(body, stagingText, {
-    skipLipSyncLead:
-      singing &&
-      (isInstrumentalStaging(stagingText) || isSilhouetteStaging(stagingText)),
+    skipLipSyncLead: singing && isInstrumentalStaging(stagingText),
   });
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)

@@ -129,7 +129,12 @@ export function ltxSendPrompt(
   return withLtxLipSyncLead(body);
 }
 
-/** Instrumental plate — sax / guitar / drums, not a singing close-up. */
+/**
+ * Instrumental plate — sax / guitar / drums, not a singing close-up.
+ * Do NOT guess "silhouette" from staging text: bible positions say
+ * "clear silhouette against the place" and Jack's hat brim would match
+ * hat-brim rules — that bled into lit singers and other characters (#259/#262).
+ */
 export function isInstrumentalStaging(staging: string): boolean {
   const t = (staging || "").toLowerCase();
   if (!t) return false;
@@ -137,26 +142,6 @@ export function isInstrumentalStaging(staging: string): boolean {
     /\b(sax(?:ophone)?|trumpet|trombone|clarinet|flute|guitar|bass|drum(?:s|mer)?|keyboard|piano|violin|cello|harmonica|instrument(?:al)?)\b/.test(
       t,
     ) || /\bplay(?:s|ing)?\s+(the\s+)?(sax|guitar|drums|bass|keys|piano|trumpet)\b/.test(t)
-  );
-}
-
-/**
- * Face-in-shadow / silhouette staging — keep the lively lip-sync lead OFF and
- * lock lighting so LTX does not brighten a hidden singer. Lit close-ups must
- * NOT match this (clip 1 singer used to fail when every song cut got the lock).
- */
-export function isSilhouetteStaging(staging: string): boolean {
-  const t = (staging || "").toLowerCase();
-  if (!t) return false;
-  return (
-    /\bsilhouette\b/.test(t) ||
-    /\bface[- ]in[- ]shadow\b/.test(t) ||
-    /\bin shadow\b/.test(t) ||
-    /\bbacklit\b/.test(t) ||
-    /\bagainst (?:the )?(?:light|sun|window)\b/.test(t) ||
-    /\bhat brim\b/.test(t) ||
-    /\bhidden face\b/.test(t) ||
-    /\bno (?:readable )?facial features\b/.test(t)
   );
 }
 
@@ -544,14 +529,6 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
   return clean([LTX_LIP_SYNC_LEAD, motionStyleLock(styleId)].join(" "));
 }
 
-/**
- * Silhouette / shadow song slices only — keep lighting of the plate. Do not
- * put this on a lit singer: "do not reveal the face" fights lip-sync and
- * broke clip-1 singer after it was applied to every song cut.
- */
-const GOLD_SONG_SILHOUETTE_LIGHTING_LOCK =
-  "Keep lighting and shadows exactly as the start image. Do not brighten or reveal the face. If the start image is a silhouette or face-in-shadow, stay that way — hat brim and darkness hide the eyes, no readable facial features.";
-
 /** Scratch / Music video song slice — singing, or playing if Position names an instrument. */
 export function buildScratchSongLtxMotion(opts: {
   styleId: ShowStyleId;
@@ -564,22 +541,17 @@ export function buildScratchSongLtxMotion(opts: {
   const look = shortLtxLookLock(opts.lookLock || "", 160);
   const who = look ? `${name}, ${look}` : name;
   const instrumental = isInstrumentalStaging(opts.staging || "");
-  const silhouette = !instrumental && isSilhouetteStaging(opts.staging || "");
   const identityLock =
     "Same face, same hair, same hat, same clothes as the start image — not a different person, not younger, not a new face. Do not invent or change letters on the hat or clothing.";
-  const singBody = silhouette
-    ? `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync — only as much mouth as the start image already shows.`
-    : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`;
   return clean(
     [
       GOLD_START_FRAME,
       instrumental
         ? `${who} is prominent, hands and body play the same instrument as the start image, in time with the music.`
-        : singBody,
+        : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`,
       GOLD_PROPS_LOCK,
       GOLD_NO_TEXT,
       identityLock,
-      silhouette ? GOLD_SONG_SILHOUETTE_LIGHTING_LOCK : "",
       instrumental
         ? `${name} plays this instrumental slice. ${GOLD_CAMERA_HOLDS} Same person, same instrument, same objects as the start image. Not a new player. Not singing unless the start image is already singing.`
         : `${name} sings this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`,
