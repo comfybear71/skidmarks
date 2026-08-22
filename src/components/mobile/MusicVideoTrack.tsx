@@ -7,7 +7,6 @@ import {
   TRACK_ACID,
   TRACK_SECTION_LABELS,
   activeLyricLineIndex,
-  coverageLine,
   formatTrackClock,
   lyricHoldMs,
   lyricCueFor,
@@ -21,7 +20,6 @@ import {
   sectionTitle,
   sortPlateTimings,
   withSectionTime,
-  trackCoverage,
   withLyricCue,
   withoutLyricCue,
   type LyricCue,
@@ -34,6 +32,7 @@ import { findSongCarrierBeatId, musicVideoCreditLine } from "@/lib/musicVideoSon
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { readApiJson } from "@/lib/studioFetchError";
+import { MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
@@ -347,13 +346,20 @@ export function MusicVideoTrack({
   plated,
   onJobChange,
   compact = false,
+  busy: startBusy = false,
+  canStart = false,
+  onStart,
 }: {
   job: MobileGenJob;
   story: CrashStoryDoc | null;
   plated: MobileShotUnit[];
   onJobChange: (job: MobileGenJob) => void;
-  /** Collapsed: the wave, the clock and the player only — no editing tools. */
+  /** Collapsed: the wave and the player only — no editing tools. */
   compact?: boolean;
+  busy?: boolean;
+  /** Not locked yet — the Start button belongs in this same UI. */
+  canStart?: boolean;
+  onStart?: (lyrics: string) => void;
 }) {
   const song = job.scratchSong;
   const parked = usePendingSong(job.id);
@@ -474,6 +480,19 @@ export function MusicVideoTrack({
     }
   }, [audioSrc, parked?.file, peaks.length, busy, decodeAndSave, song?.fileName, song?.waveformPeaks]);
 
+  async function saveLyricCues(next: LyricCue[]) {
+    setBusy("cues");
+    setNote("");
+    try {
+      const updated = await trackAction("set-lyric-cues", { jobId: job.id, lyricCues: next });
+      if (updated) onJobChange(updated);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't pin that line");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function saveMarkers(next: typeof markers) {
     setBusy("markers");
     setNote("");
@@ -514,24 +533,6 @@ export function MusicVideoTrack({
     }
   }
 
-  const coverage = useMemo(
-    () => trackCoverage(song?.plateTimings || job.trackDraft?.plateTimings || [], durationMs),
-    [song?.plateTimings, job.trackDraft?.plateTimings, durationMs],
-  );
-
-  async function saveLyricCues(next: LyricCue[]) {
-    setBusy("cues");
-    setNote("");
-    try {
-      const updated = await trackAction("set-lyric-cues", { jobId: job.id, lyricCues: next });
-      if (updated) onJobChange(updated);
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't pin that line");
-    } finally {
-      setBusy("");
-    }
-  }
-
   async function dropSong() {
     // Pre-lock the mp3 is only parked in the browser, so dropping it is local.
     // Post-lock it is a real attached take: leave that to the song desk rather
@@ -544,17 +545,12 @@ export function MusicVideoTrack({
     setNote("The song is attached to this episode — drop it from the song desk.");
   }
 
-  const hasSong = Boolean(song?.fileName || parked?.file);
-
   return (
     <div className="m-track">
-      {!hasSong ? (
-        <div className="m-track-empty">
-          <p className="m-track-note">Add the song before you time plates.</p>
-          <SongDropRow jobId={job.id} job={job} />
-        </div>
-      ) : (
-        <>
+      {/* One UI, empty or full. No separate "add the song" screen: the same
+          title row, player slot, wave, sections and plates are always here —
+          they just have nothing in them until a song lands. */}
+      <>
           {/* Title line owns the card: name left, Lyrics and drop right.
               Lyrics stay shut — that box is for entering them, not reading. */}
           <div className="m-track-song-top">
@@ -641,7 +637,9 @@ export function MusicVideoTrack({
                 audioRef={audioRef}
                 onTime={(sec) => setPlayheadMs(Math.round(sec * 1000))}
               />
-            ) : null}
+            ) : (
+              <SongDropRow jobId={job.id} />
+            )}
           </div>
 
           {peaks.length ? (
@@ -746,18 +744,6 @@ export function MusicVideoTrack({
             </ul>
           ) : null}
 
-          {coverage.songMs ? (
-            <div className="m-track-cover">
-              <div className="m-track-cover-bar">
-                <div className="m-track-cover-fill" style={{ width: `${coverage.pct}%` }} />
-              </div>
-              <span className="m-track-cover-line">{coverageLine(coverage)}</span>
-            </div>
-          ) : null}
-
-          {/* One line, not the sheet. It comes in from the right, fades up and
-              scales, then leaves to the left — against the playhead. The full
-              words live behind the LYRICS toggle, where they get pinned. */}
           {/* Nothing playing, nothing shown — the strip is for the line, not
               for instructions about the line. */}
           {!compact && activeLyric !== null ? (
@@ -811,13 +797,16 @@ export function MusicVideoTrack({
                 </div>
               ))}
             </div>
-          ) : job.folderName ? (
-            <p className="m-track-note">Draw plates first — then drag a range and tap Use range.</p>
-          ) : (
-            <p className="m-track-note">Start the video — then time plates on this track.</p>
-          )}
-        </>
-      )}
+          ) : null}
+
+          {/* Same UI before and after Start: this is a button in it, not a
+              different screen in front of it. */}
+          {!compact && canStart ? (
+            <MobilePrimaryButton disabled={startBusy} onClick={() => onStart?.(job.lyrics || "")}>
+              {startBusy ? "Starting…" : "Start the video"}
+            </MobilePrimaryButton>
+          ) : null}
+      </>
       {note ? <p className="m-track-err">{note}</p> : null}
     </div>
   );

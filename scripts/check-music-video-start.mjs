@@ -20,6 +20,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const tree = readFileSync(join(here, "../src/components/mobile/StudioTree.tsx"), "utf8");
 const mPage = readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8");
 const mvStart = readFileSync(join(here, "../src/components/mobile/MusicVideoStart.tsx"), "utf8");
+const mvTrack = readFileSync(join(here, "../src/components/mobile/MusicVideoTrack.tsx"), "utf8");
 const songRoute = readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8");
 const startRoute = readFileSync(
   join(here, "../src/app/api/crash/mobile/music-video/start/route.ts"),
@@ -79,10 +80,12 @@ assert.match(startRoute, /carrierBeatId/);
 assert.match(songRoute, /action === "set-lyrics"/);
 assert.match(mvStart, /attachParkedSongToBeat/);
 assert.match(mvStart, /attachTakenPendingSong/);
-assert.match(mvStart, /Start the video/);
+// "Start the video" is a button inside the one track UI now, not a panel of
+// its own — the music video looks the same empty or full.
+assert.match(mvTrack, /Start the video/);
+assert.doesNotMatch(mvStart, /export function MusicVideoStart/);
 assert.match(songCuts, /attachParkedSongToBeat/);
 assert.match(songCuts, /takePendingSong/);
-assert.match(tree, /MusicVideoStart/);
 assert.match(tree, /onStartMusicVideo/);
 assert.match(mPage, /music-video\/start/);
 assert.match(mPage, /attachTakenPendingSong/);
@@ -90,11 +93,11 @@ assert.match(mobileCss, /\.m-mv-drop/);
 assert.match(mobileCss, /\.m-mv-lyrics/);
 
 {
-  const mvBlock = tree.slice(tree.indexOf("isMusicVideoSongJob(job) ?"));
+  // The paste-a-script panel belongs to the other shows only.
   const scriptBlock = tree.slice(tree.indexOf('placeholder="EPISODE:'));
-  assert.match(mvBlock, /MusicVideoStart/);
-  assert.doesNotMatch(mvBlock.slice(0, 600), /AI the story/);
   assert.match(scriptBlock, /AI the story/);
+  assert.match(tree, /!isMusicVideoSongJob\(job\)/);
+  assert.doesNotMatch(mvTrack, /AI the story/);
 }
 
 console.log("check-music-video-start: ok");

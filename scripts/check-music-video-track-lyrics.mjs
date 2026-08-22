@@ -3,10 +3,8 @@ import assert from "node:assert/strict";
 import {
   TRACK_ACID,
   activeLyricLineIndex,
-  coverageLine,
   lyricCueFor,
   lyricLinesFrom,
-  trackCoverage,
   withLyricCue,
   withoutLyricCue,
 } from "../src/lib/musicVideoTrack.ts";
@@ -41,52 +39,6 @@ assert.equal(activeLyricLineIndex(timed, 9_999), 0);
 assert.equal(activeLyricLineIndex(timed, 10_000), 1);
 assert.equal(activeLyricLineIndex(timed, 19_500), 1, "not the nearest — the last started");
 assert.equal(activeLyricLineIndex([], 5000), null);
-
-// Coverage: the holes in the song, before any LTX credit is spent.
-const song = 60_000;
-const full = trackCoverage(
-  [
-    { plateId: "a", startMs: 0, endMs: 30_000, sortIndex: 0 },
-    { plateId: "b", startMs: 30_000, endMs: 60_000, sortIndex: 1 },
-  ],
-  song,
-);
-assert.equal(full.pct, 100);
-assert.deepEqual(full.gaps, [], "back-to-back plates leave no gap");
-assert.deepEqual(full.overlaps, []);
-
-const holed = trackCoverage(
-  [
-    { plateId: "a", startMs: 0, endMs: 15_000, sortIndex: 0 },
-    { plateId: "b", startMs: 45_000, endMs: 60_000, sortIndex: 1 },
-  ],
-  song,
-);
-assert.equal(holed.coveredMs, 30_000);
-assert.equal(holed.pct, 50);
-assert.deepEqual(holed.gaps, [{ startMs: 15_000, endMs: 45_000 }]);
-
-// A trailing hole counts — the song outlasting the plates is the common one.
-const short = trackCoverage([{ plateId: "a", startMs: 0, endMs: 20_000, sortIndex: 0 }], song);
-assert.deepEqual(short.gaps, [{ startMs: 20_000, endMs: 60_000 }]);
-
-// Two plates on the same seconds is a real mistake, not silent overwrite.
-const clash = trackCoverage(
-  [
-    { plateId: "a", startMs: 0, endMs: 30_000, sortIndex: 0 },
-    { plateId: "b", startMs: 20_000, endMs: 60_000, sortIndex: 1 },
-  ],
-  song,
-);
-assert.equal(clash.overlaps.length, 1);
-assert.deepEqual(clash.overlaps[0], { startMs: 20_000, endMs: 30_000 });
-assert.equal(clash.coveredMs, 60_000, "overlap is not double counted");
-
-// No song, no numbers — never a divide by zero on screen.
-assert.equal(trackCoverage([], 0).pct, 0);
-assert.equal(coverageLine(trackCoverage([], 0)), "");
-assert.match(coverageLine(holed), /0:30 \/ 1:00 covered · 1 gap$/);
-assert.match(coverageLine(clash), /1 overlap$/);
 
 console.log("check-music-video-track-lyrics OK");
 
@@ -130,6 +82,26 @@ console.log("check-music-video-track-lyrics OK");
   const listAt = ui.indexOf("m-track-lyric-list");
   assert.ok(listAt > 0 && listAt < marqueeAt, "the pin list sits inside the LyricsBox pinRail");
   assert.match(ui, /pinRail=/, "pin list is passed into the collapsed lyrics panel");
+
+  // One UI, empty or full. No second screen in front of the track.
+  assert.doesNotMatch(ui, /m-track-empty/, "no separate empty-state layout");
+  assert.doesNotMatch(ui, /Add the song before you time plates/);
+  assert.equal(
+    (ui.match(/<SongDropRow/g) || []).length,
+    1,
+    "exactly one drop box in the music video UI",
+  );
+
+  const tree = readFileSync(
+    new URL("../src/components/mobile/StudioTree.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(tree, /MusicVideoStart/, "the pre-lock panel is gone");
+  assert.match(
+    tree,
+    /!isMusicVideoSongJob\(job\)/,
+    "the paste-a-script panel is for the other shows only",
+  );
 }
 
 console.log("check-music-video-marquee OK");

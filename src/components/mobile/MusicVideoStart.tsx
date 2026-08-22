@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { MobilePrimaryButton } from "@/components/mobile/MobileUi";
+import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import { probeBrowserAudioDurationSec, dropScratchSongViaBlob, SCRATCH_SONG_DIRECT_POST_MAX_BYTES } from "@/lib/scratchSongDrop";
 import { readApiJson } from "@/lib/studioFetchError";
 import {
-  clearPendingSong,
-  formatSongLength,
   isMp3File,
   lyricLineCount,
   parkPendingSong,
   peekPendingSong,
-  songChipName,
   subscribePendingSong,
   takePendingSong,
   type PendingSong,
@@ -212,29 +208,14 @@ export function LyricsBox({
  */
 export function SongDropRow({
   jobId,
-  job,
   onPicked,
 }: {
   jobId: string;
-  /** Pass the job to put the Lyrics toggle in this card's title row. */
-  job?: MobileGenJob;
   onPicked?: (name: string, durationSec: number) => void;
 }) {
-  const parkedNow = usePendingSong(jobId);
-  const name = parkedNow?.file.name || "";
-  const lengthSec = parkedNow?.durationSec || 0;
   const [err, setErr] = useState("");
   const [over, setOver] = useState(false);
-  const [lyricsOpen, setLyricsOpen] = useState(false);
-  const [src, setSrc] = useState("");
-  const srcRef = useRef("");
   const pick = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (srcRef.current) URL.revokeObjectURL(srcRef.current);
-    };
-  }, []);
 
   async function take(file: File) {
     if (!isMp3File(file)) {
@@ -243,71 +224,35 @@ export function SongDropRow({
     }
     setErr("");
     const durationSec = await probeBrowserAudioDurationSec(file);
+    // Parking publishes, so the track picks the song up and swaps this box
+    // for the player. It does not need a preview URL of its own.
     parkPendingSong(jobId, { file, durationSec });
-    if (srcRef.current) URL.revokeObjectURL(srcRef.current);
-    const url = URL.createObjectURL(file);
-    srcRef.current = url;
-    setSrc(url);
     onPicked?.(file.name, durationSec);
   }
 
-  function drop() {
-    clearPendingSong(jobId);
-    if (srcRef.current) URL.revokeObjectURL(srcRef.current);
-    srcRef.current = "";
-    setSrc("");
-    onPicked?.("", 0);
-  }
-
   return (
-    <div className="m-mv-block">
-      <div className="m-mv-head as-static">
-        <span className="m-mv-head-label">Song</span>
-        <span className="m-mv-head-note">{lengthSec ? formatSongLength(lengthSec) : "mp3"}</span>
-      </div>
-      {name ? (
-        <div className="m-mv-song">
-          {/* Title line owns the card: name on the left, Lyrics and × on the
-              right. Lyrics stay shut — they are for entering, not reading. */}
-          <div className="m-mv-song-top">
-            <span className="m-mv-song-name">{songChipName(name)}</span>
-            {job ? (
-              <button
-                type="button"
-                className={`m-mv-lyr-toggle${lyricsOpen ? " is-open" : ""}`}
-                aria-expanded={lyricsOpen}
-                onClick={() => setLyricsOpen((v) => !v)}
-              >
-                Lyrics <span className="m-mv-lyr-caret">{lyricsOpen ? "▾" : "▸"}</span>
-              </button>
-            ) : null}
-            <button type="button" className="m-mv-x" aria-label="Drop this song" onClick={drop}>
-              ×
-            </button>
-          </div>
-          {src ? <SongPlayer src={src} /> : null}
-          {job && lyricsOpen ? <LyricsBox job={job} /> : null}
-        </div>
-      ) : (
-        <button
-          type="button"
-          className={`m-mv-drop${over ? " is-over" : ""}`}
-          onClick={() => pick.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setOver(true);
-          }}
-          onDragLeave={() => setOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setOver(false);
-            const file = e.dataTransfer.files?.[0];
-            if (file) void take(file);
-          }}
-        >
-          Drop the mp3 — or tap to pick
-        </button>
-      )}
+    <>
+      {/* Just the drop target. The title, the player and the Lyrics toggle
+          belong to the track — this sits in the player's slot until a song
+          lands, so the UI is the same shape empty or full. */}
+      <button
+        type="button"
+        className={`m-mv-drop${over ? " is-over" : ""}`}
+        onClick={() => pick.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setOver(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) void take(file);
+        }}
+      >
+        Drop the mp3 — or tap to pick
+      </button>
       <input
         ref={pick}
         type="file"
@@ -320,34 +265,6 @@ export function SongDropRow({
         }}
       />
       {err ? <p className="m-mv-err">{err}</p> : null}
-    </div>
-  );
-}
-
-/**
- * What stands where the Plates script template used to be, for music_video.
- * Band + place are already above. This is the song and the words, then Start.
- */
-export function MusicVideoStart({
-  job,
-  busy,
-  onStart,
-}: {
-  job: MobileGenJob;
-  busy: boolean;
-  onStart: (lyrics: string) => void;
-}) {
-  const [hasSong, setHasSong] = useState(Boolean(peekPendingSong(job.id)));
-  const [lyricsText, setLyricsText] = useState(job.lyrics || "");
-
-  return (
-    <div className="m-mv">
-      <SongDropRow jobId={job.id} onPicked={(name) => setHasSong(Boolean(name))} />
-      <LyricsBox job={job} onChange={setLyricsText} />
-      <MobilePrimaryButton disabled={busy} onClick={() => onStart(lyricsText)}>
-        {busy ? "Starting…" : "Start the video"}
-      </MobilePrimaryButton>
-      {!hasSong ? <p className="m-mv-note">No song yet — you can drop it after this too.</p> : null}
-    </div>
+    </>
   );
 }
