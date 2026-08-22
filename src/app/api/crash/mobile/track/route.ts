@@ -151,6 +151,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, job: updated });
     }
 
+    if (action === "drop-song") {
+      // Park it, never delete it: the mp3 stays in Blob, the desk just stops
+      // pointing at it, so dropping a song can never lose the file.
+      const draft = { ...(job.trackDraft || {}) };
+      delete draft.songFile;
+      delete draft.songDurationSec;
+      delete draft.waveformPeaks;
+      const updated = await patchMobileGenJob(jobId, { trackDraft: draft, error: "" });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
     if (action === "set-plate-timing") {
       const song = job.scratchSong;
       if (!song?.fileName) {

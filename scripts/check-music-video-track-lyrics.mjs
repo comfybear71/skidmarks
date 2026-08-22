@@ -91,10 +91,26 @@ console.log("check-music-video-track-lyrics OK");
   // The plates are a strip at the top of the section, above the title, and
   // they are real plates now — not a placeholder.
   assert.match(ui, /m-track-rail/);
+  // Plates outrank the section list, so the strip sits above it.
   assert.ok(
-    ui.indexOf("m-track-rail") < ui.indexOf("m-track-song-top"),
-    "the plates strip sits above the title row",
+    ui.indexOf("m-track-rail") < ui.indexOf("m-track-fold"),
+    "the plates strip sits above the sections",
   );
+
+  // Every class the strip uses has a rule. These were lost in an edit once and
+  // the plate names rendered as run-on plain text with no tiles.
+  const { readFileSync: readCss } = await import("node:fs");
+  const railCss = readCss(new URL("../src/app/(mobile)/m/mobile.css", import.meta.url), "utf8");
+  for (const cls of [
+    "m-track-rail",
+    "m-track-rail-scroll",
+    "m-track-rail-cell",
+    "m-track-rail-label",
+    "m-track-rail-empty",
+    "m-track-rail-add",
+  ]) {
+    assert.ok(railCss.includes(`.${cls} `) || railCss.includes(`.${cls}.`) || railCss.includes(`.${cls}{`) || railCss.includes(`.${cls},`), `${cls} has a rule`);
+  }
   assert.match(ui, /onOpenPlate/, "tapping a plate opens its prompts");
   assert.match(ui, /onCreatePlate/, "the plus makes the plate itself");
   // One place picker in the app, not two.
@@ -524,3 +540,30 @@ console.log("check-music-video-lyric-tags OK");
 }
 
 console.log("check-music-video-plate-picker OK");
+
+// ── The × on the song row actually drops the song ──────────────────────────
+{
+  const { readFileSync } = await import("node:fs");
+  const ui = readFileSync(
+    new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url),
+    "utf8",
+  );
+  const route = readFileSync(
+    new URL("../src/app/api/crash/mobile/track/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  // Clearing only the browser copy left trackDraft.songFile pointing at the
+  // mp3, so the player carried on and the x looked dead.
+  const drop = ui.slice(ui.indexOf("async function dropSong"), ui.indexOf("async function dropSong") + 1200);
+  assert.match(drop, /clearPendingSong/, "the browser copy goes");
+  assert.match(drop, /drop-song/, "and the saved reference goes with it");
+
+  assert.match(route, /action === "drop-song"/);
+  // Park, never delete: the mp3 stays in Blob so dropping cannot lose a file.
+  const action = route.slice(route.indexOf('action === "drop-song"'), route.indexOf('action === "drop-song"') + 700);
+  assert.match(action, /delete draft\.songFile/);
+  assert.doesNotMatch(action, /deleteBlob|deleteNeon|rmSync|unlink/, "nothing is deleted");
+}
+
+console.log("check-music-video-drop-song OK");

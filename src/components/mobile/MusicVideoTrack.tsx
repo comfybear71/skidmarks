@@ -668,15 +668,28 @@ export function MusicVideoTrack({
   }
 
   async function dropSong() {
-    // Pre-lock the mp3 is only parked in the browser, so dropping it is local.
-    // Post-lock it is a real attached take: leave that to the song desk rather
-    // than deleting media from here (AGENTS.md — never delete, park).
-    if (!song?.fileName) {
-      clearPendingSong(job.id);
-      setLocalPeaks([]);
-      return;
+    // The browser copy and the saved one both have to go, or the x looks dead:
+    // clearing only the parked file left trackDraft.songFile pointing at it and
+    // the player carried on as if nothing happened.
+    clearPendingSong(job.id);
+    setLocalPeaks([]);
+    setPlayheadMs(0);
+    if (job.trackDraft?.songFile) {
+      setBusy("song");
+      try {
+        const updated = await trackAction("drop-song", { jobId: job.id });
+        if (updated) onJobChange(updated);
+      } catch (e) {
+        setNote(e instanceof Error ? e.message : "Couldn't drop that song");
+      } finally {
+        setBusy("");
+      }
     }
-    setNote("The song is attached to this episode — drop it from the song desk.");
+    // Once the song is a real attached take on the episode, removing it is the
+    // song desk's job — this desk never deletes media.
+    if (song?.fileName) {
+      setNote("Song dropped here. The attached take stays on the episode.");
+    }
   }
 
   return (
@@ -685,42 +698,6 @@ export function MusicVideoTrack({
           title row, player slot, wave, sections and plates are always here —
           they just have nothing in them until a song lands. */}
       <>
-          {/* Plates live at the top of this section, above the title, as one
-              horizontal strip. LOCATIONS still makes them — a second place
-              picker in here would put the same thing on screen twice. */}
-          {!compact ? (
-            <div className="m-track-rail">
-              <div className="m-track-rail-scroll">
-                {plateRows.map((row) => (
-                  <button
-                    type="button"
-                    key={row.shotId}
-                    className={`m-track-rail-cell${row.timing ? " is-timed" : ""}`}
-                    onClick={() => onOpenPlate?.(row.shotId)}
-                    title={row.title}
-                  >
-                    {row.plateFile ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={mobileLocationStillUrl(job, row.plateFile)} alt="" />
-                    ) : (
-                      <span className="m-track-rail-empty" />
-                    )}
-                    <span className="m-track-rail-label">{row.title}</span>
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
-                  onClick={() => setPickOpen((v) => !v)}
-                  aria-expanded={pickOpen}
-                  aria-label="Add a plate"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           {/* Title line owns the card: name left, Lyrics and drop right.
               Lyrics stay shut — that box is for entering them, not reading. */}
           <div className="m-track-song-top">
@@ -795,6 +772,41 @@ export function MusicVideoTrack({
               {busy === "peaks" ? "Reading waveform…" : "Waveform…"}
             </div>
           )}
+
+          {/* Plates outrank the section list, so they sit above it: one
+              horizontal strip, right under the wave. */}
+          {!compact ? (
+            <div className="m-track-rail">
+              <div className="m-track-rail-scroll">
+                {plateRows.map((row) => (
+                  <button
+                    type="button"
+                    key={row.shotId}
+                    className={`m-track-rail-cell${row.timing ? " is-timed" : ""}`}
+                    onClick={() => onOpenPlate?.(row.shotId)}
+                    title={row.title}
+                  >
+                    {row.plateFile ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={mobileLocationStillUrl(job, row.plateFile)} alt="" />
+                    ) : (
+                      <span className="m-track-rail-empty" />
+                    )}
+                    <span className="m-track-rail-label">{row.title}</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
+                  onClick={() => setPickOpen((v) => !v)}
+                  aria-expanded={pickOpen}
+                  aria-label="Add a plate"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {/* One person, one place, one plate — picked here rather than three
               scrolls down inside a Locations card. */}
