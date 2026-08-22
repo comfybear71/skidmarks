@@ -505,3 +505,31 @@ export function evenLineStartMs(lineIndex: number, lineCount: number, songMs: nu
   if (!Number.isFinite(songMs) || songMs <= 0) return 0;
   return Math.round((songMs / lineCount) * Math.max(0, lineIndex));
 }
+
+/**
+ * Section markers straight from the sheet.
+ *
+ * The tags already say the running order — [Instrumental Intro], [Verse 1],
+ * [Chorus], [Outro] — so the sections do not have to be tapped in one at a
+ * time. Only the order is known, never the timings: a lyric sheet says what
+ * comes next, not when. So the markers are laid end to end across the song as
+ * a starting point and the real times get typed in.
+ */
+export function sectionsFromLyricTags(opts: {
+  tags: LyricTag[];
+  songMs: number;
+  newId: (i: number) => string;
+}): TrackSectionMarker[] {
+  const { tags, songMs } = opts;
+  // Stage directions ("a single slow bass thud dying out") are not sections.
+  const structural = tags.filter((t) => t.label !== "custom");
+  if (!structural.length || !Number.isFinite(songMs) || songMs <= 0) return [];
+
+  const each = songMs / structural.length;
+  return structural.map((tag, i) => ({
+    id: opts.newId(i),
+    label: tag.label,
+    startMs: Math.round(each * i),
+    endMs: i === structural.length - 1 ? Math.round(songMs) : Math.round(each * (i + 1)),
+  }));
+}
