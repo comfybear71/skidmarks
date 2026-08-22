@@ -170,12 +170,21 @@ const sing = buildScratchSongLtxMotion({
   lookLock: "wide-brim black hat, teal shirt, short beard",
 });
 assert.match(sing, /singing, lip-sync/);
+assert.match(sing, /only as much mouth as the start image already shows/);
 assert.match(sing, /Same face, same hair, same hat, same clothes/);
 assert.match(sing, /Do not invent or change letters/);
+assert.match(sing, /Keep lighting and shadows exactly as the start image/);
+assert.match(sing, /If the start image is a silhouette/);
 assert.match(sing, /No readable text or signage/);
 assert.match(sing, /wide-brim black hat/);
 assert.match(sax, /Same face, same hair, same hat, same clothes/);
+assert.match(sax, /Keep lighting and shadows exactly as the start image/);
 assert.match(clip, /Song slices must rebuild the identity lock/);
+assert.match(clip, /skipLipSyncLead: singing/);
+assert.doesNotMatch(
+  clip,
+  /skipLipSyncLead: singing && isInstrumentalStaging/,
+);
 
 assert.equal(songCookStorageKey("abc"), "skidmarks.songCook.abc");
 assert.match(scratchPage, /cookPendingSongCuts/);

@@ -17,7 +17,6 @@ import {
   buildScratchSongLtxMotion,
   buildSegmentText,
   buildGlobalPrompt,
-  isInstrumentalStaging,
   ltxSendPrompt,
   stripLtxLipSyncLead,
   looksLikePlatePositionPrompt,
@@ -179,8 +178,10 @@ export async function runScratchLtxClip(opts: {
       lookLock,
       shotSpeakers: shotCast,
     });
+  // Song singing must not get LTX_LIP_SYNC_LEAD — that lead demands clear lips
+  // and lively facial expressions, which lights silhouette / shadow plates.
   const imageMotion = ltxSendPrompt(body, storyShot.staging, {
-    skipLipSyncLead: singing && isInstrumentalStaging(storyShot.staging || ""),
+    skipLipSyncLead: singing,
   });
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
