@@ -11,14 +11,12 @@ import {
   evenLyricHoldMs,
   evenLyricIndexAt,
   lyricLinesFrom,
-  lyricTagsFrom,
   lyricWords,
   plateTimingForShot,
   nextSectionStartMs,
   parseTrackClock,
   plateBarColor,
   sectionColor,
-  sectionsFromLyricTags,
   sectionTint,
   sectionTitle,
   sortPlateTimings,
@@ -510,7 +508,6 @@ export function MusicVideoTrack({
     [song?.lyricCues, job.trackDraft?.lyricCues],
   );
   const lyricLines = useMemo(() => lyricLinesFrom(job.lyrics || ""), [job.lyrics]);
-  const lyricTags = useMemo(() => lyricTagsFrom(job.lyrics || ""), [job.lyrics]);
   // Lines are pasted, not pinned — spread them across the song, then split
   // each line's slot between its words. The whole line rides through as one
   // ribbon; the word crossing the centre is the one that grows and lights up.
@@ -789,29 +786,6 @@ export function MusicVideoTrack({
               {busy === "peaks" ? "Reading waveform…" : "Waveform…"}
             </div>
           )}
-
-          {/* The sheet already names the running order — [Verse 1], [Chorus],
-              [Outro]. Offered only while there are no sections, so it can
-              never overwrite times that have been typed in. */}
-          {!compact && !markers.length && lyricTags.length ? (
-            <button
-              type="button"
-              className="m-track-btn"
-              style={{ alignSelf: "flex-start" }}
-              disabled={Boolean(busy) || !durationMs}
-              onClick={() =>
-                void saveMarkers(
-                  sectionsFromLyricTags({
-                    tags: lyricTags,
-                    songMs: durationMs,
-                    newId: (i) => `marker_${Date.now()}_${i}`,
-                  }),
-                )
-              }
-            >
-              {busy === "markers" ? "…" : `Sections from lyrics (${lyricTags.filter((t) => t.label !== "custom").length})`}
-            </button>
-          ) : null}
 
           {/* Once the markers are set this is just a record — fold it away. */}
           {!compact && markers.length ? (
