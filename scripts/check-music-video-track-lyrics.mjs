@@ -419,3 +419,65 @@ console.log("check-music-video-song-saved OK");
 }
 
 console.log("check-music-video-ribbon OK");
+
+// ── Brackets are structure, not lyrics ─────────────────────────────────────
+{
+  const { lyricLinesFrom, lyricTagLabel, lyricTagsFrom, lyricWords, stripLyricTags } =
+    await import("../src/lib/musicVideoTrack.ts");
+
+  const sheet = [
+    "[Instrumental Intro] [Tension-strummed 12-string, slow dragging bass pulse]",
+    "",
+    "[Verse 1]Silver glass on the table catching cold blue fire",
+    "A tiny church of smoke built on high wire",
+    "",
+    "[Chorus]Blow the glass clean, watch the white smoke spin",
+    "",
+    "[Outro]",
+    " [Fading 12-string drone, a single slow bass thud dying out]",
+  ].join("\n");
+
+  // A direction-only line is not sung, so it never reaches the marquee.
+  const lines = lyricLinesFrom(sheet).map((l) => l.text);
+  assert.deepEqual(lines, [
+    "Silver glass on the table catching cold blue fire",
+    "A tiny church of smoke built on high wire",
+    "Blow the glass clean, watch the white smoke spin",
+  ]);
+
+  // The bracket is written hard against the first word. Splitting before
+  // stripping gave "1]Silver" as a word on screen.
+  assert.deepEqual(lyricWords("[Verse 1]Silver glass on the table"), [
+    "Silver",
+    "glass",
+    "on",
+    "the",
+    "table",
+  ]);
+  assert.equal(stripLyricTags("[Chorus]Blow the glass"), "Blow the glass");
+  assert.equal(stripLyricTags("[Outro]"), "");
+  assert.equal(stripLyricTags("no tags here"), "no tags here");
+  assert.equal(stripLyricTags(""), "");
+  // Several tags on one line collapse without leaving double spaces.
+  assert.equal(stripLyricTags("[A] [B] word"), "word");
+
+  // The sheet already carries the song's structure.
+  const tags = lyricTagsFrom(sheet);
+  assert.deepEqual(
+    tags.map((t) => t.label),
+    ["intro", "custom", "verse", "chorus", "outro", "custom"],
+  );
+  assert.equal(tags[2].raw, "Verse 1");
+  assert.equal(tags[2].lineIndex, 2, "a tag remembers the line it sat on");
+
+  assert.equal(lyricTagLabel("Sax break"), "sax_break");
+  assert.equal(lyricTagLabel("Guitar solo"), "lead_break");
+  assert.equal(lyricTagLabel("Hook"), "chorus");
+  assert.equal(lyricTagLabel("Bridge"), "bridge");
+  // A stage direction ending "dying out" is not the outro.
+  assert.equal(lyricTagLabel("Fading drone, dying out"), "custom");
+  assert.equal(lyricTagLabel("whatever Stuie types"), "custom");
+  assert.equal(lyricTagLabel(""), "custom");
+}
+
+console.log("check-music-video-lyric-tags OK");

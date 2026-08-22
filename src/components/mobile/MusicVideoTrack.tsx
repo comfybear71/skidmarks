@@ -11,6 +11,7 @@ import {
   evenLyricHoldMs,
   evenLyricIndexAt,
   lyricLinesFrom,
+  lyricWords,
   plateTimingForShot,
   nextSectionStartMs,
   parseTrackClock,
@@ -514,7 +515,7 @@ export function MusicVideoTrack({
   const ribbon = useMemo(() => {
     if (activeLyric === null) return null;
     const text = lyricLines.find((l) => l.index === activeLyric)?.text || "";
-    const words = text.split(/\s+/).filter(Boolean);
+    const words = lyricWords(text);
     if (!words.length) return null;
     return {
       lineIndex: activeLyric,

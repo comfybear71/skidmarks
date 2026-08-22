@@ -200,11 +200,83 @@ export type LyricLine = {
 };
 
 /** Blank lines are verse breaks on screen, never cue targets. */
+/**
+ * Sung words only.
+ *
+ * Square brackets in a pasted sheet are not lyrics — they are structure and
+ * stage directions: [Verse 1], [Chorus], [Instrumental Intro], [Fading
+ * 12-string drone]. They must never reach the marquee. A bracket is also
+ * written hard against the first word — "[Verse 1]Silver glass" — so stripping
+ * has to happen before the line is split, or the first word comes out as
+ * "1]Silver".
+ */
 export function lyricLinesFrom(lyrics: string): LyricLine[] {
   return (lyrics || "")
     .split(/\r?\n/)
-    .map((text, index) => ({ index, text: text.trim() }))
+    .map((raw, index) => ({ index, text: stripLyricTags(raw) }))
     .filter((line) => line.text.length > 0);
+}
+
+/** Drop every [...] run and tidy the whitespace it leaves behind. */
+export function stripLyricTags(line: string): string {
+  return String(line || "")
+    .replace(/\[[^\]]*\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** The words of one line, ready for the marquee. */
+export function lyricWords(line: string): string[] {
+  return stripLyricTags(line).split(" ").filter(Boolean);
+}
+
+/**
+ * The song's own structure, read out of the sheet. A pasted lyric already
+ * carries [Verse 1] / [Chorus] / [Sax break], which is the same thing being
+ * typed by hand into the section rows.
+ */
+export type LyricTag = {
+  /** As written, e.g. "Verse 1". */
+  raw: string;
+  /** Matched section id where one fits, else "custom". */
+  label: TrackSectionLabel;
+  /** Which lyric line it was written on. */
+  lineIndex: number;
+};
+
+const TAG_MATCHES: { id: TrackSectionLabel; test: RegExp }[] = [
+  { id: "intro", test: /\bintro\b/i },
+  // "outro", never a stray "out" — a stage direction that ends "dying out"
+  // is not the outro.
+  { id: "outro", test: /\boutro\b/i },
+  { id: "chorus", test: /\bchorus\b|\bhook\b/i },
+  { id: "bridge", test: /\bbridge\b/i },
+  { id: "sax_break", test: /\bsax\b/i },
+  { id: "lead_break", test: /\b(lead|guitar|solo)\b/i },
+  { id: "crescendo", test: /\bcrescendo\b|\bbuild\b/i },
+  { id: "verse", test: /\bverse\b/i },
+];
+
+export function lyricTagLabel(raw: string): TrackSectionLabel {
+  const text = String(raw || "").trim();
+  for (const match of TAG_MATCHES) {
+    if (match.test.test(text)) return match.id;
+  }
+  return "custom";
+}
+
+/** Every [tag] in the sheet, in order, with the line it sat on. */
+export function lyricTagsFrom(lyrics: string): LyricTag[] {
+  const out: LyricTag[] = [];
+  const lines = String(lyrics || "").split(/\r?\n/);
+  lines.forEach((line, lineIndex) => {
+    for (const hit of line.matchAll(/\[([^\]]*)\]/g)) {
+      const raw = (hit[1] || "").trim();
+      if (!raw) continue;
+      out.push({ raw, label: lyricTagLabel(raw), lineIndex });
+    }
+  });
+  return out;
 }
 
 export function withLyricCue(cues: LyricCue[], lineIndex: number, atMs: number): LyricCue[] {
