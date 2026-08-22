@@ -33,7 +33,7 @@ import { MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
-const TRACK_WAVE_HEIGHT = 84;
+const TRACK_WAVE_HEIGHT = 62;
 
 /** Same hex at an alpha — canvas has no colour-mix(). */
 function hexTint(hex: string, alpha: number): string {
@@ -72,7 +72,7 @@ function TimeField({
       className="m-track-time"
       value={text}
       aria-label={label}
-      inputMode="numeric"
+      inputMode="decimal"
       spellCheck={false}
       onFocus={(e) => {
         setDraft(formatTrackClock(value));
@@ -561,6 +561,20 @@ export function MusicVideoTrack({
           </div>
           {lyricsOpen ? <LyricsBox job={job} /> : null}
 
+          {/* Nothing playing, nothing shown — the strip is for the line, not
+              for instructions about the line. */}
+          {!compact && activeLyric !== null ? (
+            <div className="m-track-marquee">
+              <span
+                key={activeLyric}
+                className="m-track-marquee-line"
+                style={{ animationDuration: `${evenLyricHoldMs(lyricLines.length, durationMs)}ms` }}
+              >
+                {lyricLines.find((l) => l.index === activeLyric)?.text || ""}
+              </span>
+            </div>
+          ) : null}
+
           <div className="m-track-toolbar">
             {audioSrc ? (
               <SongPlayer
@@ -598,6 +612,19 @@ export function MusicVideoTrack({
             </div>
           )}
 
+          {/* Where the plates are going: a horizontal rail under the wave.
+              Placeholder for now so the space is held and the layout below it
+              does not move when the real thumbnails land. */}
+          {!compact ? (
+            <div className="m-track-rail" aria-label="Plates (coming)">
+              <div className="m-track-rail-scroll">
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="m-track-rail-cell" />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {!compact ? (
           <div className="m-track-marker-row">
             <select
@@ -620,13 +647,11 @@ export function MusicVideoTrack({
               className="m-track-btn"
               disabled={Boolean(busy) || rangeEndMs <= rangeStartMs}
               onClick={() => {
-                // Start where the last section ended so they lay end to end,
-                // instead of stacking 15-second blobs wherever the drag landed.
+                // No assumed length. Music does not come in 15s blocks, so a
+                // new section runs from the last one to the end of the song and
+                // you type the end you actually want.
                 const startMs = nextSectionStartMs(markers);
-                const endMs = Math.min(
-                  durationMs || startMs + 15000,
-                  Math.max(startMs + 1000, startMs + 15000),
-                );
+                const endMs = Math.max(startMs + 1000, durationMs || startMs + 1000);
                 void saveMarkers([
                   ...markers,
                   { id: `marker_${Date.now()}`, label: markerLabel, startMs, endMs },
@@ -635,9 +660,6 @@ export function MusicVideoTrack({
             >
               Add section
             </button>
-            <span className="m-track-range">
-              {formatTrackClock(rangeStartMs)} – {formatTrackClock(rangeEndMs)}
-            </span>
           </div>
           ) : null}
 
@@ -673,20 +695,6 @@ export function MusicVideoTrack({
                 </li>
               ))}
             </ul>
-          ) : null}
-
-          {/* Nothing playing, nothing shown — the strip is for the line, not
-              for instructions about the line. */}
-          {!compact && activeLyric !== null ? (
-            <div className="m-track-marquee">
-              <span
-                key={activeLyric}
-                className="m-track-marquee-line"
-                style={{ animationDuration: `${evenLyricHoldMs(lyricLines.length, durationMs)}ms` }}
-              >
-                {lyricLines.find((l) => l.index === activeLyric)?.text || ""}
-              </span>
-            </div>
           ) : null}
 
           {compact ? null : job.folderName && plateRows.length ? (

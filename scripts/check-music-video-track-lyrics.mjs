@@ -82,6 +82,18 @@ console.log("check-music-video-track-lyrics OK");
   assert.doesNotMatch(ui, /pinRail/, "no pin list in the lyrics panel");
   assert.doesNotMatch(ui, /m-track-lyric-list/, "no lyric list anywhere on the page");
 
+  // The lyric line reads above the player, not buried under the section list.
+  assert.ok(
+    ui.indexOf("m-track-marquee") < ui.indexOf("m-track-toolbar"),
+    "marquee sits above the player",
+  );
+  // Where the plate thumbnails are going.
+  assert.match(ui, /m-track-rail/, "plates rail placeholder is held open");
+  // Music does not come in 15s blocks — Add section must not assume one.
+  assert.doesNotMatch(ui, /startMs \+ 15000/, "no hardwired 15s section");
+  assert.doesNotMatch(ui, /m-track-range/, "no range readout beside Add section");
+  assert.match(ui, /inputMode="decimal"/, "time boxes get a decimal point");
+
   // One UI, empty or full. No second screen in front of the track.
   assert.doesNotMatch(ui, /m-track-empty/, "no separate empty-state layout");
   assert.doesNotMatch(ui, /Add the song before you time plates/);
