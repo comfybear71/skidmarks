@@ -40,6 +40,9 @@ export function episodeTemplateFromJob(job: {
   return [`EPISODE: ${title}`, `GAG: ${gag}`, "", ...shots].join("\n\n");
 }
 
+/** A music video's only audio is the dropped mp3 — shots with no dialogue
+ * already get a valid silent "hold" beat (holdOrSpoken below), so requiring
+ * a typed line here would only ever force fake lyrics into the box. */
 export function storyHasSpokenLine(story: CrashStoryDoc): boolean {
   return story.scenes.some((sc) =>
     sc.shots.some((sh) => sh.beats.some((b) => b.text.trim())),
@@ -448,7 +451,7 @@ export function parseMobilePaste(
     const rec = asRecord(doc);
     if (!rec) throw new Error("JSON needs an object with scenes or episodes.");
     const json = parseJsonPaste(rec, styleId);
-    if (!storyHasSpokenLine(json.story)) {
+    if (styleId !== "music_video" && !storyHasSpokenLine(json.story)) {
       throw new Error("Need at least one spoken line. Tap AI, then tweak.");
     }
     return json;
@@ -457,7 +460,7 @@ export function parseMobilePaste(
   const pasted = /---\s*SHOT/i.test(text)
     ? parseShotBlocks(text, styleId)
     : parseProductionPaste(text, styleId, fallbackTitle);
-  if (!storyHasSpokenLine(pasted.story)) {
+  if (styleId !== "music_video" && !storyHasSpokenLine(pasted.story)) {
     throw new Error("Need at least one spoken line. Tap AI, then tweak.");
   }
   return pasted;
