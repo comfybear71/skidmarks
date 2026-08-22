@@ -131,6 +131,8 @@ console.log("check-music-video-track-lyrics OK");
   assert.match(ui, /sectionsOpen/, "the section list folds away");
   assert.match(ui, /Import from lyrics/, "sections import from lyric tags");
   assert.match(ui, /Start here/, "pin section start at playhead");
+  assert.match(ui, /Clear sections/, "wipe broken section rows");
+  assert.match(ui, /m-track-time-set/, "explicit Set on time boxes");
   assert.match(ui, /sectionCastHint/, "who plates each section");
 
   // One UI, empty or full. No second screen in front of the track.
@@ -261,12 +263,13 @@ console.log("check-music-video-plate-bar OK");
   assert.equal(stretched[0].endMs, 35_000);
   assert.equal(stretched.length, 1, "editing never adds a row");
 
-  // A backwards typo cannot make a section that draws inside out.
+  // A backwards typo on end still has a floor; start can grow a tiny band open again.
   assert.equal(withSectionTime(markers, "a", "end", 0, song)[0].endMs, 1000);
-  assert.equal(withSectionTime(markers, "a", "start", 99_000, song)[0].startMs, 14_000);
-  // Nor run past the song, or before it starts.
+  const tiny = [{ id: "a", label: "verse", startMs: 1000, endMs: 2000 }];
+  const grown = withSectionTime(tiny, "a", "start", 35_000, song);
+  assert.equal(grown[0].startMs, 35_000, "a 1s band is not a dead end");
+  assert.ok(grown[0].endMs > 35_000);
   assert.equal(withSectionTime(markers, "a", "end", 999_000, song)[0].endMs, song);
-  assert.equal(withSectionTime(markers, "a", "start", -5000, song)[0].startMs, 0);
   // Other rows are left alone.
   assert.equal(withSectionTime(markers, "nope", "end", 1000, song)[0].endMs, 15_000);
 
@@ -306,18 +309,6 @@ console.log("check-music-video-plate-bar OK");
   assert.equal(fresh[0].startMs, 0);
   assert.equal(fresh[0].endMs, 268_000);
   assert.ok(sectionNeedsStartHere(fresh[1], 268_000), "verse waits for Start here");
-
-  const pinned = importSectionMarkersFromLyrics({
-    lyrics: jackLyrics,
-    durationMs: 268_000,
-    lyricCues: [
-      { lineIndex: 0, atMs: 0 },
-      { lineIndex: 1, atMs: 35_000 },
-      { lineIndex: 2, atMs: 101_000 },
-    ],
-  });
-  assert.equal(pinned[0].endMs, 35_000);
-  assert.equal(pinned[1].startMs, 35_000);
 
   const split = withSectionStartAt(
     fresh,

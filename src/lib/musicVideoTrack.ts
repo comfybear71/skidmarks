@@ -408,6 +408,14 @@ export function parseTrackClock(text: string): number | null {
  * second on the section and never runs past the end of the song, so a typo
  * cannot produce a marker that draws backwards.
  */
+export function sortSectionMarkers(markers: TrackSectionMarker[]): TrackSectionMarker[] {
+  return [...(markers || [])].sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+}
+
+/**
+ * Move one edge and chain neighbours. A one-second typo can be grown again —
+ * the old clamp trapped edits inside a 1s band so the boxes looked dead.
+ */
 export function withSectionTime(
   markers: TrackSectionMarker[],
   id: string,
@@ -417,16 +425,25 @@ export function withSectionTime(
 ): TrackSectionMarker[] {
   const MIN = 1000;
   const cap = Number.isFinite(songMs) && songMs > 0 ? songMs : Infinity;
-  return (markers || []).map((m) => {
-    if (m.id !== id) return m;
-    const at = Math.max(0, Math.min(cap, Math.round(ms)));
-    if (edge === "start") {
-      const startMs = Math.min(at, m.endMs - MIN);
-      return { ...m, startMs: Math.max(0, startMs) };
+  const out = sortSectionMarkers(markers).map((m) => ({ ...m }));
+  const idx = out.findIndex((m) => m.id === id);
+  if (idx < 0) return markers;
+  const m = out[idx]!;
+  const at = Math.max(0, Math.min(cap, Math.round(ms)));
+
+  if (edge === "start") {
+    m.startMs = at;
+    if (m.endMs < m.startMs + MIN) m.endMs = Math.min(cap, m.startMs + MIN);
+    if (idx > 0) out[idx - 1]!.endMs = Math.max(out[idx - 1]!.startMs + MIN, at);
+  } else {
+    m.endMs = Math.min(cap, Math.max(at, m.startMs + MIN));
+    if (idx < out.length - 1) {
+      const next = out[idx + 1]!;
+      next.startMs = Math.max(next.startMs, m.endMs);
+      if (next.endMs < next.startMs + MIN) next.endMs = Math.min(cap, next.startMs + MIN);
     }
-    const endMs = Math.max(at, m.startMs + MIN);
-    return { ...m, endMs: Math.min(cap, endMs) };
-  });
+  }
+  return out;
 }
 
 /** Rename a section (Custom, mostly). Blank keeps what was there. */
@@ -465,38 +482,14 @@ export function meaningfulLyricTags(lyrics: string): LyricTag[] {
 export function importSectionMarkersFromLyrics(opts: {
   lyrics: string;
   durationMs: number;
-  lyricCues?: LyricCue[];
 }): TrackSectionMarker[] {
   const tags = meaningfulLyricTags(opts.lyrics);
   if (!tags.length) return [];
   const songMs = Math.max(1000, Math.round(opts.durationMs));
-  const cueByLine = new Map((opts.lyricCues || []).map((c) => [c.lineIndex, c.atMs]));
   const now = Date.now();
-  const pinned = tags.map((t) => cueByLine.get(t.lineIndex));
-  const hasPins = pinned.some((p) => p !== undefined);
 
-  if (hasPins) {
-    const starts: number[] = [];
-    for (let i = 0; i < tags.length; i++) {
-      const at = cueByLine.get(tags[i]!.lineIndex);
-      if (at !== undefined) starts.push(at);
-      else starts.push(i === 0 ? 0 : starts[i - 1]!);
-    }
-    for (let i = 1; i < starts.length; i++) {
-      if (pinned[i] === undefined && starts[i]! <= starts[i - 1]!) {
-        starts[i] = starts[i - 1]! + 1000;
-      }
-    }
-    return tags.map((t, i) => {
-      const startMs = Math.max(0, Math.min(songMs - 1000, starts[i]!));
-      const endMs =
-        i < tags.length - 1
-          ? Math.max(startMs + 1000, Math.min(songMs, starts[i + 1]!))
-          : songMs;
-      return { id: `marker_${now}_${i}`, label: t.label, startMs, endMs };
-    });
-  }
-
+  // Marquee lyric pins are per sung line — never feed them here or you get
+  // one-second bands when several [tags] sit on nearby lines.
   return tags.map((t, i) => ({
     id: `marker_${now}_${i}`,
     label: t.label,
@@ -513,10 +506,11 @@ export function withSectionStartAt(
   songMs: number,
 ): TrackSectionMarker[] {
   const at = Math.max(0, Math.min(songMs, Math.round(atMs)));
-  const idx = markers.findIndex((m) => m.id === id);
+  const sorted = sortSectionMarkers(markers);
+  const idx = sorted.findIndex((m) => m.id === id);
   if (idx < 0) return markers;
   const MIN = 1000;
-  return markers.map((m, i) => {
+  return sorted.map((m, i) => {
     if (i === idx) {
       const endMs = Math.max(at + MIN, m.endMs > at ? m.endMs : songMs);
       return { ...m, startMs: at, endMs: Math.min(songMs, endMs) };
@@ -543,6 +537,17 @@ export function sectionCastHint(label: string, leadSinger?: string): string {
 export function sectionNeedsStartHere(m: TrackSectionMarker, songMs: number): boolean {
   const song = Math.max(1000, Math.round(songMs));
   return m.startMs >= song - 500 && m.endMs >= song - 500;
+}
+
+/** First section still parked at the end of the song. */
+export function nextSectionNeedingStart(
+  markers: TrackSectionMarker[],
+  songMs: number,
+): TrackSectionMarker | null {
+  for (const m of sortSectionMarkers(markers)) {
+    if (sectionNeedsStartHere(m, songMs)) return m;
+  }
+  return null;
 }
 
 /**
