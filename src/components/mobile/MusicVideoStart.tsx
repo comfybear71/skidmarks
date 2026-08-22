@@ -43,10 +43,13 @@ export function SongPlayer({
   src,
   audioRef,
   onTime,
+  onPlayingChange,
 }: {
   src: string;
   audioRef?: React.RefObject<HTMLAudioElement | null>;
   onTime?: (sec: number) => void;
+  /** The marquee only runs while the song does. */
+  onPlayingChange?: (playing: boolean) => void;
 }) {
   // The element is owned here and mirrored out to any ref the parent passed:
   // writing currentTime straight onto a prop ref is not ours to mutate.
@@ -66,9 +69,18 @@ export function SongPlayer({
         src={src}
         preload="metadata"
         onLoadedMetadata={(e) => setLen(e.currentTarget.duration || 0)}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
+        onPlay={() => {
+          setPlaying(true);
+          onPlayingChange?.(true);
+        }}
+        onPause={() => {
+          setPlaying(false);
+          onPlayingChange?.(false);
+        }}
+        onEnded={() => {
+          setPlaying(false);
+          onPlayingChange?.(false);
+        }}
         onTimeUpdate={(e) => {
           setAt(e.currentTarget.currentTime || 0);
           onTime?.(e.currentTarget.currentTime || 0);
