@@ -642,6 +642,7 @@ export function PlateReviewEditor({
             ? `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`
             : placeSrc;
           const addingCast = castPickerShotId === s.shotId;
+          const storyShot = displayShot(s.shotId);
           const songMine = isMusicVideoSongJob(job)
             ? cutsForPlate(job.scratchSong?.cuts, s.shotId, s.plateFile)
             : [];
