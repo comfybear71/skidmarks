@@ -439,13 +439,22 @@ export default function MobileHomePage() {
     };
   }, [bandsStyleId]);
 
+  const [bandSyncNote, setBandSyncNote] = useState("");
   const saveCastBand = useCallback(
     async (name: string) => {
       if (!job || !job.speakers.length) return;
       setBusy(true);
       setError("");
+      setBandSyncNote("");
       try {
-        const data = await postJson<{ bands: CastBand[] }>("/api/crash/mobile/bands", {
+        const data = await postJson<{
+          bands: CastBand[];
+          synced?: string[];
+          skipped?: string[];
+          noApprovedTake?: string[];
+          platesBuilt?: string[];
+          platesFailed?: string[];
+        }>("/api/crash/mobile/bands", {
           action: "save",
           styleId: job.styleId,
           jobId: job.id,
@@ -453,6 +462,18 @@ export default function MobileHomePage() {
           members: job.speakers,
         });
         setBands(data.bands || []);
+        const synced = data.synced || [];
+        const skipped = data.skipped || [];
+        const noTake = data.noApprovedTake || [];
+        const platesBuilt = data.platesBuilt || [];
+        const platesFailed = data.platesFailed || [];
+        const parts: string[] = [];
+        if (synced.length) parts.push(`Synced to shelf: ${synced.join(", ")}.`);
+        if (skipped.length) parts.push(`Couldn't read the photo file for: ${skipped.join(", ")}.`);
+        if (noTake.length) parts.push(`No approved photo on this job for: ${noTake.join(", ")}.`);
+        if (platesBuilt.length) parts.push(`Character plate ready: ${platesBuilt.join(", ")}.`);
+        if (platesFailed.length) parts.push(`Character plate failed for: ${platesFailed.join(", ")}.`);
+        setBandSyncNote(parts.join(" ") || "Band saved.");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't save that band");
       } finally {
@@ -684,6 +705,20 @@ export default function MobileHomePage() {
       {error ? (
         <div style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}
+        </div>
+      ) : null}
+      {bandSyncNote ? (
+        <div
+          style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(201,255,78,0.1)", color: "var(--acid)", fontSize: "13px", display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "flex-start" }}
+        >
+          <span>{bandSyncNote}</span>
+          <button
+            type="button"
+            onClick={() => setBandSyncNote("")}
+            style={{ background: "none", border: "none", color: "var(--acid)", fontSize: "13px", cursor: "pointer", padding: 0 }}
+          >
+            ✕
+          </button>
         </div>
       ) : null}
 

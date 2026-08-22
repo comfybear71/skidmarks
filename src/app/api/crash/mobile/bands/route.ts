@@ -3,6 +3,7 @@ import { listCastBands, saveCastBand } from "@/lib/castBands";
 import { findReusableCastCards } from "@/lib/mobileCastReuse";
 import { syncApprovedCastToShelf } from "@/lib/mobileCandidates";
 import { createCharacter, listCharacters } from "@/lib/characters";
+import { ensureCharacterPlate } from "@/lib/mobileCharacterPlate";
 import {
   mobileCandidateFolders,
   mobileMediaFolder,
@@ -61,28 +62,71 @@ export async function POST(req: Request) {
       // Covers faces approved before the shelf-upload fix existed, so a
       // saved band stays reusable without a manual re-pick per member.
       const jobId = (body.jobId || "").trim();
+      // Report exactly what happened for every member, not just the ones
+      // that made it onto the shelf — "no approved take on this job" and
+      // "couldn't resolve the file bytes" are different failures and both
+      // need to be visible, not silently folded into a generic skip.
+      const noApprovedTake: string[] = [];
+      let synced: string[] = [];
+      let skipped: string[] = [];
+      const platesBuilt: string[] = [];
+      const platesFailed: string[] = [];
       if (jobId) {
         const job = await readMobileGenJob(jobId);
-        if (job) {
-          const approved: Record<string, string> = {};
-          for (const member of members) {
-            const take = (job.castCandidates[member] || []).find((c) => c.approved);
-            if (take?.fileName) approved[member] = take.fileName;
-          }
-          if (Object.keys(approved).length) {
-            await syncApprovedCastToShelf({
-              styleId,
-              folderName: mobileMediaFolder(job),
-              altFolders: mobileCandidateFolders(job),
-              approved,
-            });
-          }
+        if (!job) {
+          return NextResponse.json({ error: `Job ${jobId} not found` }, { status: 404 });
+        }
+        const approved: Record<string, string> = {};
+        for (const member of members) {
+          const take = (job.castCandidates[member] || []).find((c) => c.approved);
+          if (take?.fileName) approved[member] = take.fileName;
+          else noApprovedTake.push(member);
+        }
+        if (Object.keys(approved).length) {
+          const result = await syncApprovedCastToShelf({
+            styleId,
+            folderName: mobileMediaFolder(job),
+            altFolders: mobileCandidateFolders(job),
+            approved,
+          });
+          synced = result.synced;
+          skipped = result.skipped;
+        }
+
+        // Saving a band is also the one moment we know for certain a member
+        // has an approved face on THIS job — the reliable trigger to backfill
+        // a missing series character plate for members whose plate never got
+        // built (existing bands saved before the apply-time build existed, or
+        // approved outside the normal picker flow). Skips instantly for
+        // anyone who already has one.
+        const approvedNames = Object.keys(approved);
+        if (approvedNames.length) {
+          const plateResults = await Promise.allSettled(
+            approvedNames.map((member) => ensureCharacterPlate(job, member)),
+          );
+          plateResults.forEach((result, i) => {
+            const member = approvedNames[i];
+            if (result.status === "fulfilled") platesBuilt.push(member);
+            else {
+              const why = result.reason instanceof Error ? result.reason.message : String(result.reason);
+              console.error(`Character plate failed for ${member}: ${why}`);
+              platesFailed.push(member);
+            }
+          });
         }
       }
 
       await saveCastBand(styleId, name, members);
       const bands = await listCastBands(styleId);
-      return NextResponse.json({ ok: true, bands });
+      return NextResponse.json({
+        ok: true,
+        bands,
+        synced,
+        skipped,
+        noApprovedTake,
+        platesBuilt,
+        platesFailed,
+      });
     }
 
     if (body.action === "apply") {
@@ -118,10 +162,37 @@ export async function POST(req: Request) {
         ];
       }
 
-      const updated = await patchMobileGenJob(jobId, {
+      const afterApply = await patchMobileGenJob(jobId, {
         speakers: [...job.speakers, ...newMembers],
         castCandidates,
       });
+      if (!afterApply) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      let updated = afterApply;
+
+      // Applying a band reuses each member's shelf photo directly (marked
+      // approved without going through the picker's onApprove flow), so the
+      // client-side "approve → build the series character plate" trigger
+      // never fires for them. Build it here instead — free when the plate
+      // already exists (ensureCharacterPlate reuses it), one real generation
+      // the first time a reused member has never had a plate made.
+      const reusedNames = Object.keys(reusable);
+      if (reusedNames.length) {
+        const plateResults = await Promise.allSettled(
+          reusedNames.map((member) => ensureCharacterPlate(updated, member)),
+        );
+        const characterPlates = { ...(updated.characterPlates || {}) };
+        plateResults.forEach((result, i) => {
+          const member = reusedNames[i];
+          if (result.status === "fulfilled") {
+            characterPlates[member] = { fileName: result.value.filename, status: "done" };
+          } else {
+            const why = result.reason instanceof Error ? result.reason.message : String(result.reason);
+            console.error(`Character plate failed for ${member}: ${why}`);
+          }
+        });
+        updated = (await patchMobileGenJob(jobId, { characterPlates })) || updated;
+      }
+
       return NextResponse.json({ ok: true, job: updated, added: newMembers });
     }
 
