@@ -89,3 +89,44 @@ assert.match(coverageLine(holed), /0:30 \/ 1:00 covered · 1 gap$/);
 assert.match(coverageLine(clash), /1 overlap$/);
 
 console.log("check-music-video-track-lyrics OK");
+
+// ── Marquee hold: how long one line owns the strip ──────────────────────────
+{
+  const { lyricHoldMs } = await import("../src/lib/musicVideoTrack.ts");
+  const cues = [
+    { lineIndex: 0, atMs: 0 },
+    { lineIndex: 1, atMs: 4000 },
+    { lineIndex: 2, atMs: 9000 },
+  ];
+  assert.equal(lyricHoldMs(cues, 0), 4000, "runs until the next pinned line");
+  assert.equal(lyricHoldMs(cues, 1), 5000);
+  assert.equal(lyricHoldMs(cues, 2), 5200, "last line falls back to a readable hold");
+  assert.equal(lyricHoldMs(cues, null), 5200);
+  assert.equal(lyricHoldMs([], 0), 5200, "unpinned line falls back");
+  // A long instrumental gap must not park one line on screen for a minute.
+  assert.equal(
+    lyricHoldMs([{ lineIndex: 0, atMs: 0 }, { lineIndex: 1, atMs: 120_000 }], 0),
+    9000,
+  );
+  // Nor flash past unreadably when two pins sit almost on top of each other.
+  assert.equal(
+    lyricHoldMs([{ lineIndex: 0, atMs: 0 }, { lineIndex: 1, atMs: 300 }], 0),
+    2400,
+  );
+}
+
+// The page carries the marquee only — the sheet stays behind the LYRICS toggle.
+{
+  const { readFileSync } = await import("node:fs");
+  const ui = readFileSync(
+    new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(ui, /m-track-marquee/);
+  const marqueeAt = ui.indexOf("m-track-marquee");
+  const listAt = ui.indexOf("m-track-lyric-list");
+  assert.ok(listAt > 0 && listAt < marqueeAt, "the pin list sits inside the LyricsBox pinRail");
+  assert.match(ui, /pinRail=/, "pin list is passed into the collapsed lyrics panel");
+}
+
+console.log("check-music-video-marquee OK");

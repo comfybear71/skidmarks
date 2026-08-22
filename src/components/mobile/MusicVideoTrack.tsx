@@ -9,6 +9,7 @@ import {
   activeLyricLineIndex,
   coverageLine,
   formatTrackClock,
+  lyricHoldMs,
   lyricCueFor,
   lyricLinesFrom,
   plateTimingForShot,
@@ -29,7 +30,7 @@ import { readApiJson } from "@/lib/studioFetchError";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
-const TRACK_WAVE_HEIGHT = 132;
+const TRACK_WAVE_HEIGHT = 84;
 
 async function trackAction(
   action: string,
@@ -512,7 +513,60 @@ export function MusicVideoTrack({
               ×
             </button>
           </div>
-          {lyricsOpen ? <LyricsBox job={job} /> : null}
+          {lyricsOpen ? (
+            <LyricsBox
+              job={job}
+              pinRail={
+                lyricLines.length ? (
+                  <ul className="m-track-lyric-list">
+                    {lyricLines.map((line) => {
+                      const cue = lyricCueFor(lyricCues, line.index);
+                      return (
+                        <li
+                          key={line.index}
+                          className={`m-track-lyric${cue ? " is-pinned" : ""}${
+                            activeLyric === line.index ? " is-now" : ""
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className="m-track-lyric-text"
+                            onClick={() =>
+                              void saveLyricCues(withLyricCue(lyricCues, line.index, playheadMs))
+                            }
+                          >
+                            {line.text}
+                          </button>
+                          {cue ? (
+                            <>
+                              <button
+                                type="button"
+                                className="m-track-lyric-at"
+                                onClick={() => {
+                                  setPlayheadMs(cue.atMs);
+                                  if (audioRef.current) audioRef.current.currentTime = cue.atMs / 1000;
+                                }}
+                              >
+                                {formatTrackClock(cue.atMs)}
+                              </button>
+                              <button
+                                type="button"
+                                className="m-track-x"
+                                aria-label="Unpin this line"
+                                onClick={() => void saveLyricCues(withoutLyricCue(lyricCues, line.index))}
+                              >
+                                ×
+                              </button>
+                            </>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null
+              }
+            />
+          ) : null}
 
           {/* The player carries the clock — a second one here just doubled it. */}
           <div className="m-track-toolbar">
@@ -617,56 +671,26 @@ export function MusicVideoTrack({
             </div>
           ) : null}
 
+          {/* One line, not the sheet. It comes in from the right, fades up and
+              scales, then leaves to the left — against the playhead. The full
+              words live behind the LYRICS toggle, where they get pinned. */}
           {!compact && lyricLines.length ? (
-            <div className="m-track-lyrics">
-              <div className="m-track-lyrics-head">
-                <span>Lyrics</span>
-                <span className="m-track-lyrics-note">
-                  {busy === "cues" ? "Saving…" : "Tap a line to pin it at the playhead"}
+            <div className="m-track-marquee">
+              {activeLyric !== null ? (
+                <span
+                  key={activeLyric}
+                  className="m-track-marquee-line"
+                  style={{ animationDuration: `${lyricHoldMs(lyricCues, activeLyric)}ms` }}
+                >
+                  {lyricLines.find((l) => l.index === activeLyric)?.text || ""}
                 </span>
-              </div>
-              <ul className="m-track-lyric-list">
-                {lyricLines.map((line) => {
-                  const cue = lyricCueFor(lyricCues, line.index);
-                  const isNow = activeLyric === line.index;
-                  return (
-                    <li
-                      key={line.index}
-                      className={`m-track-lyric${cue ? " is-pinned" : ""}${isNow ? " is-now" : ""}`}
-                    >
-                      <button
-                        type="button"
-                        className="m-track-lyric-text"
-                        onClick={() => void saveLyricCues(withLyricCue(lyricCues, line.index, playheadMs))}
-                      >
-                        {line.text}
-                      </button>
-                      {cue ? (
-                        <>
-                          <button
-                            type="button"
-                            className="m-track-lyric-at"
-                            onClick={() => {
-                              setPlayheadMs(cue.atMs);
-                              if (audioRef.current) audioRef.current.currentTime = cue.atMs / 1000;
-                            }}
-                          >
-                            {formatTrackClock(cue.atMs)}
-                          </button>
-                          <button
-                            type="button"
-                            className="m-track-x"
-                            aria-label="Unpin this line"
-                            onClick={() => void saveLyricCues(withoutLyricCue(lyricCues, line.index))}
-                          >
-                            ×
-                          </button>
-                        </>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
+              ) : (
+                <span className="m-track-marquee-idle">
+                  {lyricCues.length
+                    ? "Play — the pinned line rides through here."
+                    : "Open LYRICS, tap a line to pin it at the playhead."}
+                </span>
+              )}
             </div>
           ) : null}
 

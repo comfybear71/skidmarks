@@ -263,3 +263,23 @@ export function coverageLine(cov: TrackCoverage): string {
   }
   return bits.join(" · ");
 }
+
+/**
+ * How long the current line holds the marquee: until the next pinned line,
+ * or a readable default when it is the last one. Clamped so a long instrumental
+ * gap does not park one line on screen for a minute.
+ */
+export function lyricHoldMs(cues: LyricCue[], lineIndex: number | null): number {
+  const FALLBACK = 5200;
+  const MIN = 2400;
+  const MAX = 9000;
+  if (lineIndex === null) return FALLBACK;
+  const mine = (cues || []).find((c) => c.lineIndex === lineIndex);
+  if (!mine) return FALLBACK;
+  let nextAt = Infinity;
+  for (const cue of cues || []) {
+    if (cue.atMs > mine.atMs && cue.atMs < nextAt) nextAt = cue.atMs;
+  }
+  if (!Number.isFinite(nextAt)) return FALLBACK;
+  return Math.max(MIN, Math.min(MAX, nextAt - mine.atMs));
+}
