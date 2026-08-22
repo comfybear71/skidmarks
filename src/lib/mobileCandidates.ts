@@ -8,6 +8,11 @@ import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { uploadMobileMedia, resolveMobileMedia, resolveMobileMediaByFilename } from "./mobileMediaStore";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
+import { blobContentType, putBlobFile, showAssetPathname } from "./blobStore";
+import { upsertNeonShowFile } from "./neonStore";
+// Aliased: a plain env check, not a React hook — the `use` prefix trips
+// rules-of-hooks in every non-component file that calls it.
+import { useCloudStore as cloudStoreEnabled } from "./cloudEnv";
 import { directorNote } from "./mobileJobReady";
 import type { MobileImageCandidate } from "./mobileGenJob";
 
@@ -183,6 +188,15 @@ export async function generateCastCandidates(
  * name. Takes fileName directly (from the job's own candidate list, always
  * available regardless of instance) rather than depending on the local
  * faceAttempts record to supply it.
+ *
+ * Local disk alone is not enough on Vercel — that write lands on
+ * per-invocation scratch and is gone by the next request, so a later
+ * findReusableCastCards() (band apply, screenplay speaker reuse) would
+ * never find it and would silently mint a brand-new face from just the
+ * bare name instead. Mirror to the Neon+Blob show shelf (kind "cast",
+ * same shelf character plates already use) whenever cloud store is on,
+ * so approving a face actually persists somewhere the next request can
+ * still see.
  */
 export async function approveCastCandidate(
   styleId: ShowStyleId,
@@ -205,13 +219,36 @@ export async function approveCastCandidate(
   );
   if (!resolved) throw new Error("Approved face file missing");
 
+  const buffer = fs.readFileSync(resolved);
+  const ext = path.extname(fileName) || ".png";
+
   saveUploadAsStyleCard({
-    buffer: fs.readFileSync(resolved),
-    ext: path.extname(fileName) || ".png",
+    buffer,
+    ext,
     styleId,
     name: name || fileName,
     brief: name || fileName,
   });
+
+  if (cloudStoreEnabled() && name) {
+    const cloudFileName = `upload_${Date.now()}${ext.toLowerCase() === ".jpeg" ? ".jpg" : ext}`;
+    const pathname = showAssetPathname(styleId, "cast", cloudFileName);
+    const put = await putBlobFile({
+      pathname,
+      body: buffer,
+      contentType: blobContentType("cast", cloudFileName),
+      allowOverwrite: true,
+    });
+    await upsertNeonShowFile({
+      showId: styleId,
+      kind: "cast",
+      blobUrl: put.url,
+      filename: cloudFileName,
+      blobPathname: put.pathname,
+      labelName: name,
+      labelBrief: name,
+    });
+  }
 }
 
 function candidateGenDir(): string {
