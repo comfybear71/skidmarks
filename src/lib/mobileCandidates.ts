@@ -265,13 +265,17 @@ export async function uploadCastFaceToShelf(
 }
 
 /**
- * Backfill: push every approved cast face on this job that isn't already on
- * the shelf. Covers faces approved before uploadCastFaceToShelf existed, or
- * approved locally-only for some other reason — the "cold start should just
- * work" guarantee shouldn't depend on remembering to re-pick each face by
- * hand. Skips names already on the shelf (cheap presence check first) and
- * skips anything whose bytes can't be resolved rather than failing the
- * whole pass — one missing face shouldn't block the rest of the band.
+ * Backfill: push every approved cast face on this job onto the shelf,
+ * unconditionally — Save as band means "these are the definitive faces
+ * right now," so it always uploads a fresh row rather than skipping a name
+ * already present. A skip-if-present check here would let a bad, stale
+ * upload from earlier testing block the correct face from ever landing —
+ * findReusableCastCards() already sorts newest-upload-wins per name (see
+ * mobileCastReuse.ts), so a fresh correct upload always takes over from an
+ * older wrong one; skipping would prevent that fresh upload from ever
+ * existing to win. Skips only anything whose bytes can't be resolved,
+ * rather than failing the whole pass — one missing face shouldn't block
+ * the rest of the band.
  */
 export async function syncApprovedCastToShelf(opts: {
   styleId: ShowStyleId;
@@ -284,23 +288,10 @@ export async function syncApprovedCastToShelf(opts: {
   const skipped: string[] = [];
   if (!cloudStoreEnabled()) return { synced, skipped };
 
-  // Cast shelf filenames are randomly generated on upload (unlike character
-  // plates' deterministic slug), so "already there" has to check by label
-  // name, not filename.
-  const { cloudListShowFiles } = await import("./cloudShelf");
-  const shelfRows = await cloudListShowFiles(opts.styleId, "cast").catch(() => []);
-  const shelfNames = new Set(
-    shelfRows.map((r) => (r.label_name || "").trim().toLowerCase()).filter(Boolean),
-  );
-
   for (const [name, fileName] of Object.entries(opts.approved)) {
     const trimmedName = name.trim();
     if (!trimmedName || !fileName) continue;
     try {
-      if (shelfNames.has(trimmedName.toLowerCase())) {
-        skipped.push(trimmedName);
-        continue;
-      }
       const resolved = await resolveCandidateStill(
         opts.styleId,
         opts.folderName,
