@@ -512,13 +512,16 @@ export function PlateReviewEditor({
   }
 
   const songReady = isMusicVideoSongJob(job) && Boolean(job.scratchSong?.fileName);
+  // Music video adds plates from the track rail under the wave — this empty
+  // strip duplicated the + and the "no plates yet" line under Sections.
+  const musicVideoTrackOwnsEmptyPlates = isMusicVideoSongJob(job) && !shots.length;
 
   return (
     <div style={{ marginBottom: "16px" }}>
       {loadError ? (
         <div style={{ fontSize: "13px", color: "var(--magenta-hot)", margin: "0 2px 8px" }}>{loadError}</div>
       ) : null}
-      {!shots.length ? (
+      {!shots.length && !musicVideoTrackOwnsEmptyPlates ? (
         <div style={{ fontSize: "13px", color: "var(--chrome-dim)", margin: "0 2px 8px", lineHeight: 1.4 }}>
           No plates yet. Tap + for an empty card, or tap a name on a place then Add.
         </div>
@@ -625,6 +628,7 @@ export function PlateReviewEditor({
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)", marginBottom: "8px" }}>{actionError}</div>
       ) : null}
 
+      {musicVideoTrackOwnsEmptyPlates ? null : (
       <div
         style={{
           display: "flex",
@@ -827,6 +831,7 @@ export function PlateReviewEditor({
             {addBusySpeaker === "__empty__" ? "…" : "+"}
           </button>
       </div>
+      )}
 
       {!collapsed && plateClipRail.clips.length ? (
         <div className="m-plate-clips-bleed">
