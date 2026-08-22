@@ -43,11 +43,14 @@ export function SongPlayer({
   src,
   audioRef,
   onTime,
+  onDuration,
   onPlayingChange,
 }: {
   src: string;
   audioRef?: React.RefObject<HTMLAudioElement | null>;
   onTime?: (sec: number) => void;
+  /** Fires when the mp3 reports its length — the job row can still be blank. */
+  onDuration?: (sec: number) => void;
   /** The marquee only runs while the song does. */
   onPlayingChange?: (playing: boolean) => void;
 }) {
@@ -59,6 +62,12 @@ export function SongPlayer({
   const [len, setLen] = useState(0);
   const pct = len > 0 ? Math.min(100, (at / len) * 100) : 0;
 
+  function noteDuration(sec: number) {
+    if (!Number.isFinite(sec) || sec <= 0) return;
+    setLen(sec);
+    onDuration?.(sec);
+  }
+
   return (
     <div className="m-song-player">
       <audio
@@ -68,7 +77,8 @@ export function SongPlayer({
         }}
         src={src}
         preload="metadata"
-        onLoadedMetadata={(e) => setLen(e.currentTarget.duration || 0)}
+        onLoadedMetadata={(e) => noteDuration(e.currentTarget.duration || 0)}
+        onDurationChange={(e) => noteDuration(e.currentTarget.duration || 0)}
         onPlay={() => {
           setPlaying(true);
           onPlayingChange?.(true);

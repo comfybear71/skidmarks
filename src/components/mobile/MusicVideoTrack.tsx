@@ -19,6 +19,8 @@ import {
   withoutLyricCue,
   plateTimingForShot,
   importSectionMarkersFromLyrics,
+  meaningfulLyricTags,
+  nextSectionNeedingStart,
   nextSectionStartMs,
   parseTrackClock,
   plateBarColor,
@@ -28,6 +30,7 @@ import {
   sectionTint,
   sectionTitle,
   sortPlateTimings,
+  sortSectionMarkers,
   withSectionStartAt,
   withSectionTime,
   type LyricCue,
@@ -190,26 +193,38 @@ function TimeField({
   }
 
   return (
-    <input
-      className="m-track-time"
-      value={text}
-      aria-label={label}
-      inputMode="decimal"
-      spellCheck={false}
-      onFocus={(e) => {
-        setDraft(formatTrackClock(value));
-        e.currentTarget.select();
-      }}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-        if (e.key === "Escape") {
-          setDraft(null);
-          e.currentTarget.blur();
-        }
-      }}
-    />
+    <div className="m-track-time-wrap">
+      <input
+        className="m-track-time"
+        value={text}
+        aria-label={label}
+        inputMode="decimal"
+        spellCheck={false}
+        onFocus={(e) => {
+          setDraft(formatTrackClock(value));
+          e.currentTarget.select();
+        }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") {
+            setDraft(null);
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      {draft !== null ? (
+        <button
+          type="button"
+          className="m-track-time-set"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={commit}
+        >
+          Set
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -590,6 +605,7 @@ export function MusicVideoTrack({
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playheadMs, setPlayheadMs] = useState(0);
+  const [audioDurationMs, setAudioDurationMs] = useState(0);
   const [markerLabel, setMarkerLabel] = useState<TrackSectionLabel>("verse");
   const [lyricsOpen, setLyricsOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
   const [marqueeOpen, setMarqueeOpen] = useState(false);
@@ -613,6 +629,8 @@ export function MusicVideoTrack({
       : job.trackDraft?.songDurationSec
         ? Math.round(job.trackDraft.songDurationSec * 1000)
         : 0;
+  const effectiveDurationMs = durationMs || audioDurationMs;
+  const lyricTagsReady = meaningfulLyricTags(job.lyrics || "").length > 0;
 
   const peaks =
     song?.waveformPeaks ||
@@ -620,6 +638,11 @@ export function MusicVideoTrack({
     (localPeaks.length ? localPeaks : []);
 
   const markers = song?.sectionMarkers || job.trackDraft?.sectionMarkers || [];
+  const sortedMarkers = useMemo(() => sortSectionMarkers(markers), [markers]);
+  const nextPinSection = useMemo(
+    () => (effectiveDurationMs > 0 ? nextSectionNeedingStart(sortedMarkers, effectiveDurationMs) : null),
+    [sortedMarkers, effectiveDurationMs],
+  );
   const leadSinger = (job.speakers?.[0] || job.artist || "").trim();
 
   const lyricCues = useMemo<LyricCue[]>(
@@ -633,7 +656,7 @@ export function MusicVideoTrack({
   const usePinnedMarquee = lyricCues.length > 0;
   const activeLyric = usePinnedMarquee
     ? activeLyricLineIndex(lyricCues, playheadMs)
-    : evenLyricIndexAt(lyricLines.length, playheadMs, durationMs);
+    : evenLyricIndexAt(lyricLines.length, playheadMs, effectiveDurationMs);
   const ribbon = useMemo(() => {
     if (activeLyric === null) return null;
     const text = lyricLines.find((l) => l.index === activeLyric)?.text || "";
@@ -643,17 +666,17 @@ export function MusicVideoTrack({
     if (usePinnedMarquee && !cue) return null;
     const lineStartMs = cue
       ? cue.atMs
-      : evenLineStartMs(activeLyric, lyricLines.length, durationMs);
+      : evenLineStartMs(activeLyric, lyricLines.length, effectiveDurationMs);
     const lineHoldMs = cue
       ? lyricHoldMs(lyricCues, activeLyric)
-      : evenLyricHoldMs(lyricLines.length, durationMs);
+      : evenLyricHoldMs(lyricLines.length, effectiveDurationMs);
     return {
       lineIndex: activeLyric,
       words,
       lineStartMs,
       lineHoldMs,
     };
-  }, [activeLyric, lyricLines, durationMs, lyricCues, usePinnedMarquee]);
+  }, [activeLyric, lyricLines, effectiveDurationMs, lyricCues, usePinnedMarquee]);
 
   const plateRows = useMemo(() => {
     return plated.map((row, i) => {
@@ -759,7 +782,7 @@ export function MusicVideoTrack({
       const action = song?.fileName ? "save-track" : "save-draft";
       const updated = await trackAction(action, {
         jobId: job.id,
-        sectionMarkers: next,
+        sectionMarkers: sortSectionMarkers(next),
       });
       if (updated) onJobChange(updated);
     } catch (e) {
@@ -895,6 +918,7 @@ export function MusicVideoTrack({
                 src={audioSrc}
                 audioRef={audioRef}
                 onTime={(sec) => setPlayheadMs(Math.round(sec * 1000))}
+                onDuration={(sec) => setAudioDurationMs(Math.round(sec * 1000))}
                 onPlayingChange={setPlaying}
               />
             ) : (
@@ -905,9 +929,9 @@ export function MusicVideoTrack({
           {peaks.length ? (
             <WaveformCanvas
               peaks={peaks}
-              durationMs={durationMs || 1}
+              durationMs={effectiveDurationMs || 1}
               playheadMs={playheadMs}
-              markers={markers}
+              markers={sortedMarkers}
               plateTimings={plateBlocks}
               rangeStartMs={rangeStartMs}
               rangeEndMs={rangeEndMs}
@@ -1038,31 +1062,65 @@ export function MusicVideoTrack({
           {!compact && (sectionsOpen || !markers.length) ? (
           <>
           <p className="m-track-lyric-hint">
-            Paste <strong>[Intro]</strong> <strong>[Verse]</strong> <strong>[Chorus]</strong>{" "}
-            <strong>[Sax break]</strong> in Lyrics — then import and tap{" "}
-            <strong>Start here</strong> while the song plays. No typing times.
+            <strong>Play the song</strong>, then tap the green <strong>Start here</strong> on each
+            section as it begins. Typing times is optional — tap <strong>Set</strong> after a time
+            if you do.
           </p>
+          {nextPinSection ? (
+            <div className="m-track-next-pin">
+              <span>
+                Next: <strong>{sectionTitle(nextPinSection.label)}</strong> at{" "}
+                {formatTrackClock(playheadMs)}
+              </span>
+              <button
+                type="button"
+                className="m-track-here-btn is-waiting"
+                disabled={Boolean(busy)}
+                onClick={() =>
+                  void saveMarkers(
+                    withSectionStartAt(sortedMarkers, nextPinSection.id, playheadMs, effectiveDurationMs),
+                  )
+                }
+              >
+                Start {sectionTitle(nextPinSection.label)} here
+              </button>
+            </div>
+          ) : null}
           <div className="m-track-marker-row">
             <button
               type="button"
               className="m-track-btn"
-              disabled={Boolean(busy) || !durationMs}
+              disabled={Boolean(busy) || !lyricTagsReady}
               onClick={() => {
+                const dur = effectiveDurationMs || 130_000;
                 const next = importSectionMarkersFromLyrics({
                   lyrics: job.lyrics || "",
-                  durationMs,
-                  lyricCues,
+                  durationMs: dur,
                 });
                 if (!next.length) {
                   setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");
                   return;
                 }
-                setNote("");
+                setNote(
+                  markers.length
+                    ? "Replaced sections from lyrics — play and tap Start here on each row."
+                    : "",
+                );
                 void saveMarkers(next);
               }}
             >
               Import from lyrics
             </button>
+            {markers.length ? (
+              <button
+                type="button"
+                className="m-track-btn"
+                disabled={Boolean(busy)}
+                onClick={() => void saveMarkers([])}
+              >
+                Clear sections
+              </button>
+            ) : null}
             <select
               className="m-track-select"
               value={markerLabel}
@@ -1084,7 +1142,7 @@ export function MusicVideoTrack({
               disabled={Boolean(busy) || rangeEndMs <= rangeStartMs}
               onClick={() => {
                 const startMs = nextSectionStartMs(markers);
-                const endMs = Math.max(startMs + 1000, durationMs || startMs + 1000);
+                const endMs = Math.max(startMs + 1000, effectiveDurationMs || startMs + 1000);
                 void saveMarkers([
                   ...markers,
                   { id: `marker_${Date.now()}`, label: markerLabel, startMs, endMs },
@@ -1097,10 +1155,10 @@ export function MusicVideoTrack({
           </>
           ) : null}
 
-          {!compact && sectionsOpen && markers.length ? (
+          {!compact && sectionsOpen && sortedMarkers.length ? (
             <ul className="m-track-marker-list">
-              {markers.map((m) => {
-                const waiting = durationMs > 0 && sectionNeedsStartHere(m, durationMs);
+              {sortedMarkers.map((m) => {
+                const waiting = effectiveDurationMs > 0 && sectionNeedsStartHere(m, effectiveDurationMs);
                 const cast = sectionCastHint(m.label, leadSinger);
                 return (
                 <li key={m.id} style={{ borderLeftColor: sectionColor(m.label) }}>
@@ -1117,7 +1175,9 @@ export function MusicVideoTrack({
                       className={`m-track-here-btn${waiting ? " is-waiting" : ""}`}
                       disabled={Boolean(busy)}
                       onClick={() =>
-                        void saveMarkers(withSectionStartAt(markers, m.id, playheadMs, durationMs))
+                        void saveMarkers(
+                          withSectionStartAt(sortedMarkers, m.id, playheadMs, effectiveDurationMs),
+                        )
                       }
                     >
                       {waiting ? "Start here ▶" : "Start here"}
@@ -1126,20 +1186,28 @@ export function MusicVideoTrack({
                       value={m.startMs}
                       label={`${sectionTitle(m.label)} start`}
                       onBadTime={(msg) => setNote(msg)}
-                      onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "start", ms, durationMs))}
+                      onCommit={(ms) =>
+                        void saveMarkers(
+                          withSectionTime(sortedMarkers, m.id, "start", ms, effectiveDurationMs),
+                        )
+                      }
                     />
                     <span className="m-track-dash">–</span>
                     <TimeField
                       value={m.endMs}
                       label={`${sectionTitle(m.label)} end`}
                       onBadTime={(msg) => setNote(msg)}
-                      onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "end", ms, durationMs))}
+                      onCommit={(ms) =>
+                        void saveMarkers(
+                          withSectionTime(sortedMarkers, m.id, "end", ms, effectiveDurationMs),
+                        )
+                      }
                     />
                     <button
                       type="button"
                       className="m-track-x"
                       aria-label={`Remove ${sectionTitle(m.label)}`}
-                      onClick={() => void saveMarkers(markers.filter((x) => x.id !== m.id))}
+                      onClick={() => void saveMarkers(sortedMarkers.filter((x) => x.id !== m.id))}
                     >
                       ×
                     </button>
