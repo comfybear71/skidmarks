@@ -91,10 +91,26 @@ console.log("check-music-video-track-lyrics OK");
   // The plates are a strip at the top of the section, above the title, and
   // they are real plates now — not a placeholder.
   assert.match(ui, /m-track-rail/);
+  // Plates outrank the section list, so the strip sits above it.
   assert.ok(
-    ui.indexOf("m-track-rail") < ui.indexOf("m-track-song-top"),
-    "the plates strip sits above the title row",
+    ui.indexOf("m-track-rail") < ui.indexOf("m-track-fold"),
+    "the plates strip sits above the sections",
   );
+
+  // Every class the strip uses has a rule. These were lost in an edit once and
+  // the plate names rendered as run-on plain text with no tiles.
+  const { readFileSync: readCss } = await import("node:fs");
+  const railCss = readCss(new URL("../src/app/(mobile)/m/mobile.css", import.meta.url), "utf8");
+  for (const cls of [
+    "m-track-rail",
+    "m-track-rail-scroll",
+    "m-track-rail-cell",
+    "m-track-rail-label",
+    "m-track-rail-empty",
+    "m-track-rail-add",
+  ]) {
+    assert.ok(railCss.includes(`.${cls} `) || railCss.includes(`.${cls}.`) || railCss.includes(`.${cls}{`) || railCss.includes(`.${cls},`), `${cls} has a rule`);
+  }
   assert.match(ui, /onOpenPlate/, "tapping a plate opens its prompts");
   assert.match(ui, /onCreatePlate/, "the plus makes the plate itself");
   // One place picker in the app, not two.

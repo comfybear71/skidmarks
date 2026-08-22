@@ -698,42 +698,6 @@ export function MusicVideoTrack({
           title row, player slot, wave, sections and plates are always here —
           they just have nothing in them until a song lands. */}
       <>
-          {/* Plates live at the top of this section, above the title, as one
-              horizontal strip. LOCATIONS still makes them — a second place
-              picker in here would put the same thing on screen twice. */}
-          {!compact ? (
-            <div className="m-track-rail">
-              <div className="m-track-rail-scroll">
-                {plateRows.map((row) => (
-                  <button
-                    type="button"
-                    key={row.shotId}
-                    className={`m-track-rail-cell${row.timing ? " is-timed" : ""}`}
-                    onClick={() => onOpenPlate?.(row.shotId)}
-                    title={row.title}
-                  >
-                    {row.plateFile ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={mobileLocationStillUrl(job, row.plateFile)} alt="" />
-                    ) : (
-                      <span className="m-track-rail-empty" />
-                    )}
-                    <span className="m-track-rail-label">{row.title}</span>
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
-                  onClick={() => setPickOpen((v) => !v)}
-                  aria-expanded={pickOpen}
-                  aria-label="Add a plate"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           {/* Title line owns the card: name left, Lyrics and drop right.
               Lyrics stay shut — that box is for entering them, not reading. */}
           <div className="m-track-song-top">
@@ -808,6 +772,41 @@ export function MusicVideoTrack({
               {busy === "peaks" ? "Reading waveform…" : "Waveform…"}
             </div>
           )}
+
+          {/* Plates outrank the section list, so they sit above it: one
+              horizontal strip, right under the wave. */}
+          {!compact ? (
+            <div className="m-track-rail">
+              <div className="m-track-rail-scroll">
+                {plateRows.map((row) => (
+                  <button
+                    type="button"
+                    key={row.shotId}
+                    className={`m-track-rail-cell${row.timing ? " is-timed" : ""}`}
+                    onClick={() => onOpenPlate?.(row.shotId)}
+                    title={row.title}
+                  >
+                    {row.plateFile ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={mobileLocationStillUrl(job, row.plateFile)} alt="" />
+                    ) : (
+                      <span className="m-track-rail-empty" />
+                    )}
+                    <span className="m-track-rail-label">{row.title}</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
+                  onClick={() => setPickOpen((v) => !v)}
+                  aria-expanded={pickOpen}
+                  aria-label="Add a plate"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {/* One person, one place, one plate — picked here rather than three
               scrolls down inside a Locations card. */}
