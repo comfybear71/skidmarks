@@ -13,6 +13,11 @@ export type ReusableCastCard = {
   fileName: string;
 };
 
+function toMtime(v: number | string | null | undefined): number {
+  const n = typeof v === "string" ? Number(v) : v;
+  return Number.isFinite(n as number) ? (n as number) : 0;
+}
+
 /** Matched the way mobilePlates.resolveCastKeyByName matches cast: exact name
  * first, then containment either way, so "BAZZA" still finds "Ranger Bazza". */
 function matches(cardName: string, speaker: string): boolean {
@@ -36,12 +41,18 @@ export async function findReusableCastCards(
   const rows = await cloudListShowFiles(styleId, "cast").catch(() => []);
   if (!rows.length) return {};
 
+  // listNeonShowFiles orders oldest-first; a name can carry more than one
+  // row (a bad approval re-approved correctly later, a retake, etc.) and
+  // the newest upload for that name is always the one that should win —
+  // sort newest-first so .find() below never locks onto a stale face.
   const cards = rows
     .map((row) => ({
       name: (row.label_name || "").trim(),
       fileName: row.filename,
+      mtime: toMtime(row.mtime),
     }))
-    .filter((c) => c.name && c.fileName);
+    .filter((c) => c.name && c.fileName)
+    .sort((a, b) => b.mtime - a.mtime);
   if (!cards.length) return {};
 
   const out: Record<string, ReusableCastCard> = {};
