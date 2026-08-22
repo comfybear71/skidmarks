@@ -10,6 +10,7 @@ import { jobVoiceForSpeaker, withJobSpeakerVoice } from "./mobileJobVoices";
 import type { PlateLtxCampaign } from "./mobilePlateLtxCampaign";
 import type { ScratchClipTask, ScratchDrawTask, ScratchPlateRef } from "./mobileScratch";
 import type { ScratchSong } from "./scratchSongWindow";
+import type { MusicVideoTrackDraft } from "./musicVideoTrack";
 import { DEFAULT_DESK_ID, normalizeDeskId } from "./mobileDesk";
 
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
@@ -104,6 +105,8 @@ export type MobileGenJob = {
   songTitle?: string;
   /** Music video only. Pasted words — never sent as a spoken line. */
   lyrics?: string;
+  /** Pre-lock TRACK draft — peaks/markers before scratchSong exists. */
+  trackDraft?: MusicVideoTrackDraft | null;
   /** Leftover from the old "How long?" step. Not a planning input —
    * runtime comes from voiced lines + plates. Kept so older jobs still parse. */
   targetDurationSec: number;

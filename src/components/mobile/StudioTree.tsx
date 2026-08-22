@@ -16,6 +16,7 @@ import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { MusicVideoSongCuts } from "./MusicVideoSongCuts";
 import { MusicVideoStart } from "./MusicVideoStart";
+import { MusicVideoTrack } from "./MusicVideoTrack";
 import { isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong";
 import {
   allCastApproved,
@@ -912,6 +913,7 @@ export function StudioTree({
   const [openPlace, setOpenPlace] = useState<string | null>(null);
   const [castOpen, setCastOpen] = useState(true);
   const [locationsOpen, setLocationsOpen] = useState(true);
+  const [trackOpen, setTrackOpen] = useState(true);
   const [platesOpen, setPlatesOpen] = useState(true);
   const [addingPlateFor, setAddingPlateFor] = useState<string | null>(null);
   const [addPlateError, setAddPlateError] = useState("");
@@ -1745,6 +1747,22 @@ export function StudioTree({
           />
         ) : null}
       </TreeBranch>
+
+      {isMusicVideoSongJob(job) ? (
+        <TreeBranch
+          label="Track"
+          headerRight={<CollapseToggle open={trackOpen} onToggle={() => setTrackOpen((v) => !v)} />}
+        >
+          {trackOpen ? (
+            <MusicVideoTrack
+              job={job}
+              story={deskStory}
+              plated={songPlates}
+              onJobChange={onJobChange}
+            />
+          ) : null}
+        </TreeBranch>
+      ) : null}
 
       <TreeBranch
         label="Plates"

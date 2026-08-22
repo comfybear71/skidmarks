@@ -1,0 +1,170 @@
+import { NextResponse } from "next/server";
+import { readMobileStory } from "@/lib/mobileStoryStore";
+import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import {
+  cutFromPlateTiming,
+  type MusicVideoTrackDraft,
+  type PlateTiming,
+  type TrackSectionMarker,
+} from "@/lib/musicVideoTrack";
+import { isMusicVideoSongJob } from "@/lib/musicVideoSong";
+import { newId } from "@/lib/types";
+
+export const runtime = "nodejs";
+
+function cleanPeaks(raw: unknown): number[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const peaks = raw
+    .map((n) => Number(n))
+    .filter((n) => Number.isFinite(n) && n >= 0 && n <= 1);
+  return peaks.length ? peaks : undefined;
+}
+
+function cleanMarkers(raw: unknown): TrackSectionMarker[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: TrackSectionMarker[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as Record<string, unknown>;
+    const id = String(rec.id || "").trim() || newId("marker");
+    const label = String(rec.label || "custom").trim() || "custom";
+    const startMs = Math.max(0, Math.round(Number(rec.startMs) || 0));
+    const endMs = Math.max(startMs + 100, Math.round(Number(rec.endMs) || startMs + 1000));
+    out.push({ id, label, startMs, endMs });
+  }
+  return out.length ? out : undefined;
+}
+
+function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: PlateTiming[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as Record<string, unknown>;
+    const plateId = String(rec.plateId || "").trim();
+    if (!plateId) continue;
+    const startMs = Math.max(0, Math.round(Number(rec.startMs) || 0));
+    const endMs = Math.max(startMs + 100, Math.round(Number(rec.endMs) || startMs + 1000));
+    const sortIndex = Math.round(Number(rec.sortIndex) || out.length);
+    out.push({ plateId, startMs, endMs, sortIndex });
+  }
+  return out.length ? out : undefined;
+}
+
+/**
+ * POST /api/crash/mobile/track
+ *   save-draft — pre-lock peaks/markers/timings on job.trackDraft
+ *   save-track — post-lock peaks/markers on scratchSong
+ *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
+ *   remove-plate-timing — clear one plate schedule
+ */
+export async function POST(req: Request) {
+  const body = (await req.json().catch(() => ({}))) as {
+    action?: string;
+    jobId?: string;
+    waveformPeaks?: number[];
+    sectionMarkers?: TrackSectionMarker[];
+    plateTimings?: PlateTiming[];
+    plateId?: string;
+    startMs?: number;
+    endMs?: number;
+    sortIndex?: number;
+  };
+  const action = String(body.action || "").trim();
+  const jobId = String(body.jobId || "").trim();
+  if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
+
+  let job = await readMobileGenJob(jobId);
+  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  if (!isMusicVideoSongJob(job)) {
+    return NextResponse.json({ error: "TRACK is Music video only." }, { status: 400 });
+  }
+
+  try {
+    if (action === "save-draft") {
+      const draft: MusicVideoTrackDraft = {
+        ...(job.trackDraft || {}),
+        ...(body.waveformPeaks !== undefined ? { waveformPeaks: cleanPeaks(body.waveformPeaks) } : {}),
+        ...(body.sectionMarkers !== undefined
+          ? { sectionMarkers: cleanMarkers(body.sectionMarkers) || [] }
+          : {}),
+        ...(body.plateTimings !== undefined
+          ? { plateTimings: cleanPlateTimings(body.plateTimings) || [] }
+          : {}),
+      };
+      const updated = await patchMobileGenJob(jobId, { trackDraft: draft, error: "" });
+      return NextResponse.json({ ok: true, job: updated, trackDraft: draft });
+    }
+
+    if (action === "save-track") {
+      const song = job.scratchSong;
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
+      }
+      const nextSong = {
+        ...song,
+        ...(body.waveformPeaks !== undefined ? { waveformPeaks: cleanPeaks(body.waveformPeaks) } : {}),
+        ...(body.sectionMarkers !== undefined
+          ? { sectionMarkers: cleanMarkers(body.sectionMarkers) || [] }
+          : {}),
+      };
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: nextSong,
+        trackDraft: null,
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (action === "set-plate-timing") {
+      const song = job.scratchSong;
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
+      }
+      const plateId = String(body.plateId || "").trim();
+      if (!plateId) return NextResponse.json({ error: "Need plateId" }, { status: 400 });
+      const startMs = Math.max(0, Math.round(Number(body.startMs) || 0));
+      const endMs = Math.max(startMs + 100, Math.round(Number(body.endMs) || startMs + 15000));
+      const sortIndex = Math.round(Number(body.sortIndex) ?? (song.plateTimings || []).length);
+      const timing: PlateTiming = { plateId, startMs, endMs, sortIndex };
+      const plateTimings = [
+        ...(song.plateTimings || []).filter((p) => p.plateId !== plateId),
+        timing,
+      ];
+      const shot = job.shots.find((s) => s.shotId === plateId);
+      const plateFile = (shot?.plateFile || "").trim();
+      let cuts = song.cuts || [];
+      if (plateFile && plateFile !== "__error__") {
+        cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, plateTimings, cuts },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated, timing });
+    }
+
+    if (action === "remove-plate-timing") {
+      const song = job.scratchSong;
+      if (!song) return NextResponse.json({ ok: true, job });
+      const plateId = String(body.plateId || "").trim();
+      if (!plateId) return NextResponse.json({ error: "Need plateId" }, { status: 400 });
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: {
+          ...song,
+          plateTimings: (song.plateTimings || []).filter((p) => p.plateId !== plateId),
+          cuts: (song.cuts || []).filter((c) => c.shotId !== plateId),
+        },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
+}

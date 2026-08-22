@@ -121,7 +121,17 @@ export async function attachDroppedBeatMp3(opts: {
             sliceStartSec: window.startSec,
             sliceDurationSec: window.durationSec,
             cuts: opts.job.scratchSong?.cuts || [],
+            ...(opts.job.trackDraft?.waveformPeaks
+              ? { waveformPeaks: opts.job.trackDraft.waveformPeaks }
+              : {}),
+            ...(opts.job.trackDraft?.sectionMarkers
+              ? { sectionMarkers: opts.job.trackDraft.sectionMarkers }
+              : {}),
+            ...(opts.job.trackDraft?.plateTimings
+              ? { plateTimings: opts.job.trackDraft.plateTimings }
+              : {}),
           },
+          trackDraft: null,
         }
       : {}),
   });
