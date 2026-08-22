@@ -31,7 +31,8 @@ function cleanMarkers(raw: unknown): TrackSectionMarker[] | undefined {
     const label = String(rec.label || "custom").trim() || "custom";
     const startMs = Math.max(0, Math.round(Number(rec.startMs) || 0));
     const endMs = Math.max(startMs + 100, Math.round(Number(rec.endMs) || startMs + 1000));
-    out.push({ id, label, startMs, endMs });
+    const performer = String(rec.performer || "").trim() || undefined;
+    out.push({ id, label, startMs, endMs, ...(performer ? { performer } : {}) });
   }
   return out.length ? out : undefined;
 }

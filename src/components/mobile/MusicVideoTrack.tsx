@@ -1097,6 +1097,7 @@ export function MusicVideoTrack({
                 const next = importSectionMarkersFromLyrics({
                   lyrics: job.lyrics || "",
                   durationMs: dur,
+                  speakers: job.speakers || [],
                 });
                 if (!next.length) {
                   setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");

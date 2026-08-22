@@ -289,7 +289,9 @@ console.log("check-music-video-plate-bar OK");
 
   const {
     importSectionMarkersFromLyrics,
+    isCastLyricTag,
     meaningfulLyricTags,
+    parsePerformerFromTag,
     sectionCastForMarker,
     sectionCastHint,
     sectionNeedsStartHere,
@@ -338,6 +340,39 @@ console.log("check-music-video-plate-bar OK");
   assert.equal(
     sectionCastForMarker(verseMarkers[0], verseMarkers, "SOUL REBEL", speakers),
     "SOUL REBEL",
+  );
+
+  assert.deepEqual(parsePerformerFromTag("Verse 2 — CENTRE-LEFT"), {
+    sectionRaw: "Verse 2",
+    performer: "CENTRE-LEFT",
+  });
+  assert.ok(isCastLyricTag("CENTRE-LEFT", speakers));
+  assert.ok(!isCastLyricTag("Verse 2", speakers));
+
+  const soulLyrics = [
+    "[Intro]",
+    "",
+    "[Verse 1] line",
+    "[Chorus] hook",
+    "[CENTRE-LEFT]",
+    "[Verse 2] backup",
+    "[Chorus] hook",
+    "[Verse 3] line",
+    "[Chorus] hook",
+    "[Outro]",
+  ].join("\n");
+  const soulImport = importSectionMarkersFromLyrics({
+    lyrics: soulLyrics,
+    durationMs: 130_000,
+    speakers,
+  });
+  assert.equal(soulImport.length, 8);
+  const v2 = soulImport.find((m, i) => i === 3);
+  assert.equal(v2?.performer, "CENTRE-LEFT", "[CENTRE-LEFT] above Verse 2 sets performer");
+  assert.equal(
+    sectionCastForMarker(v2, soulImport, "SOUL REBEL", speakers),
+    "CENTRE-LEFT",
+    "named performer wins over verse-2 heuristic",
   );
 }
 

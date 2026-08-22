@@ -22,6 +22,8 @@ export type TrackSectionMarker = {
   label: TrackSectionLabel | string;
   startMs: number;
   endMs: number;
+  /** Cast name from [CENTRE-LEFT] above a section or [Verse 2 — CENTRE-LEFT]. */
+  performer?: string;
 };
 
 export type PlateTiming = {
@@ -474,27 +476,67 @@ export function meaningfulLyricTags(lyrics: string): LyricTag[] {
   return lyricTagsFrom(lyrics).filter((t) => t.label !== "custom");
 }
 
+/** Split [Verse 2 — CENTRE-LEFT] into section text + cast name. */
+export function parsePerformerFromTag(raw: string): { sectionRaw: string; performer?: string } {
+  const text = String(raw || "").trim();
+  const hit = text.match(/^(.+?)\s*[—–-]\s*(.+)$/);
+  if (!hit) return { sectionRaw: text };
+  const sectionRaw = (hit[1] || "").trim();
+  const performer = (hit[2] || "").trim();
+  if (!sectionRaw || !performer) return { sectionRaw: text };
+  return { sectionRaw, performer };
+}
+
+/** True when a bracket tag names someone on the cast shelf (not a section label). */
+export function isCastLyricTag(raw: string, speakers: string[]): boolean {
+  const name = String(raw || "").trim();
+  if (!name) return false;
+  const lower = name.toLowerCase();
+  if (lyricTagLabel(name) !== "custom") return false;
+  return (speakers || []).some((s) => (s || "").trim().toLowerCase() === lower);
+}
+
 /**
  * Build section rows from [Intro] / [Verse 1] / [Chorus] in the lyrics.
  * With no Marquee pins yet: first row spans the song; the rest wait at the end
  * for Start here. With pins on tag lines, times come from those cues.
+ *
+ * Cast tags: [CENTRE-LEFT] on the line above [Verse 2], or [Verse 2 — CENTRE-LEFT].
  */
 export function importSectionMarkersFromLyrics(opts: {
   lyrics: string;
   durationMs: number;
+  speakers?: string[];
 }): TrackSectionMarker[] {
-  const tags = meaningfulLyricTags(opts.lyrics);
-  if (!tags.length) return [];
+  const allTags = lyricTagsFrom(opts.lyrics);
+  const speakers = opts.speakers || [];
+  const structural: { tag: LyricTag; performer?: string }[] = [];
+  let pendingPerformer: string | undefined;
+
+  for (const tag of allTags) {
+    if (isCastLyricTag(tag.raw, speakers)) {
+      pendingPerformer = tag.raw.trim();
+      continue;
+    }
+    if (tag.label === "custom") continue;
+    const inline = parsePerformerFromTag(tag.raw);
+    const performer = inline.performer || pendingPerformer;
+    pendingPerformer = undefined;
+    structural.push({ tag: { ...tag, raw: inline.sectionRaw, label: lyricTagLabel(inline.sectionRaw) }, performer });
+  }
+
+  if (!structural.length) return [];
   const songMs = Math.max(1000, Math.round(opts.durationMs));
   const now = Date.now();
 
   // Marquee lyric pins are per sung line — never feed them here or you get
   // one-second bands when several [tags] sit on nearby lines.
-  return tags.map((t, i) => ({
+  return structural.map((row, i) => ({
     id: `marker_${now}_${i}`,
-    label: t.label,
+    label: row.tag.label,
     startMs: i === 0 ? 0 : songMs,
     endMs: songMs,
+    ...(row.performer ? { performer: row.performer } : {}),
   }));
 }
 
@@ -557,6 +599,8 @@ export function sectionCastForMarker(
   leadSinger: string,
   speakers: string[],
 ): string {
+  const named = (marker.performer || "").trim();
+  if (named) return named;
   const id = String(marker.label || "").trim().toLowerCase();
   const backup = backupSingerName(speakers, leadSinger);
   if (id === "verse" && backup) {
