@@ -3,6 +3,7 @@ import { readMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import {
   cutFromPlateTiming,
+  type LyricCue,
   type MusicVideoTrackDraft,
   type PlateTiming,
   type TrackSectionMarker,
@@ -58,6 +59,22 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
  *   remove-plate-timing — clear one plate schedule
  */
+/** Cue rows come off the phone — keep only well-formed, ordered pins. */
+function cleanLyricCues(raw: unknown): LyricCue[] {
+  if (!Array.isArray(raw)) return [];
+  const out: LyricCue[] = [];
+  for (const item of raw) {
+    const cue = item as { lineIndex?: unknown; atMs?: unknown };
+    const lineIndex = Math.round(Number(cue.lineIndex));
+    const atMs = Math.round(Number(cue.atMs));
+    if (!Number.isFinite(lineIndex) || lineIndex < 0) continue;
+    if (!Number.isFinite(atMs) || atMs < 0) continue;
+    if (out.some((c) => c.lineIndex === lineIndex)) continue;
+    out.push({ lineIndex, atMs });
+  }
+  return out.sort((a, b) => a.atMs - b.atMs);
+}
+
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     action?: string;
@@ -69,6 +86,7 @@ export async function POST(req: Request) {
     startMs?: number;
     endMs?: number;
     sortIndex?: number;
+    lyricCues?: LyricCue[];
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -113,6 +131,23 @@ export async function POST(req: Request) {
         trackDraft: null,
         error: "",
       });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (action === "set-lyric-cues") {
+      const cues = cleanLyricCues(body.lyricCues);
+      const song = job.scratchSong;
+      // Pre-lock the song has no row yet — park the cues on the draft, same
+      // as peaks and markers, and let the mp3 attach merge them.
+      const updated = song?.fileName
+        ? await patchMobileGenJob(jobId, {
+            scratchSong: { ...song, lyricCues: cues },
+            error: "",
+          })
+        : await patchMobileGenJob(jobId, {
+            trackDraft: { ...(job.trackDraft || {}), lyricCues: cues },
+            error: "",
+          });
       return NextResponse.json({ ok: true, job: updated });
     }
 

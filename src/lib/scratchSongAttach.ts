@@ -127,6 +127,9 @@ export async function attachDroppedBeatMp3(opts: {
             ...(opts.job.trackDraft?.sectionMarkers
               ? { sectionMarkers: opts.job.trackDraft.sectionMarkers }
               : {}),
+            ...(opts.job.trackDraft?.lyricCues
+              ? { lyricCues: opts.job.trackDraft.lyricCues }
+              : {}),
             ...(opts.job.trackDraft?.plateTimings
               ? { plateTimings: opts.job.trackDraft.plateTimings }
               : {}),

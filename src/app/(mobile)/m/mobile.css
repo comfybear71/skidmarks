@@ -2429,3 +2429,108 @@ span.scratch-history-blob {
     max-height: min(48dvh, 480px);
   }
 }
+
+/* ── TRACK: coverage + lyrics lane ─────────────────────────────────────── */
+
+.m-track-cover {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.m-track-cover-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.m-track-cover-fill {
+  height: 100%;
+  background: var(--acid);
+  transition: width 120ms linear;
+}
+
+.m-track-cover-line {
+  color: var(--chrome-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.m-track-lyrics {
+  margin-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+}
+
+.m-track-lyrics-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.m-track-lyrics-note {
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+.m-track-lyric-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.m-track-lyric {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-left: 2px solid transparent;
+  padding-left: 6px;
+}
+
+.m-track-lyric.is-pinned {
+  border-left-color: rgba(200, 255, 46, 0.5);
+}
+
+.m-track-lyric.is-now {
+  border-left-color: var(--acid);
+  background: rgba(200, 255, 46, 0.06);
+}
+
+.m-track-lyric-text {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 5px 0;
+  text-align: left;
+  color: var(--chrome);
+  font-size: 13px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.m-track-lyric.is-now .m-track-lyric-text {
+  color: var(--acid);
+  font-weight: 700;
+}
+
+.m-track-lyric-at {
+  background: none;
+  border: 1px solid rgba(200, 255, 46, 0.35);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--acid);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}

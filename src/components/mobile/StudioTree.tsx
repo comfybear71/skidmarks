@@ -1753,14 +1753,16 @@ export function StudioTree({
           label="Track"
           headerRight={<CollapseToggle open={trackOpen} onToggle={() => setTrackOpen((v) => !v)} />}
         >
-          {trackOpen ? (
-            <MusicVideoTrack
-              job={job}
-              story={deskStory}
-              plated={songPlates}
-              onJobChange={onJobChange}
-            />
-          ) : null}
+          {/* Collapsed still shows the wave and the player — the song is the
+              spine, so it stays on screen the way plate thumbs do. Expanding
+              adds the marking tools, lyrics and plate timing. */}
+          <MusicVideoTrack
+            job={job}
+            story={deskStory}
+            plated={songPlates}
+            onJobChange={onJobChange}
+            compact={!trackOpen}
+          />
         </TreeBranch>
       ) : null}
 

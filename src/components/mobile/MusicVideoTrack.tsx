@@ -4,10 +4,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MobileGenJob, MobileShotUnit } from "@/lib/mobileGenJob";
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import {
+  TRACK_ACID,
   TRACK_SECTION_LABELS,
+  activeLyricLineIndex,
+  coverageLine,
   formatTrackClock,
+  lyricCueFor,
+  lyricLinesFrom,
   plateTimingForShot,
   sortPlateTimings,
+  trackCoverage,
+  withLyricCue,
+  withoutLyricCue,
+  type LyricCue,
   type TrackSectionLabel,
 } from "@/lib/musicVideoTrack";
 import { decodeWaveformPeaks } from "@/lib/decodeWaveformPeaks";
@@ -38,6 +47,9 @@ function WaveformCanvas({
   playheadMs,
   markers,
   plateTimings,
+  rangeStartMs,
+  rangeEndMs,
+  lyricCues,
   onSeek,
   onSelectRange,
 }: {
@@ -46,6 +58,10 @@ function WaveformCanvas({
   playheadMs: number;
   markers: { id: string; label: string; startMs: number; endMs: number }[];
   plateTimings: { plateId: string; startMs: number; endMs: number; label: string }[];
+  /** The drag you are holding — drawn so you can see what Use range will take. */
+  rangeStartMs: number;
+  rangeEndMs: number;
+  lyricCues: LyricCue[];
   onSeek: (ms: number) => void;
   onSelectRange: (startMs: number, endMs: number) => void;
 }) {
@@ -76,8 +92,22 @@ function WaveformCanvas({
       ctx.fillRect(x0, h * 0.55, Math.max(2, x1 - x0), h * 0.4);
     }
 
+    // The range you are about to hand to Use range — drawn before the wave so
+    // the trace stays readable on top of it.
+    if (rangeEndMs > rangeStartMs) {
+      const rx0 = (rangeStartMs / durationMs) * w;
+      const rx1 = (rangeEndMs / durationMs) * w;
+      ctx.fillStyle = "rgba(200, 255, 46, 0.10)";
+      ctx.fillRect(rx0, 0, Math.max(2, rx1 - rx0), h);
+      ctx.strokeStyle = "rgba(200, 255, 46, 0.55)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(rx0, 0.5, Math.max(2, rx1 - rx0), h - 1);
+    }
+
     const mid = h / 2;
-    ctx.strokeStyle = "var(--acid)";
+    // Canvas 2D does not resolve CSS variables: "var(--acid)" is an invalid
+    // colour, so the wave kept the default black and vanished into the panel.
+    ctx.strokeStyle = TRACK_ACID;
     ctx.lineWidth = 1;
     ctx.beginPath();
     peaks.forEach((p, i) => {
@@ -94,6 +124,12 @@ function WaveformCanvas({
     });
     ctx.stroke();
 
+    for (const cue of lyricCues) {
+      const x = (cue.atMs / durationMs) * w;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+      ctx.fillRect(x, 0, 1, h * 0.18);
+    }
+
     const ph = (playheadMs / durationMs) * w;
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 2;
@@ -101,7 +137,7 @@ function WaveformCanvas({
     ctx.moveTo(ph, 0);
     ctx.lineTo(ph, h);
     ctx.stroke();
-  }, [peaks, durationMs, playheadMs, markers, plateTimings]);
+  }, [peaks, durationMs, playheadMs, markers, plateTimings, rangeStartMs, rangeEndMs, lyricCues]);
 
   function msFromEvent(clientX: number): number {
     const canvas = ref.current;
@@ -146,11 +182,14 @@ export function MusicVideoTrack({
   story,
   plated,
   onJobChange,
+  compact = false,
 }: {
   job: MobileGenJob;
   story: CrashStoryDoc | null;
   plated: MobileShotUnit[];
   onJobChange: (job: MobileGenJob) => void;
+  /** Collapsed: the wave, the clock and the player only — no editing tools. */
+  compact?: boolean;
 }) {
   const song = job.scratchSong;
   const parked = peekPendingSong(job.id);
@@ -177,6 +216,13 @@ export function MusicVideoTrack({
     (localPeaks.length ? localPeaks : []);
 
   const markers = song?.sectionMarkers || job.trackDraft?.sectionMarkers || [];
+
+  const lyricCues = useMemo<LyricCue[]>(
+    () => song?.lyricCues || job.trackDraft?.lyricCues || [],
+    [song?.lyricCues, job.trackDraft?.lyricCues],
+  );
+  const lyricLines = useMemo(() => lyricLinesFrom(job.lyrics || ""), [job.lyrics]);
+  const activeLyric = activeLyricLineIndex(lyricCues, playheadMs);
 
   const plateRows = useMemo(() => {
     return plated.map((row, i) => {
@@ -302,6 +348,24 @@ export function MusicVideoTrack({
     }
   }
 
+  const coverage = useMemo(
+    () => trackCoverage(song?.plateTimings || job.trackDraft?.plateTimings || [], durationMs),
+    [song?.plateTimings, job.trackDraft?.plateTimings, durationMs],
+  );
+
+  async function saveLyricCues(next: LyricCue[]) {
+    setBusy("cues");
+    setNote("");
+    try {
+      const updated = await trackAction("set-lyric-cues", { jobId: job.id, lyricCues: next });
+      if (updated) onJobChange(updated);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't pin that line");
+    } finally {
+      setBusy("");
+    }
+  }
+
   const hasSong = Boolean(song?.fileName || parked?.file);
 
   return (
@@ -336,6 +400,9 @@ export function MusicVideoTrack({
               playheadMs={playheadMs}
               markers={markers}
               plateTimings={plateBlocks}
+              rangeStartMs={rangeStartMs}
+              rangeEndMs={rangeEndMs}
+              lyricCues={lyricCues}
               onSeek={(ms) => {
                 setPlayheadMs(ms);
                 if (audioRef.current) audioRef.current.currentTime = ms / 1000;
@@ -351,6 +418,7 @@ export function MusicVideoTrack({
             </div>
           )}
 
+          {!compact ? (
           <div className="m-track-marker-row">
             <select
               className="m-track-select"
@@ -386,8 +454,9 @@ export function MusicVideoTrack({
               {formatTrackClock(rangeStartMs)} – {formatTrackClock(rangeEndMs)}
             </span>
           </div>
+          ) : null}
 
-          {markers.length ? (
+          {!compact && markers.length ? (
             <ul className="m-track-marker-list">
               {markers.map((m) => (
                 <li key={m.id}>
@@ -407,7 +476,69 @@ export function MusicVideoTrack({
             </ul>
           ) : null}
 
-          {job.folderName && plateRows.length ? (
+          {coverage.songMs ? (
+            <div className="m-track-cover">
+              <div className="m-track-cover-bar">
+                <div className="m-track-cover-fill" style={{ width: `${coverage.pct}%` }} />
+              </div>
+              <span className="m-track-cover-line">{coverageLine(coverage)}</span>
+            </div>
+          ) : null}
+
+          {!compact && lyricLines.length ? (
+            <div className="m-track-lyrics">
+              <div className="m-track-lyrics-head">
+                <span>Lyrics</span>
+                <span className="m-track-lyrics-note">
+                  {busy === "cues" ? "Saving…" : "Tap a line to pin it at the playhead"}
+                </span>
+              </div>
+              <ul className="m-track-lyric-list">
+                {lyricLines.map((line) => {
+                  const cue = lyricCueFor(lyricCues, line.index);
+                  const isNow = activeLyric === line.index;
+                  return (
+                    <li
+                      key={line.index}
+                      className={`m-track-lyric${cue ? " is-pinned" : ""}${isNow ? " is-now" : ""}`}
+                    >
+                      <button
+                        type="button"
+                        className="m-track-lyric-text"
+                        onClick={() => void saveLyricCues(withLyricCue(lyricCues, line.index, playheadMs))}
+                      >
+                        {line.text}
+                      </button>
+                      {cue ? (
+                        <>
+                          <button
+                            type="button"
+                            className="m-track-lyric-at"
+                            onClick={() => {
+                              setPlayheadMs(cue.atMs);
+                              if (audioRef.current) audioRef.current.currentTime = cue.atMs / 1000;
+                            }}
+                          >
+                            {formatTrackClock(cue.atMs)}
+                          </button>
+                          <button
+                            type="button"
+                            className="m-track-x"
+                            aria-label="Unpin this line"
+                            onClick={() => void saveLyricCues(withoutLyricCue(lyricCues, line.index))}
+                          >
+                            ×
+                          </button>
+                        </>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+
+          {compact ? null : job.folderName && plateRows.length ? (
             <div className="m-track-plates">
               <div className="m-track-plates-head">Plates on the track</div>
               {plateRows.map((row, i) => (
