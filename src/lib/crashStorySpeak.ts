@@ -157,7 +157,7 @@ export async function synthesizeStoryBeat(opts: {
 }): Promise<{ voiceFile: string; story: CrashStoryDoc }> {
   if (!elevenKeyPresent()) {
     throw new Error(
-      "Missing ELEVENLABS_API_KEY in MY MOVIES\\.env — restart Studio after adding.",
+      "Missing ELEVENLABS_API_KEY in your environment variables — restart Studio after adding.",
     );
   }
 

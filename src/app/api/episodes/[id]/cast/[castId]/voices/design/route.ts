@@ -21,7 +21,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
   if (!elevenKeyPresent()) {
     return NextResponse.json(
-      { error: "Missing ELEVENLABS_API_KEY in MY MOVIES\\.env" },
+      { error: "Missing ELEVENLABS_API_KEY in your environment variables" },
       { status: 503 },
     );
   }
