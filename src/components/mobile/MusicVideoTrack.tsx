@@ -453,7 +453,9 @@ export function MusicVideoTrack({
   canStart = false,
   onStart,
   onOpenPlate,
-  onAddPlate,
+  castOptions = [],
+  placeOptions = [],
+  onCreatePlate,
 }: {
   job: MobileGenJob;
   story: CrashStoryDoc | null;
@@ -467,8 +469,11 @@ export function MusicVideoTrack({
   onStart?: (lyrics: string) => void;
   /** Tap a plate — opens its Position and LTX prompts. */
   onOpenPlate?: (shotId: string) => void;
-  /** The + goes to Locations, which is where plates are made. */
-  onAddPlate?: () => void;
+  /** Cast and places for the + picker — thumbnails built by the tree. */
+  castOptions?: { name: string; faceUrl: string }[];
+  placeOptions?: { sceneId: string; name: string; thumbUrl: string }[];
+  /** One person, one place, one plate. */
+  onCreatePlate?: (sceneId: string, speaker: string) => void;
 }) {
   const song = job.scratchSong;
   const parked = usePendingSong(job.id);
@@ -480,6 +485,9 @@ export function MusicVideoTrack({
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(true);
   const [playing, setPlaying] = useState(false);
+  const [pickOpen, setPickOpen] = useState(false);
+  const [pickWho, setPickWho] = useState("");
+  const [pickWhere, setPickWhere] = useState("");
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
@@ -702,9 +710,10 @@ export function MusicVideoTrack({
                 ))}
                 <button
                   type="button"
-                  className="m-track-rail-add"
-                  onClick={() => onAddPlate?.()}
-                  aria-label="Add a plate from Locations"
+                  className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
+                  onClick={() => setPickOpen((v) => !v)}
+                  aria-expanded={pickOpen}
+                  aria-label="Add a plate"
                 >
                   +
                 </button>
@@ -786,6 +795,66 @@ export function MusicVideoTrack({
               {busy === "peaks" ? "Reading waveform…" : "Waveform…"}
             </div>
           )}
+
+          {/* One person, one place, one plate — picked here rather than three
+              scrolls down inside a Locations card. */}
+          {!compact && pickOpen ? (
+            <div className="m-plate-pick">
+              <div className="m-plate-pick-row">
+                {castOptions.map((who) => (
+                  <button
+                    type="button"
+                    key={who.name}
+                    className={`m-plate-pick-cell${pickWho === who.name ? " is-on" : ""}`}
+                    onClick={() => setPickWho(who.name)}
+                  >
+                    {who.faceUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={who.faceUrl} alt="" />
+                    ) : (
+                      <span className="m-plate-pick-blank" />
+                    )}
+                    <span className="m-plate-pick-name">{who.name}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="m-plate-pick-row">
+                {placeOptions.map((place) => (
+                  <button
+                    type="button"
+                    key={place.sceneId}
+                    className={`m-plate-pick-cell${pickWhere === place.sceneId ? " is-on" : ""}`}
+                    onClick={() => setPickWhere(place.sceneId)}
+                  >
+                    {place.thumbUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={place.thumbUrl} alt="" />
+                    ) : (
+                      <span className="m-plate-pick-blank" />
+                    )}
+                    <span className="m-plate-pick-name">{place.name}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="m-plate-pick-actions">
+                <MobilePrimaryButton
+                  size="chip"
+                  disabled={!pickWho || !pickWhere}
+                  onClick={() => {
+                    onCreatePlate?.(pickWhere, pickWho);
+                    setPickOpen(false);
+                    setPickWho("");
+                    setPickWhere("");
+                  }}
+                >
+                  {job.folderName ? `Add ${pickWho || "plate"}` : "Start the video & add"}
+                </MobilePrimaryButton>
+                <button type="button" className="m-track-btn" onClick={() => setPickOpen(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {/* Once the markers are set this is just a record — fold it away. */}
           {!compact && markers.length ? (

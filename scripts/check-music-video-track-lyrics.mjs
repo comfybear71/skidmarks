@@ -96,7 +96,7 @@ console.log("check-music-video-track-lyrics OK");
     "the plates strip sits above the title row",
   );
   assert.match(ui, /onOpenPlate/, "tapping a plate opens its prompts");
-  assert.match(ui, /onAddPlate/, "the plus goes to Locations, which makes plates");
+  assert.match(ui, /onCreatePlate/, "the plus makes the plate itself");
   // One place picker in the app, not two.
   assert.doesNotMatch(ui, /locationCandidates/, "no second place picker inside Plates");
   // Music does not come in 15s blocks — Add section must not assume one.
@@ -481,3 +481,46 @@ console.log("check-music-video-ribbon OK");
 }
 
 console.log("check-music-video-lyric-tags OK");
+
+// ── The + makes a plate, in the Plates section ─────────────────────────────
+{
+  const { readFileSync } = await import("node:fs");
+  const ui = readFileSync(
+    new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url),
+    "utf8",
+  );
+  const tree = readFileSync(
+    new URL("../src/components/mobile/StudioTree.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // One person, one place, one plate — picked without leaving Plates.
+  assert.match(ui, /m-plate-pick/, "the picker lives in the Plates section");
+  assert.match(ui, /castOptions/);
+  assert.match(ui, /placeOptions/);
+  assert.match(ui, /onCreatePlate/);
+
+  // The + is the last thing in the strip, after the plates.
+  assert.ok(
+    ui.indexOf("m-track-rail-cell") < ui.indexOf("m-track-rail-add"),
+    "the + sits to the right of the plates",
+  );
+
+  // It no longer bounces the user over to Locations.
+  assert.doesNotMatch(ui, /onAddPlate/, "the + does the job itself");
+  assert.doesNotMatch(tree, /m-locations-strip.*scrollIntoView/s);
+
+  // No pack yet is not a wall: the + starts the video and holds the pick.
+  assert.match(tree, /pendingPlate/, "a pick made before Start is held");
+  assert.match(tree, /Start the video & add|onStartMusicVideo/);
+  assert.match(ui, /Start the video & add/, "the button says what it will do");
+
+  // One creation path, not two.
+  assert.equal(
+    (tree.match(/action: "add", sceneId/g) || []).length,
+    1,
+    "plates are still created through the one existing call",
+  );
+}
+
+console.log("check-music-video-plate-picker OK");
