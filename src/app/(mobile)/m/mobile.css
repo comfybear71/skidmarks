@@ -907,6 +907,38 @@ body {
   font-weight: 600;
 }
 
+.m-track-time {
+  width: 3.4rem;
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--chrome);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.m-track-time:focus {
+  outline: none;
+  border-color: var(--acid);
+  background: rgba(200, 255, 46, 0.08);
+}
+
+.m-track-dash {
+  color: var(--chrome-dim);
+  font-size: 11px;
+}
+
+.m-track-marker-list li .m-track-marker-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .m-track-marker-list li span:nth-child(2) {
   margin-left: auto;
   color: var(--chrome-dim);

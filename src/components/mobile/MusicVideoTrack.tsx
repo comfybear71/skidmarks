@@ -13,11 +13,14 @@ import {
   lyricCueFor,
   lyricLinesFrom,
   plateTimingForShot,
+  nextSectionStartMs,
+  parseTrackClock,
   plateBarColor,
   sectionColor,
   sectionTint,
   sectionTitle,
   sortPlateTimings,
+  withSectionTime,
   trackCoverage,
   withLyricCue,
   withoutLyricCue,
@@ -43,6 +46,53 @@ function hexTint(hex: string, alpha: number): string {
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
+}
+
+/** m:ss box. Commits on blur or Enter; a typo just snaps back. */
+function TimeField({
+  value,
+  label,
+  onCommit,
+}: {
+  value: number;
+  label: string;
+  onCommit: (ms: number) => void;
+}) {
+  // Draft only exists while the box is being typed in; the rest of the time
+  // the value is read straight off the marker. No effect syncing the two.
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? formatTrackClock(value);
+
+  function commit() {
+    const typed = draft;
+    setDraft(null);
+    if (typed === null) return;
+    const ms = parseTrackClock(typed);
+    if (ms !== null) onCommit(ms);
+  }
+
+  return (
+    <input
+      className="m-track-time"
+      value={text}
+      aria-label={label}
+      inputMode="numeric"
+      spellCheck={false}
+      onFocus={(e) => {
+        setDraft(formatTrackClock(value));
+        e.currentTarget.select();
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setDraft(null);
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
 }
 
 async function trackAction(
@@ -641,16 +691,17 @@ export function MusicVideoTrack({
               className="m-track-btn"
               disabled={Boolean(busy) || rangeEndMs <= rangeStartMs}
               onClick={() => {
-                const next = [
+                // Start where the last section ended so they lay end to end,
+                // instead of stacking 15-second blobs wherever the drag landed.
+                const startMs = nextSectionStartMs(markers);
+                const endMs = Math.min(
+                  durationMs || startMs + 15000,
+                  Math.max(startMs + 1000, startMs + 15000),
+                );
+                void saveMarkers([
                   ...markers,
-                  {
-                    id: `marker_${Date.now()}`,
-                    label: markerLabel,
-                    startMs: rangeStartMs,
-                    endMs: rangeEndMs,
-                  },
-                ];
-                void saveMarkers(next);
+                  { id: `marker_${Date.now()}`, label: markerLabel, startMs, endMs },
+                ]);
               }}
             >
               Add section
@@ -669,12 +720,23 @@ export function MusicVideoTrack({
                     <i className="m-track-swatch" style={{ background: sectionColor(m.label) }} />
                     {sectionTitle(m.label)}
                   </span>
-                  <span>
-                    {formatTrackClock(m.startMs)} – {formatTrackClock(m.endMs)}
-                  </span>
+                  {/* Type the times. A section is a number you know — dragging
+                      for it gave 15s blobs and two half-right Intros. */}
+                  <TimeField
+                    value={m.startMs}
+                    label={`${sectionTitle(m.label)} start`}
+                    onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "start", ms, durationMs))}
+                  />
+                  <span className="m-track-dash">–</span>
+                  <TimeField
+                    value={m.endMs}
+                    label={`${sectionTitle(m.label)} end`}
+                    onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "end", ms, durationMs))}
+                  />
                   <button
                     type="button"
                     className="m-track-x"
+                    aria-label={`Remove ${sectionTitle(m.label)}`}
                     onClick={() => void saveMarkers(markers.filter((x) => x.id !== m.id))}
                   >
                     ×
@@ -708,9 +770,7 @@ export function MusicVideoTrack({
                 </span>
               ) : (
                 <span className="m-track-marquee-idle">
-                  {lyricCues.length
-                    ? "Play — the pinned line rides through here."
-                    : "Open LYRICS, tap a line to pin it at the playhead."}
+                  {lyricCues.length ? "—" : "Pin lines in LYRICS"}
                 </span>
               )}
             </div>

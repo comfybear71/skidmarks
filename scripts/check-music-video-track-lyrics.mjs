@@ -211,3 +211,51 @@ console.log("check-music-video-sections OK");
 }
 
 console.log("check-music-video-plate-bar OK");
+
+// ── Typed section times: one Intro 0:00–0:35, not two 15s blobs ─────────────
+{
+  const { nextSectionStartMs, parseTrackClock, withSectionLabel, withSectionTime } =
+    await import("../src/lib/musicVideoTrack.ts");
+
+  assert.equal(parseTrackClock("0:35"), 35_000);
+  assert.equal(parseTrackClock("35"), 35_000, "bare seconds work");
+  assert.equal(parseTrackClock("1:04"), 64_000);
+  assert.equal(parseTrackClock("2:07.5"), 127_500);
+  assert.equal(parseTrackClock(" 0:35 "), 35_000);
+  assert.equal(parseTrackClock(""), null);
+  assert.equal(parseTrackClock("banana"), null);
+  assert.equal(parseTrackClock("1:75"), null, "75 seconds past a minute is a typo");
+
+  const song = 120_000;
+  const markers = [{ id: "a", label: "intro", startMs: 0, endMs: 15_000 }];
+
+  // The whole point: stretch one Intro out to 0:35.
+  const stretched = withSectionTime(markers, "a", "end", 35_000, song);
+  assert.equal(stretched[0].endMs, 35_000);
+  assert.equal(stretched.length, 1, "editing never adds a row");
+
+  // A backwards typo cannot make a section that draws inside out.
+  assert.equal(withSectionTime(markers, "a", "end", 0, song)[0].endMs, 1000);
+  assert.equal(withSectionTime(markers, "a", "start", 99_000, song)[0].startMs, 14_000);
+  // Nor run past the song, or before it starts.
+  assert.equal(withSectionTime(markers, "a", "end", 999_000, song)[0].endMs, song);
+  assert.equal(withSectionTime(markers, "a", "start", -5000, song)[0].startMs, 0);
+  // Other rows are left alone.
+  assert.equal(withSectionTime(markers, "nope", "end", 1000, song)[0].endMs, 15_000);
+
+  // A new section starts where the last one ended — end to end, not stacked.
+  assert.equal(nextSectionStartMs([]), 0);
+  assert.equal(nextSectionStartMs(stretched), 35_000);
+  assert.equal(
+    nextSectionStartMs([
+      { id: "a", label: "intro", startMs: 0, endMs: 35_000 },
+      { id: "b", label: "verse", startMs: 35_000, endMs: 70_000 },
+    ]),
+    70_000,
+  );
+
+  assert.equal(withSectionLabel(markers, "a", "Chainsaw solo")[0].label, "Chainsaw solo");
+  assert.equal(withSectionLabel(markers, "a", "  ")[0].label, "intro", "blank keeps the name");
+}
+
+console.log("check-music-video-section-times OK");

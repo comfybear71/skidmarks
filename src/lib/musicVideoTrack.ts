@@ -352,3 +352,69 @@ export function plateBarColor(
 
 /** No section marked yet — neutral, never a colour that means something else. */
 export const PLATE_BAR_NO_SECTION = "#78c8ff";
+
+/* ── Typed section times ───────────────────────────────────────────────────
+   Dragging a range gave 15-second blobs and two half-right Intros. A section
+   is a number you know — type it. */
+
+/** "0:35", "35", "1:04.5" → ms. Returns null when it is not a time. */
+export function parseTrackClock(text: string): number | null {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  const m = raw.match(/^(?:(\d+):)?(\d{1,2}(?:\.\d+)?)$/);
+  if (!m) return null;
+  const mins = m[1] ? Number(m[1]) : 0;
+  const secs = Number(m[2]);
+  if (!Number.isFinite(mins) || !Number.isFinite(secs)) return null;
+  if (m[1] && secs >= 60) return null;
+  return Math.round((mins * 60 + secs) * 1000);
+}
+
+/**
+ * Move one edge of a section and hand back the whole list. Keeps at least a
+ * second on the section and never runs past the end of the song, so a typo
+ * cannot produce a marker that draws backwards.
+ */
+export function withSectionTime(
+  markers: TrackSectionMarker[],
+  id: string,
+  edge: "start" | "end",
+  ms: number,
+  songMs: number,
+): TrackSectionMarker[] {
+  const MIN = 1000;
+  const cap = Number.isFinite(songMs) && songMs > 0 ? songMs : Infinity;
+  return (markers || []).map((m) => {
+    if (m.id !== id) return m;
+    const at = Math.max(0, Math.min(cap, Math.round(ms)));
+    if (edge === "start") {
+      const startMs = Math.min(at, m.endMs - MIN);
+      return { ...m, startMs: Math.max(0, startMs) };
+    }
+    const endMs = Math.max(at, m.startMs + MIN);
+    return { ...m, endMs: Math.min(cap, endMs) };
+  });
+}
+
+/** Rename a section (Custom, mostly). Blank keeps what was there. */
+export function withSectionLabel(
+  markers: TrackSectionMarker[],
+  id: string,
+  label: string,
+): TrackSectionMarker[] {
+  const next = String(label || "").trim();
+  if (!next) return markers;
+  return (markers || []).map((m) => (m.id === id ? { ...m, label: next } : m));
+}
+
+/**
+ * Where a new section should start: the end of the last one, so sections lay
+ * end to end instead of piling up as overlapping 15s blobs.
+ */
+export function nextSectionStartMs(markers: TrackSectionMarker[]): number {
+  let end = 0;
+  for (const m of markers || []) {
+    if (m.endMs > end) end = m.endMs;
+  }
+  return end;
+}
