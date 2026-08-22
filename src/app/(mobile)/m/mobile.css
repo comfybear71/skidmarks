@@ -2515,6 +2515,13 @@ span.scratch-history-blob {
   padding: 0;
 }
 
+.m-track-lyric-hint {
+  margin: 0 0 10px;
+  color: var(--chrome-dim);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .m-track-lyric {
   display: flex;
   align-items: center;

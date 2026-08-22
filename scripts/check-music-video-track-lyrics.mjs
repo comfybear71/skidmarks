@@ -75,12 +75,13 @@ console.log("check-music-video-track-lyrics OK");
     "utf8",
   );
   assert.match(ui, /m-track-marquee/);
+  assert.match(ui, /Marquee/, "marquee pin tab beside Lyrics");
+  assert.match(ui, /m-track-lyric-list/, "pin list under Marquee tab");
+  assert.match(ui, /activeLyricLineIndex/, "marquee uses pinned cues when set");
   // The strip carries the line or nothing — never instructions about the line.
   assert.doesNotMatch(ui, /m-track-marquee-idle/, "no placeholder text in the marquee");
   assert.doesNotMatch(ui, /tap a line to pin it at the playhead/i);
-  // LYRICS is a paste box and nothing else — no list of lines under it.
-  assert.doesNotMatch(ui, /pinRail/, "no pin list in the lyrics panel");
-  assert.doesNotMatch(ui, /m-track-lyric-list/, "no lyric list anywhere on the page");
+  assert.doesNotMatch(ui, /pinRail/, "no pin list in the lyrics paste panel");
 
   // The lyric line reads above the player, not buried under the section list.
   assert.ok(

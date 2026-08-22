@@ -10,8 +10,13 @@ import {
   evenLineStartMs,
   evenLyricHoldMs,
   evenLyricIndexAt,
+  activeLyricLineIndex,
+  lyricCueFor,
+  lyricHoldMs,
   lyricLinesFrom,
   lyricWords,
+  withLyricCue,
+  withoutLyricCue,
   plateTimingForShot,
   nextSectionStartMs,
   parseTrackClock,
@@ -210,6 +215,97 @@ async function trackAction(
   const raw = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
   if (!res.ok) throw new Error(raw.error?.trim() || `Request failed (${res.status})`);
   return raw.job || null;
+}
+
+/** Pin sung lines to the playhead — saved as lyricCues on the job. */
+function LyricPinPanel({
+  job,
+  lyricLines,
+  lyricCues,
+  playheadMs,
+  busy,
+  onBusy,
+  onJobChange,
+  onSeek,
+}: {
+  job: MobileGenJob;
+  lyricLines: ReturnType<typeof lyricLinesFrom>;
+  lyricCues: LyricCue[];
+  playheadMs: number;
+  busy: string;
+  onBusy: (v: string) => void;
+  onJobChange: (job: MobileGenJob) => void;
+  onSeek: (ms: number) => void;
+}) {
+  const activeLine = activeLyricLineIndex(lyricCues, playheadMs);
+
+  async function saveCues(next: LyricCue[]) {
+    onBusy("lyrics");
+    try {
+      const updated = await trackAction("set-lyric-cues", {
+        jobId: job.id,
+        lyricCues: next,
+      });
+      if (updated) onJobChange(updated);
+    } finally {
+      onBusy("");
+    }
+  }
+
+  if (!lyricLines.length) {
+    return (
+      <p className="m-track-lyric-hint">Paste lyrics first — then play the song and pin each line here.</p>
+    );
+  }
+
+  return (
+    <ul className="m-track-lyric-list">
+      {lyricLines.map((line) => {
+        const cue = lyricCueFor(lyricCues, line.index);
+        const isNow = activeLine === line.index;
+        return (
+          <li
+            key={line.index}
+            className={`m-track-lyric${cue ? " is-pinned" : ""}${isNow ? " is-now" : ""}`}
+          >
+            <button
+              type="button"
+              className="m-track-lyric-text"
+              onClick={() => {
+                if (cue) onSeek(cue.atMs);
+              }}
+            >
+              {line.text}
+            </button>
+            {cue ? (
+              <button
+                type="button"
+                className="m-track-lyric-at"
+                aria-label={`Pinned at ${formatTrackClock(cue.atMs)}`}
+                onClick={() => onSeek(cue.atMs)}
+              >
+                {formatTrackClock(cue.atMs)}
+              </button>
+            ) : null}
+            <MobilePrimaryButton
+              size="chip"
+              tone="ghost"
+              disabled={Boolean(busy)}
+              onClick={() => {
+                if (cue) {
+                  void saveCues(withoutLyricCue(lyricCues, line.index));
+                  return;
+                }
+                void saveCues(withLyricCue(lyricCues, line.index, playheadMs));
+              }}
+            >
+              {cue ? "×" : "Pin"}
+            </MobilePrimaryButton>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 function WaveformCanvas({
@@ -486,6 +582,7 @@ export function MusicVideoTrack({
   const [playheadMs, setPlayheadMs] = useState(0);
   const [markerLabel, setMarkerLabel] = useState<TrackSectionLabel>("verse");
   const [lyricsOpen, setLyricsOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
+  const [marqueeOpen, setMarqueeOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
@@ -522,19 +619,30 @@ export function MusicVideoTrack({
   // Lines are pasted, not pinned — spread them across the song, then split
   // each line's slot between its words. The whole line rides through as one
   // ribbon; the word crossing the centre is the one that grows and lights up.
-  const activeLyric = evenLyricIndexAt(lyricLines.length, playheadMs, durationMs);
+  const usePinnedMarquee = lyricCues.length > 0;
+  const activeLyric = usePinnedMarquee
+    ? activeLyricLineIndex(lyricCues, playheadMs)
+    : evenLyricIndexAt(lyricLines.length, playheadMs, durationMs);
   const ribbon = useMemo(() => {
     if (activeLyric === null) return null;
     const text = lyricLines.find((l) => l.index === activeLyric)?.text || "";
     const words = lyricWords(text);
     if (!words.length) return null;
+    const cue = usePinnedMarquee ? lyricCueFor(lyricCues, activeLyric) : null;
+    if (usePinnedMarquee && !cue) return null;
+    const lineStartMs = cue
+      ? cue.atMs
+      : evenLineStartMs(activeLyric, lyricLines.length, durationMs);
+    const lineHoldMs = cue
+      ? lyricHoldMs(lyricCues, activeLyric)
+      : evenLyricHoldMs(lyricLines.length, durationMs);
     return {
       lineIndex: activeLyric,
       words,
-      lineStartMs: evenLineStartMs(activeLyric, lyricLines.length, durationMs),
-      lineHoldMs: evenLyricHoldMs(lyricLines.length, durationMs),
+      lineStartMs,
+      lineHoldMs,
     };
-  }, [activeLyric, lyricLines, durationMs]);
+  }, [activeLyric, lyricLines, durationMs, lyricCues, usePinnedMarquee]);
 
   const plateRows = useMemo(() => {
     return plated.map((row, i) => {
@@ -714,9 +822,23 @@ export function MusicVideoTrack({
               type="button"
               className={`m-mv-lyr-toggle${lyricsOpen ? " is-open" : ""}`}
               aria-expanded={lyricsOpen}
-              onClick={() => setLyricsOpen((v) => !v)}
+              onClick={() => {
+                setLyricsOpen((v) => !v);
+                if (!lyricsOpen) setMarqueeOpen(false);
+              }}
             >
               Lyrics <span className="m-mv-lyr-caret">{lyricsOpen ? "▾" : "▸"}</span>
+            </button>
+            <button
+              type="button"
+              className={`m-mv-lyr-toggle${marqueeOpen ? " is-open" : ""}`}
+              aria-expanded={marqueeOpen}
+              onClick={() => {
+                setMarqueeOpen((v) => !v);
+                if (!marqueeOpen) setLyricsOpen(false);
+              }}
+            >
+              Marquee <span className="m-mv-lyr-caret">{marqueeOpen ? "▾" : "▸"}</span>
             </button>
             <button
               type="button"
@@ -728,6 +850,21 @@ export function MusicVideoTrack({
             </button>
           </div>
           {lyricsOpen ? <LyricsBox job={job} onJobChange={onJobChange} /> : null}
+          {!compact && marqueeOpen ? (
+            <LyricPinPanel
+              job={job}
+              lyricLines={lyricLines}
+              lyricCues={lyricCues}
+              playheadMs={playheadMs}
+              busy={busy}
+              onBusy={setBusy}
+              onJobChange={onJobChange}
+              onSeek={(ms) => {
+                setPlayheadMs(ms);
+                if (audioRef.current) audioRef.current.currentTime = ms / 1000;
+              }}
+            />
+          ) : null}
 
           {/* Nothing playing, nothing shown — the strip is for the line, not
               for instructions about the line. */}
