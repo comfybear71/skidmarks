@@ -2801,3 +2801,67 @@ span.scratch-history-blob {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 6px;
 }
+
+/* ── Song desk: marquee above a low dark player ────────────────────────────
+   The player sits back so the lyric line above it is the bright thing. */
+
+.m-song-player {
+  padding: 4px 8px;
+  gap: 8px;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #0a0a0c;
+}
+
+.m-song-play {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+
+.m-song-scrub {
+  height: 4px;
+}
+
+.m-song-clock {
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+.m-track-marquee {
+  height: 34px;
+  margin: 2px 0 6px;
+}
+
+.m-track-marquee-line {
+  font-size: 16px;
+  text-shadow: 0 0 18px rgba(200, 255, 46, 0.25);
+}
+
+/* Plates rail — placeholder until the thumbnails land. */
+.m-track-rail {
+  margin: 2px 0 4px;
+}
+
+.m-track-rail-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  /* /m scrolls the window: a vertical flick must still move the page. */
+  touch-action: pan-x pan-y;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.m-track-rail-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.m-track-rail-cell {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.02);
+}
