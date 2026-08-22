@@ -20,12 +20,16 @@ import {
   type TrackSectionLabel,
 } from "@/lib/musicVideoTrack";
 import { decodeWaveformPeaks } from "@/lib/decodeWaveformPeaks";
-import { findSongCarrierBeatId } from "@/lib/musicVideoSong";
-import { peekPendingSong } from "@/lib/musicVideoStart";
+import { clearPendingSong, songChipName } from "@/lib/musicVideoStart";
+import { findSongCarrierBeatId, musicVideoCreditLine } from "@/lib/musicVideoSong";
+
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { readApiJson } from "@/lib/studioFetchError";
-import { SongDropRow } from "./MusicVideoStart";
+import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
+
+/** Tall enough to read the bars and the plate lane on a phone. */
+const TRACK_WAVE_HEIGHT = 132;
 
 async function trackAction(
   action: string,
@@ -66,78 +70,167 @@ function WaveformCanvas({
   onSelectRange: (startMs: number, endMs: number) => void;
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
-  const drag = useRef<{ startX: number; startMs: number } | null>(null);
+  const drag = useRef<{ startMs: number; moved: boolean } | null>(null);
+  const [cssWidth, setCssWidth] = useState(0);
+
+  // A fixed-width canvas stretched by CSS is why this looked soft. Draw at the
+  // element's real size times the device ratio, and follow it when it changes.
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const measure = () => setCssWidth(canvas.clientWidth || 0);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(canvas);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas || !peaks.length) return;
+    if (!canvas || !peaks.length || !cssWidth || !durationMs) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const w = canvas.width;
-    const h = canvas.height;
+
+    const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+    const cssHeight = canvas.clientHeight || TRACK_WAVE_HEIGHT;
+    canvas.width = Math.round(cssWidth * dpr);
+    canvas.height = Math.round(cssHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const w = cssWidth;
+    const h = cssHeight;
+    const xAt = (ms: number) => (ms / durationMs) * w;
+
+    const rulerH = 13;
+    const laneH = 20;
+    const waveTop = rulerH;
+    const waveH = h - rulerH - laneH;
+    const mid = waveTop + waveH / 2;
+
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#0a0a0c";
+    ctx.fillStyle = "#08080a";
     ctx.fillRect(0, 0, w, h);
 
+    // Section bands sit behind everything, with their name on the ruler.
+    ctx.font = "600 9px ui-sans-serif, system-ui, sans-serif";
+    ctx.textBaseline = "top";
     for (const m of markers) {
-      const x0 = (m.startMs / durationMs) * w;
-      const x1 = (m.endMs / durationMs) * w;
-      ctx.fillStyle = "rgba(180, 255, 0, 0.12)";
-      ctx.fillRect(x0, 0, Math.max(2, x1 - x0), h);
-    }
-    for (const p of plateTimings) {
-      const x0 = (p.startMs / durationMs) * w;
-      const x1 = (p.endMs / durationMs) * w;
-      ctx.fillStyle = "rgba(120, 200, 255, 0.18)";
-      ctx.fillRect(x0, h * 0.55, Math.max(2, x1 - x0), h * 0.4);
+      const x0 = xAt(m.startMs);
+      const x1 = xAt(m.endMs);
+      const bandW = Math.max(2, x1 - x0);
+      ctx.fillStyle = "rgba(200, 255, 46, 0.07)";
+      ctx.fillRect(x0, waveTop, bandW, waveH);
+      ctx.fillStyle = "rgba(200, 255, 46, 0.55)";
+      ctx.fillRect(x0, waveTop, 1, waveH);
+      const label = String(m.label || "").toUpperCase();
+      if (bandW > 34) {
+        ctx.fillStyle = "rgba(200, 255, 46, 0.75)";
+        ctx.fillText(label, x0 + 4, 2);
+      }
     }
 
-    // The range you are about to hand to Use range — drawn before the wave so
-    // the trace stays readable on top of it.
+    // The range you are about to hand to Use range.
     if (rangeEndMs > rangeStartMs) {
-      const rx0 = (rangeStartMs / durationMs) * w;
-      const rx1 = (rangeEndMs / durationMs) * w;
-      ctx.fillStyle = "rgba(200, 255, 46, 0.10)";
-      ctx.fillRect(rx0, 0, Math.max(2, rx1 - rx0), h);
-      ctx.strokeStyle = "rgba(200, 255, 46, 0.55)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(rx0, 0.5, Math.max(2, rx1 - rx0), h - 1);
+      const rx0 = xAt(rangeStartMs);
+      const rx1 = xAt(rangeEndMs);
+      const rw = Math.max(2, rx1 - rx0);
+      ctx.fillStyle = "rgba(200, 255, 46, 0.12)";
+      ctx.fillRect(rx0, waveTop, rw, waveH);
+      ctx.fillStyle = TRACK_ACID;
+      ctx.fillRect(rx0, waveTop, 1.5, waveH);
+      ctx.fillRect(rx0 + rw - 1.5, waveTop, 1.5, waveH);
     }
 
-    const mid = h / 2;
-    // Canvas 2D does not resolve CSS variables: "var(--acid)" is an invalid
-    // colour, so the wave kept the default black and vanished into the panel.
-    ctx.strokeStyle = TRACK_ACID;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    peaks.forEach((p, i) => {
-      const x = (i / (peaks.length - 1)) * w;
-      const y = mid - p * (h * 0.42);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    peaks.forEach((p, i) => {
-      const x = (i / (peaks.length - 1)) * w;
-      const y = mid + p * (h * 0.42);
-      ctx.lineTo(x, y);
-    });
-    ctx.stroke();
+    // Mirrored bars read better than a hairline trace at this height, and they
+    // survive a phone-width canvas without turning to mush.
+    const barW = 2;
+    const gap = 1;
+    const step = barW + gap;
+    const cols = Math.max(1, Math.floor(w / step));
+    const grad = ctx.createLinearGradient(0, waveTop, 0, waveTop + waveH);
+    grad.addColorStop(0, "rgba(200, 255, 46, 0.95)");
+    grad.addColorStop(0.5, TRACK_ACID);
+    grad.addColorStop(1, "rgba(200, 255, 46, 0.95)");
+    ctx.fillStyle = grad;
+    for (let i = 0; i < cols; i++) {
+      const from = Math.floor((i / cols) * peaks.length);
+      const to = Math.max(from + 1, Math.floor(((i + 1) / cols) * peaks.length));
+      let peak = 0;
+      for (let k = from; k < to && k < peaks.length; k++) {
+        const v = Math.abs(peaks[k] || 0);
+        if (v > peak) peak = v;
+      }
+      const half = Math.max(0.6, peak * (waveH / 2) * 0.94);
+      ctx.fillRect(i * step, mid - half, barW, half * 2);
+    }
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.09)";
+    ctx.fillRect(0, mid - 0.5, w, 1);
+
+    // Plate lane along the bottom — this is the video, laid out on the song.
+    const laneY = waveTop + waveH + 3;
+    const laneBoxH = laneH - 6;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+    ctx.fillRect(0, laneY, w, laneBoxH);
+    for (const p of plateTimings) {
+      const x0 = xAt(p.startMs);
+      const bw = Math.max(3, xAt(p.endMs) - x0);
+      const r = Math.min(4, bw / 2);
+      ctx.beginPath();
+      ctx.roundRect(x0 + 0.5, laneY, Math.max(2, bw - 1), laneBoxH, r);
+      ctx.fillStyle = "rgba(120, 200, 255, 0.32)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(120, 200, 255, 0.75)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      if (bw > 40) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x0, laneY, bw - 4, laneBoxH);
+        ctx.clip();
+        ctx.fillStyle = "rgba(230, 245, 255, 0.92)";
+        ctx.fillText(p.label, x0 + 5, laneY + 3);
+        ctx.restore();
+      }
+    }
+
+    // Minute and half-minute ticks, so a 4-minute song reads at a glance.
+    const totalSec = durationMs / 1000;
+    const tickEvery = totalSec > 240 ? 60 : totalSec > 90 ? 30 : 15;
+    for (let sec = tickEvery; sec < totalSec; sec += tickEvery) {
+      const x = xAt(sec * 1000);
+      const major = sec % 60 === 0;
+      ctx.fillStyle = major ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.14)";
+      ctx.fillRect(x, rulerH - (major ? 6 : 3), 1, major ? 6 : 3);
+    }
 
     for (const cue of lyricCues) {
-      const x = (cue.atMs / durationMs) * w;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
-      ctx.fillRect(x, 0, 1, h * 0.18);
+      const x = xAt(cue.atMs);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+      ctx.fillRect(x, waveTop, 1, 7);
     }
 
-    const ph = (playheadMs / durationMs) * w;
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2;
+    // Playhead last, with a head you can actually see against the bars.
+    const ph = xAt(playheadMs);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(ph - 0.5, rulerH - 4, 1, h - rulerH + 4);
     ctx.beginPath();
-    ctx.moveTo(ph, 0);
-    ctx.lineTo(ph, h);
-    ctx.stroke();
-  }, [peaks, durationMs, playheadMs, markers, plateTimings, rangeStartMs, rangeEndMs, lyricCues]);
+    ctx.moveTo(ph - 4, rulerH - 8);
+    ctx.lineTo(ph + 4, rulerH - 8);
+    ctx.lineTo(ph, rulerH - 2);
+    ctx.closePath();
+    ctx.fill();
+  }, [
+    peaks,
+    durationMs,
+    playheadMs,
+    markers,
+    plateTimings,
+    rangeStartMs,
+    rangeEndMs,
+    lyricCues,
+    cssWidth,
+  ]);
 
   function msFromEvent(clientX: number): number {
     const canvas = ref.current;
@@ -151,26 +244,32 @@ function WaveformCanvas({
     <canvas
       ref={ref}
       className="m-track-wave"
-      width={720}
-      height={96}
+      style={{ height: `${TRACK_WAVE_HEIGHT}px` }}
       onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
         const ms = msFromEvent(e.clientX);
-        drag.current = { startX: e.clientX, startMs: ms };
+        drag.current = { startMs: ms, moved: false };
         onSeek(ms);
       }}
       onPointerMove={(e) => {
         if (!drag.current) return;
-        onSeek(msFromEvent(e.clientX));
+        const ms = msFromEvent(e.clientX);
+        if (Math.abs(ms - drag.current.startMs) > 150) {
+          drag.current.moved = true;
+          onSelectRange(Math.min(drag.current.startMs, ms), Math.max(drag.current.startMs, ms));
+        }
+        onSeek(ms);
       }}
       onPointerUp={(e) => {
-        if (!drag.current) return;
-        const endMs = msFromEvent(e.clientX);
-        const startMs = Math.min(drag.current.startMs, endMs);
-        const end = Math.max(drag.current.startMs, endMs);
+        const held = drag.current;
         drag.current = null;
-        if (Math.abs(end - startMs) > 200) onSelectRange(startMs, end);
+        if (!held) return;
+        const endMs = msFromEvent(e.clientX);
+        const startMs = Math.min(held.startMs, endMs);
+        const end = Math.max(held.startMs, endMs);
+        if (end - startMs > 200) onSelectRange(startMs, end);
       }}
-      onPointerLeave={() => {
+      onPointerCancel={() => {
         drag.current = null;
       }}
     />
@@ -192,12 +291,13 @@ export function MusicVideoTrack({
   compact?: boolean;
 }) {
   const song = job.scratchSong;
-  const parked = peekPendingSong(job.id);
+  const parked = usePendingSong(job.id);
   const beatId = findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playheadMs, setPlayheadMs] = useState(0);
   const [markerLabel, setMarkerLabel] = useState<TrackSectionLabel>("verse");
+  const [lyricsOpen, setLyricsOpen] = useState(false);
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
@@ -366,6 +466,18 @@ export function MusicVideoTrack({
     }
   }
 
+  async function dropSong() {
+    // Pre-lock the mp3 is only parked in the browser, so dropping it is local.
+    // Post-lock it is a real attached take: leave that to the song desk rather
+    // than deleting media from here (AGENTS.md — never delete, park).
+    if (!song?.fileName) {
+      clearPendingSong(job.id);
+      setLocalPeaks([]);
+      return;
+    }
+    setNote("The song is attached to this episode — drop it from the song desk.");
+  }
+
   const hasSong = Boolean(song?.fileName || parked?.file);
 
   return (
@@ -373,22 +485,44 @@ export function MusicVideoTrack({
       {!hasSong ? (
         <div className="m-track-empty">
           <p className="m-track-note">Add the song before you time plates.</p>
-          <SongDropRow jobId={job.id} />
+          <SongDropRow jobId={job.id} job={job} />
         </div>
       ) : (
         <>
+          {/* Title line owns the card: name left, Lyrics and drop right.
+              Lyrics stay shut — that box is for entering them, not reading. */}
+          <div className="m-track-song-top">
+            <span className="m-track-song-name">
+              {musicVideoCreditLine(job) || songChipName(song?.fileName || parked?.file.name || "")}
+            </span>
+            <button
+              type="button"
+              className={`m-mv-lyr-toggle${lyricsOpen ? " is-open" : ""}`}
+              aria-expanded={lyricsOpen}
+              onClick={() => setLyricsOpen((v) => !v)}
+            >
+              Lyrics <span className="m-mv-lyr-caret">{lyricsOpen ? "▾" : "▸"}</span>
+            </button>
+            <button
+              type="button"
+              className="m-mv-x"
+              aria-label="Drop this song"
+              onClick={() => void dropSong()}
+            >
+              ×
+            </button>
+          </div>
+          {lyricsOpen ? <LyricsBox job={job} /> : null}
+
           <div className="m-track-toolbar">
             <span className="m-track-clock">
               {formatTrackClock(playheadMs)} / {formatTrackClock(durationMs)}
             </span>
             {audioSrc ? (
-              <audio
-                ref={audioRef}
-                className="m-track-audio"
+              <SongPlayer
                 src={audioSrc}
-                controls
-                preload="metadata"
-                onTimeUpdate={() => setPlayheadMs(Math.round((audioRef.current?.currentTime || 0) * 1000))}
+                audioRef={audioRef}
+                onTime={(sec) => setPlayheadMs(Math.round(sec * 1000))}
               />
             ) : null}
           </div>

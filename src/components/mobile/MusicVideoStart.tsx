@@ -1,22 +1,114 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MobilePrimaryButton } from "@/components/mobile/MobileUi";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import { probeBrowserAudioDurationSec, dropScratchSongViaBlob, SCRATCH_SONG_DIRECT_POST_MAX_BYTES } from "@/lib/scratchSongDrop";
-import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
+import { readApiJson } from "@/lib/studioFetchError";
 import {
   clearPendingSong,
   formatSongLength,
   isMp3File,
   lyricLineCount,
-  lyricsPanelOpensAt,
   parkPendingSong,
   peekPendingSong,
   songChipName,
+  subscribePendingSong,
   takePendingSong,
   type PendingSong,
 } from "@/lib/musicVideoStart";
+
+/**
+ * The parked mp3, as React state. Every panel that asks "do we have a song
+ * yet" reads this — a plain Map is invisible to React, so only the box you
+ * dropped on used to know, and the track kept asking for a song it already had.
+ */
+export function usePendingSong(jobId: string): PendingSong | null {
+  return useSyncExternalStore(
+    subscribePendingSong,
+    () => peekPendingSong(jobId),
+    () => null,
+  );
+}
+
+function clock(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) return "0:00";
+  const whole = Math.floor(sec);
+  const m = Math.floor(whole / 60);
+  return `${m}:${String(whole - m * 60).padStart(2, "0")}`;
+}
+
+/**
+ * Compact transport. The native <audio controls> is a fat light-grey slab that
+ * fights every other control on this desk — this is play/pause, a thin scrub
+ * and the clock, in our colours.
+ */
+export function SongPlayer({
+  src,
+  audioRef,
+  onTime,
+}: {
+  src: string;
+  audioRef?: React.RefObject<HTMLAudioElement | null>;
+  onTime?: (sec: number) => void;
+}) {
+  // The element is owned here and mirrored out to any ref the parent passed:
+  // writing currentTime straight onto a prop ref is not ours to mutate.
+  const own = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [at, setAt] = useState(0);
+  const [len, setLen] = useState(0);
+  const pct = len > 0 ? Math.min(100, (at / len) * 100) : 0;
+
+  return (
+    <div className="m-song-player">
+      <audio
+        ref={(node) => {
+          own.current = node;
+          if (audioRef) audioRef.current = node;
+        }}
+        src={src}
+        preload="metadata"
+        onLoadedMetadata={(e) => setLen(e.currentTarget.duration || 0)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onTimeUpdate={(e) => {
+          setAt(e.currentTarget.currentTime || 0);
+          onTime?.(e.currentTarget.currentTime || 0);
+        }}
+      />
+      <button
+        type="button"
+        className="m-song-play"
+        aria-label={playing ? "Pause" : "Play"}
+        onClick={() => {
+          const node = own.current;
+          if (!node) return;
+          if (node.paused) void node.play();
+          else node.pause();
+        }}
+      >
+        {playing ? "❚❚" : "▶"}
+      </button>
+      <div
+        className="m-song-scrub"
+        onPointerDown={(e) => {
+          const node = own.current;
+          if (!node || !len) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+          node.currentTime = (x / rect.width) * len;
+        }}
+      >
+        <div className="m-song-scrub-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="m-song-clock">
+        {clock(at)} / {clock(len)}
+      </span>
+    </div>
+  );
+}
 
 /** Parked mp3 from before Lock — attach once a carrier beat exists. */
 export async function attachParkedSongToBeat(opts: {
@@ -74,7 +166,6 @@ export function LyricsBox({
   onChange?: (lyrics: string) => void;
 }) {
   const [text, setText] = useState(job.lyrics || "");
-  const [open, setOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
   const [saved, setSaved] = useState(false);
   const lines = lyricLineCount(text);
 
@@ -85,17 +176,14 @@ export function LyricsBox({
   }
 
   return (
-    <div className="m-mv-block">
-      <button type="button" className="m-mv-head" onClick={() => setOpen((v) => !v)}>
-        <span className="m-mv-head-label">Lyrics</span>
-        <span className="m-mv-head-note">
-          {lines ? `${lines} line${lines === 1 ? "" : "s"}` : "optional"}
-        </span>
-        <span className="m-mv-head-caret">{open ? "▾" : "▸"}</span>
-      </button>
-      {open ? (
+    <div className="m-mv-lyrics">
+      <div className="m-mv-lyrics-note">
+        {lines ? `${lines} line${lines === 1 ? "" : "s"}` : "paste the words"}
+        {saved ? " · saved" : ""}
+      </div>
+      {(
         <textarea
-          className="m-mv-lyrics"
+          className="m-mv-lyrics-input"
           value={text}
           rows={6}
           spellCheck={false}
@@ -108,8 +196,7 @@ export function LyricsBox({
             });
           }}
         />
-      ) : null}
-      {open && saved ? <p className="m-mv-note">Saved</p> : null}
+      )}
     </div>
   );
 }
@@ -121,16 +208,20 @@ export function LyricsBox({
  */
 export function SongDropRow({
   jobId,
+  job,
   onPicked,
 }: {
   jobId: string;
+  /** Pass the job to put the Lyrics toggle in this card's title row. */
+  job?: MobileGenJob;
   onPicked?: (name: string, durationSec: number) => void;
 }) {
-  const parkedNow = peekPendingSong(jobId);
-  const [name, setName] = useState(parkedNow?.file.name || "");
-  const [lengthSec, setLengthSec] = useState(parkedNow?.durationSec || 0);
+  const parkedNow = usePendingSong(jobId);
+  const name = parkedNow?.file.name || "";
+  const lengthSec = parkedNow?.durationSec || 0;
   const [err, setErr] = useState("");
   const [over, setOver] = useState(false);
+  const [lyricsOpen, setLyricsOpen] = useState(false);
   const [src, setSrc] = useState("");
   const srcRef = useRef("");
   const pick = useRef<HTMLInputElement | null>(null);
@@ -153,8 +244,6 @@ export function SongDropRow({
     const url = URL.createObjectURL(file);
     srcRef.current = url;
     setSrc(url);
-    setName(file.name);
-    setLengthSec(durationSec);
     onPicked?.(file.name, durationSec);
   }
 
@@ -163,8 +252,6 @@ export function SongDropRow({
     if (srcRef.current) URL.revokeObjectURL(srcRef.current);
     srcRef.current = "";
     setSrc("");
-    setName("");
-    setLengthSec(0);
     onPicked?.("", 0);
   }
 
@@ -176,11 +263,26 @@ export function SongDropRow({
       </div>
       {name ? (
         <div className="m-mv-song">
-          <span className="m-mv-song-name">{songChipName(name)}</span>
-          <button type="button" className="m-mv-x" aria-label="Drop this song" onClick={drop}>
-            ×
-          </button>
-          {src ? <audio className="m-mv-audio" src={src} controls preload="metadata" /> : null}
+          {/* Title line owns the card: name on the left, Lyrics and × on the
+              right. Lyrics stay shut — they are for entering, not reading. */}
+          <div className="m-mv-song-top">
+            <span className="m-mv-song-name">{songChipName(name)}</span>
+            {job ? (
+              <button
+                type="button"
+                className={`m-mv-lyr-toggle${lyricsOpen ? " is-open" : ""}`}
+                aria-expanded={lyricsOpen}
+                onClick={() => setLyricsOpen((v) => !v)}
+              >
+                Lyrics <span className="m-mv-lyr-caret">{lyricsOpen ? "▾" : "▸"}</span>
+              </button>
+            ) : null}
+            <button type="button" className="m-mv-x" aria-label="Drop this song" onClick={drop}>
+              ×
+            </button>
+          </div>
+          {src ? <SongPlayer src={src} /> : null}
+          {job && lyricsOpen ? <LyricsBox job={job} /> : null}
         </div>
       ) : (
         <button

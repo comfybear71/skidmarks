@@ -32,6 +32,24 @@ export type PendingSong<F extends PickedSongFile = PickedSongFile> = {
 
 const parked = new Map<string, PendingSong<PickedSongFile>>();
 
+/**
+ * A plain Map is invisible to React: parking a file re-rendered only the one
+ * component holding it, so the track kept saying "Add the song" and drew a
+ * second drop box. Anything reading the park must be able to subscribe.
+ */
+const listeners = new Set<() => void>();
+
+export function subscribePendingSong(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+function emit(): void {
+  for (const fn of [...listeners]) fn();
+}
+
 export function parkPendingSong<F extends PickedSongFile>(
   jobId: string,
   song: PendingSong<F>,
@@ -39,6 +57,7 @@ export function parkPendingSong<F extends PickedSongFile>(
   const id = (jobId || "").trim();
   if (!id) return;
   parked.set(id, song);
+  emit();
 }
 
 export function peekPendingSong(jobId: string): PendingSong | null {
@@ -49,12 +68,15 @@ export function peekPendingSong(jobId: string): PendingSong | null {
 export function takePendingSong(jobId: string): PendingSong | null {
   const id = (jobId || "").trim();
   const song = parked.get(id) || null;
-  if (song) parked.delete(id);
+  if (song) {
+    parked.delete(id);
+    emit();
+  }
   return song;
 }
 
 export function clearPendingSong(jobId: string): void {
-  parked.delete((jobId || "").trim());
+  if (parked.delete((jobId || "").trim())) emit();
 }
 
 const MP3_NAME = /\.mp3$/i;

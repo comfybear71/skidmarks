@@ -59,8 +59,17 @@ const stitched = orderedDoneCutsForStitch({
 });
 assert.deepEqual(stitched.map((c) => c.shotId), ["a", "b"]);
 
-assert.match(tree, /label="Track"/);
+// Three sections only: CAST is the band, LOCATIONS is wherever, and PLATES is
+// the whole song desk — song, marks, plates, renders. There is no Track branch.
+assert.doesNotMatch(tree, /label="Track"/, "the Track section was folded into Plates");
 assert.match(tree, /MusicVideoTrack/);
+assert.match(
+  tree.slice(tree.indexOf('label="Plates"') - 400),
+  /MusicVideoTrack/,
+  "the track renders inside the Plates branch",
+);
+// Collapsed Plates still shows the wave and the player.
+assert.match(tree, /compact=\{!platesOpen\}/);
 assert.match(trackUi, /WaveformCanvas/);
 assert.match(trackUi, /Add section/);
 assert.match(trackRoute, /set-plate-timing/);
