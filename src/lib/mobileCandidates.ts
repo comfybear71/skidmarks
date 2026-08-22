@@ -230,25 +230,97 @@ export async function approveCastCandidate(
     brief: name || fileName,
   });
 
-  if (cloudStoreEnabled() && name) {
-    const cloudFileName = `upload_${Date.now()}${ext.toLowerCase() === ".jpeg" ? ".jpg" : ext}`;
-    const pathname = showAssetPathname(styleId, "cast", cloudFileName);
-    const put = await putBlobFile({
-      pathname,
-      body: buffer,
-      contentType: blobContentType("cast", cloudFileName),
-      allowOverwrite: true,
-    });
-    await upsertNeonShowFile({
-      showId: styleId,
-      kind: "cast",
-      blobUrl: put.url,
-      filename: cloudFileName,
-      blobPathname: put.pathname,
-      labelName: name,
-      labelBrief: name,
-    });
+  if (name) {
+    await uploadCastFaceToShelf(styleId, name, buffer, ext);
   }
+}
+
+/** Push one approved face onto the show-level Neon+Blob "cast" shelf.
+ * Shared by approveCastCandidate (new approvals) and syncApprovedCastToShelf
+ * (backfilling faces approved before that write path existed). */
+export async function uploadCastFaceToShelf(
+  styleId: ShowStyleId,
+  name: string,
+  buffer: Buffer,
+  ext: string,
+): Promise<void> {
+  if (!cloudStoreEnabled()) return;
+  const cloudFileName = `upload_${Date.now()}_${sortableId("cast")}${ext.toLowerCase() === ".jpeg" ? ".jpg" : ext}`;
+  const pathname = showAssetPathname(styleId, "cast", cloudFileName);
+  const put = await putBlobFile({
+    pathname,
+    body: buffer,
+    contentType: blobContentType("cast", cloudFileName),
+    allowOverwrite: true,
+  });
+  await upsertNeonShowFile({
+    showId: styleId,
+    kind: "cast",
+    blobUrl: put.url,
+    filename: cloudFileName,
+    blobPathname: put.pathname,
+    labelName: name,
+    labelBrief: name,
+  });
+}
+
+/**
+ * Backfill: push every approved cast face on this job that isn't already on
+ * the shelf. Covers faces approved before uploadCastFaceToShelf existed, or
+ * approved locally-only for some other reason — the "cold start should just
+ * work" guarantee shouldn't depend on remembering to re-pick each face by
+ * hand. Skips names already on the shelf (cheap presence check first) and
+ * skips anything whose bytes can't be resolved rather than failing the
+ * whole pass — one missing face shouldn't block the rest of the band.
+ */
+export async function syncApprovedCastToShelf(opts: {
+  styleId: ShowStyleId;
+  folderName: string;
+  altFolders?: string[];
+  /** speaker name -> approved candidate fileName */
+  approved: Record<string, string>;
+}): Promise<{ synced: string[]; skipped: string[] }> {
+  const synced: string[] = [];
+  const skipped: string[] = [];
+  if (!cloudStoreEnabled()) return { synced, skipped };
+
+  // Cast shelf filenames are randomly generated on upload (unlike character
+  // plates' deterministic slug), so "already there" has to check by label
+  // name, not filename.
+  const { cloudListShowFiles } = await import("./cloudShelf");
+  const shelfRows = await cloudListShowFiles(opts.styleId, "cast").catch(() => []);
+  const shelfNames = new Set(
+    shelfRows.map((r) => (r.label_name || "").trim().toLowerCase()).filter(Boolean),
+  );
+
+  for (const [name, fileName] of Object.entries(opts.approved)) {
+    const trimmedName = name.trim();
+    if (!trimmedName || !fileName) continue;
+    try {
+      if (shelfNames.has(trimmedName.toLowerCase())) {
+        skipped.push(trimmedName);
+        continue;
+      }
+      const resolved = await resolveCandidateStill(
+        opts.styleId,
+        opts.folderName,
+        fileName,
+        undefined,
+        opts.altFolders || [],
+      );
+      if (!resolved) {
+        skipped.push(trimmedName);
+        continue;
+      }
+      const buffer = fs.readFileSync(resolved);
+      const ext = path.extname(fileName) || ".png";
+      await uploadCastFaceToShelf(opts.styleId, trimmedName, buffer, ext);
+      synced.push(trimmedName);
+    } catch {
+      skipped.push(trimmedName);
+    }
+  }
+  return { synced, skipped };
 }
 
 function candidateGenDir(): string {
