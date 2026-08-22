@@ -268,6 +268,81 @@ function CollapseToggle({ open, onToggle }: { open: boolean; onToggle: () => voi
   );
 }
 
+/** Tile with a text glyph instead of a photo — saved bands, save-as-band. */
+function GlyphTile({
+  glyph,
+  label,
+  onClick,
+  variant,
+  disabled,
+  title,
+}: {
+  glyph: string;
+  label: string;
+  onClick: () => void;
+  variant: "solid" | "dashed";
+  disabled?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={{
+        flex: "0 0 auto",
+        width: "72px",
+        padding: 0,
+        border: "none",
+        background: "none",
+        color: "var(--chrome)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "4px",
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? "not-allowed" : "pointer",
+      }}
+    >
+      <span
+        style={{
+          width: "72px",
+          height: "72px",
+          borderRadius: "10px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: variant === "solid" ? "var(--panel-2)" : "transparent",
+          border:
+            variant === "solid" ? "2px solid var(--acid)" : "1px dashed var(--line)",
+          color: "var(--acid)",
+          fontSize: glyph.length > 1 ? "11px" : "24px",
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          textAlign: "center",
+          padding: "6px",
+        }}
+      >
+        {glyph}
+      </span>
+      <span
+        style={{
+          fontSize: "11px",
+          color: "var(--chrome-dim)",
+          width: "100%",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          textAlign: "center",
+        }}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
 function PlusTile({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
@@ -1305,111 +1380,75 @@ export function StudioTree({
               />
             );
           })}
+          {bands.map((band) => (
+            <GlyphTile
+              key={band.name}
+              glyph="♪"
+              label={band.name}
+              variant="solid"
+              disabled={busy}
+              title={band.members.join(", ")}
+              onClick={() => onApplyBand(band.name)}
+            />
+          ))}
+          {job.speakers.length ? (
+            <GlyphTile
+              glyph="SAVE"
+              label="Save as band"
+              variant="dashed"
+              disabled={busy}
+              onClick={() => setSavingBand(true)}
+            />
+          ) : null}
         </div>
-        {bands.length ? (
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              flexWrap: "wrap",
-              padding: "0 2px 8px",
-              alignItems: "center",
-            }}
-          >
-            <span style={{ color: "var(--chrome-dim)", fontSize: "10px", textTransform: "uppercase" }}>
-              Bands:
-            </span>
-            {bands.map((band) => (
-              <button
-                key={band.name}
-                type="button"
-                disabled={busy}
-                onClick={() => onApplyBand(band.name)}
-                title={band.members.join(", ")}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: "999px",
-                  border: "1px solid var(--acid)",
-                  background: "transparent",
-                  color: "var(--acid)",
-                  fontSize: "11px",
-                  cursor: busy ? "not-allowed" : "pointer",
-                  opacity: busy ? 0.5 : 1,
-                }}
-              >
-                {band.name}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {castOpen && job.speakers.length ? (
-          savingBand ? (
-            <div style={{ display: "flex", gap: "8px", padding: "0 2px 8px", alignItems: "center" }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <MobileTextInput
-                  value={bandNameDraft}
-                  onChange={setBandNameDraft}
-                  placeholder="Band name, e.g. THE JACK ASH BAND"
-                />
-              </div>
-              <button
-                type="button"
-                disabled={busy || !bandNameDraft.trim()}
-                onClick={() => {
-                  onSaveBand(bandNameDraft.trim());
-                  setBandNameDraft("");
-                  setSavingBand(false);
-                }}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: "2px",
-                  border: "1px solid var(--acid)",
-                  background: "var(--acid)",
-                  color: "#000",
-                  fontSize: "11px",
-                  cursor: "pointer",
-                }}
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSavingBand(false);
-                  setBandNameDraft("");
-                }}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: "2px",
-                  border: "1px solid var(--chrome-dim)",
-                  background: "transparent",
-                  color: "var(--chrome-dim)",
-                  fontSize: "11px",
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
+        {castOpen && savingBand ? (
+          <div style={{ display: "flex", gap: "8px", padding: "0 2px 8px", alignItems: "center" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <MobileTextInput
+                value={bandNameDraft}
+                onChange={setBandNameDraft}
+                placeholder="Band name, e.g. THE JACK ASH BAND"
+              />
             </div>
-          ) : (
             <button
               type="button"
-              onClick={() => setSavingBand(true)}
+              disabled={busy || !bandNameDraft.trim()}
+              onClick={() => {
+                onSaveBand(bandNameDraft.trim());
+                setBandNameDraft("");
+                setSavingBand(false);
+              }}
               style={{
-                margin: "0 2px 8px",
-                padding: "4px 10px",
+                padding: "6px 10px",
+                borderRadius: "2px",
+                border: "1px solid var(--acid)",
+                background: "var(--acid)",
+                color: "#000",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSavingBand(false);
+                setBandNameDraft("");
+              }}
+              style={{
+                padding: "6px 10px",
                 borderRadius: "2px",
                 border: "1px solid var(--chrome-dim)",
                 background: "transparent",
                 color: "var(--chrome-dim)",
                 fontSize: "11px",
                 cursor: "pointer",
-                alignSelf: "flex-start",
               }}
             >
-              Save this cast as a band
+              Cancel
             </button>
-          )
+          </div>
         ) : null}
         {castOpen && adding === "cast" ? (
           <AddForm
