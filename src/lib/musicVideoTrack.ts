@@ -533,6 +533,46 @@ export function sectionCastHint(label: string, leadSinger?: string): string {
   return lead;
 }
 
+/** First backup singer on the job (not the lead, not instrument names). */
+export function backupSingerName(speakers: string[], leadSinger: string): string {
+  const lead = (leadSinger || "").trim().toLowerCase();
+  return (
+    (speakers || []).find((s) => {
+      const name = (s || "").trim();
+      if (!name) return false;
+      if (name.toLowerCase() === lead) return false;
+      if (/\b(sax|drum|guitar)\b/i.test(name)) return false;
+      return true;
+    }) || ""
+  );
+}
+
+/**
+ * Per-row cast on the section list. Verse 2 is the backup's verse when the
+ * band has one (SOUL REBEL + three backups).
+ */
+export function sectionCastForMarker(
+  marker: TrackSectionMarker,
+  markers: TrackSectionMarker[],
+  leadSinger: string,
+  speakers: string[],
+): string {
+  const id = String(marker.label || "").trim().toLowerCase();
+  const backup = backupSingerName(speakers, leadSinger);
+  if (id === "verse" && backup) {
+    const verses = sortSectionMarkers(markers).filter(
+      (m) => String(m.label || "").trim().toLowerCase() === "verse",
+    );
+    const verseN = verses.findIndex((m) => m.id === marker.id) + 1;
+    if (verseN === 2) return backup;
+  }
+  if ((id === "intro" || id === "outro") && speakers.length > 2) {
+    const hum = speakers.filter((s) => s !== leadSinger && !/\b(sax|drum|guitar)\b/i.test(s));
+    if (hum.length) return `${hum.join(" · ")} humming`;
+  }
+  return sectionCastHint(marker.label, leadSinger);
+}
+
 /** A section waiting for Start here — collapsed at the song end. */
 export function sectionNeedsStartHere(m: TrackSectionMarker, songMs: number): boolean {
   const song = Math.max(1000, Math.round(songMs));

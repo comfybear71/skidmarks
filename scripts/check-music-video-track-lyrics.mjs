@@ -133,7 +133,7 @@ console.log("check-music-video-track-lyrics OK");
   assert.match(ui, /Start here/, "pin section start at playhead");
   assert.match(ui, /Clear sections/, "wipe broken section rows");
   assert.match(ui, /m-track-time-set/, "explicit Set on time boxes");
-  assert.match(ui, /sectionCastHint/, "who plates each section");
+  assert.match(ui, /sectionCastForMarker/, "who plates each section");
 
   // One UI, empty or full. No second screen in front of the track.
   assert.doesNotMatch(ui, /m-track-empty/, "no separate empty-state layout");
@@ -290,6 +290,7 @@ console.log("check-music-video-plate-bar OK");
   const {
     importSectionMarkersFromLyrics,
     meaningfulLyricTags,
+    sectionCastForMarker,
     sectionCastHint,
     sectionNeedsStartHere,
     withSectionStartAt,
@@ -322,6 +323,22 @@ console.log("check-music-video-plate-bar OK");
   assert.equal(sectionCastHint("verse", "JACK GHOST"), "JACK GHOST");
   assert.equal(sectionCastHint("sax_break", "JACK GHOST"), "SAXOPHONE");
   assert.equal(sectionCastHint("lead_break", "JACK GHOST"), "GUITAR");
+
+  const verseMarkers = [
+    { id: "a", label: "verse", startMs: 0, endMs: 30_000 },
+    { id: "b", label: "verse", startMs: 30_000, endMs: 60_000 },
+    { id: "c", label: "verse", startMs: 60_000, endMs: 90_000 },
+  ];
+  const speakers = ["SOUL REBEL", "CENTRE-LEFT", "FAR-LEFT", "RIGHT-SIDE"];
+  assert.equal(
+    sectionCastForMarker(verseMarkers[1], verseMarkers, "SOUL REBEL", speakers),
+    "CENTRE-LEFT",
+    "verse 2 is the backup",
+  );
+  assert.equal(
+    sectionCastForMarker(verseMarkers[0], verseMarkers, "SOUL REBEL", speakers),
+    "SOUL REBEL",
+  );
 }
 
 console.log("check-music-video-section-times OK");

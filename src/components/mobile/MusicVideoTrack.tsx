@@ -24,6 +24,7 @@ import {
   nextSectionStartMs,
   parseTrackClock,
   plateBarColor,
+  sectionCastForMarker,
   sectionCastHint,
   sectionColor,
   sectionNeedsStartHere,
@@ -1159,7 +1160,7 @@ export function MusicVideoTrack({
             <ul className="m-track-marker-list">
               {sortedMarkers.map((m) => {
                 const waiting = effectiveDurationMs > 0 && sectionNeedsStartHere(m, effectiveDurationMs);
-                const cast = sectionCastHint(m.label, leadSinger);
+                const cast = sectionCastForMarker(m, sortedMarkers, leadSinger, job.speakers || []);
                 return (
                 <li key={m.id} style={{ borderLeftColor: sectionColor(m.label) }}>
                   <div className="m-track-section-top">
