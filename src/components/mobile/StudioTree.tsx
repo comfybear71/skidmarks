@@ -913,7 +913,6 @@ export function StudioTree({
   const [openPlace, setOpenPlace] = useState<string | null>(null);
   const [castOpen, setCastOpen] = useState(true);
   const [locationsOpen, setLocationsOpen] = useState(true);
-  const [trackOpen, setTrackOpen] = useState(true);
   const [platesOpen, setPlatesOpen] = useState(true);
   const [addingPlateFor, setAddingPlateFor] = useState<string | null>(null);
   const [addPlateError, setAddPlateError] = useState("");
@@ -1748,28 +1747,24 @@ export function StudioTree({
         ) : null}
       </TreeBranch>
 
-      {isMusicVideoSongJob(job) ? (
-        <TreeBranch
-          label="Track"
-          headerRight={<CollapseToggle open={trackOpen} onToggle={() => setTrackOpen((v) => !v)} />}
-        >
-          {/* Collapsed still shows the wave and the player — the song is the
-              spine, so it stays on screen the way plate thumbs do. Expanding
-              adds the marking tools, lyrics and plate timing. */}
+      <TreeBranch
+        label="Plates"
+        headerRight={<CollapseToggle open={platesOpen} onToggle={() => setPlatesOpen((v) => !v)} />}
+      >
+        {/* A music video is CAST, LOCATIONS and this: the song, the marks on
+            it, the plates and the renders — one section, in that order.
+            Collapsed keeps the wave and the player on screen; expanding adds
+            the marking tools, lyrics, plates and clips underneath. */}
+        {isMusicVideoSongJob(job) ? (
           <MusicVideoTrack
             job={job}
             story={deskStory}
             plated={songPlates}
             onJobChange={onJobChange}
-            compact={!trackOpen}
+            compact={!platesOpen}
           />
-        </TreeBranch>
-      ) : null}
+        ) : null}
 
-      <TreeBranch
-        label="Plates"
-        headerRight={<CollapseToggle open={platesOpen} onToggle={() => setPlatesOpen((v) => !v)} />}
-      >
         {lockingScript ? (
           <div style={{ padding: "8px 0 16px" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>
