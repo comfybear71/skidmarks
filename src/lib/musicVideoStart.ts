@@ -6,7 +6,17 @@
  * attached until Lock has built the story (the upload route needs a real
  * beatId), so the picked file is parked here and handed to the song desk the
  * moment a carrier beat exists.
+ *
+ * Drift (browser probe vs ffmpeg slice clock) is out of scope here — if a
+ * song reads 4:45 in the player but slices land at 4:27, that mismatch must
+ * be diagnosed before anyone "fixes" the cut list blind.
  */
+
+import type { CrashStoryDoc, CrashStoryScene, CrashStoryShot } from "./crashStoryTypes";
+import type { MobileGenJob } from "./mobileGenJob";
+import { MUSIC_VIDEO_SHOW_NAME, musicVideoCreditLine } from "./musicVideoSong";
+import type { ScriptCharacterData } from "./types";
+import { newId } from "./types";
 
 /** Structural — the phone passes a real File, tests pass a stub. */
 export type PickedSongFile = {
@@ -80,4 +90,70 @@ export function lyricLineCount(text: string): number {
 /** Closed by default unless there is already something in there to see. */
 export function lyricsPanelOpensAt(text: string): boolean {
   return lyricLineCount(text) > 0;
+}
+
+function emptyBookend(): CrashStoryDoc["intro"] {
+  return { title: "", notes: "", sfx: [] };
+}
+
+/** Default Position for a band member — not facing camera, not singing. */
+export function defaultMusicVideoBandStaging(speaker: string, placeName: string): string {
+  const who = speaker.trim() || "The character";
+  const place = placeName.trim() || "the stage";
+  return `${who} alone. Only ${who} in frame, no one else appears. At ${place}, half turned away in profile. NO SINGING MOUTH NOT MOVE. No phone. No extra objects.`;
+}
+
+/** One shot per band member at the first locked place — no script paste. */
+export function buildMusicVideoStartStory(job: MobileGenJob): {
+  title: string;
+  logline: string;
+  story: CrashStoryDoc;
+  characters: ScriptCharacterData[];
+} {
+  const sceneRef = job.scenes[0];
+  if (!sceneRef) throw new Error("Add at least one location first");
+  if (!job.speakers.length) throw new Error("Add at least one character first");
+
+  const placeName = sceneRef.placeName.trim();
+  const credit = musicVideoCreditLine(job);
+  const title = credit || job.prompt.trim() || "Untitled video";
+  const logline = [MUSIC_VIDEO_SHOW_NAME, credit].filter(Boolean).join(" · ");
+
+  const scene: CrashStoryScene = {
+    id: sceneRef.id,
+    title: placeName,
+    placeName,
+    worldThumbKey: sceneRef.worldThumbKey || "",
+    shots: job.speakers.map(
+      (speaker): CrashStoryShot => ({
+        id: newId("shot"),
+        title: speaker.trim(),
+        summary: `${speaker.trim()} at ${placeName}`,
+        staging: defaultMusicVideoBandStaging(speaker, placeName),
+        plateFile: "",
+        beats: [{ id: newId("beat"), speaker: speaker.trim(), text: "" }],
+        sfx: [],
+      }),
+    ),
+  };
+
+  const story: CrashStoryDoc = {
+    styleId: "music_video",
+    campaignLabel: title,
+    gagNote: logline,
+    intro: emptyBookend(),
+    outro: emptyBookend(),
+    scenes: [scene],
+    updatedAt: new Date().toISOString(),
+  };
+
+  const characters: ScriptCharacterData[] = job.speakers.map((name) => ({
+    name: name.trim(),
+    description: "",
+    appearance:
+      job.roster.find((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase())
+        ?.appearance || "",
+  }));
+
+  return { title, logline, story, characters };
 }

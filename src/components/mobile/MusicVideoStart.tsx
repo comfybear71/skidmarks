@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { MobilePrimaryButton } from "@/components/mobile/MobileUi";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
-import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
+import { probeBrowserAudioDurationSec, dropScratchSongViaBlob, SCRATCH_SONG_DIRECT_POST_MAX_BYTES } from "@/lib/scratchSongDrop";
+import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   clearPendingSong,
   formatSongLength,
@@ -13,7 +14,43 @@ import {
   parkPendingSong,
   peekPendingSong,
   songChipName,
+  takePendingSong,
+  type PendingSong,
 } from "@/lib/musicVideoStart";
+
+/** Parked mp3 from before Lock — attach once a carrier beat exists. */
+export async function attachParkedSongToBeat(opts: {
+  jobId: string;
+  beatId: string;
+  pending: PendingSong<File>;
+}): Promise<MobileGenJob | null> {
+  const { jobId, beatId, pending } = opts;
+  const { file, durationSec } = pending;
+  if (file.size > SCRATCH_SONG_DIRECT_POST_MAX_BYTES) {
+    const data = await dropScratchSongViaBlob({ jobId, beatId, file, durationSec });
+    return data.job || null;
+  }
+  const form = new FormData();
+  form.set("jobId", jobId);
+  form.set("beatId", beatId);
+  form.set("file", file, file.name || "song.mp3");
+  const res = await fetch("/api/crash/mobile/beat-audio/upload", { method: "POST", body: form });
+  const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+  if (!res.ok) {
+    throw new Error(data.error?.trim() || `Couldn't attach the song (${res.status})`);
+  }
+  return data.job || null;
+}
+
+/** Read-once attach — call right after Start the video when the API returns carrierBeatId. */
+export async function attachTakenPendingSong(opts: {
+  jobId: string;
+  beatId: string;
+}): Promise<MobileGenJob | null> {
+  const pending = takePendingSong(opts.jobId);
+  if (!pending || !opts.beatId) return null;
+  return attachParkedSongToBeat({ ...opts, pending: pending as PendingSong<File> });
+}
 
 async function saveLyrics(jobId: string, lyrics: string): Promise<void> {
   await fetch("/api/crash/mobile/song", {
@@ -30,14 +67,22 @@ async function saveLyrics(jobId: string, lyrics: string): Promise<void> {
 export function LyricsBox({
   job,
   onSaved,
+  onChange,
 }: {
   job: MobileGenJob;
   onSaved?: (lyrics: string) => void;
+  onChange?: (lyrics: string) => void;
 }) {
   const [text, setText] = useState(job.lyrics || "");
   const [open, setOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
   const [saved, setSaved] = useState(false);
   const lines = lyricLineCount(text);
+
+  function update(next: string) {
+    setText(next);
+    setSaved(false);
+    onChange?.(next);
+  }
 
   return (
     <div className="m-mv-block">
@@ -55,10 +100,7 @@ export function LyricsBox({
           rows={6}
           spellCheck={false}
           placeholder="Paste the words…"
-          onChange={(e) => {
-            setText(e.target.value);
-            setSaved(false);
-          }}
+          onChange={(e) => update(e.target.value)}
           onBlur={() => {
             void saveLyrics(job.id, text).then(() => {
               setSaved(true);
@@ -187,15 +229,16 @@ export function MusicVideoStart({
 }: {
   job: MobileGenJob;
   busy: boolean;
-  onStart: () => void;
+  onStart: (lyrics: string) => void;
 }) {
   const [hasSong, setHasSong] = useState(Boolean(peekPendingSong(job.id)));
+  const [lyricsText, setLyricsText] = useState(job.lyrics || "");
 
   return (
     <div className="m-mv">
       <SongDropRow jobId={job.id} onPicked={(name) => setHasSong(Boolean(name))} />
-      <LyricsBox job={job} />
-      <MobilePrimaryButton disabled={busy} onClick={onStart}>
+      <LyricsBox job={job} onChange={setLyricsText} />
+      <MobilePrimaryButton disabled={busy} onClick={() => onStart(lyricsText)}>
         {busy ? "Starting…" : "Start the video"}
       </MobilePrimaryButton>
       {!hasSong ? <p className="m-mv-note">No song yet — you can drop it after this too.</p> : null}

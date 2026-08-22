@@ -559,6 +559,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, job: updated });
     }
 
+    if (action === "set-lyrics") {
+      const lyrics = String((body as { lyrics?: string }).lyrics ?? "");
+      const updated = await patchMobileGenJob(jobId, { lyrics, error: "" });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (e) {
     return NextResponse.json(
