@@ -524,6 +524,14 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
   return clean([LTX_LIP_SYNC_LEAD, motionStyleLock(styleId)].join(" "));
 }
 
+/**
+ * Song slices — keep lighting/shadows of the plate. The dialogue lip-sync lead
+ * ("facial expressions are lively", "clear lip movement") lights hidden faces
+ * and kills silhouette singers; song body already asks for mouth/head with music.
+ */
+const GOLD_SONG_LIGHTING_LOCK =
+  "Keep lighting and shadows exactly as the start image. Do not brighten or reveal the face. If the start image is a silhouette or face-in-shadow, stay that way — hat brim and darkness hide the eyes, no readable facial features.";
+
 /** Scratch / Music video song slice — singing, or playing if Position names an instrument. */
 export function buildScratchSongLtxMotion(opts: {
   styleId: ShowStyleId;
@@ -543,10 +551,11 @@ export function buildScratchSongLtxMotion(opts: {
       GOLD_START_FRAME,
       instrumental
         ? `${who} is prominent, hands and body play the same instrument as the start image, in time with the music.`
-        : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`,
+        : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync — only as much mouth as the start image already shows.`,
       GOLD_PROPS_LOCK,
       GOLD_NO_TEXT,
       identityLock,
+      GOLD_SONG_LIGHTING_LOCK,
       instrumental
         ? `${name} plays this instrumental slice. ${GOLD_CAMERA_HOLDS} Same person, same instrument, same objects as the start image. Not a new player. Not singing unless the start image is already singing.`
         : `${name} sings this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`,
