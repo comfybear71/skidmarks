@@ -183,3 +183,45 @@ console.log("check-music-video-marquee OK");
 }
 
 console.log("check-music-video-filmstrip OK");
+
+// ── Section colours: Intro and Outro, and every type its own colour ─────────
+{
+  const {
+    TRACK_SECTION_LABELS,
+    sectionColor,
+    sectionTint,
+    sectionTitle,
+  } = await import("../src/lib/musicVideoTrack.ts");
+
+  const ids = TRACK_SECTION_LABELS.map((o) => o.id);
+  assert.ok(ids.includes("intro"), "Intro is a section");
+  assert.ok(ids.includes("outro"), "Outro is a section");
+  // Song order: a picker that opens on Intro reads the way a track runs.
+  assert.equal(ids[0], "intro");
+  assert.ok(ids.indexOf("outro") > ids.indexOf("chorus"), "outro sits late in the list");
+
+  // Every section is distinguishable, or a coloured wave says nothing.
+  const colors = TRACK_SECTION_LABELS.map((o) => o.color);
+  assert.equal(new Set(colors).size, colors.length, "no two sections share a colour");
+  for (const c of colors) assert.match(c, /^#[0-9a-f]{6}$/i);
+
+  assert.equal(sectionColor("chorus"), "#ff3ea5");
+  assert.equal(sectionColor("CHORUS"), "#ff3ea5", "case does not lose the colour");
+  assert.equal(sectionColor("  intro  "), "#35d6d0");
+  // A hand-typed label still draws — it must never come back undefined.
+  assert.match(sectionColor("whatever Stuie typed"), /^#[0-9a-f]{6}$/i);
+  assert.match(sectionColor(""), /^#[0-9a-f]{6}$/i);
+
+  // The wave shows a name, not a code.
+  assert.equal(sectionTitle("lead_break"), "Lead break");
+  assert.equal(sectionTitle("outro"), "Outro");
+  assert.equal(sectionTitle("Chainsaw solo"), "Chainsaw solo", "custom text survives");
+  assert.equal(sectionTitle(""), "Section");
+
+  // Bands are the same colour, just quieter.
+  assert.equal(sectionTint("intro", 0.13), "rgba(53, 214, 208, 0.13)");
+  assert.equal(sectionTint("intro", 5), "rgba(53, 214, 208, 1)", "alpha is clamped");
+  assert.equal(sectionTint("intro", -1), "rgba(53, 214, 208, 0)");
+}
+
+console.log("check-music-video-sections OK");

@@ -887,6 +887,24 @@ body {
   gap: 8px;
   font-size: 12px;
   color: var(--chrome);
+  /* Colour set inline per section — the stripe is what you scan down. */
+  border-left: 2px solid transparent;
+  padding-left: 7px;
+}
+
+.m-track-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: baseline;
+}
+
+.m-track-marker-name {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
 }
 
 .m-track-marker-list li span:nth-child(2) {
