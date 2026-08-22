@@ -3,7 +3,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { MobileClipUnit } from "@/lib/mobileGenJob";
-import { mobileClipSrc, stackedClipFiles } from "@/lib/mobilePlateClips";
+import { mobileClipSrc, stackedClipFiles, stableClipTakeLabel } from "@/lib/mobilePlateClips";
 
 export { clipsUnderPlate, mobileClipSrc, stackedClipFiles } from "@/lib/mobilePlateClips";
 /** Match the still and the mp4 — this width on a phone. */
@@ -13,6 +13,7 @@ export const PLATE_TILE_PX = 160;
  * /m strip: square plate, then 16:9 players under it — same width.
  * `layout="strip"` — oldest take left, newest right, swipe sideways
  * (Scratch pad + /m plate Clips). Default stack kept for callers that want it.
+ * Labels use song clock / file id — never "4/10" that renumbers on delete.
  * Every Generate take stays. Empty pending slots stay hidden.
  * Play opens a body portal — native controls inside the overflow rail
  * sit under the pad on iPhone.
@@ -26,7 +27,12 @@ export function PlateClipThumbs({
   onRemoveTake,
   removeDisabled,
 }: {
-  job: { id: string; styleId: string; folderName: string };
+  job: {
+    id: string;
+    styleId: string;
+    folderName: string;
+    scratchSong?: { cuts?: { clipFile?: string; startSec?: number }[] } | null;
+  };
   clips: MobileClipUnit[];
   preload?: boolean;
   /** Plate still — first frame stand-in so the box is not black before play. */
@@ -36,13 +42,14 @@ export function PlateClipThumbs({
   onRemoveTake?: (opts: { beatId: string; fileName: string }) => void;
   removeDisabled?: boolean;
 }) {
+  const songCuts = job.scratchSong?.cuts || [];
   const files = clips.flatMap((clip, i) => {
     const stacked = stackedClipFiles(clip);
     return stacked.map((file, n) => ({
-      key: `${clip.beatId}-${n}-${file}`,
+      key: `${clip.beatId}-${file}`,
       file,
       beatId: clip.beatId,
-      takeLabel: stacked.length > 1 ? `${n + 1}/${stacked.length}` : "",
+      takeLabel: stableClipTakeLabel({ fileName: file, songCuts }),
       preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
     }));
   });

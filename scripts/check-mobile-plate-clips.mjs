@@ -8,6 +8,7 @@ import {
   dropClipTakeFromRow,
   rememberClipTake,
   stackedClipFiles,
+  stableClipTakeLabel,
 } from "../src/lib/mobilePlateClips.ts";
 import { parkMobileClipFile } from "../src/lib/mobileClipPark.ts";
 
@@ -42,6 +43,38 @@ const remembered = rememberClipTake(clearClipRowTakes(clip), "clip_new.mp4");
 assert.equal(remembered.clipFile, "clip_new.mp4");
 assert.deepEqual(remembered.priorClipFiles, []);
 
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "slice_at_60.mp4",
+    songCuts: [
+      { clipFile: "slice_at_0.mp4", startSec: 0 },
+      { clipFile: "slice_at_60.mp4", startSec: 60 },
+    ],
+  }),
+  "1:00.0",
+);
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "slice_at_60.mp4",
+    songCuts: [{ clipFile: "slice_at_0.mp4", startSec: 0 }],
+  }),
+  "60",
+);
+const beforeDel = stableClipTakeLabel({
+  fileName: "keep_me.mp4",
+  songCuts: [
+    { clipFile: "gone.mp4", startSec: 45 },
+    { clipFile: "keep_me.mp4", startSec: 75 },
+  ],
+});
+const afterDel = stableClipTakeLabel({
+  fileName: "keep_me.mp4",
+  songCuts: [{ clipFile: "keep_me.mp4", startSec: 75 }],
+});
+assert.equal(beforeDel, "1:15.0");
+assert.equal(afterDel, "1:15.0");
+assert.equal(beforeDel, afterDel);
+
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plate-clips-"));
 process.env.DATA_DIR = dir;
 const { CRASH_DIR } = await import("../src/lib/paths.ts");
@@ -59,6 +92,8 @@ assert.equal(clipFileBasename("/tmp/foo/bar.mp4"), "bar.mp4");
 const thumbs = fs.readFileSync(new URL("../src/components/mobile/PlateClipThumbs.tsx", import.meta.url), "utf8");
 assert.match(thumbs, /createPortal/);
 assert.match(thumbs, /scratch-clip-overlay/);
+assert.match(thumbs, /stableClipTakeLabel/);
+assert.doesNotMatch(thumbs, /\$\{n \+ 1\}\/\$\{stacked\.length\}/);
 assert.doesNotMatch(thumbs, /zIndex: 70/);
 
 const editor = fs.readFileSync(new URL("../src/components/mobile/PlateReviewEditor.tsx", import.meta.url), "utf8");
