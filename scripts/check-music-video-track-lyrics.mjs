@@ -129,6 +129,9 @@ console.log("check-music-video-track-lyrics OK");
   assert.doesNotMatch(ui, /m-track-marquee-word/);
   assert.ok(ui.includes("playing && ribbon"), "nothing moves before Play");
   assert.match(ui, /sectionsOpen/, "the section list folds away");
+  assert.match(ui, /Import from lyrics/, "sections import from lyric tags");
+  assert.match(ui, /Start here/, "pin section start at playhead");
+  assert.match(ui, /sectionCastHint/, "who plates each section");
 
   // One UI, empty or full. No second screen in front of the track.
   assert.doesNotMatch(ui, /m-track-empty/, "no separate empty-state layout");
@@ -280,6 +283,54 @@ console.log("check-music-video-plate-bar OK");
 
   assert.equal(withSectionLabel(markers, "a", "Chainsaw solo")[0].label, "Chainsaw solo");
   assert.equal(withSectionLabel(markers, "a", "  ")[0].label, "intro", "blank keeps the name");
+
+  const {
+    importSectionMarkersFromLyrics,
+    meaningfulLyricTags,
+    sectionCastHint,
+    sectionNeedsStartHere,
+    withSectionStartAt,
+  } = await import("../src/lib/musicVideoTrack.ts");
+
+  const jackLyrics = [
+    "[Instrumental Intro]",
+    "[Verse 1] Silver glass",
+    "[Chorus] Blow the glass",
+    "[Sax break]",
+    "[Outro]",
+  ].join("\n");
+  assert.equal(meaningfulLyricTags(jackLyrics).map((t) => t.label).join(","), "intro,verse,chorus,sax_break,outro");
+
+  const fresh = importSectionMarkersFromLyrics({ lyrics: jackLyrics, durationMs: 268_000 });
+  assert.equal(fresh.length, 5);
+  assert.equal(fresh[0].startMs, 0);
+  assert.equal(fresh[0].endMs, 268_000);
+  assert.ok(sectionNeedsStartHere(fresh[1], 268_000), "verse waits for Start here");
+
+  const pinned = importSectionMarkersFromLyrics({
+    lyrics: jackLyrics,
+    durationMs: 268_000,
+    lyricCues: [
+      { lineIndex: 0, atMs: 0 },
+      { lineIndex: 1, atMs: 35_000 },
+      { lineIndex: 2, atMs: 101_000 },
+    ],
+  });
+  assert.equal(pinned[0].endMs, 35_000);
+  assert.equal(pinned[1].startMs, 35_000);
+
+  const split = withSectionStartAt(
+    fresh,
+    fresh[1].id,
+    35_000,
+    268_000,
+  );
+  assert.equal(split[0].endMs, 35_000);
+  assert.equal(split[1].startMs, 35_000);
+
+  assert.equal(sectionCastHint("verse", "JACK GHOST"), "JACK GHOST");
+  assert.equal(sectionCastHint("sax_break", "JACK GHOST"), "SAXOPHONE");
+  assert.equal(sectionCastHint("lead_break", "JACK GHOST"), "GUITAR");
 }
 
 console.log("check-music-video-section-times OK");

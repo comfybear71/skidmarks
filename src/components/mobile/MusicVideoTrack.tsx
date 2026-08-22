@@ -18,13 +18,17 @@ import {
   withLyricCue,
   withoutLyricCue,
   plateTimingForShot,
+  importSectionMarkersFromLyrics,
   nextSectionStartMs,
   parseTrackClock,
   plateBarColor,
+  sectionCastHint,
   sectionColor,
+  sectionNeedsStartHere,
   sectionTint,
   sectionTitle,
   sortPlateTimings,
+  withSectionStartAt,
   withSectionTime,
   type LyricCue,
   type TrackSectionLabel,
@@ -161,10 +165,12 @@ function TimeField({
   value,
   label,
   onCommit,
+  onBadTime,
 }: {
   value: number;
   label: string;
   onCommit: (ms: number) => void;
+  onBadTime?: (msg: string) => void;
 }) {
   // Draft only exists while the box is being typed in; the rest of the time
   // the value is read straight off the marker. No effect syncing the two.
@@ -173,10 +179,14 @@ function TimeField({
 
   function commit() {
     const typed = draft;
-    setDraft(null);
     if (typed === null) return;
     const ms = parseTrackClock(typed);
-    if (ms !== null) onCommit(ms);
+    if (ms !== null) {
+      setDraft(null);
+      onCommit(ms);
+      return;
+    }
+    onBadTime?.("Could not read that time — try 1:30 or 90");
   }
 
   return (
@@ -610,6 +620,7 @@ export function MusicVideoTrack({
     (localPeaks.length ? localPeaks : []);
 
   const markers = song?.sectionMarkers || job.trackDraft?.sectionMarkers || [];
+  const leadSinger = (job.speakers?.[0] || job.artist || "").trim();
 
   const lyricCues = useMemo<LyricCue[]>(
     () => song?.lyricCues || job.trackDraft?.lyricCues || [],
@@ -1025,7 +1036,33 @@ export function MusicVideoTrack({
           ) : null}
 
           {!compact && (sectionsOpen || !markers.length) ? (
+          <>
+          <p className="m-track-lyric-hint">
+            Paste <strong>[Intro]</strong> <strong>[Verse]</strong> <strong>[Chorus]</strong>{" "}
+            <strong>[Sax break]</strong> in Lyrics — then import and tap{" "}
+            <strong>Start here</strong> while the song plays. No typing times.
+          </p>
           <div className="m-track-marker-row">
+            <button
+              type="button"
+              className="m-track-btn"
+              disabled={Boolean(busy) || !durationMs}
+              onClick={() => {
+                const next = importSectionMarkersFromLyrics({
+                  lyrics: job.lyrics || "",
+                  durationMs,
+                  lyricCues,
+                });
+                if (!next.length) {
+                  setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");
+                  return;
+                }
+                setNote("");
+                void saveMarkers(next);
+              }}
+            >
+              Import from lyrics
+            </button>
             <select
               className="m-track-select"
               value={markerLabel}
@@ -1046,9 +1083,6 @@ export function MusicVideoTrack({
               className="m-track-btn"
               disabled={Boolean(busy) || rangeEndMs <= rangeStartMs}
               onClick={() => {
-                // No assumed length. Music does not come in 15s blocks, so a
-                // new section runs from the last one to the end of the song and
-                // you type the end you actually want.
                 const startMs = nextSectionStartMs(markers);
                 const endMs = Math.max(startMs + 1000, durationMs || startMs + 1000);
                 void saveMarkers([
@@ -1060,39 +1094,59 @@ export function MusicVideoTrack({
               Add section
             </button>
           </div>
+          </>
           ) : null}
 
           {!compact && sectionsOpen && markers.length ? (
             <ul className="m-track-marker-list">
-              {markers.map((m) => (
+              {markers.map((m) => {
+                const waiting = durationMs > 0 && sectionNeedsStartHere(m, durationMs);
+                const cast = sectionCastHint(m.label, leadSinger);
+                return (
                 <li key={m.id} style={{ borderLeftColor: sectionColor(m.label) }}>
-                  <span className="m-track-marker-name">
-                    <i className="m-track-swatch" style={{ background: sectionColor(m.label) }} />
-                    {sectionTitle(m.label)}
-                  </span>
-                  {/* Type the times. A section is a number you know — dragging
-                      for it gave 15s blobs and two half-right Intros. */}
-                  <TimeField
-                    value={m.startMs}
-                    label={`${sectionTitle(m.label)} start`}
-                    onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "start", ms, durationMs))}
-                  />
-                  <span className="m-track-dash">–</span>
-                  <TimeField
-                    value={m.endMs}
-                    label={`${sectionTitle(m.label)} end`}
-                    onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "end", ms, durationMs))}
-                  />
-                  <button
-                    type="button"
-                    className="m-track-x"
-                    aria-label={`Remove ${sectionTitle(m.label)}`}
-                    onClick={() => void saveMarkers(markers.filter((x) => x.id !== m.id))}
-                  >
-                    ×
-                  </button>
+                  <div className="m-track-section-top">
+                    <span className="m-track-marker-name">
+                      <i className="m-track-swatch" style={{ background: sectionColor(m.label) }} />
+                      {sectionTitle(m.label)}
+                    </span>
+                    <span className="m-track-section-cast">{cast}</span>
+                  </div>
+                  <div className="m-track-section-row">
+                    <button
+                      type="button"
+                      className={`m-track-here-btn${waiting ? " is-waiting" : ""}`}
+                      disabled={Boolean(busy)}
+                      onClick={() =>
+                        void saveMarkers(withSectionStartAt(markers, m.id, playheadMs, durationMs))
+                      }
+                    >
+                      {waiting ? "Start here ▶" : "Start here"}
+                    </button>
+                    <TimeField
+                      value={m.startMs}
+                      label={`${sectionTitle(m.label)} start`}
+                      onBadTime={(msg) => setNote(msg)}
+                      onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "start", ms, durationMs))}
+                    />
+                    <span className="m-track-dash">–</span>
+                    <TimeField
+                      value={m.endMs}
+                      label={`${sectionTitle(m.label)} end`}
+                      onBadTime={(msg) => setNote(msg)}
+                      onCommit={(ms) => void saveMarkers(withSectionTime(markers, m.id, "end", ms, durationMs))}
+                    />
+                    <button
+                      type="button"
+                      className="m-track-x"
+                      aria-label={`Remove ${sectionTitle(m.label)}`}
+                      onClick={() => void saveMarkers(markers.filter((x) => x.id !== m.id))}
+                    >
+                      ×
+                    </button>
+                  </div>
                 </li>
-              ))}
+              );
+              })}
             </ul>
           ) : null}
 

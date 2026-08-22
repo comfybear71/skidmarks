@@ -452,6 +452,99 @@ export function nextSectionStartMs(markers: TrackSectionMarker[]): number {
   return end;
 }
 
+/** Stage-direction brackets are not sections — only structural tags import. */
+export function meaningfulLyricTags(lyrics: string): LyricTag[] {
+  return lyricTagsFrom(lyrics).filter((t) => t.label !== "custom");
+}
+
+/**
+ * Build section rows from [Intro] / [Verse 1] / [Chorus] in the lyrics.
+ * With no Marquee pins yet: first row spans the song; the rest wait at the end
+ * for Start here. With pins on tag lines, times come from those cues.
+ */
+export function importSectionMarkersFromLyrics(opts: {
+  lyrics: string;
+  durationMs: number;
+  lyricCues?: LyricCue[];
+}): TrackSectionMarker[] {
+  const tags = meaningfulLyricTags(opts.lyrics);
+  if (!tags.length) return [];
+  const songMs = Math.max(1000, Math.round(opts.durationMs));
+  const cueByLine = new Map((opts.lyricCues || []).map((c) => [c.lineIndex, c.atMs]));
+  const now = Date.now();
+  const pinned = tags.map((t) => cueByLine.get(t.lineIndex));
+  const hasPins = pinned.some((p) => p !== undefined);
+
+  if (hasPins) {
+    const starts: number[] = [];
+    for (let i = 0; i < tags.length; i++) {
+      const at = cueByLine.get(tags[i]!.lineIndex);
+      if (at !== undefined) starts.push(at);
+      else starts.push(i === 0 ? 0 : starts[i - 1]!);
+    }
+    for (let i = 1; i < starts.length; i++) {
+      if (pinned[i] === undefined && starts[i]! <= starts[i - 1]!) {
+        starts[i] = starts[i - 1]! + 1000;
+      }
+    }
+    return tags.map((t, i) => {
+      const startMs = Math.max(0, Math.min(songMs - 1000, starts[i]!));
+      const endMs =
+        i < tags.length - 1
+          ? Math.max(startMs + 1000, Math.min(songMs, starts[i + 1]!))
+          : songMs;
+      return { id: `marker_${now}_${i}`, label: t.label, startMs, endMs };
+    });
+  }
+
+  return tags.map((t, i) => ({
+    id: `marker_${now}_${i}`,
+    label: t.label,
+    startMs: i === 0 ? 0 : songMs,
+    endMs: songMs,
+  }));
+}
+
+/** Scrub to a moment, tap Start here — closes the previous section at the same point. */
+export function withSectionStartAt(
+  markers: TrackSectionMarker[],
+  id: string,
+  atMs: number,
+  songMs: number,
+): TrackSectionMarker[] {
+  const at = Math.max(0, Math.min(songMs, Math.round(atMs)));
+  const idx = markers.findIndex((m) => m.id === id);
+  if (idx < 0) return markers;
+  const MIN = 1000;
+  return markers.map((m, i) => {
+    if (i === idx) {
+      const endMs = Math.max(at + MIN, m.endMs > at ? m.endMs : songMs);
+      return { ...m, startMs: at, endMs: Math.min(songMs, endMs) };
+    }
+    if (i === idx - 1) {
+      return { ...m, endMs: Math.max(m.startMs + MIN, at) };
+    }
+    return m;
+  });
+}
+
+/** Who plates this section — front man on vocals, band only on breaks. */
+export function sectionCastHint(label: string, leadSinger?: string): string {
+  const lead = (leadSinger || "lead singer").trim() || "lead singer";
+  const id = String(label || "").trim().toLowerCase();
+  if (id === "sax_break") return "SAXOPHONE";
+  if (id === "lead_break") return "GUITAR";
+  if (id === "intro" || id === "outro") return `${lead} · DRUMMER optional`;
+  if (id === "verse" || id === "chorus" || id === "bridge" || id === "crescendo") return lead;
+  return lead;
+}
+
+/** A section waiting for Start here — collapsed at the song end. */
+export function sectionNeedsStartHere(m: TrackSectionMarker, songMs: number): boolean {
+  const song = Math.max(1000, Math.round(songMs));
+  return m.startMs >= song - 500 && m.endMs >= song - 500;
+}
+
 /**
  * Lyrics are pasted, not timed by hand — so the marquee spreads the lines
  * evenly across the song and shows whichever one the playhead is inside.

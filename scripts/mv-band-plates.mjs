@@ -52,12 +52,43 @@ function singerStaging(speaker, place, variant) {
   ].join(" ");
 }
 
+const POSITION_MEMBERS = new Map([
+  ["CENTRE-LEFT", "centre-left of frame"],
+  ["FAR-LEFT", "far left of frame"],
+  ["RIGHT-SIDE", "right side of frame"],
+]);
+
+function positionStaging(speaker, place, variant) {
+  const who = speaker.trim();
+  const pos = POSITION_MEMBERS.get(who) || "centre frame";
+  if (variant === "a") {
+    return [
+      `Medium close-up of ${who} at ${place}.`,
+      `${who} stands at the mic ${pos} at ${place}, front-on to camera, mouth open mid-verse, singing.`,
+      "One hand on mic stand. No phone. No crowd.",
+      `Only ${who} in frame. No other people.`,
+    ].join(" ");
+  }
+  return [
+    `Medium shot of ${who} at ${place}.`,
+    `${who} at the mic ${pos} at ${place}, three-quarter angle toward camera, mouth open singing.`,
+    "Weight grounded. No phone. No crowd.",
+    `Only ${who} in frame. No other people.`,
+  ].join(" ");
+}
+
 function bandStaging(speaker, place, variant) {
   const who = speaker.trim();
   if (variant === "a") {
     return `${who} alone. Only ${who} in frame, no one else appears. At ${place}, centre frame in profile, holding their instrument naturally. NO SINGING — mouth closed, not lip-syncing. No phone. No crowd.`;
   }
   return `${who} alone. Only ${who} in frame, no one else appears. At ${place}, three-quarter angle in profile with instrument visible. NO SINGING — mouth closed. No phone. No crowd.`;
+}
+
+function stagingFor(speaker) {
+  if (speaker === "SOUL REBEL" || speaker === "JACK GHOST") return singerStaging;
+  if (POSITION_MEMBERS.has(speaker)) return positionStaging;
+  return bandStaging;
 }
 
 async function api(path, body) {
@@ -124,10 +155,8 @@ async function main() {
   const job = await getJob(jobId);
   if (!job.folderName) throw new Error("Lock the episode first (Start the video)");
   const orderedScenes = sceneOrder(job);
-  const singers = new Set(["JACK GHOST", "SOUL REBEL"]);
-
   for (const speaker of members) {
-    const stagingFn = singers.has(speaker) ? singerStaging : bandStaging;
+    const stagingFn = stagingFor(speaker);
     console.log(`\n=== ${speaker} ===`);
     for (const scene of orderedScenes) {
       const place = scene.placeName || scene.id;
