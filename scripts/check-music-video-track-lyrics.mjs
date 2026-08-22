@@ -567,3 +567,31 @@ console.log("check-music-video-plate-picker OK");
 }
 
 console.log("check-music-video-drop-song OK");
+
+// ── One + for plates, not three ────────────────────────────────────────────
+{
+  const { readFileSync } = await import("node:fs");
+  const editor = readFileSync(
+    new URL("../src/components/mobile/PlateReviewEditor.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // Music video makes plates from the + on the strip above. The hint line and
+  // the big empty card underneath were a second and third way to do the same
+  // thing, taking a screen's worth of room to say so.
+  assert.match(
+    editor,
+    /!shots\.length && !isMusicVideoSongJob\(job\)/,
+    "the 'No plates yet' line is for the other shows",
+  );
+  assert.match(
+    editor,
+    /isMusicVideoSongJob\(job\) \? null : \(\s*<button/,
+    "the big empty + card is for the other shows",
+  );
+  // The other shows keep both — this is a music-video-only trim.
+  assert.match(editor, /No plates yet\. Tap \+ for an empty card/);
+  assert.match(editor, /aria-label="Add a new plate"/);
+}
+
+console.log("check-music-video-one-plus OK");

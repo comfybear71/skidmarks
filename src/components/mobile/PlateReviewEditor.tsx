@@ -518,7 +518,9 @@ export function PlateReviewEditor({
       {loadError ? (
         <div style={{ fontSize: "13px", color: "var(--magenta-hot)", margin: "0 2px 8px" }}>{loadError}</div>
       ) : null}
-      {!shots.length ? (
+      {/* Music video has its own + on the plates strip above, so this line and
+          the empty card below it would be a second way to do the same thing. */}
+      {!shots.length && !isMusicVideoSongJob(job) ? (
         <div style={{ fontSize: "13px", color: "var(--chrome-dim)", margin: "0 2px 8px", lineHeight: 1.4 }}>
           No plates yet. Tap + for an empty card, or tap a name on a place then Add.
         </div>
@@ -802,7 +804,8 @@ export function PlateReviewEditor({
           );
         })}
 
-        <button
+        {isMusicVideoSongJob(job) ? null : (
+          <button
             type="button"
             aria-label="Add a new plate"
             disabled={Boolean(addBusySpeaker)}
@@ -826,6 +829,7 @@ export function PlateReviewEditor({
           >
             {addBusySpeaker === "__empty__" ? "…" : "+"}
           </button>
+        )}
       </div>
 
       {!collapsed && plateClipRail.clips.length ? (
