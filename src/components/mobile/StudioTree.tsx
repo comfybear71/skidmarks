@@ -28,6 +28,11 @@ import {
   preferredCandidate,
 } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl, mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
+import {
+  placeChipLabel,
+  placeDetailTitle,
+  placeLookWords,
+} from "@/lib/mobilePlaceLabels";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import { MOBILE_STITCH_MOVIES } from "@/lib/mobilePipeline";
@@ -546,6 +551,8 @@ function AddForm({
 function CandidatePicker({
   styleId,
   label,
+  displayTitle,
+  lookDetail,
   candidates,
   imageSrc,
   busy,
@@ -565,6 +572,10 @@ function CandidatePicker({
 }: {
   styleId: string;
   label: string;
+  /** Short header — Locations pass this so the whole placeName paragraph is not the title. */
+  displayTitle?: string;
+  /** Full look words — collapsible above the still, default closed. */
+  lookDetail?: string;
   candidates: MobileImageCandidate[];
   imageSrc: (c: MobileImageCandidate) => string;
   busy: boolean;
@@ -622,6 +633,11 @@ function CandidatePicker({
     onUpload(file);
   };
 
+  const headerTitle = (displayTitle || label).trim() || label;
+  const foldLook = (lookDetail || "").trim();
+  const showLookFold = Boolean(foldLook && foldLook !== headerTitle);
+  const [lookOpen, setLookOpen] = useState(false);
+
   return (
     <div
       style={{
@@ -658,13 +674,27 @@ function CandidatePicker({
           flexWrap: "wrap",
         }}
       >
-        <div style={{ color: "var(--acid)", fontWeight: 700, fontSize: "13px", flex: 1 }}>{label}</div>
+        <div style={{ color: "var(--acid)", fontWeight: 700, fontSize: "13px", flex: 1 }}>{headerTitle}</div>
         {onDropFromJob ? (
           <MobilePrimaryButton size="chip" disabled={busy} onClick={onDropFromJob}>
             {dropFromJobLabel || "Remove"}
           </MobilePrimaryButton>
         ) : null}
       </div>
+      {showLookFold ? (
+        <div className="m-place-look-fold">
+          <button
+            type="button"
+            className={`m-place-look-fold-btn${lookOpen ? " is-open" : ""}`}
+            aria-expanded={lookOpen}
+            onClick={() => setLookOpen((v) => !v)}
+          >
+            Look words
+            <span className="m-place-look-fold-caret">{lookOpen ? "▾" : "▸"}</span>
+          </button>
+          {lookOpen ? <div className="m-place-look-fold-body">{foldLook}</div> : null}
+        </div>
+      ) : null}
       {focused ? (
         <SingleCandidateCard
           candidate={focused}
@@ -1601,7 +1631,7 @@ export function StudioTree({
               <ThumbTile
                 key={scene.id}
                 src={src}
-                label={scene.placeName}
+                label={placeChipLabel(scene.placeName)}
                 picked={Boolean(chosen || worldKey)}
                 onClick={() => {
                   setLocationsOpen(true);
@@ -1643,7 +1673,12 @@ export function StudioTree({
           <CandidatePicker
             key={`place-${placeFocus}`}
             styleId={job.styleId}
-            label={job.scenes.find((s) => s.id === placeFocus)?.placeName || placeFocus}
+            label={placeScene?.placeName || placeFocus}
+            displayTitle={placeDetailTitle(placeScene?.placeName || placeFocus)}
+            lookDetail={placeLookWords(
+              placeScene?.placeName || placeFocus,
+              placePick?.prompt || candidateLookPrompt(job.locationCandidates, placeFocus),
+            )}
             candidates={job.locationCandidates[placeFocus] || []}
             imageSrc={(c) => locationStillUrl(job, c.fileName)}
             busy={busy}
