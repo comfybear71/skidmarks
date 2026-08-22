@@ -103,10 +103,14 @@ console.log("check-music-video-track-lyrics OK");
   assert.doesNotMatch(ui, /startMs \+ 15000/, "no hardwired 15s section");
   assert.doesNotMatch(ui, /m-track-range/, "no range readout beside Add section");
   assert.match(ui, /inputMode="decimal"/, "time boxes get a decimal point");
-  // A marquee moves one word, and only while the song is playing.
-  assert.match(ui, /m-track-marquee-word/);
-  assert.doesNotMatch(ui, /m-track-marquee-line/, "not a whole line sliding past");
-  assert.ok(ui.includes("playing && activeWord"), "nothing moves before Play");
+  // The line rides through as one ribbon; the word at the centre is the lit
+  // one, its neighbours smaller and dimmer. Not one word alone, not a whole
+  // line sliding past as a block.
+  assert.match(ui, /LyricRibbon/);
+  assert.match(ui, /m-track-ribbon-word/);
+  assert.doesNotMatch(ui, /m-track-marquee-line/);
+  assert.doesNotMatch(ui, /m-track-marquee-word/);
+  assert.ok(ui.includes("playing && ribbon"), "nothing moves before Play");
   assert.match(ui, /sectionsOpen/, "the section list folds away");
 
   // One UI, empty or full. No second screen in front of the track.
@@ -366,3 +370,30 @@ console.log("check-music-video-marquee-word OK");
 }
 
 console.log("check-music-video-song-saved OK");
+
+// ── The ribbon's shape ─────────────────────────────────────────────────────
+{
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(
+    new URL("../src/app/(mobile)/m/mobile.css", import.meta.url),
+    "utf8",
+  );
+  // Four distance steps: centre, either neighbour, then fading out.
+  for (const step of ["is-0", "is-1", "is-2", "is-3"]) {
+    assert.ok(css.includes(`.m-track-ribbon-word.${step}`), `ribbon step ${step}`);
+  }
+  // The centre word is the biggest and brightest, or it does not read as the
+  // word being sung.
+  const size = (step) => {
+    const at = css.indexOf(`.m-track-ribbon-word.${step}`);
+    return Number(css.slice(at, at + 200).match(/font-size:\s*(\d+)px/)[1]);
+  };
+  assert.ok(size("is-0") > size("is-1"), "centre word is biggest");
+  assert.ok(size("is-1") > size("is-2"));
+  assert.ok(size("is-2") > size("is-3"));
+  // The old single-word flight is gone.
+  assert.ok(!css.includes("m-lyric-pass"), "no single-word keyframes left");
+  assert.ok(!css.includes(".m-track-marquee-word"), "no single-word rule left");
+}
+
+console.log("check-music-video-ribbon OK");

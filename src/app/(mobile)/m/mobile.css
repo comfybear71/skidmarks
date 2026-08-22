@@ -2744,61 +2744,21 @@ span.scratch-history-blob {
 
 .m-track-marquee {
   position: relative;
-  height: 30px;
+  height: 40px;
   margin: 4px 0 2px;
   overflow: hidden;
   display: flex;
   align-items: center;
-  justify-content: center;
-  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  justify-content: flex-start;
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
 }
 
-.m-track-marquee-word {
-  position: absolute;
-  white-space: nowrap;
-  color: var(--acid);
-  font-weight: 800;
-  letter-spacing: 0.01em;
-  text-shadow: 0 0 20px rgba(200, 255, 46, 0.3);
-  will-change: transform, opacity;
-  animation-name: m-lyric-pass;
-  animation-timing-function: linear;
-  animation-fill-mode: both;
-  animation-iteration-count: 1;
-}
 
-@keyframes m-lyric-pass {
-  /* One word, on its own. In from the left small and faint, biggest at the
-     centre, then shrinking and fading away past it. */
-  0% {
-    transform: translateX(-42vw) scale(0.5);
-    opacity: 0;
-  }
-  25% {
-    transform: translateX(-21vw) scale(0.8);
-    opacity: 1;
-  }
-  50% {
-    transform: translateX(0) scale(1.6);
-    opacity: 1;
-  }
-  75% {
-    transform: translateX(21vw) scale(0.8);
-    opacity: 0.55;
-  }
-  100% {
-    transform: translateX(42vw) scale(0.5);
-    opacity: 0;
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
-  .m-track-marquee-word {
-    animation: none;
-    transform: none;
-    opacity: 1;
-    font-size: 17px;
+  .m-track-ribbon {
+    transition: none;
   }
 }
 
@@ -2966,4 +2926,57 @@ span.scratch-history-blob {
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
+}
+
+
+/* ── Lyric ribbon ──────────────────────────────────────────────────────────
+   The whole line rides through as one strip. The word crossing the centre is
+   big and lit; its neighbours sit smaller and dimmer, the rest fade out. */
+
+.m-track-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  white-space: nowrap;
+  will-change: transform;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.m-track-ribbon-word {
+  flex: 0 0 auto;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1;
+  transition:
+    color 220ms ease,
+    opacity 220ms ease,
+    font-size 220ms ease,
+    text-shadow 220ms ease;
+}
+
+.m-track-ribbon-word.is-0 {
+  font-size: 26px;
+  color: #ffffff;
+  opacity: 1;
+  text-shadow: 0 0 22px rgba(255, 255, 255, 0.45);
+}
+
+.m-track-ribbon-word.is-1 {
+  font-size: 19px;
+  color: #cdd3da;
+  opacity: 0.72;
+}
+
+.m-track-ribbon-word.is-2 {
+  font-size: 15px;
+  color: #8d959e;
+  opacity: 0.4;
+}
+
+.m-track-ribbon-word.is-3 {
+  font-size: 13px;
+  color: #6d747c;
+  opacity: 0.18;
 }

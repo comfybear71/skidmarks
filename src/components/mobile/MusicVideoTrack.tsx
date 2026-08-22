@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MobileGenJob, MobileShotUnit } from "@/lib/mobileGenJob";
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import {
@@ -44,6 +44,52 @@ function hexTint(hex: string, alpha: number): string {
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
+}
+
+/**
+ * The line as one ribbon sliding through. Every word is on screen; the one
+ * crossing the centre is big and lit, its neighbours smaller and dimmer, the
+ * rest fading out to either side.
+ *
+ * The slide is measured, not guessed: words are different widths, so the row
+ * is offset by the real position of the centre word. Done in a layout effect
+ * against the DOM so nothing re-renders to move it.
+ */
+function LyricRibbon({
+  words,
+  at,
+  holdMs,
+}: {
+  words: string[];
+  at: number;
+  holdMs: number;
+}) {
+  const rowRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const word = row.children[at] as HTMLElement | undefined;
+    if (!word) return;
+    const centre = word.offsetLeft + word.offsetWidth / 2;
+    row.style.transform = `translateX(calc(50% - ${centre}px))`;
+    row.style.transitionDuration = `${Math.max(180, Math.min(holdMs, 900))}ms`;
+  }, [at, holdMs, words]);
+
+  return (
+    <div className="m-track-marquee">
+      <div ref={rowRef} className="m-track-ribbon">
+        {words.map((word, i) => {
+          const away = Math.min(3, Math.abs(i - at));
+          return (
+            <span key={`${i}-${word}`} className={`m-track-ribbon-word is-${away}`}>
+              {word}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 /** m:ss box. Commits on blur or Enter; a typo just snaps back. */
@@ -405,9 +451,10 @@ export function MusicVideoTrack({
   );
   const lyricLines = useMemo(() => lyricLinesFrom(job.lyrics || ""), [job.lyrics]);
   // Lines are pasted, not pinned — spread them across the song, then split
-  // each line's slot between its words so one word rides through at a time.
+  // each line's slot between its words. The whole line rides through as one
+  // ribbon; the word crossing the centre is the one that grows and lights up.
   const activeLyric = evenLyricIndexAt(lyricLines.length, playheadMs, durationMs);
-  const activeWord = useMemo(() => {
+  const ribbon = useMemo(() => {
     if (activeLyric === null) return null;
     const text = lyricLines.find((l) => l.index === activeLyric)?.text || "";
     const words = text.split(/\s+/).filter(Boolean);
@@ -419,9 +466,8 @@ export function MusicVideoTrack({
       atMs: playheadMs,
     });
     if (!hit) return null;
-    return { key: `${activeLyric}-${hit.index}`, word: words[hit.index]!, holdMs: hit.holdMs };
+    return { lineIndex: activeLyric, words, at: hit.index, holdMs: hit.holdMs };
   }, [activeLyric, lyricLines, durationMs, playheadMs]);
-
 
   const plateRows = useMemo(() => {
     return plated.map((row, i) => {
@@ -637,16 +683,13 @@ export function MusicVideoTrack({
 
           {/* Nothing playing, nothing shown — the strip is for the line, not
               for instructions about the line. */}
-          {!compact && playing && activeWord ? (
-            <div className="m-track-marquee">
-              <span
-                key={activeWord.key}
-                className="m-track-marquee-word"
-                style={{ animationDuration: `${activeWord.holdMs}ms` }}
-              >
-                {activeWord.word}
-              </span>
-            </div>
+          {!compact && playing && ribbon ? (
+            <LyricRibbon
+              key={ribbon.lineIndex}
+              words={ribbon.words}
+              at={ribbon.at}
+              holdMs={ribbon.holdMs}
+            />
           ) : null}
 
           <div className="m-track-toolbar">
