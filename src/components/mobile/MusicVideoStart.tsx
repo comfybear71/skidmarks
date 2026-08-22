@@ -3,7 +3,7 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import { probeBrowserAudioDurationSec, dropScratchSongViaBlob, SCRATCH_SONG_DIRECT_POST_MAX_BYTES } from "@/lib/scratchSongDrop";
-import { readApiJson } from "@/lib/studioFetchError";
+import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   isMp3File,
   lyricLineCount,
@@ -217,9 +217,12 @@ export function LyricsBox({
 export function SongDropRow({
   jobId,
   onPicked,
+  onSaved,
 }: {
   jobId: string;
   onPicked?: (name: string, durationSec: number) => void;
+  /** The job after the song is written to disk/Blob. */
+  onSaved?: (job: MobileGenJob) => void;
 }) {
   const [err, setErr] = useState("");
   const [over, setOver] = useState(false);
@@ -232,10 +235,20 @@ export function SongDropRow({
     }
     setErr("");
     const durationSec = await probeBrowserAudioDurationSec(file);
-    // Parking publishes, so the track picks the song up and swaps this box
-    // for the player. It does not need a preview URL of its own.
+    // Park first so the desk swaps to the player straight away, then save it.
+    // Parking alone used to be the whole story, so a refresh lost the song.
     parkPendingSong(jobId, { file, durationSec });
     onPicked?.(file.name, durationSec);
+    try {
+      const form = new FormData();
+      form.set("jobId", jobId);
+      form.set("file", file, file.name || "song.mp3");
+      const res = await fetch("/api/crash/mobile/track/song", { method: "POST", body: form });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onSaved?.(data.job);
+    } catch (e) {
+      setErr(studioFetchError(e, "Song is on screen but did not save — drop it again"));
+    }
   }
 
   return (

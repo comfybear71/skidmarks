@@ -145,6 +145,8 @@ console.log("check-music-video-marquee OK");
   for (const c of colors) assert.match(c, /^#[0-9a-f]{6}$/i);
 
   assert.equal(sectionColor("chorus"), "#ff3ea5");
+  // A Verse band in the waveform's own acid was invisible against the wave.
+  assert.notEqual(sectionColor("verse").toLowerCase(), TRACK_ACID.toLowerCase());
   assert.equal(sectionColor("CHORUS"), "#ff3ea5", "case does not lose the colour");
   assert.equal(sectionColor("  intro  "), "#35d6d0");
   // A hand-typed label still draws — it must never come back undefined.
@@ -329,3 +331,28 @@ console.log("check-music-video-paste-lyrics OK");
 }
 
 console.log("check-music-video-marquee-word OK");
+
+// ── The song is saved the moment it is dropped ─────────────────────────────
+{
+  const { readFileSync, existsSync } = await import("node:fs");
+  const route = new URL("../src/app/api/crash/mobile/track/song/route.ts", import.meta.url);
+  assert.ok(existsSync(route), "there is a route that saves the song on drop");
+  const src = readFileSync(route, "utf8");
+  assert.match(src, /uploadMobileMedia/, "the mp3 goes to Blob, not just memory");
+  assert.match(src, /songFile/, "the job remembers the file name");
+  assert.match(src, /export async function GET/, "and it can be streamed back after a refresh");
+
+  const drop = readFileSync(
+    new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(drop, /track\/song/, "dropping an mp3 posts it straight away");
+
+  const ui = readFileSync(
+    new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(ui, /trackDraft\?\.songFile/, "a reload plays the saved song");
+}
+
+console.log("check-music-video-song-saved OK");

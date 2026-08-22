@@ -376,11 +376,15 @@ export function MusicVideoTrack({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobRef = useRef("");
 
-  const durationMs = useMemo(() => {
-    if (song?.durationSec) return Math.round(song.durationSec * 1000);
-    if (parked?.durationSec) return Math.round(parked.durationSec * 1000);
-    return 0;
-  }, [song?.durationSec, parked?.durationSec]);
+  // Plain arithmetic — memoising it only confused the compiler about which
+  // song field it depends on.
+  const durationMs = song?.durationSec
+    ? Math.round(song.durationSec * 1000)
+    : parked?.durationSec
+      ? Math.round(parked.durationSec * 1000)
+      : job.trackDraft?.songDurationSec
+        ? Math.round(job.trackDraft.songDurationSec * 1000)
+        : 0;
 
   const peaks =
     song?.waveformPeaks ||
@@ -444,8 +448,12 @@ export function MusicVideoTrack({
       blobRef.current = URL.createObjectURL(parked.file as File);
       return blobRef.current;
     }
+    // Saved before Lock — survives a refresh, unlike the parked File.
+    if (job.trackDraft?.songFile) {
+      return `/api/crash/mobile/track/song?jobId=${encodeURIComponent(job.id)}`;
+    }
     return "";
-  }, [song?.fileName, beatId, job.folderName, job.styleId, parked?.file]);
+  }, [song?.fileName, beatId, job.folderName, job.styleId, job.id, parked?.file, job.trackDraft?.songFile]);
 
   useEffect(() => {
     return () => {
@@ -489,13 +497,19 @@ export function MusicVideoTrack({
     if (peaks.length || busy === "peaks") return;
     const file = (parked?.file || null) as File | null;
     if (file) void decodeAndSave(file);
-    else if (audioSrc && song?.fileName && !song.waveformPeaks?.length) {
+    else if (audioSrc && (song?.fileName || job.trackDraft?.songFile) && !song?.waveformPeaks?.length) {
       void fetch(audioSrc)
         .then((r) => r.blob())
-        .then((blob) => decodeAndSave(new File([blob], song.fileName, { type: "audio/mpeg" })))
+        .then((blob) =>
+          decodeAndSave(
+            new File([blob], song?.fileName || job.trackDraft?.songFile || "song.mp3", {
+              type: "audio/mpeg",
+            }),
+          ),
+        )
         .catch(() => undefined);
     }
-  }, [audioSrc, parked?.file, peaks.length, busy, decodeAndSave, song?.fileName, song?.waveformPeaks]);
+  }, [audioSrc, parked?.file, peaks.length, busy, decodeAndSave, song?.fileName, song?.waveformPeaks, job.trackDraft?.songFile]);
 
   async function saveMarkers(next: typeof markers) {
     setBusy("markers");
@@ -603,7 +617,7 @@ export function MusicVideoTrack({
                 onPlayingChange={setPlaying}
               />
             ) : (
-              <SongDropRow jobId={job.id} />
+              <SongDropRow jobId={job.id} onSaved={onJobChange} />
             )}
           </div>
 
