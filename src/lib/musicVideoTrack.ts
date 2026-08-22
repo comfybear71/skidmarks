@@ -7,12 +7,14 @@ import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
 import { clampSongSliceDuration, clampSongWindow } from "./scratchSongWindow";
 
 export type TrackSectionLabel =
+  | "intro"
   | "verse"
   | "chorus"
   | "bridge"
   | "crescendo"
   | "lead_break"
   | "sax_break"
+  | "outro"
   | "custom";
 
 export type TrackSectionMarker = {
@@ -36,15 +38,52 @@ export type MusicVideoTrackDraft = {
   lyricCues?: LyricCue[];
 };
 
-export const TRACK_SECTION_LABELS: { id: TrackSectionLabel; label: string }[] = [
-  { id: "verse", label: "Verse" },
-  { id: "chorus", label: "Chorus" },
-  { id: "bridge", label: "Bridge" },
-  { id: "crescendo", label: "Crescendo" },
-  { id: "lead_break", label: "Lead break" },
-  { id: "sax_break", label: "Sax break" },
-  { id: "custom", label: "Custom" },
+/**
+ * Song order, so the picker reads the way a track runs: intro at the top,
+ * outro near the bottom. Each carries its own colour — a wave full of
+ * same-coloured bands tells you nothing about the shape of the song.
+ */
+export const TRACK_SECTION_LABELS: {
+  id: TrackSectionLabel;
+  label: string;
+  color: string;
+}[] = [
+  { id: "intro", label: "Intro", color: "#35d6d0" },
+  { id: "verse", label: "Verse", color: "#c8ff2e" },
+  { id: "chorus", label: "Chorus", color: "#ff3ea5" },
+  { id: "bridge", label: "Bridge", color: "#9b7bff" },
+  { id: "crescendo", label: "Crescendo", color: "#ff9f1c" },
+  { id: "lead_break", label: "Lead break", color: "#4db8ff" },
+  { id: "sax_break", label: "Sax break", color: "#ffd23f" },
+  { id: "outro", label: "Outro", color: "#8fa2b8" },
+  { id: "custom", label: "Custom", color: "#d7d7db" },
 ];
+
+const SECTION_FALLBACK_COLOR = "#d7d7db";
+
+/** Colour for a marker. Anything typed by hand falls back to Custom's. */
+export function sectionColor(label: string): string {
+  const id = String(label || "").trim().toLowerCase();
+  return TRACK_SECTION_LABELS.find((o) => o.id === id)?.color || SECTION_FALLBACK_COLOR;
+}
+
+/** Human name for a marker, so the wave does not read "lead_break". */
+export function sectionTitle(label: string): string {
+  const id = String(label || "").trim().toLowerCase();
+  const hit = TRACK_SECTION_LABELS.find((o) => o.id === id);
+  if (hit) return hit.label;
+  return String(label || "").trim() || "Section";
+}
+
+/** Same colour at a given alpha, for the band behind the wave. */
+export function sectionTint(label: string, alpha: number): string {
+  const hex = sectionColor(label).replace("#", "");
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const a = Math.max(0, Math.min(1, alpha));
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
 
 export function msToSec(ms: number): number {
   return Math.round((ms / 1000) * 10) / 10;
@@ -282,4 +321,59 @@ export function lyricHoldMs(cues: LyricCue[], lineIndex: number | null): number 
   }
   if (!Number.isFinite(nextAt)) return FALLBACK;
   return Math.max(MIN, Math.min(MAX, nextAt - mine.atMs));
+}
+
+/* ── Plate filmstrip ───────────────────────────────────────────────────── */
+
+/** Rail scale. 6px a second puts a 4:30 song on about 1600px of strip. */
+export const FILMSTRIP_PX_PER_SEC = 6;
+
+export type FilmstripCell = {
+  plateId: string;
+  label: string;
+  startMs: number;
+  endMs: number;
+  /** Rail offset and size in px, so the strip lines up with the song clock. */
+  leftPx: number;
+  widthPx: number;
+};
+
+export function filmstripRailWidth(songMs: number): number {
+  if (!Number.isFinite(songMs) || songMs <= 0) return 0;
+  return Math.round((songMs / 1000) * FILMSTRIP_PX_PER_SEC);
+}
+
+/** Where the playhead sits along the rail. Same scale as the cells. */
+export function filmstripPlayheadPx(playheadMs: number): number {
+  if (!Number.isFinite(playheadMs) || playheadMs <= 0) return 0;
+  return Math.round((playheadMs / 1000) * FILMSTRIP_PX_PER_SEC);
+}
+
+/**
+ * Timed plates laid along the rail in song order. Untimed plates are not on
+ * the strip at all — they have no place on the song yet, and inventing one
+ * would put a picture on screen that the render will not match.
+ */
+export function filmstripCells(
+  timings: PlateTiming[],
+  labelFor: (plateId: string) => string,
+): FilmstripCell[] {
+  return sortPlateTimings(timings || [])
+    .filter((t) => t.endMs > t.startMs)
+    .map((t) => ({
+      plateId: t.plateId,
+      label: labelFor(t.plateId),
+      startMs: t.startMs,
+      endMs: t.endMs,
+      leftPx: Math.round((t.startMs / 1000) * FILMSTRIP_PX_PER_SEC),
+      widthPx: Math.max(24, Math.round(((t.endMs - t.startMs) / 1000) * FILMSTRIP_PX_PER_SEC)),
+    }));
+}
+
+/** Which cell the song is inside right now — the one on the playhead. */
+export function filmstripCellAt(cells: FilmstripCell[], atMs: number): FilmstripCell | null {
+  for (const cell of cells) {
+    if (atMs >= cell.startMs && atMs < cell.endMs) return cell;
+  }
+  return null;
 }

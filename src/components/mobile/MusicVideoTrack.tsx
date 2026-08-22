@@ -9,10 +9,17 @@ import {
   activeLyricLineIndex,
   coverageLine,
   formatTrackClock,
+  filmstripCellAt,
+  filmstripCells,
+  filmstripPlayheadPx,
+  filmstripRailWidth,
   lyricHoldMs,
   lyricCueFor,
   lyricLinesFrom,
   plateTimingForShot,
+  sectionColor,
+  sectionTint,
+  sectionTitle,
   sortPlateTimings,
   trackCoverage,
   withLyricCue,
@@ -119,14 +126,13 @@ function WaveformCanvas({
       const x0 = xAt(m.startMs);
       const x1 = xAt(m.endMs);
       const bandW = Math.max(2, x1 - x0);
-      ctx.fillStyle = "rgba(200, 255, 46, 0.07)";
+      ctx.fillStyle = sectionTint(m.label, 0.13);
       ctx.fillRect(x0, waveTop, bandW, waveH);
-      ctx.fillStyle = "rgba(200, 255, 46, 0.55)";
-      ctx.fillRect(x0, waveTop, 1, waveH);
-      const label = String(m.label || "").toUpperCase();
+      ctx.fillStyle = sectionTint(m.label, 0.85);
+      ctx.fillRect(x0, waveTop, 1.5, waveH);
       if (bandW > 34) {
-        ctx.fillStyle = "rgba(200, 255, 46, 0.75)";
-        ctx.fillText(label, x0 + 4, 2);
+        ctx.fillStyle = sectionColor(m.label);
+        ctx.fillText(sectionTitle(m.label).toUpperCase(), x0 + 5, 2);
       }
     }
 
@@ -325,6 +331,9 @@ export function MusicVideoTrack({
   const lyricLines = useMemo(() => lyricLinesFrom(job.lyrics || ""), [job.lyrics]);
   const activeLyric = activeLyricLineIndex(lyricCues, playheadMs);
 
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const handScroll = useRef(0);
+
   const plateRows = useMemo(() => {
     return plated.map((row, i) => {
       const title =
@@ -466,6 +475,26 @@ export function MusicVideoTrack({
       setBusy("");
     }
   }
+
+  const cells = useMemo(
+    () =>
+      filmstripCells(song?.plateTimings || job.trackDraft?.plateTimings || [], (id) => {
+        const row = plateRows.find((p) => p.shotId === id);
+        return row?.title || id;
+      }),
+    [song?.plateTimings, job.trackDraft?.plateTimings, plateRows],
+  );
+  const railWidth = filmstripRailWidth(durationMs);
+  const onNow = filmstripCellAt(cells, playheadMs);
+
+  // Follow the song: keep the playhead under the centre marker unless a hand
+  // is on the strip.
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail || !railWidth) return;
+    if (Date.now() - handScroll.current < 1200) return;
+    rail.scrollLeft = filmstripPlayheadPx(playheadMs) - rail.clientWidth / 2;
+  }, [playheadMs, railWidth]);
 
   async function dropSong() {
     // Pre-lock the mp3 is only parked in the browser, so dropping it is local.
@@ -609,6 +638,10 @@ export function MusicVideoTrack({
             <select
               className="m-track-select"
               value={markerLabel}
+              style={{
+                borderColor: sectionTint(markerLabel, 0.6),
+                color: sectionColor(markerLabel),
+              }}
               onChange={(e) => setMarkerLabel(e.target.value as TrackSectionLabel)}
             >
               {TRACK_SECTION_LABELS.map((o) => (
@@ -645,8 +678,11 @@ export function MusicVideoTrack({
           {!compact && markers.length ? (
             <ul className="m-track-marker-list">
               {markers.map((m) => (
-                <li key={m.id}>
-                  <span>{m.label}</span>
+                <li key={m.id} style={{ borderLeftColor: sectionColor(m.label) }}>
+                  <span className="m-track-marker-name">
+                    <i className="m-track-swatch" style={{ background: sectionColor(m.label) }} />
+                    {sectionTitle(m.label)}
+                  </span>
                   <span>
                     {formatTrackClock(m.startMs)} – {formatTrackClock(m.endMs)}
                   </span>
@@ -691,6 +727,59 @@ export function MusicVideoTrack({
                     : "Open LYRICS, tap a line to pin it at the playhead."}
                 </span>
               )}
+            </div>
+          ) : null}
+
+          {/* The plates as a filmstrip on the song clock: it slides right to
+              left past the playhead, the same way the words do. Drag it by
+              hand to scrub; it picks the song back up when you let go. */}
+          {!compact && cells.length ? (
+            <div className="m-film">
+              <div className="m-film-head">
+                <span>Plates on the song</span>
+                <span className="m-film-now">{onNow ? onNow.label : "—"}</span>
+              </div>
+              <div
+                ref={railRef}
+                className="m-film-scroll"
+                onPointerDown={() => {
+                  handScroll.current = Date.now();
+                }}
+                onScroll={() => {
+                  // A hand on the strip wins for a moment, then the song has it
+                  // back — otherwise the follow fights the drag.
+                  if (Date.now() - handScroll.current > 1200) return;
+                  handScroll.current = Date.now();
+                }}
+              >
+                <div className="m-film-rail" style={{ width: `${railWidth}px` }}>
+                  {cells.map((cell) => {
+                    const row = plateRows.find((p) => p.shotId === cell.plateId);
+                    const live = onNow?.plateId === cell.plateId;
+                    return (
+                      <button
+                        type="button"
+                        key={cell.plateId}
+                        className={`m-film-cell${live ? " is-now" : ""}`}
+                        style={{ left: `${cell.leftPx}px`, width: `${cell.widthPx}px` }}
+                        onClick={() => {
+                          setPlayheadMs(cell.startMs);
+                          if (audioRef.current) audioRef.current.currentTime = cell.startMs / 1000;
+                        }}
+                      >
+                        {row?.plateFile ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={mobileLocationStillUrl(job, row.plateFile)} alt="" />
+                        ) : (
+                          <span className="m-film-cell-empty" />
+                        )}
+                        <span className="m-film-cell-label">{cell.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="m-film-playhead" aria-hidden="true" />
             </div>
           ) : null}
 
