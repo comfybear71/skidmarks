@@ -668,15 +668,28 @@ export function MusicVideoTrack({
   }
 
   async function dropSong() {
-    // Pre-lock the mp3 is only parked in the browser, so dropping it is local.
-    // Post-lock it is a real attached take: leave that to the song desk rather
-    // than deleting media from here (AGENTS.md — never delete, park).
-    if (!song?.fileName) {
-      clearPendingSong(job.id);
-      setLocalPeaks([]);
-      return;
+    // The browser copy and the saved one both have to go, or the x looks dead:
+    // clearing only the parked file left trackDraft.songFile pointing at it and
+    // the player carried on as if nothing happened.
+    clearPendingSong(job.id);
+    setLocalPeaks([]);
+    setPlayheadMs(0);
+    if (job.trackDraft?.songFile) {
+      setBusy("song");
+      try {
+        const updated = await trackAction("drop-song", { jobId: job.id });
+        if (updated) onJobChange(updated);
+      } catch (e) {
+        setNote(e instanceof Error ? e.message : "Couldn't drop that song");
+      } finally {
+        setBusy("");
+      }
     }
-    setNote("The song is attached to this episode — drop it from the song desk.");
+    // Once the song is a real attached take on the episode, removing it is the
+    // song desk's job — this desk never deletes media.
+    if (song?.fileName) {
+      setNote("Song dropped here. The attached take stays on the episode.");
+    }
   }
 
   return (
