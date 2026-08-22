@@ -10,7 +10,6 @@ import {
   evenLineStartMs,
   evenLyricHoldMs,
   evenLyricIndexAt,
-  marqueeWordAt,
   lyricLinesFrom,
   plateTimingForShot,
   nextSectionStartMs,
@@ -57,36 +56,94 @@ function hexTint(hex: string, alpha: number): string {
  */
 function LyricRibbon({
   words,
-  at,
-  holdMs,
+  lineStartMs,
+  lineHoldMs,
+  audioRef,
 }: {
   words: string[];
-  at: number;
-  holdMs: number;
+  lineStartMs: number;
+  lineHoldMs: number;
+  audioRef: React.RefObject<HTMLAudioElement | null>;
 }) {
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const rowRef = useRef<HTMLDivElement | null>(null);
+  const centresRef = useRef<number[]>([]);
+  const halfStageRef = useRef(0);
 
+  // Words are different widths, so where each one sits is measured off the
+  // real elements. The stage's half-width is measured too: translateX(50%)
+  // resolves against the strip's own width, not the stage's, which threw the
+  // whole line off screen.
   useLayoutEffect(() => {
     const row = rowRef.current;
-    if (!row) return;
-    const word = row.children[at] as HTMLElement | undefined;
-    if (!word) return;
-    const centre = word.offsetLeft + word.offsetWidth / 2;
-    row.style.transform = `translateX(calc(50% - ${centre}px))`;
-    row.style.transitionDuration = `${Math.max(180, Math.min(holdMs, 900))}ms`;
-  }, [at, holdMs, words]);
+    const stage = stageRef.current;
+    if (!row || !stage) return;
+    const measure = () => {
+      halfStageRef.current = stage.clientWidth / 2;
+      centresRef.current = Array.from(row.children).map((child) => {
+        const el = child as HTMLElement;
+        return el.offsetLeft + el.offsetWidth / 2;
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, [words]);
+
+  // Driven off the song clock every frame, written straight onto the DOM.
+  // Stepping the strip once per word lurched; a marquee drifts.
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const row = rowRef.current;
+      const audio = audioRef.current;
+      const centres = centresRef.current;
+      if (!row || !audio || !centres.length) return;
+
+      const perWordMs = lineHoldMs / words.length;
+      if (!Number.isFinite(perWordMs) || perWordMs <= 0) return;
+
+      // Fractional position along the line. Runs a word past each end so the
+      // line drifts in and out instead of starting and stopping hard.
+      const pos = (audio.currentTime * 1000 - lineStartMs) / perWordMs;
+      const at = Math.max(-1.4, Math.min(words.length + 0.4, pos));
+
+      const i = Math.floor(at);
+      const frac = at - i;
+      const centreOf = (n: number) => centres[Math.max(0, Math.min(centres.length - 1, n))]!;
+      const under = centreOf(i) + (centreOf(i + 1) - centreOf(i)) * frac;
+      row.style.transform = `translateX(${(halfStageRef.current - under).toFixed(2)}px)`;
+
+      for (let k = 0; k < centres.length; k++) {
+        const el = row.children[k] as HTMLElement | undefined;
+        if (!el) continue;
+        // One word is at full size, full light and sharp: the one on the
+        // centre. The rest fall away on the same arc, blurring as they go so
+        // they read as distance rather than just small text.
+        const away = Math.abs(k - at);
+        const near = Math.max(0, 1 - away / 2.8);
+        const lit = Math.pow(near, 1.6);
+        el.style.transform = `scale(${(0.42 + lit * 1.08).toFixed(3)})`;
+        el.style.opacity = lit.toFixed(3);
+        el.style.filter = lit > 0.93 ? "none" : `blur(${((1 - lit) * 3).toFixed(2)}px)`;
+        el.style.textShadow =
+          lit > 0.8 ? `0 0 ${(lit * 26).toFixed(0)}px rgba(255,255,255,0.42)` : "none";
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [words, lineStartMs, lineHoldMs, audioRef]);
 
   return (
-    <div className="m-track-marquee">
+    <div className="m-track-marquee" ref={stageRef}>
       <div ref={rowRef} className="m-track-ribbon">
-        {words.map((word, i) => {
-          const away = Math.min(3, Math.abs(i - at));
-          return (
-            <span key={`${i}-${word}`} className={`m-track-ribbon-word is-${away}`}>
-              {word}
-            </span>
-          );
-        })}
+        {words.map((word, i) => (
+          <span key={`${i}-${word}`} className="m-track-ribbon-word">
+            {word}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -459,15 +516,13 @@ export function MusicVideoTrack({
     const text = lyricLines.find((l) => l.index === activeLyric)?.text || "";
     const words = text.split(/\s+/).filter(Boolean);
     if (!words.length) return null;
-    const hit = marqueeWordAt({
-      words: words.length,
+    return {
+      lineIndex: activeLyric,
+      words,
       lineStartMs: evenLineStartMs(activeLyric, lyricLines.length, durationMs),
       lineHoldMs: evenLyricHoldMs(lyricLines.length, durationMs),
-      atMs: playheadMs,
-    });
-    if (!hit) return null;
-    return { lineIndex: activeLyric, words, at: hit.index, holdMs: hit.holdMs };
-  }, [activeLyric, lyricLines, durationMs, playheadMs]);
+    };
+  }, [activeLyric, lyricLines, durationMs]);
 
   const plateRows = useMemo(() => {
     return plated.map((row, i) => {
@@ -687,8 +742,9 @@ export function MusicVideoTrack({
             <LyricRibbon
               key={ribbon.lineIndex}
               words={ribbon.words}
-              at={ribbon.at}
-              holdMs={ribbon.holdMs}
+              lineStartMs={ribbon.lineStartMs}
+              lineHoldMs={ribbon.lineHoldMs}
+              audioRef={audioRef}
             />
           ) : null}
 
