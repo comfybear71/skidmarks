@@ -2782,3 +2782,92 @@ span.scratch-history-blob {
     will-change: auto;
   }
 }
+
+/* ── Plate picker ──────────────────────────────────────────────────────────
+   One person, one place, one plate — inside the Plates section, so nothing
+   scrolls away and Locations is not on screen twice. */
+
+.m-track-rail-add.is-open {
+  background: rgba(200, 255, 46, 0.14);
+  border-style: solid;
+}
+
+.m-plate-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  margin: 2px 0 6px;
+  border: 1px solid rgba(200, 255, 46, 0.28);
+  border-radius: 10px;
+  background: rgba(200, 255, 46, 0.03);
+}
+
+.m-plate-pick-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  /* /m scrolls the window — a vertical flick must still move the page. */
+  touch-action: pan-x pan-y;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.m-plate-pick-row::-webkit-scrollbar { display: none; }
+
+.m-plate-pick-cell {
+  flex: 0 0 auto;
+  width: 66px;
+  padding: 0 0 3px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--chrome-dim);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.m-plate-pick-cell img,
+.m-plate-pick-blank {
+  display: block;
+  width: 100%;
+  height: 50px;
+  object-fit: cover;
+  opacity: 0.62;
+}
+
+.m-plate-pick-blank {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.05) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.m-plate-pick-cell.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+.m-plate-pick-cell.is-on img { opacity: 1; }
+
+.m-plate-pick-name {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-plate-pick-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

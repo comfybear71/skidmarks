@@ -20,6 +20,7 @@ import { isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong"
 import {
   allCastApproved,
   allLocationsApproved,
+  approvedCandidateFileName,
   canLockEpisode,
   candidateLookPrompt,
   faceCandidateTakes,
@@ -947,6 +948,24 @@ export function StudioTree({
     });
   }
 
+  // Adding a plate needs a pack. Rather than showing "Lock the episode first",
+  // the + starts the video and holds the pick until the pack lands.
+  const pendingPlate = useRef<{ sceneId: string; speaker: string } | null>(null);
+
+  useEffect(() => {
+    if (!job.folderName) return;
+    const want = pendingPlate.current;
+    if (!want) return;
+    pendingPlate.current = null;
+    const timer = window.setTimeout(() => {
+      void addLocationToPlate(want.sceneId, want.speaker);
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // addLocationToPlate is stable enough for this one shot; re-running on its
+    // identity would re-fire the add.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.folderName]);
+
   async function addLocationToPlate(sceneId: string, speaker: string) {
     const who = speaker.trim();
     setAddingPlateFor(sceneId);
@@ -1766,18 +1785,28 @@ export function StudioTree({
             canStart={canWrite && !lockingScript && !job.folderName}
             onStart={onStartMusicVideo}
             onOpenPlate={(shotId) => revealPlates(shotId)}
-            onAddPlate={() => {
-              // Plates are made in Locations — open the place card rather than
-              // putting a second place picker inside Plates.
-              setLocationsOpen(true);
-              const first = job.scenes[0]?.id || "";
-              setOpenPlace(first || null);
-              window.requestAnimationFrame(() => {
-                document.getElementById("m-locations-strip")?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "start",
-                });
-              });
+            castOptions={job.speakers.map((name) => {
+              const file = approvedCandidateFileName(job.castCandidates, name) || "";
+              return {
+                name,
+                faceUrl: file ? castFaceUrl(job, name, file, characterIds) : "",
+              };
+            })}
+            placeOptions={job.scenes.map((scene) => ({
+              sceneId: scene.id,
+              name: scene.placeName,
+              thumbUrl: mobilePlacePreviewUrl(job, {
+                fileName: approvedCandidateFileName(job.locationCandidates, scene.id) || "",
+                worldThumbKey: scene.worldThumbKey || "",
+              }),
+            }))}
+            onCreatePlate={(sceneId, speaker) => {
+              if (!job.folderName) {
+                pendingPlate.current = { sceneId, speaker };
+                onStartMusicVideo(job.lyrics || "");
+                return;
+              }
+              void addLocationToPlate(sceneId, speaker);
             }}
           />
         ) : null}
