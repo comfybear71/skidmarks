@@ -1,6 +1,7 @@
 import path from "path";
 import type { MobileClipUnit } from "./mobileGenJob";
 import { mobileMediaFolder } from "./mobileJobFolder";
+import { formatSongClock } from "./scratchSongWindow";
 
 export function mobileClipSrc(
   job: { id: string; styleId: string; folderName: string },
@@ -35,6 +36,29 @@ export function stackedClipFiles(
     out.push(file);
   }
   return out;
+}
+
+/**
+ * Label that does not renumber when a middle take is deleted.
+ * Prefer the song-cut clock (1:00.0) when this mp4 is a song slice;
+ * otherwise a short stable tail of the filename — never "4/10" position.
+ */
+export function stableClipTakeLabel(opts: {
+  fileName: string;
+  songCuts?: { clipFile?: string; startSec?: number }[];
+}): string {
+  const file = clipFileBasename(opts.fileName);
+  if (!file) return "";
+  const cut = (opts.songCuts || []).find(
+    (c) => clipFileBasename(c.clipFile || "") === file,
+  );
+  if (cut && Number.isFinite(cut.startSec)) {
+    return formatSongClock(Number(cut.startSec));
+  }
+  const stem = file.replace(/\.[^.]+$/, "");
+  const parts = stem.split(/[_-]/).filter(Boolean);
+  const tail = parts[parts.length - 1] || stem;
+  return tail.length >= 2 ? tail.slice(-8) : stem.slice(-6);
 }
 
 /** Keep the old mp4 on the stack when a new LTX take lands. Files stay in Blob. */
