@@ -5,7 +5,6 @@
 import fs from "fs";
 import path from "path";
 import { cloudEnvReady } from "./cloudEnv";
-import { loadMoviesEnv } from "./env";
 import {
   blobContentType,
   blobPathname,
@@ -171,7 +170,6 @@ export async function uploadPackToCloud(opts: {
   errors: { filename: string; message: string }[];
   files: { kind: BlobFileKind; filename: string; bytes: number; pathname: string }[];
 }> {
-  loadMoviesEnv();
   if (!cloudEnvReady()) {
     throw new Error("Need DATABASE_URL and BLOB_READ_WRITE_TOKEN");
   }

@@ -126,7 +126,7 @@ export async function cursorLockVoice(opts: {
   libraryVoiceName?: string;
 }): Promise<{ castName: string; libraryVoice: string; voiceId: string }> {
   if (!elevenKeyPresent()) {
-    throw new Error("Missing ELEVENLABS_API_KEY in MY MOVIES\\.env");
+    throw new Error("Missing ELEVENLABS_API_KEY in your environment variables");
   }
   const wanted =
     opts.libraryVoiceName?.trim() || libraryVoiceNameFor(opts.castName);
@@ -407,7 +407,7 @@ export async function cursorGenSfx(opts: {
   styleId: ShowStyleId;
 }): Promise<{ count: number; story: CrashStoryDoc }> {
   if (!elevenKeyPresent()) {
-    throw new Error("Missing ELEVENLABS_API_KEY in MY MOVIES\\.env");
+    throw new Error("Missing ELEVENLABS_API_KEY in your environment variables");
   }
   let story = readCrashStory(opts.styleId);
   let count = 0;

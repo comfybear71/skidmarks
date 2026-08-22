@@ -23,9 +23,12 @@ export function OpenEpisodePicker({
   open: openProp,
   onOpenChange,
   title = "Your episodes",
+  styleId,
 }: {
   deskId?: string;
   activeJobId?: string;
+  /** Only list episodes of this style — e.g. the highlighted LOOK tile on the pre-episode screen. Omit to list everything. */
+  styleId?: string;
   onOpen: (jobId: string) => void;
   /** Optional — New episode without wiping the old one. */
   onNew?: () => void;
@@ -48,6 +51,7 @@ export function OpenEpisodePicker({
   );
 
   const [jobs, setJobs] = useState<MobileEpisodeListItem[]>([]);
+  const visibleJobs = styleId ? jobs.filter((j) => j.styleId === styleId) : jobs;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -114,7 +118,7 @@ export function OpenEpisodePicker({
           onClick={() => setOpen(!open)}
         >
           {open ? `▾ ${title}` : `▸ ${title}`}
-          {!open && jobs.length ? ` (${jobs.length})` : ""}
+          {!open && visibleJobs.length ? ` (${visibleJobs.length})` : ""}
         </button>
         <div className="open-episode-picker-actions">
           {open ? (
@@ -133,16 +137,18 @@ export function OpenEpisodePicker({
       {open ? (
         <div className="open-episode-picker-body">
           {error ? <div className="open-episode-picker-error">{error}</div> : null}
-          {loading && !jobs.length ? (
+          {loading && !visibleJobs.length ? (
             <div className="open-episode-picker-empty">Loading episodes…</div>
           ) : null}
-          {!loading && !jobs.length && !error ? (
+          {!loading && !visibleJobs.length && !error ? (
             <div className="open-episode-picker-empty">
-              No episodes yet — write a vibe and tap Start directing.
+              {styleId && jobs.length
+                ? "No episodes of this style yet — write a vibe and tap Start directing."
+                : "No episodes yet — write a vibe and tap Start directing."}
             </div>
           ) : null}
           <ul className="open-episode-picker-list">
-            {jobs.map((job) => {
+            {visibleJobs.map((job) => {
               const active = activeJobId === job.id;
               const cast = (job.speakers || []).slice(0, 4).join(", ");
               const more = (job.speakers || []).length > 4 ? "…" : "";

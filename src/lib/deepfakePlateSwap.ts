@@ -29,7 +29,7 @@ export async function swapDeepfakePlate(
   if (!engine.configured) {
     throw new Error(
       engine.hint ||
-        "FaceFusion not set up — add FACEFUSION_SCRIPT to MY MOVIES\\.env",
+        "FaceFusion not set up — add FACEFUSION_SCRIPT to your environment variables",
     );
   }
 

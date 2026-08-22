@@ -19,7 +19,7 @@ export function comfyCloudConfigured(): boolean {
 
 function cloudHeaders(json = false): HeadersInit {
   const key = comfyCloudApiKey();
-  if (!key) throw new Error("COMFY_CLOUD_API_KEY missing in MY MOVIES\\.env");
+  if (!key) throw new Error("COMFY_CLOUD_API_KEY missing in your environment variables");
   const h: Record<string, string> = { "X-API-Key": key };
   if (json) h["Content-Type"] = "application/json";
   return h;

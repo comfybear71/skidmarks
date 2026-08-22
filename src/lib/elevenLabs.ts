@@ -9,7 +9,7 @@ function key(): string {
   const k = getEnv("ELEVENLABS_API_KEY");
   if (!k) {
     throw new Error(
-      "Missing ELEVENLABS_API_KEY in MY MOVIES\\.env — restart Studio after adding.",
+      "Missing ELEVENLABS_API_KEY in your environment variables — restart Studio after adding.",
     );
   }
   return k;

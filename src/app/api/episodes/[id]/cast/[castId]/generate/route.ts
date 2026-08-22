@@ -17,7 +17,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
   if (!imageKeyPresent()) {
     return NextResponse.json(
-      { error: "Missing XAI_API_KEY in MY MOVIES\\.env" },
+      { error: "Missing XAI_API_KEY in your environment variables" },
       { status: 503 },
     );
   }

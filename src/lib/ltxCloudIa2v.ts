@@ -178,7 +178,7 @@ export async function runLtxCloudIa2v(
   };
 
   if (!comfyCloudConfigured()) {
-    throw new Error("COMFY_CLOUD_API_KEY missing — set it in MY MOVIES\\.env");
+    throw new Error("COMFY_CLOUD_API_KEY missing — set it in your environment variables");
   }
   if (!input.platePath || !fs.existsSync(input.platePath)) {
     throw new Error("Plate file missing on disk");

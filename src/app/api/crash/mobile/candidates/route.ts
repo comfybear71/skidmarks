@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     // Add a name does not generate an image. Only generate needs the key.
     if (action === "generate" && !imageKeyPresent()) {
       return NextResponse.json(
-        { error: "Missing XAI_API_KEY in MY MOVIES\\.env, then restart Studio." },
+        { error: "Missing XAI_API_KEY in your environment variables, then restart Studio." },
         { status: 503 },
       );
     }

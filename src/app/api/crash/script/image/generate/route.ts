@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "Missing XAI_API_KEY. Add your xAI / Grok key to MY MOVIES\\.env (same place as ElevenLabs), then restart Studio (npm run dev).",
+            "Missing XAI_API_KEY. Add your xAI / Grok key to your environment variables (same place as ElevenLabs), then restart Studio (npm run dev).",
         },
         { status: 503 },
       );

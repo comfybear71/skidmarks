@@ -194,7 +194,7 @@ export async function generateFaceImage(opts: {
   const key = xaiKey();
   if (!key) {
     throw new Error(
-      "Missing XAI_API_KEY. Add it to MY MOVIES\\.env then restart Studio.",
+      "Missing XAI_API_KEY. Add it to your environment variables then restart Studio.",
     );
   }
 
@@ -256,7 +256,7 @@ function xaiErrorMessage(status: number, data: unknown): string {
   if (/expired/i.test(detail)) {
     return (
       detail +
-      " — Make a new key at https://console.x.ai → API Keys, paste into MY MOVIES\\.env as XAI_API_KEY=..., save, Generate again (Studio re-reads .env)."
+      " — Make a new key at https://console.x.ai → API Keys, paste into your environment variables as XAI_API_KEY=..., save, then restart Studio."
     );
   }
   if (status === 403) {

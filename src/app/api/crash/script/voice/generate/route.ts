@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "Missing ELEVENLABS_API_KEY in MY MOVIES\\.env (same place as the xAI key), then restart Studio (npm run dev).",
+            "Missing ELEVENLABS_API_KEY in your environment variables (same place as the xAI key), then restart Studio (npm run dev).",
         },
         { status: 503 },
       );

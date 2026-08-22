@@ -14,11 +14,11 @@ export function textKeyPresent(): boolean {
   return Boolean(key());
 }
 
-/** PC reads MY MOVIES\\.env. Live Vercel already has XAI_API_KEY in project env. */
+/** Local dev reads .env.local; live Vercel already has XAI_API_KEY in project env. */
 export function missingXaiMessage(): string {
   return runningOnVercel()
     ? "Missing XAI_API_KEY in Vercel environment variables."
-    : "Missing XAI_API_KEY in MY MOVIES\\.env, then restart Studio.";
+    : "Missing XAI_API_KEY in your environment variables, then restart Studio.";
 }
 
 type ChatResponse = {

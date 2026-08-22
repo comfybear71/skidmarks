@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "Missing ELEVENLABS_API_KEY in MY MOVIES\\.env — restart Studio after adding.",
+            "Missing ELEVENLABS_API_KEY in your environment variables — restart Studio after adding.",
         },
         { status: 503 },
       );

@@ -387,14 +387,18 @@ export default function MobileHomePage() {
   );
 
   const [bands, setBands] = useState<CastBand[]>([]);
+  // In an episode, bands follow that job's style. On the pre-episode "vibe"
+  // screen there's no job yet — follow whichever style tile is selected so
+  // the Artist field can still suggest a saved band before Start directing.
+  const bandsStyleId = job?.styleId || styleId;
 
   useEffect(() => {
-    if (!job?.styleId) {
+    if (!bandsStyleId) {
       setBands([]);
       return;
     }
     let cancelled = false;
-    fetch(`/api/crash/mobile/bands?styleId=${encodeURIComponent(job.styleId)}`)
+    fetch(`/api/crash/mobile/bands?styleId=${encodeURIComponent(bandsStyleId)}`)
       .then((res) => res.json())
       .then((data: { bands?: CastBand[] }) => {
         if (!cancelled) setBands(data.bands || []);
@@ -405,7 +409,7 @@ export default function MobileHomePage() {
     return () => {
       cancelled = true;
     };
-  }, [job?.styleId]);
+  }, [bandsStyleId]);
 
   const saveCastBand = useCallback(
     async (name: string) => {
@@ -659,6 +663,7 @@ export default function MobileHomePage() {
           <OpenEpisodePicker
             deskId={DEFAULT_DESK_ID}
             activeJobId={job?.id}
+            styleId={job ? undefined : styleId}
             open={pickerOpen || !job || showResumeFail}
             onOpenChange={setPickerOpen}
             onOpen={(id) => void openEpisode(id)}
@@ -705,6 +710,28 @@ export default function MobileHomePage() {
                 onChange={setArtist}
                 placeholder="Artist"
               />
+              {bands.length ? (
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {bands.map((band) => (
+                    <button
+                      key={band.name}
+                      type="button"
+                      onClick={() => setArtist(band.name)}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: "999px",
+                        border: "1px solid var(--acid)",
+                        background: artist === band.name ? "var(--acid)" : "transparent",
+                        color: artist === band.name ? "#000" : "var(--acid)",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {band.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <MobileTextInput
                 value={songTitle}
                 onChange={setSongTitle}
