@@ -19,6 +19,7 @@ import {
   withoutLyricCue,
   plateTimingForShot,
   importSectionMarkersFromLyrics,
+  meaningfulLyricTags,
   nextSectionNeedingStart,
   nextSectionStartMs,
   parseTrackClock,
@@ -604,6 +605,7 @@ export function MusicVideoTrack({
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playheadMs, setPlayheadMs] = useState(0);
+  const [audioDurationMs, setAudioDurationMs] = useState(0);
   const [markerLabel, setMarkerLabel] = useState<TrackSectionLabel>("verse");
   const [lyricsOpen, setLyricsOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
   const [marqueeOpen, setMarqueeOpen] = useState(false);
@@ -627,6 +629,8 @@ export function MusicVideoTrack({
       : job.trackDraft?.songDurationSec
         ? Math.round(job.trackDraft.songDurationSec * 1000)
         : 0;
+  const effectiveDurationMs = durationMs || audioDurationMs;
+  const lyricTagsReady = meaningfulLyricTags(job.lyrics || "").length > 0;
 
   const peaks =
     song?.waveformPeaks ||
@@ -636,8 +640,8 @@ export function MusicVideoTrack({
   const markers = song?.sectionMarkers || job.trackDraft?.sectionMarkers || [];
   const sortedMarkers = useMemo(() => sortSectionMarkers(markers), [markers]);
   const nextPinSection = useMemo(
-    () => (durationMs > 0 ? nextSectionNeedingStart(sortedMarkers, durationMs) : null),
-    [sortedMarkers, durationMs],
+    () => (effectiveDurationMs > 0 ? nextSectionNeedingStart(sortedMarkers, effectiveDurationMs) : null),
+    [sortedMarkers, effectiveDurationMs],
   );
   const leadSinger = (job.speakers?.[0] || job.artist || "").trim();
 
@@ -652,7 +656,7 @@ export function MusicVideoTrack({
   const usePinnedMarquee = lyricCues.length > 0;
   const activeLyric = usePinnedMarquee
     ? activeLyricLineIndex(lyricCues, playheadMs)
-    : evenLyricIndexAt(lyricLines.length, playheadMs, durationMs);
+    : evenLyricIndexAt(lyricLines.length, playheadMs, effectiveDurationMs);
   const ribbon = useMemo(() => {
     if (activeLyric === null) return null;
     const text = lyricLines.find((l) => l.index === activeLyric)?.text || "";
@@ -662,17 +666,17 @@ export function MusicVideoTrack({
     if (usePinnedMarquee && !cue) return null;
     const lineStartMs = cue
       ? cue.atMs
-      : evenLineStartMs(activeLyric, lyricLines.length, durationMs);
+      : evenLineStartMs(activeLyric, lyricLines.length, effectiveDurationMs);
     const lineHoldMs = cue
       ? lyricHoldMs(lyricCues, activeLyric)
-      : evenLyricHoldMs(lyricLines.length, durationMs);
+      : evenLyricHoldMs(lyricLines.length, effectiveDurationMs);
     return {
       lineIndex: activeLyric,
       words,
       lineStartMs,
       lineHoldMs,
     };
-  }, [activeLyric, lyricLines, durationMs, lyricCues, usePinnedMarquee]);
+  }, [activeLyric, lyricLines, effectiveDurationMs, lyricCues, usePinnedMarquee]);
 
   const plateRows = useMemo(() => {
     return plated.map((row, i) => {
@@ -914,6 +918,7 @@ export function MusicVideoTrack({
                 src={audioSrc}
                 audioRef={audioRef}
                 onTime={(sec) => setPlayheadMs(Math.round(sec * 1000))}
+                onDuration={(sec) => setAudioDurationMs(Math.round(sec * 1000))}
                 onPlayingChange={setPlaying}
               />
             ) : (
@@ -924,7 +929,7 @@ export function MusicVideoTrack({
           {peaks.length ? (
             <WaveformCanvas
               peaks={peaks}
-              durationMs={durationMs || 1}
+              durationMs={effectiveDurationMs || 1}
               playheadMs={playheadMs}
               markers={sortedMarkers}
               plateTimings={plateBlocks}
@@ -1073,7 +1078,7 @@ export function MusicVideoTrack({
                 disabled={Boolean(busy)}
                 onClick={() =>
                   void saveMarkers(
-                    withSectionStartAt(sortedMarkers, nextPinSection.id, playheadMs, durationMs),
+                    withSectionStartAt(sortedMarkers, nextPinSection.id, playheadMs, effectiveDurationMs),
                   )
                 }
               >
@@ -1085,11 +1090,12 @@ export function MusicVideoTrack({
             <button
               type="button"
               className="m-track-btn"
-              disabled={Boolean(busy) || !durationMs}
+              disabled={Boolean(busy) || !lyricTagsReady}
               onClick={() => {
+                const dur = effectiveDurationMs || 130_000;
                 const next = importSectionMarkersFromLyrics({
                   lyrics: job.lyrics || "",
-                  durationMs,
+                  durationMs: dur,
                 });
                 if (!next.length) {
                   setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");
@@ -1136,7 +1142,7 @@ export function MusicVideoTrack({
               disabled={Boolean(busy) || rangeEndMs <= rangeStartMs}
               onClick={() => {
                 const startMs = nextSectionStartMs(markers);
-                const endMs = Math.max(startMs + 1000, durationMs || startMs + 1000);
+                const endMs = Math.max(startMs + 1000, effectiveDurationMs || startMs + 1000);
                 void saveMarkers([
                   ...markers,
                   { id: `marker_${Date.now()}`, label: markerLabel, startMs, endMs },
@@ -1152,7 +1158,7 @@ export function MusicVideoTrack({
           {!compact && sectionsOpen && sortedMarkers.length ? (
             <ul className="m-track-marker-list">
               {sortedMarkers.map((m) => {
-                const waiting = durationMs > 0 && sectionNeedsStartHere(m, durationMs);
+                const waiting = effectiveDurationMs > 0 && sectionNeedsStartHere(m, effectiveDurationMs);
                 const cast = sectionCastHint(m.label, leadSinger);
                 return (
                 <li key={m.id} style={{ borderLeftColor: sectionColor(m.label) }}>
@@ -1170,7 +1176,7 @@ export function MusicVideoTrack({
                       disabled={Boolean(busy)}
                       onClick={() =>
                         void saveMarkers(
-                          withSectionStartAt(sortedMarkers, m.id, playheadMs, durationMs),
+                          withSectionStartAt(sortedMarkers, m.id, playheadMs, effectiveDurationMs),
                         )
                       }
                     >
@@ -1182,7 +1188,7 @@ export function MusicVideoTrack({
                       onBadTime={(msg) => setNote(msg)}
                       onCommit={(ms) =>
                         void saveMarkers(
-                          withSectionTime(sortedMarkers, m.id, "start", ms, durationMs),
+                          withSectionTime(sortedMarkers, m.id, "start", ms, effectiveDurationMs),
                         )
                       }
                     />
@@ -1193,7 +1199,7 @@ export function MusicVideoTrack({
                       onBadTime={(msg) => setNote(msg)}
                       onCommit={(ms) =>
                         void saveMarkers(
-                          withSectionTime(sortedMarkers, m.id, "end", ms, durationMs),
+                          withSectionTime(sortedMarkers, m.id, "end", ms, effectiveDurationMs),
                         )
                       }
                     />
