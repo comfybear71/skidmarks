@@ -3,6 +3,7 @@ import { listCastBands, saveCastBand } from "@/lib/castBands";
 import { findReusableCastCards } from "@/lib/mobileCastReuse";
 import { syncApprovedCastToShelf } from "@/lib/mobileCandidates";
 import { createCharacter, listCharacters } from "@/lib/characters";
+import { ensureCharacterPlate } from "@/lib/mobileCharacterPlate";
 import {
   mobileCandidateFolders,
   mobileMediaFolder,
@@ -129,10 +130,37 @@ export async function POST(req: Request) {
         ];
       }
 
-      const updated = await patchMobileGenJob(jobId, {
+      const afterApply = await patchMobileGenJob(jobId, {
         speakers: [...job.speakers, ...newMembers],
         castCandidates,
       });
+      if (!afterApply) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      let updated = afterApply;
+
+      // Applying a band reuses each member's shelf photo directly (marked
+      // approved without going through the picker's onApprove flow), so the
+      // client-side "approve → build the series character plate" trigger
+      // never fires for them. Build it here instead — free when the plate
+      // already exists (ensureCharacterPlate reuses it), one real generation
+      // the first time a reused member has never had a plate made.
+      const reusedNames = Object.keys(reusable);
+      if (reusedNames.length) {
+        const plateResults = await Promise.allSettled(
+          reusedNames.map((member) => ensureCharacterPlate(updated, member)),
+        );
+        const characterPlates = { ...(updated.characterPlates || {}) };
+        plateResults.forEach((result, i) => {
+          const member = reusedNames[i];
+          if (result.status === "fulfilled") {
+            characterPlates[member] = { fileName: result.value.filename, status: "done" };
+          } else {
+            const why = result.reason instanceof Error ? result.reason.message : String(result.reason);
+            console.error(`Character plate failed for ${member}: ${why}`);
+          }
+        });
+        updated = (await patchMobileGenJob(jobId, { characterPlates })) || updated;
+      }
+
       return NextResponse.json({ ok: true, job: updated, added: newMembers });
     }
 

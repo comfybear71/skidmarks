@@ -6,6 +6,7 @@ import { CRASH_DIR } from "./paths";
 import { resolveMobileMedia } from "./mobileMediaStore";
 import { mobileMediaFolder } from "./mobileJobFolder";
 import { approvedCandidateFileName } from "./mobileJobReady";
+import { resolvePlateCastPath } from "./mobilePlates";
 import {
   buildCharacterPlatePrompt,
   findCharacterPlate,
@@ -17,16 +18,24 @@ import { getShowStylePreset } from "./showStylePresets";
 
 async function resolveApprovedFace(job: MobileGenJob, name: string): Promise<string | null> {
   const fileName = approvedCandidateFileName(job.castCandidates, name);
-  if (!fileName) return null;
-  const dest = path.join(CRASH_DIR, "gen", fileName);
-  if (fs.existsSync(dest)) return dest;
-  return resolveMobileMedia({
-    styleId: job.styleId,
-    folderName: mobileMediaFolder(job),
-    kind: "plates",
-    fileName,
-    destPath: dest,
-  });
+  if (fileName) {
+    const dest = path.join(CRASH_DIR, "gen", fileName);
+    if (fs.existsSync(dest)) return dest;
+    const hit = await resolveMobileMedia({
+      styleId: job.styleId,
+      folderName: mobileMediaFolder(job),
+      kind: "plates",
+      fileName,
+      destPath: dest,
+    });
+    if (hit) return hit;
+  }
+  // A band-applied member's "approved" face is a reused show-cast-shelf
+  // card, not something this episode ever generated — it lives under the
+  // show's cast shelf path, not this job's plates folder, so the lookup
+  // above always misses it. resolvePlateCastPath already knows how to find
+  // a face there (same fallback shot-plate compositing uses).
+  return resolvePlateCastPath(job.styleId, name, job);
 }
 
 /** After a face is picked: reuse the series sheet if one exists, else
