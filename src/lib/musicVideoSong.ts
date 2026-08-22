@@ -68,6 +68,11 @@ export function expectedDeskCutCount(rowSlices: number[]): number {
  * Desk says 1 × 15s but an old park left 16 cuts → cook runs 0/16 forever.
  * Rebuild cuts to match the list; keep finished clips that still line up.
  */
+/**
+ * Keep the cut list in desk order with sequential clocks.
+ * Rematch finished mp4s only when shotId + startSec + duration still match —
+ * never leave a scrambled array just because the length looked right.
+ */
 export function syncSongCutsToDesk(opts: {
   songPlateIds: string[];
   rowSlices: number[];
@@ -76,11 +81,7 @@ export function syncSongCutsToDesk(opts: {
   songSec: number;
   newCutId: () => string;
 }): ScratchSongCut[] {
-  const expected = expectedDeskCutCount(opts.rowSlices);
   const cleared = clearStuckSongCooks(opts.cuts);
-  if (cleared.length === expected && !hasStuckSongCook(opts.cuts)) {
-    return cleared;
-  }
   const rebuilt = rebuildSongCutsFromDesk({
     songPlateIds: opts.songPlateIds,
     rowSlices: opts.rowSlices,
@@ -93,7 +94,7 @@ export function syncSongCutsToDesk(opts: {
     if (c.status !== "done" || !(c.clipFile || "").trim()) continue;
     doneByKey.set(`${(c.shotId || "").trim()}|${c.startSec}|${c.durationSec}`, c);
   }
-  const merged = rebuilt.map((c) => {
+  return rebuilt.map((c) => {
     const prev = doneByKey.get(`${(c.shotId || "").trim()}|${c.startSec}|${c.durationSec}`);
     if (!prev) return c;
     return {
@@ -104,7 +105,33 @@ export function syncSongCutsToDesk(opts: {
       error: "",
     };
   });
-  return orderSongCutsTimeline(merged);
+}
+
+/** True when the cuts array is not desk-order / sequential clocks. */
+export function songCutsOrderBroken(
+  cuts: ScratchSongCut[],
+  songPlateIds: string[],
+  rowSlices: number[],
+): boolean {
+  const expected = expectedDeskCutCount(rowSlices);
+  if (cuts.length !== expected) return true;
+  let cursor = 0;
+  for (let i = 0; i < songPlateIds.length; i++) {
+    const n = clampPlateSliceCount(rowSlices[i] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+    const shotId = (songPlateIds[i] || "").trim();
+    for (let k = 0; k < n; k++) {
+      const c = cuts[cursor++];
+      if (!c) return true;
+      if ((c.shotId || "").trim() !== shotId) return true;
+    }
+  }
+  for (let i = 1; i < cuts.length; i++) {
+    const prev = cuts[i - 1]!;
+    const cur = cuts[i]!;
+    const prevEnd = (Number(prev.startSec) || 0) + (Number(prev.durationSec) || 0);
+    if ((Number(cur.startSec) || 0) + 0.05 < prevEnd) return true;
+  }
+  return false;
 }
 
 /** Pending / fail / stuck cook — not a finished clip. Plate stays. */

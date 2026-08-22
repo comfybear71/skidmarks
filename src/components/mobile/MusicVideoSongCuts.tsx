@@ -26,6 +26,7 @@ import {
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateCutSpan,
   shortPlateLabel,
+  songCutsOrderBroken,
   songDeskPlateIds,
   songDeskRowSlices,
   songOrdinal,
@@ -272,7 +273,10 @@ export function MusicVideoSongCuts({
     const slices = songDeskRowSlices(songNow, onList);
     const expected = expectedDeskCutCount(slices);
     const cutN = (songNow.cuts || []).length;
-    const ghostOrStuck = hasStuckSongCook(songNow.cuts || []) || (cutN > 0 && cutN !== expected);
+    const ghostOrStuck =
+      hasStuckSongCook(songNow.cuts || []) ||
+      (cutN > 0 && cutN !== expected) ||
+      (cutN > 0 && songCutsOrderBroken(songNow.cuts || [], onList, slices));
     if (!ghostOrStuck) return;
     let cancelled = false;
     setSongCookFlag(job.id, false);
@@ -290,7 +294,7 @@ export function MusicVideoSongCuts({
         };
         if (cancelled) return;
         if (raw.job) onJobChange(raw.job);
-        if (res.ok) setNote("Cleared leftover cuts so the list matches.");
+        if (res.ok) setNote("Fixed cut order so the list matches the song clock.");
       } catch {
         /* leave desk as-is; Stop still works */
       }

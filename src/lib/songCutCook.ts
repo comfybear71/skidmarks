@@ -40,9 +40,18 @@ export function songCookFlagOn(jobId: string): boolean {
 }
 
 export function pendingSongCuts(job: MobileGenJob | null | undefined): ScratchSongCut[] {
-  return (job?.scratchSong?.cuts || []).filter(
+  const pending = (job?.scratchSong?.cuts || []).filter(
     (c) => c.status === "pending" || c.status === "running" || !c.status,
   );
+  return pending
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => {
+      const as = Number(a.c.startSec) || 0;
+      const bs = Number(b.c.startSec) || 0;
+      if (as !== bs) return as - bs;
+      return a.i - b.i;
+    })
+    .map(({ c }) => c);
 }
 
 export function songCutById(

@@ -30,6 +30,7 @@ import {
   clearStuckSongCooks,
   hasStuckSongCook,
   syncSongCutsToDesk,
+  songCutsOrderBroken,
   expectedDeskCutCount,
 } from "../src/lib/musicVideoSong.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
@@ -304,6 +305,49 @@ assert.equal(expectedDeskCutCount([4, 2]), 6);
   assert.equal(afterAdd[2].status, "pending");
   assert.equal(afterAdd[2].shotId, "s3");
 }
+{
+  // Scrambled array with correct clocks must reorder to desk — keep greens.
+  const scrambled = [
+    {
+      id: "b",
+      status: "done",
+      clipFile: "b.mp4",
+      plateFile: "p2.png",
+      shotId: "s2",
+      startSec: 15,
+      durationSec: 15,
+    },
+    {
+      id: "a",
+      status: "done",
+      clipFile: "a.mp4",
+      plateFile: "p1.png",
+      shotId: "s1",
+      startSec: 0,
+      durationSec: 15,
+    },
+  ];
+  assert.equal(songCutsOrderBroken(scrambled, ["s1", "s2"], [1, 1]), true);
+  const fixed = syncSongCutsToDesk({
+    songPlateIds: ["s1", "s2"],
+    rowSlices: [1, 1],
+    cuts: scrambled,
+    plateFileByShotId: { s1: "p1.png", s2: "p2.png" },
+    songSec: 267,
+    newCutId: () => "x",
+  });
+  assert.deepEqual(
+    fixed.map((c) => c.shotId),
+    ["s1", "s2"],
+  );
+  assert.equal(fixed[0].clipFile, "a.mp4");
+  assert.equal(fixed[0].status, "done");
+  assert.equal(fixed[1].clipFile, "b.mp4");
+  assert.equal(fixed[1].status, "done");
+  assert.equal(songCutsOrderBroken(fixed, ["s1", "s2"], [1, 1]), false);
+}
+assert.match(songUi, /songCutsOrderBroken/);
+assert.match(songUi, /Fixed cut order/);
 assert.match(songRoute, /syncSongCutsToDesk/);
 assert.match(songRoute, /Keep done clips/);
 assert.match(songRoute, /action === "add-plate"/);
@@ -322,7 +366,7 @@ assert.match(songRoute, /action === "add-plate"/);
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
 }
 assert.match(songUi, /expectedDeskCutCount/);
-assert.match(songUi, /Cleared leftover cuts/);
+assert.match(songUi, /Fixed cut order so the list matches the song clock/);
 assert.match(songCss, /\.m-song-progress/);
 assert.match(songCss, /\.m-song-plate-line/);
 assert.match(editor, /m-song-plate-tally/);
