@@ -117,6 +117,7 @@ export async function attachDroppedBeatMp3(opts: {
       ? {
           scratchSong: {
             fileName: opts.fileName,
+            carrierBeatId: opts.beatId,
             durationSec,
             sliceStartSec: window.startSec,
             sliceDurationSec: window.durationSec,

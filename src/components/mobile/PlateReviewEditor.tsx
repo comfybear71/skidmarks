@@ -806,7 +806,8 @@ export function PlateReviewEditor({
           );
         })}
 
-        <button
+        {isMusicVideoSongJob(job) ? null : (
+          <button
             type="button"
             aria-label="Add a new plate"
             disabled={Boolean(addBusySpeaker)}
@@ -830,6 +831,7 @@ export function PlateReviewEditor({
           >
             {addBusySpeaker === "__empty__" ? "…" : "+"}
           </button>
+        )}
       </div>
       )}
 

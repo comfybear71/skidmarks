@@ -29,6 +29,7 @@ import { clearPendingSong, songChipName } from "@/lib/musicVideoStart";
 import { findSongCarrierBeatId, musicVideoCreditLine } from "@/lib/musicVideoSong";
 
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
+import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { readApiJson } from "@/lib/studioFetchError";
 import { MobilePrimaryButton } from "./MobileUi";
@@ -477,12 +478,14 @@ export function MusicVideoTrack({
 }) {
   const song = job.scratchSong;
   const parked = usePendingSong(job.id);
-  const beatId = findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
+  const beatId =
+    (song?.carrierBeatId || "").trim() ||
+    findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playheadMs, setPlayheadMs] = useState(0);
   const [markerLabel, setMarkerLabel] = useState<TrackSectionLabel>("verse");
-  const [lyricsOpen, setLyricsOpen] = useState(false);
+  const [lyricsOpen, setLyricsOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
   const [sectionsOpen, setSectionsOpen] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
@@ -551,13 +554,16 @@ export function MusicVideoTrack({
   );
 
   const audioSrc = useMemo(() => {
-    if (song?.fileName && beatId && job.folderName) {
-      return (
-        `/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}` +
-        `&folderName=${encodeURIComponent(job.folderName)}` +
-        `&beatId=${encodeURIComponent(beatId)}` +
-        `&fileName=${encodeURIComponent(song.fileName)}`
-      );
+    if (song?.fileName && job.folderName) {
+      if (beatId) {
+        return (
+          `/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}` +
+          `&folderName=${encodeURIComponent(job.folderName)}` +
+          `&beatId=${encodeURIComponent(beatId)}` +
+          `&fileName=${encodeURIComponent(song.fileName)}`
+        );
+      }
+      return `/api/crash/mobile/song/audio?jobId=${encodeURIComponent(job.id)}`;
     }
     if (parked?.file) {
       if (blobRef.current) URL.revokeObjectURL(blobRef.current);
@@ -721,7 +727,7 @@ export function MusicVideoTrack({
               ×
             </button>
           </div>
-          {lyricsOpen ? <LyricsBox job={job} /> : null}
+          {lyricsOpen ? <LyricsBox job={job} onJobChange={onJobChange} /> : null}
 
           {/* Nothing playing, nothing shown — the strip is for the line, not
               for instructions about the line. */}
