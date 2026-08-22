@@ -35,6 +35,7 @@ import { parkMobileClipFile } from "@/lib/mobileClipPark";
 import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
+import { orderedDoneCutsForStitch, sliceBoundsForPlate } from "@/lib/musicVideoTrack";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -296,8 +297,13 @@ export async function POST(req: Request) {
           sceneId: scene.id,
           beatId,
           plateFile: cut.plateFile,
-          sliceStartSec: cut.startSec,
-          sliceDurationSec: cut.durationSec,
+          ...(() => {
+            const bounds = sliceBoundsForPlate({ song, shotId, cut });
+            return {
+              sliceStartSec: bounds.startSec,
+              sliceDurationSec: bounds.durationSec,
+            };
+          })(),
           cutId: cut.id,
         });
         return NextResponse.json({
@@ -327,9 +333,11 @@ export async function POST(req: Request) {
 
     if (action === "stitch") {
       const song = job.scratchSong;
-      const cuts = orderSongCutsTimeline(
-        (song?.cuts || []).filter((c) => c.clipFile && c.status === "done"),
-      );
+      const cuts = song?.plateTimings?.length
+        ? orderedDoneCutsForStitch(song!)
+        : orderSongCutsTimeline(
+            (song?.cuts || []).filter((c) => c.clipFile && c.status === "done"),
+          );
       if (cuts.length < 2) {
         return NextResponse.json(
           { error: "Need two finished clips to stitch." },
@@ -556,6 +564,12 @@ export async function POST(req: Request) {
         scratchSong: { ...song, stitchedFile: "" },
         error: "",
       });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (action === "set-lyrics") {
+      const lyrics = String((body as { lyrics?: string }).lyrics ?? "");
+      const updated = await patchMobileGenJob(jobId, { lyrics, error: "" });
       return NextResponse.json({ ok: true, job: updated });
     }
 

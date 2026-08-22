@@ -40,6 +40,8 @@ import {
 } from "@/lib/songCutCook";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
 import { mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
+import { attachParkedSongToBeat } from "./MusicVideoStart";
+import { peekPendingSong, takePendingSong } from "@/lib/musicVideoStart";
 
 function SwipeDropRow({
   children,
@@ -265,6 +267,31 @@ export function MusicVideoSongCuts({
   resumeCook.current = () => {
     void runCuts();
   };
+
+  useEffect(() => {
+    if (!beatId || song?.fileName) return;
+    if (!peekPendingSong(job.id)) return;
+    let cancelled = false;
+    void (async () => {
+      const taken = takePendingSong(job.id);
+      if (!taken) return;
+      try {
+        const attached = await attachParkedSongToBeat({
+          jobId: job.id,
+          beatId,
+          pending: taken as { file: File; durationSec: number },
+        });
+        if (!cancelled && attached) onJobChange(attached);
+      } catch (e) {
+        if (!cancelled) {
+          setNote(e instanceof Error ? e.message : "Couldn't attach the parked song");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [beatId, job.id, song?.fileName, onJobChange]);
 
   useEffect(() => {
     const songNow = jobRef.current.scratchSong;

@@ -1,6 +1,7 @@
 /**
  * Song-cut math only — safe on the phone. ffmpeg lives in scratchSongSlice.
  */
+import type { LyricCue, PlateTiming, TrackSectionMarker } from "./musicVideoTrack";
 
 export const SCRATCH_SONG_SLICE_DEFAULT_SEC = 15;
 export const SCRATCH_SONG_SLICE_MIN_SEC = 4;
@@ -35,6 +36,14 @@ export type ScratchSong = {
   rowSlices?: number[];
   /** Legacy hide-list. Desk no longer uses this. */
   skipShotIds?: string[];
+  /** TRACK timeline — normalized waveform peaks 0..1 */
+  waveformPeaks?: number[];
+  /** Verse / chorus / sax break regions on the MP3 */
+  sectionMarkers?: TrackSectionMarker[];
+  /** Per-plate in/out on the song (shotId = plateId) */
+  plateTimings?: PlateTiming[];
+  /** Lyric lines pinned to a time on the MP3 */
+  lyricCues?: LyricCue[];
 };
 
 export function clampSongSliceDuration(sec: number): number {

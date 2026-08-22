@@ -15,6 +15,7 @@ import { useMobileAssist } from "@/components/mobile/useMobileAssist";
 import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import { MUSIC_VIDEO_SHOW_NAME } from "@/lib/musicVideoSong";
+import { attachTakenPendingSong } from "@/components/mobile/MusicVideoStart";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CastBand } from "@/lib/castBands";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
@@ -197,6 +198,30 @@ export default function MobileHomePage() {
       setJob(withScreenplay);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't lock the script");
+    } finally {
+      setLockingScript(false);
+      setBusy(false);
+    }
+  }, []);
+
+  const startMusicVideo = useCallback(async (jobId: string, lyrics?: string) => {
+    setBusy(true);
+    setLockingScript(true);
+    setError("");
+    try {
+      const data = await postJson<{ job: MobileGenJob; carrierBeatId?: string }>(
+        "/api/crash/mobile/music-video/start",
+        { jobId, lyrics },
+      );
+      let next = data.job;
+      const beatId = (data.carrierBeatId || "").trim();
+      if (beatId) {
+        const attached = await attachTakenPendingSong({ jobId, beatId });
+        if (attached) next = attached;
+      }
+      setJob(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't start the video");
     } finally {
       setLockingScript(false);
       setBusy(false);
@@ -920,6 +945,7 @@ export default function MobileHomePage() {
           onDropCast={(name) => void dropCast(name)}
           onDropLocation={(sceneId) => void dropLocation(sceneId)}
           onDropScript={(script) => void runScreenplay(job.id, script)}
+          onStartMusicVideo={(lyrics) => void startMusicVideo(job.id, lyrics)}
           onGenerateVideo={() => void approveReview()}
           onRetryError={() => void retryFromError(job.id)}
           onJobChange={setJob}

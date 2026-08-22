@@ -15,6 +15,8 @@ import { SingleCandidateCard } from "./SingleCandidateCard";
 import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { MusicVideoSongCuts } from "./MusicVideoSongCuts";
+import { MusicVideoStart } from "./MusicVideoStart";
+import { MusicVideoTrack } from "./MusicVideoTrack";
 import { isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong";
 import {
   allCastApproved,
@@ -867,6 +869,7 @@ export function StudioTree({
   onDropCast,
   onDropLocation,
   onDropScript,
+  onStartMusicVideo,
   onGenerateVideo,
   onRetryError,
   onJobChange,
@@ -898,6 +901,7 @@ export function StudioTree({
   /** Pull a place off this job's Locations row (stills stay parked). */
   onDropLocation: (sceneId: string) => void;
   onDropScript: (script: string) => void;
+  onStartMusicVideo: (lyrics: string) => void;
   onGenerateVideo: () => void;
   onRetryError: () => void;
   onJobChange: (job: MobileGenJob) => void;
@@ -1747,16 +1751,39 @@ export function StudioTree({
         label="Plates"
         headerRight={<CollapseToggle open={platesOpen} onToggle={() => setPlatesOpen((v) => !v)} />}
       >
+        {/* A music video is CAST, LOCATIONS and this: the song, the marks on
+            it, the plates and the renders — one section, in that order.
+            Collapsed keeps the wave and the player on screen; expanding adds
+            the marking tools, lyrics, plates and clips underneath. */}
+        {isMusicVideoSongJob(job) ? (
+          <MusicVideoTrack
+            job={job}
+            story={deskStory}
+            plated={songPlates}
+            onJobChange={onJobChange}
+            compact={!platesOpen}
+          />
+        ) : null}
+
         {lockingScript ? (
           <div style={{ padding: "8px 0 16px" }}>
-            <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>Locking the episode…</ShimmerText>
+            <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>
+              {isMusicVideoSongJob(job) ? "Starting the video…" : "Locking the episode…"}
+            </ShimmerText>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
-              Plates and audio come from what you pasted.
+              {isMusicVideoSongJob(job)
+                ? "Building plates from your band and place."
+                : "Plates and audio come from what you pasted."}
             </div>
           </div>
         ) : null}
 
         {platesOpen && canWrite && !lockingScript && !job.folderName ? (
+          isMusicVideoSongJob(job) ? (
+            <div style={{ marginBottom: "12px" }}>
+              <MusicVideoStart job={job} busy={busy} onStart={onStartMusicVideo} />
+            </div>
+          ) : (
           <div style={{ marginBottom: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
               {job.folderName
@@ -1793,6 +1820,7 @@ export function StudioTree({
               </MobilePrimaryButton>
             </div>
           </div>
+          )
         ) : null}
 
         <div id="m-plates-strip">
