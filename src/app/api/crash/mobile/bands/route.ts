@@ -1,0 +1,103 @@
+import { NextResponse } from "next/server";
+import { listCastBands, saveCastBand } from "@/lib/castBands";
+import { findReusableCastCards } from "@/lib/mobileCastReuse";
+import { createCharacter, listCharacters } from "@/lib/characters";
+import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import type { ShowStyleId } from "@/lib/showStylePresets";
+
+export const runtime = "nodejs";
+
+/** GET ?styleId=music_video — saved bands for that show. */
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const styleId = (url.searchParams.get("styleId") || "") as ShowStyleId;
+  if (!styleId) return NextResponse.json({ error: "Need styleId" }, { status: 400 });
+  const bands = await listCastBands(styleId);
+  return NextResponse.json({ bands });
+}
+
+type Body = {
+  action?: "save" | "apply";
+  /** action "save" */
+  styleId?: ShowStyleId;
+  name?: string;
+  members?: string[];
+  /** action "apply" */
+  jobId?: string;
+};
+
+/**
+ * POST — "save" writes the current cast selection as a named band.
+ * "apply" adds a saved band's members to a job's CAST in one shot, each
+ * pre-approved from that name's existing show-level cast card (same reuse
+ * mobileApplyScreenplay does for screenplay-detected speakers) — no fresh
+ * generation needed for a face that already exists.
+ */
+export async function POST(req: Request) {
+  try {
+    const body = (await req.json().catch(() => ({}))) as Body;
+
+    if (body.action === "save") {
+      const styleId = body.styleId;
+      const name = (body.name || "").trim();
+      const members = (body.members || []).map((m) => m.trim()).filter(Boolean);
+      if (!styleId) return NextResponse.json({ error: "Need styleId" }, { status: 400 });
+      if (!name || !members.length) {
+        return NextResponse.json(
+          { error: "Need a band name and at least one cast member" },
+          { status: 400 },
+        );
+      }
+      await saveCastBand(styleId, name, members);
+      const bands = await listCastBands(styleId);
+      return NextResponse.json({ ok: true, bands });
+    }
+
+    if (body.action === "apply") {
+      const jobId = (body.jobId || "").trim();
+      const name = (body.name || "").trim();
+      if (!jobId || !name) {
+        return NextResponse.json({ error: "Need jobId and band name" }, { status: 400 });
+      }
+      const job = await readMobileGenJob(jobId);
+      if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+      const bands = await listCastBands(job.styleId);
+      const band = bands.find((b) => b.name === name);
+      if (!band) return NextResponse.json({ error: `Band "${name}" not found` }, { status: 404 });
+
+      const existingLower = new Set(job.speakers.map((s) => s.toLowerCase()));
+      const newMembers = band.members.filter((m) => !existingLower.has(m.toLowerCase()));
+      if (!newMembers.length) {
+        return NextResponse.json({ ok: true, job, added: [] });
+      }
+
+      for (const member of newMembers) {
+        if (!listCharacters().some((c) => c.name.trim().toLowerCase() === member.toLowerCase())) {
+          createCharacter({ name: member });
+        }
+      }
+
+      const reusable = await findReusableCastCards(job.styleId, newMembers);
+      const castCandidates = { ...job.castCandidates };
+      for (const [member, card] of Object.entries(reusable)) {
+        castCandidates[member] = [
+          { id: card.fileName, fileName: card.fileName, approved: true },
+        ];
+      }
+
+      const updated = await patchMobileGenJob(jobId, {
+        speakers: [...job.speakers, ...newMembers],
+        castCandidates,
+      });
+      return NextResponse.json({ ok: true, job: updated, added: newMembers });
+    }
+
+    return NextResponse.json({ error: "Need action" }, { status: 400 });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
+}
