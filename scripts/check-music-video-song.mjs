@@ -251,7 +251,62 @@ assert.equal(expectedDeskCutCount([4, 2]), 6);
   assert.equal(synced[0].status, "pending");
   assert.equal(synced[0].startSec, 0);
 }
+{
+  // Add a plate must keep finished greens — not rebuild everything pending.
+  const doneCuts = [
+    {
+      id: "a",
+      status: "done",
+      clipFile: "clip_a.mp4",
+      plateFile: "p1.png",
+      shotId: "s1",
+      startSec: 0,
+      durationSec: 15,
+    },
+    {
+      id: "b",
+      status: "done",
+      clipFile: "clip_b.mp4",
+      plateFile: "p2.png",
+      shotId: "s2",
+      startSec: 15,
+      durationSec: 15,
+    },
+  ];
+  const afterAdd = syncSongCutsToDesk({
+    songPlateIds: ["s1", "s2", "s3"],
+    rowSlices: [1, 1, 1],
+    cuts: doneCuts,
+    plateFileByShotId: { s1: "p1.png", s2: "p2.png", s3: "p3.png" },
+    songSec: 267,
+    newCutId: () => "new",
+  });
+  assert.equal(afterAdd.length, 3);
+  assert.equal(afterAdd[0].status, "done");
+  assert.equal(afterAdd[0].clipFile, "clip_a.mp4");
+  assert.equal(afterAdd[0].id, "a");
+  assert.equal(afterAdd[1].status, "done");
+  assert.equal(afterAdd[1].clipFile, "clip_b.mp4");
+  assert.equal(afterAdd[2].status, "pending");
+  assert.equal(afterAdd[2].shotId, "s3");
+}
 assert.match(songRoute, /syncSongCutsToDesk/);
+assert.match(songRoute, /Keep done clips/);
+assert.match(songRoute, /action === "add-plate"/);
+{
+  const addPlateBlock = songRoute.slice(songRoute.indexOf('action === "add-plate"'));
+  const nextAction = addPlateBlock.search(/\n\s+if \(action === "/);
+  const block = nextAction >= 0 ? addPlateBlock.slice(0, nextAction) : addPlateBlock.slice(0, 1200);
+  assert.match(block, /syncSongCutsToDesk/);
+  assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
+}
+{
+  const skipBlock = songRoute.slice(songRoute.indexOf('action === "skip-plate"'));
+  const nextAction = skipBlock.search(/\n\s+if \(action === "/);
+  const block = nextAction >= 0 ? skipBlock.slice(0, nextAction) : skipBlock.slice(0, 1200);
+  assert.match(block, /syncSongCutsToDesk/);
+  assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
+}
 assert.match(songUi, /expectedDeskCutCount/);
 assert.match(songUi, /Cleared leftover cuts/);
 assert.match(songCss, /\.m-song-progress/);

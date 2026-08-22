@@ -417,9 +417,11 @@ export async function POST(req: Request) {
         const f = (s.plateFile || "").trim();
         if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
       }
-      const cuts = rebuildSongCutsFromDesk({
+      // Keep done clips — rebuild alone wiped greens when adding a plate.
+      const cuts = syncSongCutsToDesk({
         songPlateIds: nextIds,
         rowSlices: slices,
+        cuts: song.cuts || [],
         plateFileByShotId,
         songSec: song.durationSec,
         newCutId: () => newId("cut"),
@@ -514,9 +516,10 @@ export async function POST(req: Request) {
         const f = (s.plateFile || "").trim();
         if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
       }
-      const cuts = rebuildSongCutsFromDesk({
+      const cuts = syncSongCutsToDesk({
         songPlateIds: nextIds,
         rowSlices: nextSlices,
+        cuts: song.cuts || [],
         plateFileByShotId,
         songSec: song.durationSec,
         newCutId: () => newId("cut"),

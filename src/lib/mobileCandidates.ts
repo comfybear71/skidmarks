@@ -6,7 +6,7 @@ import { saveUploadAsStyleCard } from "./styleCardThumbs";
 import { saveGenStillAsWorldCard } from "./worldCardThumbs";
 import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
-import { uploadMobileMedia, resolveMobileMedia } from "./mobileMediaStore";
+import { uploadMobileMedia, resolveMobileMedia, resolveMobileMediaByFilename } from "./mobileMediaStore";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import { directorNote } from "./mobileJobReady";
 import type { MobileImageCandidate } from "./mobileGenJob";
@@ -46,6 +46,7 @@ async function resolveCandidateStill(
   folderName: string,
   fileName: string,
   characterId?: string,
+  altFolders: string[] = [],
 ): Promise<string | null> {
   const name = fileName.trim();
   if (!name) return null;
@@ -55,9 +56,19 @@ async function resolveCandidateStill(
   }
   const dest = path.join(candidateGenDir(), name);
   if (fs.existsSync(dest)) return dest;
-  return resolveMobileMedia({
-    styleId,
-    folderName,
+  const folders = [...new Set([folderName, ...altFolders].map((f) => f.trim()).filter(Boolean))];
+  for (const folder of folders) {
+    const hit = await resolveMobileMedia({
+      styleId,
+      folderName: folder,
+      kind: CANDIDATE_BLOB_KIND,
+      fileName: name,
+      destPath: dest,
+    });
+    if (hit) return hit;
+  }
+  // Faces often live under the job id while folderName is already the pack.
+  return resolveMobileMediaByFilename({
     kind: CANDIDATE_BLOB_KIND,
     fileName: name,
     destPath: dest,
@@ -82,6 +93,7 @@ export async function generateCastCandidates(
   jobRealism?: number,
   referenceFileName?: string,
   priorPrompt?: string,
+  altFolders: string[] = [],
 ): Promise<MobileImageCandidate[]> {
   const character = getCharacter(characterId);
   if (!character) throw new Error("Character not found");
@@ -104,7 +116,7 @@ export async function generateCastCandidates(
     styleId,
   });
   const ref = referenceFileName
-    ? await resolveCandidateStill(styleId, folderName, referenceFileName, characterId)
+    ? await resolveCandidateStill(styleId, folderName, referenceFileName, characterId, altFolders)
     : null;
 
   // Whole batch at once — 4 sequential calls could not finish inside the
@@ -178,20 +190,19 @@ export async function approveCastCandidate(
   characterId: string,
   attemptId: string,
   fileName: string,
+  /** Job id + pack — faces minted before screenplay live under the job id. */
+  altFolders: string[] = [],
 ): Promise<void> {
   const character = setAttemptStatus(characterId, attemptId, "approved");
   const name = character?.name || "";
 
-  const localPath = faceFilePath(characterId, fileName);
-  const resolved =
-    (localPath && fs.existsSync(localPath) ? localPath : null) ||
-    (await resolveMobileMedia({
-      styleId,
-      folderName,
-      kind: CANDIDATE_BLOB_KIND,
-      fileName,
-      destPath: path.join(candidateGenDir(), fileName),
-    }));
+  const resolved = await resolveCandidateStill(
+    styleId,
+    folderName,
+    fileName,
+    characterId,
+    altFolders,
+  );
   if (!resolved) throw new Error("Approved face file missing");
 
   saveUploadAsStyleCard({
