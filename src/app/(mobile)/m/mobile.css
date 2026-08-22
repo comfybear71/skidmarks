@@ -2754,13 +2754,13 @@ span.scratch-history-blob {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
 }
 
-.m-track-marquee-line {
+.m-track-marquee-word {
   position: absolute;
   white-space: nowrap;
   color: var(--acid);
-  font-size: 15px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.01em;
+  text-shadow: 0 0 20px rgba(200, 255, 46, 0.3);
   will-change: transform, opacity;
   animation-name: m-lyric-pass;
   animation-timing-function: linear;
@@ -2770,28 +2770,38 @@ span.scratch-history-blob {
 
 @keyframes m-lyric-pass {
   0% {
-    transform: translateX(46vw) scale(0.82);
+    transform: translateX(46vw) scale(0.55);
     opacity: 0;
+    font-size: 15px;
   }
-  18% {
-    transform: translateX(22vw) scale(1);
+  22% {
+    transform: translateX(24vw) scale(0.85);
     opacity: 1;
+    font-size: 15px;
+  }
+  50% {
+    transform: translateX(0) scale(1.25);
+    opacity: 1;
+    font-size: 22px;
   }
   78% {
-    transform: translateX(-22vw) scale(1);
+    transform: translateX(-24vw) scale(0.85);
     opacity: 1;
+    font-size: 15px;
   }
   100% {
-    transform: translateX(-46vw) scale(0.82);
+    transform: translateX(-46vw) scale(0.55);
     opacity: 0;
+    font-size: 15px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .m-track-marquee-line {
+  .m-track-marquee-word {
     animation: none;
     transform: none;
     opacity: 1;
+    font-size: 17px;
   }
 }
 
@@ -2833,10 +2843,7 @@ span.scratch-history-blob {
   margin: 2px 0 6px;
 }
 
-.m-track-marquee-line {
-  font-size: 16px;
-  text-shadow: 0 0 18px rgba(200, 255, 46, 0.25);
-}
+
 
 /* Plates rail — placeholder until the thumbnails land. */
 .m-track-rail {
@@ -2864,4 +2871,36 @@ span.scratch-history-blob {
   border-radius: 6px;
   border: 1px dashed rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.02);
+}
+
+/* Sections fold — once the markers are set, this is a record, not a form. */
+.m-track-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.m-track-fold.is-open {
+  color: var(--acid);
+  border-color: rgba(200, 255, 46, 0.35);
+}
+
+.m-track-fold-n {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.m-track-fold-caret {
+  font-size: 9px;
 }

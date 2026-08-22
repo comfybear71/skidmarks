@@ -281,17 +281,50 @@ export const PLATE_BAR_NO_SECTION = "#78c8ff";
    Dragging a range gave 15-second blobs and two half-right Intros. A section
    is a number you know — type it. */
 
-/** "0:35", "35", "1:04.5" → ms. Returns null when it is not a time. */
+/**
+ * Type a time on a phone. The decimal keypad has no colon, so "0.35" has to
+ * mean 0:35 — read as 0.35 seconds it snapped to the minimum length, which is
+ * how one-second sections kept appearing.
+ *
+ * ":" or "." separate minutes from seconds. Bare digits read from the right
+ * like a microwave: "35" is 0:35, "135" is 1:35, "1035" is 10:35.
+ * Returns null when it is not a time, so a typo can snap back instead of saving.
+ */
 export function parseTrackClock(text: string): number | null {
   const raw = String(text || "").trim();
   if (!raw) return null;
-  const m = raw.match(/^(?:(\d+):)?(\d{1,2}(?:\.\d+)?)$/);
-  if (!m) return null;
-  const mins = m[1] ? Number(m[1]) : 0;
-  const secs = Number(m[2]);
-  if (!Number.isFinite(mins) || !Number.isFinite(secs)) return null;
-  if (m[1] && secs >= 60) return null;
-  return Math.round((mins * 60 + secs) * 1000);
+
+  const split = raw.match(/^(\d+)[:.](\d{1,2})$/);
+  if (split) {
+    const mins = Number(split[1]);
+    const secs = Number(split[2]);
+    if (secs >= 60) return null;
+    return Math.round((mins * 60 + secs) * 1000);
+  }
+
+  // Colon form keeps fractional seconds — a desktop keyboard can type them.
+  const precise = raw.match(/^(\d+):(\d{1,2}(?:\.\d+)?)$/);
+  if (precise) {
+    const secs = Number(precise[2]);
+    if (secs >= 60) return null;
+    return Math.round((Number(precise[1]) * 60 + secs) * 1000);
+  }
+
+  const bare = raw.match(/^(\d+)(?:\.(\d+))?$/);
+  if (bare) {
+    const digits = bare[1]!;
+    const frac = bare[2] ? Number(`0.${bare[2]}`) : 0;
+    if (digits.length <= 2) {
+      // Bare seconds, so "90" is a minute and a half rather than a rejection.
+      return Math.round((Number(digits) + frac) * 1000);
+    }
+    const secs = Number(digits.slice(-2)) + frac;
+    const mins = Number(digits.slice(0, -2));
+    if (secs >= 60) return null;
+    return Math.round((mins * 60 + secs) * 1000);
+  }
+
+  return null;
 }
 
 /**
@@ -367,4 +400,32 @@ export function evenLyricHoldMs(lineCount: number, songMs: number): number {
   if (!Number.isFinite(lineCount) || lineCount <= 0) return FALLBACK;
   if (!Number.isFinite(songMs) || songMs <= 0) return FALLBACK;
   return Math.max(1200, Math.min(12_000, Math.round(songMs / lineCount)));
+}
+
+/**
+ * The word the marquee is on. Each line's slot is split evenly between its
+ * words, so a word rides through on its own rather than a whole line sliding
+ * past — which is what a marquee actually is.
+ */
+export function marqueeWordAt(opts: {
+  words: number;
+  lineStartMs: number;
+  lineHoldMs: number;
+  atMs: number;
+}): { index: number; holdMs: number } | null {
+  const { words, lineStartMs, lineHoldMs, atMs } = opts;
+  if (!Number.isFinite(words) || words <= 0) return null;
+  if (!Number.isFinite(lineHoldMs) || lineHoldMs <= 0) return null;
+  const holdMs = lineHoldMs / words;
+  const into = atMs - lineStartMs;
+  if (!Number.isFinite(into) || into < 0) return null;
+  const index = Math.min(words - 1, Math.floor(into / holdMs));
+  return { index, holdMs: Math.max(280, Math.round(holdMs)) };
+}
+
+/** Where a line starts, when the lines are spread evenly across the song. */
+export function evenLineStartMs(lineIndex: number, lineCount: number, songMs: number): number {
+  if (!Number.isFinite(lineCount) || lineCount <= 0) return 0;
+  if (!Number.isFinite(songMs) || songMs <= 0) return 0;
+  return Math.round((songMs / lineCount) * Math.max(0, lineIndex));
 }

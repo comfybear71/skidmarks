@@ -7,8 +7,10 @@ import {
   TRACK_ACID,
   TRACK_SECTION_LABELS,
   formatTrackClock,
+  evenLineStartMs,
   evenLyricHoldMs,
   evenLyricIndexAt,
+  marqueeWordAt,
   lyricLinesFrom,
   plateTimingForShot,
   nextSectionStartMs,
@@ -366,6 +368,8 @@ export function MusicVideoTrack({
   const [playheadMs, setPlayheadMs] = useState(0);
   const [markerLabel, setMarkerLabel] = useState<TrackSectionLabel>("verse");
   const [lyricsOpen, setLyricsOpen] = useState(false);
+  const [sectionsOpen, setSectionsOpen] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
@@ -390,8 +394,23 @@ export function MusicVideoTrack({
     [song?.lyricCues, job.trackDraft?.lyricCues],
   );
   const lyricLines = useMemo(() => lyricLinesFrom(job.lyrics || ""), [job.lyrics]);
-  // Lines are pasted, not pinned — spread them across the song.
+  // Lines are pasted, not pinned — spread them across the song, then split
+  // each line's slot between its words so one word rides through at a time.
   const activeLyric = evenLyricIndexAt(lyricLines.length, playheadMs, durationMs);
+  const activeWord = useMemo(() => {
+    if (activeLyric === null) return null;
+    const text = lyricLines.find((l) => l.index === activeLyric)?.text || "";
+    const words = text.split(/\s+/).filter(Boolean);
+    if (!words.length) return null;
+    const hit = marqueeWordAt({
+      words: words.length,
+      lineStartMs: evenLineStartMs(activeLyric, lyricLines.length, durationMs),
+      lineHoldMs: evenLyricHoldMs(lyricLines.length, durationMs),
+      atMs: playheadMs,
+    });
+    if (!hit) return null;
+    return { key: `${activeLyric}-${hit.index}`, word: words[hit.index]!, holdMs: hit.holdMs };
+  }, [activeLyric, lyricLines, durationMs, playheadMs]);
 
 
   const plateRows = useMemo(() => {
@@ -563,14 +582,14 @@ export function MusicVideoTrack({
 
           {/* Nothing playing, nothing shown — the strip is for the line, not
               for instructions about the line. */}
-          {!compact && activeLyric !== null ? (
+          {!compact && playing && activeWord ? (
             <div className="m-track-marquee">
               <span
-                key={activeLyric}
-                className="m-track-marquee-line"
-                style={{ animationDuration: `${evenLyricHoldMs(lyricLines.length, durationMs)}ms` }}
+                key={activeWord.key}
+                className="m-track-marquee-word"
+                style={{ animationDuration: `${activeWord.holdMs}ms` }}
               >
-                {lyricLines.find((l) => l.index === activeLyric)?.text || ""}
+                {activeWord.word}
               </span>
             </div>
           ) : null}
@@ -581,6 +600,7 @@ export function MusicVideoTrack({
                 src={audioSrc}
                 audioRef={audioRef}
                 onTime={(sec) => setPlayheadMs(Math.round(sec * 1000))}
+                onPlayingChange={setPlaying}
               />
             ) : (
               <SongDropRow jobId={job.id} />
@@ -625,7 +645,20 @@ export function MusicVideoTrack({
             </div>
           ) : null}
 
-          {!compact ? (
+          {/* Once the markers are set this is just a record — fold it away. */}
+          {!compact && markers.length ? (
+            <button
+              type="button"
+              className={`m-track-fold${sectionsOpen ? " is-open" : ""}`}
+              aria-expanded={sectionsOpen}
+              onClick={() => setSectionsOpen((v) => !v)}
+            >
+              Sections <span className="m-track-fold-n">{markers.length}</span>
+              <span className="m-track-fold-caret">{sectionsOpen ? "▾" : "▸"}</span>
+            </button>
+          ) : null}
+
+          {!compact && (sectionsOpen || !markers.length) ? (
           <div className="m-track-marker-row">
             <select
               className="m-track-select"
@@ -663,7 +696,7 @@ export function MusicVideoTrack({
           </div>
           ) : null}
 
-          {!compact && markers.length ? (
+          {!compact && sectionsOpen && markers.length ? (
             <ul className="m-track-marker-list">
               {markers.map((m) => (
                 <li key={m.id} style={{ borderLeftColor: sectionColor(m.label) }}>

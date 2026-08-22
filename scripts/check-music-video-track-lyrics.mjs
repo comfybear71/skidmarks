@@ -93,6 +93,11 @@ console.log("check-music-video-track-lyrics OK");
   assert.doesNotMatch(ui, /startMs \+ 15000/, "no hardwired 15s section");
   assert.doesNotMatch(ui, /m-track-range/, "no range readout beside Add section");
   assert.match(ui, /inputMode="decimal"/, "time boxes get a decimal point");
+  // A marquee moves one word, and only while the song is playing.
+  assert.match(ui, /m-track-marquee-word/);
+  assert.doesNotMatch(ui, /m-track-marquee-line/, "not a whole line sliding past");
+  assert.ok(ui.includes("playing && activeWord"), "nothing moves before Play");
+  assert.match(ui, /sectionsOpen/, "the section list folds away");
 
   // One UI, empty or full. No second screen in front of the track.
   assert.doesNotMatch(ui, /m-track-empty/, "no separate empty-state layout");
@@ -276,3 +281,51 @@ console.log("check-music-video-section-times OK");
 }
 
 console.log("check-music-video-paste-lyrics OK");
+
+// ── Typing a time on a phone keypad ────────────────────────────────────────
+{
+  const { marqueeWordAt, evenLineStartMs, parseTrackClock } = await import(
+    "../src/lib/musicVideoTrack.ts"
+  );
+
+  // The decimal keypad has no colon. "0.35" must mean 0:35 — read as 0.35
+  // seconds it snapped to the minimum length, which made 0:00-0:01 sections.
+  assert.equal(parseTrackClock("0.35"), 35_000);
+  assert.equal(parseTrackClock("1.35"), 95_000);
+  assert.equal(parseTrackClock("0:35"), 35_000);
+  // Bare digits read from the right, like a microwave.
+  assert.equal(parseTrackClock("35"), 35_000);
+  assert.equal(parseTrackClock("135"), 95_000);
+  assert.equal(parseTrackClock("1035"), 635_000);
+  assert.equal(parseTrackClock("5"), 5000);
+  assert.equal(parseTrackClock("90"), 90_000, "bare seconds may pass a minute");
+  // Colon form keeps tenths for a real keyboard.
+  assert.equal(parseTrackClock("1:04.5"), 64_500);
+  // Rubbish snaps back rather than saving.
+  assert.equal(parseTrackClock("1.75"), null, "75 seconds in a minute is a typo");
+  assert.equal(parseTrackClock("banana"), null);
+  assert.equal(parseTrackClock(""), null);
+
+  // One word at a time, evenly through the line's slot.
+  assert.deepEqual(
+    marqueeWordAt({ words: 4, lineStartMs: 0, lineHoldMs: 4000, atMs: 0 }),
+    { index: 0, holdMs: 1000 },
+  );
+  assert.equal(marqueeWordAt({ words: 4, lineStartMs: 0, lineHoldMs: 4000, atMs: 999 })?.index, 0);
+  assert.equal(marqueeWordAt({ words: 4, lineStartMs: 0, lineHoldMs: 4000, atMs: 1000 })?.index, 1);
+  // Past the end holds the last word rather than running off the array.
+  assert.equal(marqueeWordAt({ words: 4, lineStartMs: 0, lineHoldMs: 4000, atMs: 99_000 })?.index, 3);
+  // Before the line starts there is no word.
+  assert.equal(marqueeWordAt({ words: 4, lineStartMs: 5000, lineHoldMs: 4000, atMs: 0 }), null);
+  assert.equal(marqueeWordAt({ words: 0, lineStartMs: 0, lineHoldMs: 4000, atMs: 0 }), null);
+  // A pass never gets so short it cannot be read.
+  assert.ok(
+    marqueeWordAt({ words: 40, lineStartMs: 0, lineHoldMs: 1200, atMs: 0 }).holdMs >= 280,
+  );
+
+  assert.equal(evenLineStartMs(0, 4, 120_000), 0);
+  assert.equal(evenLineStartMs(2, 4, 120_000), 60_000);
+  assert.equal(evenLineStartMs(0, 0, 120_000), 0);
+}
+
+console.log("check-music-video-marquee-word OK");
