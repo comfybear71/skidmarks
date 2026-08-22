@@ -401,6 +401,10 @@ export function isMusicVideoSongJob(job: { styleId?: string }): boolean {
   return job.styleId === "music_video";
 }
 
+/** The one channel every music video belongs to — shown as the Vibe title,
+ * with the band/song credit line underneath (musicVideoCreditLine). */
+export const MUSIC_VIDEO_SHOW_NAME = "SKIDS_MUSIC_TV";
+
 export function musicVideoCreditLine(job: { artist?: string; songTitle?: string }): string {
   const artist = (job.artist || "").trim();
   const song = (job.songTitle || "").trim();

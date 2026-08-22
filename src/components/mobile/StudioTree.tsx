@@ -553,6 +553,7 @@ function CandidatePicker({
   hideUpload,
   extra,
   skipAutoGenerate,
+  emptyMessage,
   onGenerate,
   onApprove,
   onUpload,
@@ -574,8 +575,11 @@ function CandidatePicker({
   /** Extra content under Undo / More — voice on CAST, plate chips on
    * a place. Full width. Never jammed beside those two buttons. */
   extra?: ReactNode;
-  /** World gallery lock — do not fire Generate on open. */
+  /** World gallery lock / music-video cast — do not fire Generate on open. */
   skipAutoGenerate?: boolean;
+  /** Shown instead of the default (location-worded) message when
+   * skipAutoGenerate is on and there's nothing to show yet. */
+  emptyMessage?: string;
   onGenerate: (customPrompt?: string) => void;
   onApprove: (candidateId: string) => void;
   onUpload: (file: File) => void;
@@ -672,8 +676,20 @@ function CandidatePicker({
           onRemove={onRemove ? () => onRemove(focused.id) : undefined}
         />
       ) : skipAutoGenerate && !takes.length ? (
-        <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "8px 0 4px" }}>
-          World place locked. Tap More only if you want a new take.
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "8px 0 4px" }}>
+          <div style={{ color: "var(--chrome-dim)", fontSize: "13px" }}>
+            {emptyMessage || "World place locked. Tap More only if you want a new take."}
+          </div>
+          {emptyMessage ? (
+            <MobilePrimaryButton
+              size="chip"
+              tone="ghost"
+              disabled={busy}
+              onClick={() => onGenerate(customPrompt || undefined)}
+            >
+              {busy ? "Generating…" : "Generate one anyway"}
+            </MobilePrimaryButton>
+          ) : null}
         </div>
       ) : busy || !error ? (
         <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "16px 0" }}>
@@ -1477,7 +1493,24 @@ export function StudioTree({
             promptPlaceholder="e.g. more like a grumpy dad"
             promptLabel="Look"
             hideUpload
-            extra={<CastVoiceRow key={castFocus} jobId={job.id} styleId={job.styleId} name={castFocus} />}
+            // Music video cast comes from a saved band's real faces, not
+            // improvised on the spot — auto-generating a blind guess from
+            // the bare name the instant this card opens is exactly how a
+            // "Saxophone" turns into a random creature with zero warning.
+            // Require an explicit tap instead, so a missing shelf face
+            // shows as a clear "nothing here yet" rather than silently
+            // becoming a wrong face that looks like a real pick.
+            skipAutoGenerate={isMusicVideoSongJob(job)}
+            emptyMessage={
+              isMusicVideoSongJob(job)
+                ? `${castFocus} doesn't have a real photo saved for this band yet. Go back to the original episode and tap "Save as band" again, or tap the button below to generate a brand new face for ${castFocus} right here.`
+                : undefined
+            }
+            extra={
+              isMusicVideoSongJob(job) ? undefined : (
+                <CastVoiceRow key={castFocus} jobId={job.id} styleId={job.styleId} name={castFocus} />
+              )
+            }
             onGenerate={(p) => onGenerateCast(castFocus, p)}
             onApprove={(id) => {
               void (async () => {

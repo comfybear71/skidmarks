@@ -219,7 +219,7 @@ export const SHOW_STYLE_PRESETS: ShowStylePreset[] = [
       "Performance-led cuts. Bold grade, hero performer lock, sections follow the song.",
     lookPrompt:
       "music video cinematography, bold colour grade, performance lighting, stylised but not cartoon",
-    defaultRealism: 50,
+    defaultRealism: 100,
     characterMode: "ensemble",
     presetCast: [
       {
