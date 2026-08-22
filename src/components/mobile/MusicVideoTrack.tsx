@@ -514,10 +514,8 @@ export function MusicVideoTrack({
           </div>
           {lyricsOpen ? <LyricsBox job={job} /> : null}
 
+          {/* The player carries the clock — a second one here just doubled it. */}
           <div className="m-track-toolbar">
-            <span className="m-track-clock">
-              {formatTrackClock(playheadMs)} / {formatTrackClock(durationMs)}
-            </span>
             {audioSrc ? (
               <SongPlayer
                 src={audioSrc}
