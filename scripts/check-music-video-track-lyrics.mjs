@@ -371,29 +371,113 @@ console.log("check-music-video-marquee-word OK");
 
 console.log("check-music-video-song-saved OK");
 
-// ── The ribbon's shape ─────────────────────────────────────────────────────
+// ── The ribbon ────────────────────────────────────────────────────────────
 {
   const { readFileSync } = await import("node:fs");
+  const ui = readFileSync(
+    new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url),
+    "utf8",
+  );
   const css = readFileSync(
     new URL("../src/app/(mobile)/m/mobile.css", import.meta.url),
     "utf8",
   );
-  // Four distance steps: centre, either neighbour, then fading out.
+
+  // The bug that made the marquee invisible: translateX(50%) resolves against
+  // the strip's own width, not the stage's, so a long line was pushed right
+  // off screen. The offset must be the stage's half-width in pixels.
+  assert.doesNotMatch(ui, /translateX\(calc\(50%/, "no percentage offset on the strip");
+  assert.match(ui, /halfStageRef/, "the stage's half-width is measured");
+  assert.match(ui, /clientWidth \/ 2/);
+
+  // A marquee drifts: position off the song clock every frame, not a step per
+  // word with a transition papering over it.
+  assert.match(ui, /requestAnimationFrame/);
+  assert.match(ui, /audio\.currentTime/, "position comes from the song");
+  assert.doesNotMatch(ui, /transitionDuration/);
+
+  // Depth of field — words read as far away, not merely small.
+  assert.match(ui, /blur\(/, "words blur with distance");
+  assert.match(ui, /el\.style\.opacity/);
+  assert.match(ui, /scale\(/);
+
+  // One word at full size and full light. The four fixed steps are gone, and
+  // no CSS transition fights the per-frame drift.
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
   for (const step of ["is-0", "is-1", "is-2", "is-3"]) {
-    assert.ok(css.includes(`.m-track-ribbon-word.${step}`), `ribbon step ${step}`);
+    assert.ok(!bare.includes(`.m-track-ribbon-word.${step}`), `no fixed step ${step}`);
   }
-  // The centre word is the biggest and brightest, or it does not read as the
-  // word being sung.
-  const size = (step) => {
-    const at = css.indexOf(`.m-track-ribbon-word.${step}`);
-    return Number(css.slice(at, at + 200).match(/font-size:\s*(\d+)px/)[1]);
-  };
-  assert.ok(size("is-0") > size("is-1"), "centre word is biggest");
-  assert.ok(size("is-1") > size("is-2"));
-  assert.ok(size("is-2") > size("is-3"));
-  // The old single-word flight is gone.
-  assert.ok(!css.includes("m-lyric-pass"), "no single-word keyframes left");
-  assert.ok(!css.includes(".m-track-marquee-word"), "no single-word rule left");
+  assert.ok(
+    !/\.m-track-ribbon(-word)?\s*\{[^}]*\btransition\s*:/.test(bare),
+    "no CSS transition fighting the drift",
+  );
+
+  // A window onto a longer line: clipped, with the ends faded rather than cut.
+  const marquee = css.slice(css.indexOf(".m-track-marquee {"), css.indexOf(".m-track-ribbon {"));
+  assert.match(marquee, /overflow:\s*hidden/);
+  assert.match(marquee, /mask-image/);
 }
 
 console.log("check-music-video-ribbon OK");
+
+// ── Brackets are structure, not lyrics ─────────────────────────────────────
+{
+  const { lyricLinesFrom, lyricTagLabel, lyricTagsFrom, lyricWords, stripLyricTags } =
+    await import("../src/lib/musicVideoTrack.ts");
+
+  const sheet = [
+    "[Instrumental Intro] [Tension-strummed 12-string, slow dragging bass pulse]",
+    "",
+    "[Verse 1]Silver glass on the table catching cold blue fire",
+    "A tiny church of smoke built on high wire",
+    "",
+    "[Chorus]Blow the glass clean, watch the white smoke spin",
+    "",
+    "[Outro]",
+    " [Fading 12-string drone, a single slow bass thud dying out]",
+  ].join("\n");
+
+  // A direction-only line is not sung, so it never reaches the marquee.
+  const lines = lyricLinesFrom(sheet).map((l) => l.text);
+  assert.deepEqual(lines, [
+    "Silver glass on the table catching cold blue fire",
+    "A tiny church of smoke built on high wire",
+    "Blow the glass clean, watch the white smoke spin",
+  ]);
+
+  // The bracket is written hard against the first word. Splitting before
+  // stripping gave "1]Silver" as a word on screen.
+  assert.deepEqual(lyricWords("[Verse 1]Silver glass on the table"), [
+    "Silver",
+    "glass",
+    "on",
+    "the",
+    "table",
+  ]);
+  assert.equal(stripLyricTags("[Chorus]Blow the glass"), "Blow the glass");
+  assert.equal(stripLyricTags("[Outro]"), "");
+  assert.equal(stripLyricTags("no tags here"), "no tags here");
+  assert.equal(stripLyricTags(""), "");
+  // Several tags on one line collapse without leaving double spaces.
+  assert.equal(stripLyricTags("[A] [B] word"), "word");
+
+  // The sheet already carries the song's structure.
+  const tags = lyricTagsFrom(sheet);
+  assert.deepEqual(
+    tags.map((t) => t.label),
+    ["intro", "custom", "verse", "chorus", "outro", "custom"],
+  );
+  assert.equal(tags[2].raw, "Verse 1");
+  assert.equal(tags[2].lineIndex, 2, "a tag remembers the line it sat on");
+
+  assert.equal(lyricTagLabel("Sax break"), "sax_break");
+  assert.equal(lyricTagLabel("Guitar solo"), "lead_break");
+  assert.equal(lyricTagLabel("Hook"), "chorus");
+  assert.equal(lyricTagLabel("Bridge"), "bridge");
+  // A stage direction ending "dying out" is not the outro.
+  assert.equal(lyricTagLabel("Fading drone, dying out"), "custom");
+  assert.equal(lyricTagLabel("whatever Stuie types"), "custom");
+  assert.equal(lyricTagLabel(""), "custom");
+}
+
+console.log("check-music-video-lyric-tags OK");
