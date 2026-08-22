@@ -9,7 +9,7 @@ import {
 import { createCharacter, listCharacters } from "@/lib/characters";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
-import { jobHasEpisodePack, mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { dropCandidateTake, keepCandidateTakes, latestCandidate } from "@/lib/mobileJobReady";
 import {
   castNamesMatch,
@@ -247,9 +247,10 @@ export async function POST(req: Request) {
 
       if (action === "generate") {
         const prior = latestCandidate(job.castCandidates[target]);
+        const mediaFolder = mobileMediaFolder(job);
         const candidates = await generateCastCandidates(
           job.styleId,
-          mobileMediaFolder(job),
+          mediaFolder,
           character.id,
           CANDIDATES_PER_BATCH,
           job.prompt,
@@ -257,6 +258,7 @@ export async function POST(req: Request) {
           job.styleRealism,
           prior?.fileName,
           prior?.prompt,
+          mobileCandidateFolders(job),
         );
         const updated = await patchMobileGenJob(jobId, {
           castCandidates: {
@@ -271,7 +273,14 @@ export async function POST(req: Request) {
       if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
       const candidate = (job.castCandidates[target] || []).find((c) => c.id === candidateId);
       if (!candidate) return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
-      await approveCastCandidate(job.styleId, mobileMediaFolder(job), character.id, candidateId, candidate.fileName);
+      await approveCastCandidate(
+        job.styleId,
+        mobileMediaFolder(job),
+        character.id,
+        candidateId,
+        candidate.fileName,
+        mobileCandidateFolders(job),
+      );
       const nextCandidates = (job.castCandidates[target] || []).map((c) => ({
         ...c,
         approved: c.id === candidateId,

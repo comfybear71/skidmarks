@@ -13,6 +13,7 @@ import { nextCutAfter, songWindowLabel, type ScratchSongCut } from "@/lib/scratc
 import {
   findSongCarrierBeatId,
   isMusicVideoSongJob,
+  orderSongCutsTimeline,
   plateSliceWindows,
   clearStuckSongCooks,
   rebuildSongCutsFromDesk,
@@ -326,7 +327,9 @@ export async function POST(req: Request) {
 
     if (action === "stitch") {
       const song = job.scratchSong;
-      const cuts = (song?.cuts || []).filter((c) => c.clipFile && c.status === "done");
+      const cuts = orderSongCutsTimeline(
+        (song?.cuts || []).filter((c) => c.clipFile && c.status === "done"),
+      );
       if (cuts.length < 2) {
         return NextResponse.json(
           { error: "Need two finished clips to stitch." },
@@ -417,9 +420,11 @@ export async function POST(req: Request) {
         const f = (s.plateFile || "").trim();
         if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
       }
-      const cuts = rebuildSongCutsFromDesk({
+      // Keep done clips — rebuild alone wiped greens when adding a plate.
+      const cuts = syncSongCutsToDesk({
         songPlateIds: nextIds,
         rowSlices: slices,
+        cuts: song.cuts || [],
         plateFileByShotId,
         songSec: song.durationSec,
         newCutId: () => newId("cut"),
@@ -514,9 +519,10 @@ export async function POST(req: Request) {
         const f = (s.plateFile || "").trim();
         if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
       }
-      const cuts = rebuildSongCutsFromDesk({
+      const cuts = syncSongCutsToDesk({
         songPlateIds: nextIds,
         rowSlices: nextSlices,
+        cuts: song.cuts || [],
         plateFileByShotId,
         songSec: song.durationSec,
         newCutId: () => newId("cut"),
