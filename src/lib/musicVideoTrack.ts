@@ -342,3 +342,29 @@ export function nextSectionStartMs(markers: TrackSectionMarker[]): number {
   }
   return end;
 }
+
+/**
+ * Lyrics are pasted, not timed by hand — so the marquee spreads the lines
+ * evenly across the song and shows whichever one the playhead is inside.
+ * Returns null before the song starts or when there are no words.
+ */
+export function evenLyricIndexAt(
+  lineCount: number,
+  atMs: number,
+  songMs: number,
+): number | null {
+  if (!Number.isFinite(lineCount) || lineCount <= 0) return null;
+  if (!Number.isFinite(songMs) || songMs <= 0) return null;
+  if (!Number.isFinite(atMs) || atMs < 0) return null;
+  if (atMs >= songMs) return lineCount - 1;
+  const per = songMs / lineCount;
+  return Math.min(lineCount - 1, Math.floor(atMs / per));
+}
+
+/** How long each line owns the strip when the lines are spread evenly. */
+export function evenLyricHoldMs(lineCount: number, songMs: number): number {
+  const FALLBACK = 5200;
+  if (!Number.isFinite(lineCount) || lineCount <= 0) return FALLBACK;
+  if (!Number.isFinite(songMs) || songMs <= 0) return FALLBACK;
+  return Math.max(1200, Math.min(12_000, Math.round(songMs / lineCount)));
+}

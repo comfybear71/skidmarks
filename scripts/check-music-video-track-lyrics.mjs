@@ -78,10 +78,9 @@ console.log("check-music-video-track-lyrics OK");
   // The strip carries the line or nothing — never instructions about the line.
   assert.doesNotMatch(ui, /m-track-marquee-idle/, "no placeholder text in the marquee");
   assert.doesNotMatch(ui, /tap a line to pin it at the playhead/i);
-  const marqueeAt = ui.indexOf("m-track-marquee");
-  const listAt = ui.indexOf("m-track-lyric-list");
-  assert.ok(listAt > 0 && listAt < marqueeAt, "the pin list sits inside the LyricsBox pinRail");
-  assert.match(ui, /pinRail=/, "pin list is passed into the collapsed lyrics panel");
+  // LYRICS is a paste box and nothing else — no list of lines under it.
+  assert.doesNotMatch(ui, /pinRail/, "no pin list in the lyrics panel");
+  assert.doesNotMatch(ui, /m-track-lyric-list/, "no lyric list anywhere on the page");
 
   // One UI, empty or full. No second screen in front of the track.
   assert.doesNotMatch(ui, /m-track-empty/, "no separate empty-state layout");
@@ -234,3 +233,34 @@ console.log("check-music-video-plate-bar OK");
 }
 
 console.log("check-music-video-section-times OK");
+
+// ── Pasted lyrics time themselves across the song ──────────────────────────
+{
+  const { evenLyricHoldMs, evenLyricIndexAt } = await import(
+    "../src/lib/musicVideoTrack.ts"
+  );
+  const song = 120_000;
+
+  // Four lines over two minutes: thirty seconds each, in order.
+  assert.equal(evenLyricIndexAt(4, 0, song), 0);
+  assert.equal(evenLyricIndexAt(4, 29_999, song), 0);
+  assert.equal(evenLyricIndexAt(4, 30_000, song), 1);
+  assert.equal(evenLyricIndexAt(4, 119_999, song), 3);
+  // Past the end holds the last line rather than blanking.
+  assert.equal(evenLyricIndexAt(4, song, song), 3);
+  assert.equal(evenLyricIndexAt(4, 999_999, song), 3);
+  // Nothing to show is null, never index -1 or a crash.
+  assert.equal(evenLyricIndexAt(0, 1000, song), null);
+  assert.equal(evenLyricIndexAt(4, 1000, 0), null);
+  assert.equal(evenLyricIndexAt(4, -1, song), null);
+
+  assert.equal(evenLyricHoldMs(4, song), 30_000 > 12_000 ? 12_000 : 30_000);
+  // A wall of lines over a short song still has to be readable, and one line
+  // over a long song must not sit there for the whole track.
+  assert.equal(evenLyricHoldMs(400, song), 1200);
+  assert.equal(evenLyricHoldMs(1, song), 12_000);
+  assert.equal(evenLyricHoldMs(0, song), 5200);
+  assert.equal(evenLyricHoldMs(4, 0), 5200);
+}
+
+console.log("check-music-video-paste-lyrics OK");

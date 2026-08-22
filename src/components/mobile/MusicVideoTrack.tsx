@@ -6,10 +6,9 @@ import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import {
   TRACK_ACID,
   TRACK_SECTION_LABELS,
-  activeLyricLineIndex,
   formatTrackClock,
-  lyricHoldMs,
-  lyricCueFor,
+  evenLyricHoldMs,
+  evenLyricIndexAt,
   lyricLinesFrom,
   plateTimingForShot,
   nextSectionStartMs,
@@ -20,8 +19,6 @@ import {
   sectionTitle,
   sortPlateTimings,
   withSectionTime,
-  withLyricCue,
-  withoutLyricCue,
   type LyricCue,
   type TrackSectionLabel,
 } from "@/lib/musicVideoTrack";
@@ -393,7 +390,8 @@ export function MusicVideoTrack({
     [song?.lyricCues, job.trackDraft?.lyricCues],
   );
   const lyricLines = useMemo(() => lyricLinesFrom(job.lyrics || ""), [job.lyrics]);
-  const activeLyric = activeLyricLineIndex(lyricCues, playheadMs);
+  // Lines are pasted, not pinned — spread them across the song.
+  const activeLyric = evenLyricIndexAt(lyricLines.length, playheadMs, durationMs);
 
 
   const plateRows = useMemo(() => {
@@ -480,19 +478,6 @@ export function MusicVideoTrack({
     }
   }, [audioSrc, parked?.file, peaks.length, busy, decodeAndSave, song?.fileName, song?.waveformPeaks]);
 
-  async function saveLyricCues(next: LyricCue[]) {
-    setBusy("cues");
-    setNote("");
-    try {
-      const updated = await trackAction("set-lyric-cues", { jobId: job.id, lyricCues: next });
-      if (updated) onJobChange(updated);
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't pin that line");
-    } finally {
-      setBusy("");
-    }
-  }
-
   async function saveMarkers(next: typeof markers) {
     setBusy("markers");
     setNote("");
@@ -574,62 +559,8 @@ export function MusicVideoTrack({
               ×
             </button>
           </div>
-          {lyricsOpen ? (
-            <LyricsBox
-              job={job}
-              pinRail={
-                lyricLines.length ? (
-                  <ul className="m-track-lyric-list">
-                    {lyricLines.map((line) => {
-                      const cue = lyricCueFor(lyricCues, line.index);
-                      return (
-                        <li
-                          key={line.index}
-                          className={`m-track-lyric${cue ? " is-pinned" : ""}${
-                            activeLyric === line.index ? " is-now" : ""
-                          }`}
-                        >
-                          <button
-                            type="button"
-                            className="m-track-lyric-text"
-                            onClick={() =>
-                              void saveLyricCues(withLyricCue(lyricCues, line.index, playheadMs))
-                            }
-                          >
-                            {line.text}
-                          </button>
-                          {cue ? (
-                            <>
-                              <button
-                                type="button"
-                                className="m-track-lyric-at"
-                                onClick={() => {
-                                  setPlayheadMs(cue.atMs);
-                                  if (audioRef.current) audioRef.current.currentTime = cue.atMs / 1000;
-                                }}
-                              >
-                                {formatTrackClock(cue.atMs)}
-                              </button>
-                              <button
-                                type="button"
-                                className="m-track-x"
-                                aria-label="Unpin this line"
-                                onClick={() => void saveLyricCues(withoutLyricCue(lyricCues, line.index))}
-                              >
-                                ×
-                              </button>
-                            </>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : null
-              }
-            />
-          ) : null}
+          {lyricsOpen ? <LyricsBox job={job} /> : null}
 
-          {/* The player carries the clock — a second one here just doubled it. */}
           <div className="m-track-toolbar">
             {audioSrc ? (
               <SongPlayer
@@ -751,7 +682,7 @@ export function MusicVideoTrack({
               <span
                 key={activeLyric}
                 className="m-track-marquee-line"
-                style={{ animationDuration: `${lyricHoldMs(lyricCues, activeLyric)}ms` }}
+                style={{ animationDuration: `${evenLyricHoldMs(lyricLines.length, durationMs)}ms` }}
               >
                 {lyricLines.find((l) => l.index === activeLyric)?.text || ""}
               </span>
