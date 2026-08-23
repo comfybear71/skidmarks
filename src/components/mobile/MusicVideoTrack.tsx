@@ -33,7 +33,7 @@ import {
   sortPlateTimings,
   sortSectionMarkers,
   stretchPlateEdge,
-  hitPlateEdge,
+  hitPlateBox,
   trackWaveLayout,
   withSectionStartAt,
   withSectionTime,
@@ -53,7 +53,7 @@ import { MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 
 /** Tall enough to read the bars and grab a plate-box edge on a phone. */
-const TRACK_WAVE_HEIGHT = 78;
+const TRACK_WAVE_HEIGHT = 88;
 
 /** Same hex at an alpha — canvas has no colour-mix(). */
 function hexTint(hex: string, alpha: number): string {
@@ -485,6 +485,14 @@ function WaveformCanvas({
       ctx.strokeStyle = hexTint(barColor, 0.9);
       ctx.lineWidth = 1;
       ctx.stroke();
+      // Handles so a grab on the bar is obvious — not a 14px secret edge.
+      if (bw >= 10) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+        const gripH = Math.max(8, laneBoxH - 4);
+        const gripY = laneY + (laneBoxH - gripH) / 2;
+        ctx.fillRect(x0 + 2, gripY, 2, gripH);
+        ctx.fillRect(x0 + bw - 5, gripY, 2, gripH);
+      }
       if (bw > 40) {
         ctx.save();
         ctx.beginPath();
@@ -556,7 +564,7 @@ function WaveformCanvas({
     const canvas = ref.current;
     if (!canvas || !durationMs) return null;
     const { x, y } = xyFromEvent(e);
-    return hitPlateEdge({
+    return hitPlateBox({
       timings: plateTimings,
       durationMs,
       width: canvas.clientWidth || 0,
@@ -1034,6 +1042,9 @@ export function MusicVideoTrack({
               <SongPlayer
                 src={audioSrc}
                 audioRef={audioRef}
+                durationSec={
+                  song?.durationSec || job.trackDraft?.songDurationSec || 0
+                }
                 onTime={(sec) => setPlayheadMs(Math.round(sec * 1000))}
                 onDuration={(sec) => setAudioDurationMs(Math.round(sec * 1000))}
                 onPlayingChange={setPlaying}
@@ -1081,7 +1092,7 @@ export function MusicVideoTrack({
           {plateBlocks.length ? (
             <p className="m-track-stretch-hint">
               {stretchReadout ||
-                "Drag a coloured box edge on the wave to stretch it. Pictures stay put."}
+                "Drag a coloured bar to stretch it. White ticks are the ends. Pictures stay put."}
             </p>
           ) : null}
 

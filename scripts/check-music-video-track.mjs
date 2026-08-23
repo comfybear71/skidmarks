@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   formatTrackClock,
   formatTrackClockPrecise,
+  hitPlateBox,
   hitPlateEdge,
   msToSec,
   orderedDoneCutsForStitch,
@@ -81,7 +82,7 @@ assert.match(songRoute, /orderedDoneCutsForStitch/);
 assert.match(attach, /trackDraft/);
 assert.match(mobileCss, /\.m-track-wave/);
 assert.match(mobileCss, /\.m-track-stretch-hint/);
-assert.match(trackUi, /stretchPlateEdge/);
+assert.match(trackUi, /hitPlateBox/);
 assert.match(trackUi, /onStretchCommit/);
 assert.match(trackRoute, /set-plate-timings/);
 
@@ -127,5 +128,25 @@ const miss = hitPlateEdge({
   y: 20,
 });
 assert.equal(miss, null);
+
+const mid = hitPlateBox({
+  timings: boxes,
+  durationMs: 45000,
+  width: 450,
+  height: 78,
+  x: 225,
+  y: 70,
+});
+assert.equal(mid?.plateId, "b");
+assert.ok(mid?.edge === "start" || mid?.edge === "end");
+const waveOnly = hitPlateBox({
+  timings: boxes,
+  durationMs: 45000,
+  width: 450,
+  height: 78,
+  x: 225,
+  y: 20,
+});
+assert.equal(waveOnly, null);
 
 console.log("check-music-video-track: ok");

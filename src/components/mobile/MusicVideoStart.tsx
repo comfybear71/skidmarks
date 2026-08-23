@@ -45,6 +45,7 @@ export function SongPlayer({
   onTime,
   onDuration,
   onPlayingChange,
+  durationSec,
 }: {
   src: string;
   audioRef?: React.RefObject<HTMLAudioElement | null>;
@@ -53,14 +54,21 @@ export function SongPlayer({
   onDuration?: (sec: number) => void;
   /** The marquee only runs while the song does. */
   onPlayingChange?: (playing: boolean) => void;
+  /** Job already knows the length — don't wait on metadata or the clock stays 0:00 / 0:00. */
+  durationSec?: number;
 }) {
   // The element is owned here and mirrored out to any ref the parent passed:
   // writing currentTime straight onto a prop ref is not ours to mutate.
   const own = useRef<HTMLAudioElement | null>(null);
+  const known = Math.max(0, Number(durationSec) || 0);
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);
-  const [len, setLen] = useState(0);
+  const [len, setLen] = useState(known);
   const pct = len > 0 ? Math.min(100, (at / len) * 100) : 0;
+
+  useEffect(() => {
+    if (known > 0) setLen((n) => (n > 0 ? n : known));
+  }, [known]);
 
   function noteDuration(sec: number) {
     if (!Number.isFinite(sec) || sec <= 0) return;

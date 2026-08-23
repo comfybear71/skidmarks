@@ -858,7 +858,7 @@ body {
   max-width: 100%;
   /* Canvas sets its own height inline (TRACK_WAVE_HEIGHT); the placeholder
      matches it so the panel does not jump once the peaks land. */
-  height: 78px;
+  height: 88px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: #0a0a0c;

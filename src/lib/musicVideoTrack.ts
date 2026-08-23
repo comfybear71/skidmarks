@@ -162,7 +162,7 @@ export function stretchPlateEdge(
 }
 
 export const TRACK_WAVE_RULER_H = 13;
-export const TRACK_WAVE_LANE_H = 26;
+export const TRACK_WAVE_LANE_H = 34;
 
 /** Same geometry the canvas draws, so a tap on a box edge hits that box. */
 export function trackWaveLayout(width: number, height: number) {
@@ -201,6 +201,39 @@ export function hitPlateEdge(opts: {
     }
   }
   return best ? { plateId: best.plateId, edge: best.edge } : null;
+}
+
+/**
+ * Any grab on a coloured bar — not only a 14px edge. The nearer end is
+ * the one that stretches. Taps on the green wave above the lane still miss,
+ * so playhead-drag stays.
+ */
+export function hitPlateBox(opts: {
+  timings: Pick<PlateTiming, "plateId" | "startMs" | "endMs">[];
+  durationMs: number;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+}): { plateId: string; edge: PlateBoxEdge } | null {
+  const { durationMs, width, height, x, y } = opts;
+  if (!durationMs || !width || !height) return null;
+  const layout = trackWaveLayout(width, height);
+  if (y < layout.laneY - 12 || y > height + 8) return null;
+  const xAt = (ms: number) => (ms / durationMs) * width;
+  let inside: { plateId: string; x0: number; x1: number } | null = null;
+  let nearest: { plateId: string; x0: number; x1: number; dist: number } | null = null;
+  for (const t of opts.timings) {
+    const x0 = xAt(t.startMs);
+    const x1 = Math.max(x0 + 4, xAt(t.endMs));
+    const dist = x < x0 ? x0 - x : x > x1 ? x - x1 : 0;
+    if (dist === 0) inside = { plateId: t.plateId, x0, x1 };
+    if (!nearest || dist < nearest.dist) nearest = { plateId: t.plateId, x0, x1, dist };
+  }
+  const pick = inside || (nearest && nearest.dist <= 28 ? nearest : null);
+  if (!pick) return null;
+  const edge: PlateBoxEdge = Math.abs(x - pick.x0) <= Math.abs(x - pick.x1) ? "start" : "end";
+  return { plateId: pick.plateId, edge };
 }
 
 export function plateTimingForShot(
