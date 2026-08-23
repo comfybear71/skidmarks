@@ -48,4 +48,4 @@ Typical flow: discover → `run_template` or `submit_workflow` → `wait_for_job
 - Prefer templates over inventing a graph. Export **Save (API Format)** if we submit our own JSON.
 - Check `estimate_credits` / `get_billing_activity` before a batch.
 
-Full note: `docs/COMFY_MCP.md`.
+Full note: `docs/COMFY_MCP.md`. Hub catalog: `docs/COMFY_WORKFLOWS.md`. Speech template id: `video_ltx2_3_ia2v`.

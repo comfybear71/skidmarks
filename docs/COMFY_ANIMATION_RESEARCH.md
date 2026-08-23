@@ -4,7 +4,7 @@ Logged **2026-08-19** from the tutorials Stuie sent. Knowledge only. Do **not** 
 
 **Order already on `master`:** PR **#176** (Scratch Draw edits the last still) then PR **#177** (Scratch stills vs `/m` speech floors). This note sits on top of those.
 
-Official index: [docs.comfy.org/llms.txt](https://docs.comfy.org/llms.txt). Cloud host: `https://cloud.comfy.org`. Native LTX-2.3 docs: [LTX-2.3 workflows](https://docs.comfy.org/tutorials/video/ltx/ltx-2-3.md). Agent connector: [Comfy MCP](https://comfy.org/mcp) — see `docs/COMFY_MCP.md` and `.cursor/mcp.json`.
+Official index: [docs.comfy.org/llms.txt](https://docs.comfy.org/llms.txt). Cloud host: `https://cloud.comfy.org`. Native LTX-2.3 docs: [LTX-2.3 workflows](https://docs.comfy.org/tutorials/video/ltx/ltx-2-3.md). Agent connector: [Comfy MCP](https://comfy.org/mcp) — see `docs/COMFY_MCP.md` and `.cursor/mcp.json`. Live Hub catalog: [comfy.org/workflows](https://comfy.org/workflows/) → `docs/COMFY_WORKFLOWS.md`.
 
 ---
 

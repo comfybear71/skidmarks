@@ -45,3 +45,5 @@ Read-only. `search_comfy_ui` then `query_docs_filesystem_comfy_ui` (`head` / `ca
 - Feed `plate_{slug}` turnaround sheets into IP-Adapter.
 - Run dump 15 `comfyRunner.js` (`127.0.0.1:8188` + disk symlinks).
 - Generate onto a live pack until he names the test.
+
+Hub catalog (616+ templates, researched 2026-08-23): `docs/COMFY_WORKFLOWS.md`. Speech id on Cloud is `video_ltx2_3_ia2v`.
