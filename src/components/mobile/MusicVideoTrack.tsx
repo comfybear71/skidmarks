@@ -7,6 +7,7 @@ import {
   TRACK_ACID,
   TRACK_SECTION_LABELS,
   formatTrackClock,
+  formatTrackClockPrecise,
   evenLineStartMs,
   evenLyricHoldMs,
   evenLyricIndexAt,
@@ -31,9 +32,13 @@ import {
   sectionTitle,
   sortPlateTimings,
   sortSectionMarkers,
+  stretchPlateEdge,
+  hitPlateEdge,
+  trackWaveLayout,
   withSectionStartAt,
   withSectionTime,
   type LyricCue,
+  type PlateTiming,
   type TrackSectionLabel,
 } from "@/lib/musicVideoTrack";
 import { decodeWaveformPeaks } from "@/lib/decodeWaveformPeaks";
@@ -47,8 +52,8 @@ import { readApiJson } from "@/lib/studioFetchError";
 import { MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 
-/** Tall enough to read the bars and the plate lane on a phone. */
-const TRACK_WAVE_HEIGHT = 62;
+/** Tall enough to read the bars and grab a plate-box edge on a phone. */
+const TRACK_WAVE_HEIGHT = 78;
 
 /** Same hex at an alpha — canvas has no colour-mix(). */
 function hexTint(hex: string, alpha: number): string {
@@ -333,6 +338,8 @@ function LyricPinPanel({
   );
 }
 
+type WavePlateBlock = PlateTiming & { label: string };
+
 function WaveformCanvas({
   peaks,
   durationMs,
@@ -344,22 +351,33 @@ function WaveformCanvas({
   lyricCues,
   onSeek,
   onSelectRange,
+  onStretchLive,
+  onStretchCommit,
 }: {
   peaks: number[];
   durationMs: number;
   playheadMs: number;
   markers: { id: string; label: string; startMs: number; endMs: number }[];
-  plateTimings: { plateId: string; startMs: number; endMs: number; label: string }[];
+  plateTimings: WavePlateBlock[];
   /** The drag you are holding — drawn so you can see what Use range will take. */
   rangeStartMs: number;
   rangeEndMs: number;
   lyricCues: LyricCue[];
   onSeek: (ms: number) => void;
   onSelectRange: (startMs: number, endMs: number) => void;
+  /** Live box stretch — pictures stay, only the bar in/out moves. */
+  onStretchLive?: (timings: PlateTiming[] | null, clockMs: number, label: string) => void;
+  onStretchCommit?: (timings: PlateTiming[]) => void;
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const drag = useRef<{ startMs: number; moved: boolean } | null>(null);
+  const stretch = useRef<{
+    plateId: string;
+    edge: "start" | "end";
+    base: WavePlateBlock[];
+  } | null>(null);
   const [cssWidth, setCssWidth] = useState(0);
+  const [hoverEdge, setHoverEdge] = useState(false);
 
   // A fixed-width canvas stretched by CSS is why this looked soft. Draw at the
   // element's real size times the device ratio, and follow it when it changes.
@@ -387,12 +405,9 @@ function WaveformCanvas({
 
     const w = cssWidth;
     const h = cssHeight;
+    const layout = trackWaveLayout(w, h);
     const xAt = (ms: number) => (ms / durationMs) * w;
-
-    const rulerH = 13;
-    const laneH = 20;
-    const waveTop = rulerH;
-    const waveH = h - rulerH - laneH;
+    const { waveTop, waveH, laneY, laneBoxH } = layout;
     const mid = waveTop + waveH / 2;
 
     ctx.clearRect(0, 0, w, h);
@@ -490,7 +505,7 @@ function WaveformCanvas({
       const x = xAt(sec * 1000);
       const major = sec % 60 === 0;
       ctx.fillStyle = major ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.14)";
-      ctx.fillRect(x, rulerH - (major ? 6 : 3), 1, major ? 6 : 3);
+      ctx.fillRect(x, layout.rulerH - (major ? 6 : 3), 1, major ? 6 : 3);
     }
 
     for (const cue of lyricCues) {
@@ -502,11 +517,11 @@ function WaveformCanvas({
     // Playhead last, with a head you can actually see against the bars.
     const ph = xAt(playheadMs);
     ctx.fillStyle = "#fff";
-    ctx.fillRect(ph - 0.5, rulerH - 4, 1, h - rulerH + 4);
+    ctx.fillRect(ph - 0.5, layout.rulerH - 4, 1, h - layout.rulerH + 4);
     ctx.beginPath();
-    ctx.moveTo(ph - 4, rulerH - 8);
-    ctx.lineTo(ph + 4, rulerH - 8);
-    ctx.lineTo(ph, rulerH - 2);
+    ctx.moveTo(ph - 4, layout.rulerH - 8);
+    ctx.lineTo(ph + 4, layout.rulerH - 8);
+    ctx.lineTo(ph, layout.rulerH - 2);
     ctx.closePath();
     ctx.fill();
   }, [
@@ -529,18 +544,74 @@ function WaveformCanvas({
     return Math.round((x / rect.width) * durationMs);
   }
 
+  function xyFromEvent(e: { clientX: number; clientY: number }) {
+    const canvas = ref.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(rect.width, e.clientX - rect.left)),
+      y: Math.max(0, Math.min(rect.height, e.clientY - rect.top)),
+    };
+  }
+
+  function edgeAt(e: { clientX: number; clientY: number }) {
+    const canvas = ref.current;
+    if (!canvas || !durationMs) return null;
+    const { x, y } = xyFromEvent(e);
+    return hitPlateEdge({
+      timings: plateTimings,
+      durationMs,
+      width: canvas.clientWidth || 0,
+      height: canvas.clientHeight || TRACK_WAVE_HEIGHT,
+      x,
+      y,
+    });
+  }
+
+  function applyStretch(ms: number) {
+    const held = stretch.current;
+    if (!held) return null;
+    const next = stretchPlateEdge(held.base, held.plateId, held.edge, ms, durationMs);
+    const row = next.find((t) => t.plateId === held.plateId);
+    const clockMs = held.edge === "start" ? row?.startMs ?? ms : row?.endMs ?? ms;
+    const label = held.base.find((t) => t.plateId === held.plateId)?.label || "";
+    onStretchLive?.(next, clockMs, label);
+    onSeek(clockMs);
+    return next;
+  }
+
   return (
     <canvas
       ref={ref}
       className="m-track-wave"
-      style={{ height: `${TRACK_WAVE_HEIGHT}px` }}
+      style={{
+        height: `${TRACK_WAVE_HEIGHT}px`,
+        cursor: hoverEdge || stretch.current ? "ew-resize" : undefined,
+      }}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
+        const hit = edgeAt(e);
+        if (hit && onStretchCommit) {
+          stretch.current = {
+            plateId: hit.plateId,
+            edge: hit.edge,
+            base: plateTimings.map((t) => ({ ...t })),
+          };
+          drag.current = null;
+          applyStretch(msFromEvent(e.clientX));
+          return;
+        }
         const ms = msFromEvent(e.clientX);
         drag.current = { startMs: ms, moved: false };
         onSeek(ms);
       }}
       onPointerMove={(e) => {
+        const hit = stretch.current ? { plateId: stretch.current.plateId, edge: stretch.current.edge } : edgeAt(e);
+        setHoverEdge(Boolean(hit));
+        if (stretch.current) {
+          applyStretch(msFromEvent(e.clientX));
+          return;
+        }
         if (!drag.current) return;
         const ms = msFromEvent(e.clientX);
         if (Math.abs(ms - drag.current.startMs) > 150) {
@@ -550,6 +621,13 @@ function WaveformCanvas({
         onSeek(ms);
       }}
       onPointerUp={(e) => {
+        if (stretch.current) {
+          const next = applyStretch(msFromEvent(e.clientX));
+          stretch.current = null;
+          if (next) onStretchCommit?.(next);
+          else onStretchLive?.(null, 0, "");
+          return;
+        }
         const held = drag.current;
         drag.current = null;
         if (!held) return;
@@ -560,6 +638,10 @@ function WaveformCanvas({
       }}
       onPointerCancel={() => {
         drag.current = null;
+        if (stretch.current) {
+          stretch.current = null;
+          onStretchLive?.(null, 0, "");
+        }
       }}
     />
   );
@@ -616,6 +698,8 @@ export function MusicVideoTrack({
   const [pickWhere, setPickWhere] = useState("");
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
+  const [stretchTimings, setStretchTimings] = useState<PlateTiming[] | null>(null);
+  const [stretchReadout, setStretchReadout] = useState("");
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobRef = useRef("");
@@ -683,17 +767,23 @@ export function MusicVideoTrack({
       const title =
         story?.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === row.shotId)?.title ||
         `Plate ${i + 1}`;
-      const timing = plateTimingForShot(song, job.trackDraft, row.shotId);
+      const live = stretchTimings?.find((t) => t.plateId === row.shotId) || null;
+      const timing = live || plateTimingForShot(song, job.trackDraft, row.shotId);
       return { ...row, title, timing };
     });
-  }, [plated, story, song, job.trackDraft]);
+  }, [plated, story, song, job.trackDraft, stretchTimings]);
 
-  const plateBlocks = sortPlateTimings(song?.plateTimings || job.trackDraft?.plateTimings || []).map(
-    (t) => {
-      const row = plateRows.find((p) => p.shotId === t.plateId);
-      return { ...t, label: row?.title || t.plateId };
-    },
-  );
+  const savedPlateBlocks = sortPlateTimings(
+    song?.plateTimings || job.trackDraft?.plateTimings || [],
+  ).map((t) => {
+    const row = plateRows.find((p) => p.shotId === t.plateId);
+    return { ...t, label: row?.title || t.plateId };
+  });
+  const plateBlocks = (stretchTimings || savedPlateBlocks).map((t) => {
+    const row = plateRows.find((p) => p.shotId === t.plateId);
+    const saved = savedPlateBlocks.find((s) => s.plateId === t.plateId);
+    return { ...t, label: saved?.label || row?.title || t.plateId };
+  });
 
   const audioSrc = useMemo(() => {
     if (song?.fileName && job.folderName) {
@@ -811,6 +901,35 @@ export function MusicVideoTrack({
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't schedule that plate");
     } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveStretchedBoxes(next: PlateTiming[]) {
+    if (!song?.fileName) {
+      setNote("Start the video and attach the song before timing plates.");
+      setStretchTimings(null);
+      setStretchReadout("");
+      return;
+    }
+    setBusy("stretch");
+    setNote("");
+    try {
+      const updated = await trackAction("set-plate-timings", {
+        jobId: job.id,
+        plateTimings: next.map(({ plateId, startMs, endMs, sortIndex }) => ({
+          plateId,
+          startMs,
+          endMs,
+          sortIndex,
+        })),
+      });
+      if (updated) onJobChange(updated);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't stretch that box");
+    } finally {
+      setStretchTimings(null);
+      setStretchReadout("");
       setBusy("");
     }
   }
@@ -944,12 +1063,29 @@ export function MusicVideoTrack({
                 setRangeStartMs(startMs);
                 setRangeEndMs(endMs);
               }}
+              onStretchLive={(timings, clockMs, label) => {
+                setStretchTimings(timings);
+                setStretchReadout(
+                  timings && label
+                    ? `${label} · ${formatTrackClockPrecise(clockMs)}`
+                    : "",
+                );
+              }}
+              onStretchCommit={(timings) => {
+                void saveStretchedBoxes(timings);
+              }}
             />
           ) : (
             <div className="m-track-wave-placeholder">
               {busy === "peaks" ? "Reading waveform…" : "Waveform…"}
             </div>
           )}
+          {plateBlocks.length ? (
+            <p className="m-track-stretch-hint">
+              {stretchReadout ||
+                "Drag a coloured box edge on the wave to stretch it. Pictures stay put."}
+            </p>
+          ) : null}
 
           {/* Plates outrank the section list, so they sit above it: one
               horizontal strip, right under the wave. */}
@@ -1237,8 +1373,8 @@ export function MusicVideoTrack({
                     <div className="m-track-plate-title">{row.title}</div>
                     {row.timing ? (
                       <div className="m-track-plate-time">
-                        {formatTrackClock(row.timing.startMs)} –{" "}
-                        {formatTrackClock(row.timing.endMs)}
+                        {formatTrackClockPrecise(row.timing.startMs)} –{" "}
+                        {formatTrackClockPrecise(row.timing.endMs)}
                       </div>
                     ) : (
                       <div className="m-track-plate-time m-track-plate-time--open">Unscheduled</div>
