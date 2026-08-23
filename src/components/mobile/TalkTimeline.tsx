@@ -267,6 +267,7 @@ function TalkClipTools({
 export function TalkTimeline({
   job,
   story,
+  plated,
   compact = false,
   onOpenPlate,
   onJobChange,
