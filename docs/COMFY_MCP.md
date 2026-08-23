@@ -15,7 +15,9 @@ Project file: `.cursor/mcp.json`
 
 Cursor does **not** speak MCP OAuth today. Use a key from [platform.comfy.org/profile/api-keys](https://platform.comfy.org/profile/api-keys) (`comfyui-…`). Same value as desk Animate (`COMFY_CLOUD_API_KEY` in `.env.example`). Official Comfy docs also mention `COMFY_API_KEY` — we keep one name.
 
-Cloud MCP generations need a **Comfy Cloud subscription of any tier**. A credit top-up alone is not enough.
+**Subscription (2026-08-23):** he said he is **fully subscribed**, not credits-only. Do not treat the Comfy plan as a blocker. Still ask before a generate — GPU time is real money.
+
+Read-only check the same day: `get_server_info` = authenticated API key on `https://cloud.comfy.org`. `get_billing_activity` shows Cloud GPU jobs already running (`cloud_workflow_executed`, `rtx_pro_6000`). The API did not return a plan name string.
 
 **Host lock:** ComfyUI Cloud only. No local `comfy-mcp` binary. No PC / RunPod / `/workspace/ComfyUI` tree.
 

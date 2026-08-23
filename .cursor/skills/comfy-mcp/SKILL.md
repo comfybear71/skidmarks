@@ -14,7 +14,9 @@ Official product: [comfy.org/mcp](https://comfy.org/mcp). Docs: [docs.comfy.org/
 | `comfy-cloud` | `https://cloud.comfy.org/mcp` | `X-API-Key` = `COMFY_CLOUD_API_KEY` |
 | `comfy-docs` | `https://docs.comfy.org/mcp` | none (public docs search) |
 
-Cursor cannot OAuth this host. Key is created at [platform.comfy.org/profile/api-keys](https://platform.comfy.org/profile/api-keys) (`comfyui-…`). Same key the desk already uses. Cloud MCP also needs a **Comfy Cloud subscription** — a credit top-up alone is not enough.
+Cursor cannot OAuth this host. Key is created at [platform.comfy.org/profile/api-keys](https://platform.comfy.org/profile/api-keys) (`comfyui-…`). Same key the desk already uses.
+
+**Subscription:** he is fully subscribed (his word, 2026-08-23). Not a blocker. Still do not generate until he says go.
 
 **Host lock:** ComfyUI Cloud only. Do not add local `comfy-mcp` / PC / RunPod.
 
