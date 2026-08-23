@@ -105,8 +105,102 @@ export function formatTrackClock(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/** Tenths — for lining a plate box up on the wave (4:07.5). */
+export function formatTrackClockPrecise(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "0:00.0";
+  const tot = ms / 1000;
+  const m = Math.floor(tot / 60);
+  const s = tot - m * 60;
+  return `${m}:${s.toFixed(1).padStart(4, "0")}`;
+}
+
 export function sortPlateTimings(list: PlateTiming[]): PlateTiming[] {
   return [...list].sort((a, b) => a.sortIndex - b.sortIndex || a.startMs - b.startMs);
+}
+
+/** Shortest a plate box can be when you drag an edge. */
+export const MIN_PLATE_BOX_MS = 500;
+
+export type PlateBoxEdge = "start" | "end";
+
+/**
+ * Stretch one plate box. The still does not change — only in/out on the song.
+ * The neighbour that shares that edge moves with it, so boxes do not overlap.
+ */
+export function stretchPlateEdge(
+  timings: PlateTiming[],
+  plateId: string,
+  edge: PlateBoxEdge,
+  wantMs: number,
+  songEndMs: number,
+  snapMs = 100,
+): PlateTiming[] {
+  const out = sortPlateTimings(timings).map((t) => ({ ...t }));
+  const idx = out.findIndex((t) => t.plateId === plateId);
+  if (idx < 0) return timings;
+  const cap = Number.isFinite(songEndMs) && songEndMs > 0 ? Math.round(songEndMs) : Infinity;
+  const snap = snapMs > 0 ? snapMs : 1;
+  let at = Math.round(wantMs / snap) * snap;
+  const cur = out[idx]!;
+  const prev = out[idx - 1];
+  const next = out[idx + 1];
+
+  if (edge === "start") {
+    const lo = prev ? prev.startMs + MIN_PLATE_BOX_MS : 0;
+    const hi = cur.endMs - MIN_PLATE_BOX_MS;
+    at = Math.max(lo, Math.min(hi, at, cap));
+    cur.startMs = at;
+    if (prev) prev.endMs = at;
+  } else {
+    const lo = cur.startMs + MIN_PLATE_BOX_MS;
+    const hi = next ? next.endMs - MIN_PLATE_BOX_MS : cap;
+    at = Math.max(lo, Math.min(hi, at));
+    cur.endMs = at;
+    if (next) next.startMs = at;
+  }
+  return out;
+}
+
+export const TRACK_WAVE_RULER_H = 13;
+export const TRACK_WAVE_LANE_H = 26;
+
+/** Same geometry the canvas draws, so a tap on a box edge hits that box. */
+export function trackWaveLayout(width: number, height: number) {
+  const rulerH = TRACK_WAVE_RULER_H;
+  const laneH = TRACK_WAVE_LANE_H;
+  const waveTop = rulerH;
+  const waveH = Math.max(8, height - rulerH - laneH);
+  const laneY = waveTop + waveH + 3;
+  const laneBoxH = laneH - 6;
+  return { rulerH, laneH, waveTop, waveH, laneY, laneBoxH, width };
+}
+
+export function hitPlateEdge(opts: {
+  timings: Pick<PlateTiming, "plateId" | "startMs" | "endMs">[];
+  durationMs: number;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  slopPx?: number;
+}): { plateId: string; edge: PlateBoxEdge } | null {
+  const { durationMs, width, height, x, y } = opts;
+  if (!durationMs || !width || !height) return null;
+  const layout = trackWaveLayout(width, height);
+  const slop = opts.slopPx ?? 14;
+  if (y < layout.laneY - 6 || y > layout.laneY + layout.laneBoxH + 6) return null;
+  const xAt = (ms: number) => (ms / durationMs) * width;
+  let best: { plateId: string; edge: PlateBoxEdge; dist: number } | null = null;
+  for (const t of opts.timings) {
+    const x0 = xAt(t.startMs);
+    const x1 = xAt(t.endMs);
+    for (const edge of ["start", "end"] as const) {
+      const dist = Math.abs(x - (edge === "start" ? x0 : x1));
+      if (dist > slop) continue;
+      if (!best || dist < best.dist) best = { plateId: t.plateId, edge, dist };
+    }
+  }
+  return best ? { plateId: best.plateId, edge: best.edge } : null;
 }
 
 export function plateTimingForShot(

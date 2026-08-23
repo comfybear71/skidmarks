@@ -3,6 +3,7 @@ import { readMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import {
   cutFromPlateTiming,
+  sortPlateTimings,
   type LyricCue,
   type MusicVideoTrackDraft,
   type PlateTiming,
@@ -57,6 +58,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-draft — pre-lock peaks/markers/timings on job.trackDraft
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
+ *   set-plate-timings — stretch boxes on the wave (same stills, new in/out)
  *   remove-plate-timing — clear one plate schedule
  */
 /** Cue rows come off the phone — keep only well-formed, ordered pins. */
@@ -188,6 +190,30 @@ export async function POST(req: Request) {
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated, timing });
+    }
+
+    if (action === "set-plate-timings") {
+      const song = job.scratchSong;
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
+      }
+      const plateTimings = cleanPlateTimings(body.plateTimings);
+      if (!plateTimings) {
+        return NextResponse.json({ error: "Need plate timings." }, { status: 400 });
+      }
+      let cuts = song.cuts || [];
+      for (const timing of sortPlateTimings(plateTimings)) {
+        const shot = job.shots.find((s) => s.shotId === timing.plateId);
+        const plateFile = (shot?.plateFile || "").trim();
+        if (plateFile && plateFile !== "__error__") {
+          cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
+        }
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, plateTimings, cuts },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
     }
 
     if (action === "remove-plate-timing") {
