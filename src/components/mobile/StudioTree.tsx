@@ -16,7 +16,7 @@ import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { MusicVideoSongCuts } from "./MusicVideoSongCuts";
 import { MusicVideoTrack } from "./MusicVideoTrack";
-import { isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong";
+import { isMusicVideoSongJob, jobShowsMusicTrack, musicVideoCreditLine } from "@/lib/musicVideoSong";
 import {
   allCastApproved,
   allLocationsApproved,
@@ -1805,11 +1805,10 @@ export function StudioTree({
         label="Plates"
         headerRight={<CollapseToggle open={platesOpen} onToggle={() => setPlatesOpen((v) => !v)} />}
       >
-        {/* A music video is CAST, LOCATIONS and this: the song, the marks on
-            it, the plates and the renders — one section, in that order.
-            Collapsed keeps the wave and the player on screen; expanding adds
-            the marking tools, lyrics, plates and clips underneath. */}
-        {isMusicVideoSongJob(job) ? (
+        {/* TRACK is the default on /m — drop a song on Skidmarks the same
+            way a music video does. Collapsed keeps the wave on screen.
+            Start the video / 15s song-cut LTX stay Music video only. */}
+        {jobShowsMusicTrack(job) ? (
           <MusicVideoTrack
             job={job}
             story={deskStory}
@@ -1817,8 +1816,10 @@ export function StudioTree({
             onJobChange={onJobChange}
             compact={!platesOpen}
             busy={busy}
-            canStart={canWrite && !lockingScript && !job.folderName}
-            onStart={onStartMusicVideo}
+            canStart={
+              isMusicVideoSongJob(job) && canWrite && !lockingScript && !job.folderName
+            }
+            onStart={isMusicVideoSongJob(job) ? onStartMusicVideo : undefined}
             onOpenPlate={(shotId) => revealPlates(shotId)}
             castOptions={job.speakers.map((name) => {
               const file = approvedCandidateFileName(job.castCandidates, name) || "";
@@ -1836,11 +1837,12 @@ export function StudioTree({
               }),
             }))}
             onCreatePlate={(sceneId, speaker) => {
-              if (!job.folderName) {
+              if (isMusicVideoSongJob(job) && !job.folderName) {
                 pendingPlate.current = { sceneId, speaker };
                 onStartMusicVideo(job.lyrics || "");
                 return;
               }
+              if (!job.folderName) return;
               void addLocationToPlate(sceneId, speaker);
             }}
           />

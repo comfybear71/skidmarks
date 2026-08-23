@@ -401,6 +401,15 @@ export function isMusicVideoSongJob(job: { styleId?: string }): boolean {
   return job.styleId === "music_video";
 }
 
+/**
+ * TRACK wave on /m — every show, so Skidmarks / Sunny Banks can take a song
+ * the same way a music video does. Song-cut LTX and Start the video stay
+ * behind isMusicVideoSongJob.
+ */
+export function jobShowsMusicTrack(_job?: { styleId?: string }): boolean {
+  return true;
+}
+
 /** The one channel every music video belongs to — shown as the Vibe title,
  * with the band/song credit line underneath (musicVideoCreditLine). */
 export const MUSIC_VIDEO_SHOW_NAME = "SKIDS_MUSIC_TV";
