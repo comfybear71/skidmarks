@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "comfy-cloud": {
+      "url": "https://cloud.comfy.org/mcp",
+      "headers": {
+        "X-API-Key": "${env:COMFY_CLOUD_API_KEY}"
+      }
+    },
+    "comfy-docs": {
+      "url": "https://docs.comfy.org/mcp"
+    }
+  }
+}
