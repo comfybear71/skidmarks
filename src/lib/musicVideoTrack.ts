@@ -4,7 +4,11 @@
  * Times are milliseconds on the full MP3.
  */
 import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
-import { clampSongSliceDuration, clampSongWindow } from "./scratchSongWindow";
+import {
+  clampSongSliceDuration,
+  clampSongWindow,
+  MUSIC_VIDEO_SLICE_MAX_SEC,
+} from "./scratchSongWindow";
 
 export type TrackSectionLabel =
   | "intro"
@@ -169,12 +173,22 @@ export function sliceBoundsForPlate(opts: {
   if (timing && timing.endMs > timing.startMs) {
     const startSec = msToSec(timing.startMs);
     const durationSec = msToSec(timing.endMs - timing.startMs);
-    return clampSongWindow(startSec, durationSec, opts.song.durationSec);
+    return clampSongWindow(startSec, durationSec, opts.song.durationSec, MUSIC_VIDEO_SLICE_MAX_SEC);
   }
   if (opts.cut) {
-    return clampSongWindow(opts.cut.startSec, opts.cut.durationSec, opts.song.durationSec);
+    return clampSongWindow(
+      opts.cut.startSec,
+      opts.cut.durationSec,
+      opts.song.durationSec,
+      MUSIC_VIDEO_SLICE_MAX_SEC,
+    );
   }
-  return clampSongWindow(0, clampSongSliceDuration(opts.song.sliceDurationSec), opts.song.durationSec);
+  return clampSongWindow(
+    0,
+    clampSongSliceDuration(opts.song.sliceDurationSec, MUSIC_VIDEO_SLICE_MAX_SEC),
+    opts.song.durationSec,
+    MUSIC_VIDEO_SLICE_MAX_SEC,
+  );
 }
 
 /** Upsert one cut row from a plate timing (keeps legacy song desk in sync). */

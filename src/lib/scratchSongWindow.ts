@@ -3,9 +3,13 @@
  */
 import type { LyricCue, PlateTiming, TrackSectionMarker } from "./musicVideoTrack";
 
+import { LTX_MAX_DURATION_SEC } from "./ltxDuration";
+
 export const SCRATCH_SONG_SLICE_DEFAULT_SEC = 15;
 export const SCRATCH_SONG_SLICE_MIN_SEC = 4;
 export const SCRATCH_SONG_SLICE_MAX_SEC = 30;
+/** Music-video plate clocks follow the mp3. Same ceiling as LTX — not the scratch 30s cap. */
+export const MUSIC_VIDEO_SLICE_MAX_SEC = LTX_MAX_DURATION_SEC;
 /** One auto batch — 8 × 15s = 2 minutes, then stop so you can check / swap a plate. */
 export const SCRATCH_SONG_BATCH_SHOTS = 8;
 
@@ -48,11 +52,15 @@ export type ScratchSong = {
   lyricCues?: LyricCue[];
 };
 
-export function clampSongSliceDuration(sec: number): number {
+export function clampSongSliceDuration(sec: number, maxSec = SCRATCH_SONG_SLICE_MAX_SEC): number {
   if (!Number.isFinite(sec) || sec <= 0) return SCRATCH_SONG_SLICE_DEFAULT_SEC;
+  const cap =
+    Number.isFinite(maxSec) && maxSec >= SCRATCH_SONG_SLICE_MIN_SEC
+      ? maxSec
+      : SCRATCH_SONG_SLICE_MAX_SEC;
   return Math.max(
     SCRATCH_SONG_SLICE_MIN_SEC,
-    Math.min(SCRATCH_SONG_SLICE_MAX_SEC, Math.round(sec * 10) / 10),
+    Math.min(cap, Math.round(sec * 10) / 10),
   );
 }
 
@@ -66,13 +74,14 @@ export function clampSongWindow(
   startSec: number,
   durationSec: number,
   songSec: number,
+  maxSec = SCRATCH_SONG_SLICE_MAX_SEC,
 ): { startSec: number; durationSec: number } {
   const start = clampSongSliceStart(startSec, songSec);
-  let duration = clampSongSliceDuration(durationSec);
+  let duration = clampSongSliceDuration(durationSec, maxSec);
   if (Number.isFinite(songSec) && songSec > 0) {
     const left = Math.max(SCRATCH_SONG_SLICE_MIN_SEC, songSec - start);
     duration = Math.min(duration, left);
-    duration = clampSongSliceDuration(duration);
+    duration = clampSongSliceDuration(duration, maxSec);
   }
   return { startSec: start, durationSec: duration };
 }

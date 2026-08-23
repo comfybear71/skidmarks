@@ -10,6 +10,7 @@ import {
   songWindowLabel,
   songWindowLeftSec,
   remainingSongWindows,
+  MUSIC_VIDEO_SLICE_MAX_SEC,
   SCRATCH_SONG_BATCH_SHOTS,
   SCRATCH_SONG_SLICE_DEFAULT_SEC,
   SCRATCH_SONG_SLICE_MAX_SEC,
@@ -29,7 +30,13 @@ const fetchErr = readFileSync(join(here, "../src/lib/studioFetchError.ts"), "utf
 
 assert.equal(SCRATCH_SONG_SLICE_DEFAULT_SEC, 15);
 assert.equal(SCRATCH_SONG_SLICE_MAX_SEC, 30);
+assert.equal(MUSIC_VIDEO_SLICE_MAX_SEC, 180);
 assert.deepEqual(clampSongWindow(0, 15, 139.4), { startSec: 0, durationSec: 15 });
+assert.deepEqual(clampSongWindow(0, 66, 267.5), { startSec: 0, durationSec: 30 });
+assert.deepEqual(clampSongWindow(35, 66, 267.5, MUSIC_VIDEO_SLICE_MAX_SEC), {
+  startSec: 35,
+  durationSec: 66,
+});
 assert.equal(formatSongClock(139.4), "2:19.4");
 const cuts = [{ durationSec: 15 }, { durationSec: 10 }, { durationSec: 30 }, { durationSec: 30 }, { durationSec: 30 }];
 assert.equal(scheduledSongSeconds(cuts), 115);

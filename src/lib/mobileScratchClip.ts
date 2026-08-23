@@ -25,6 +25,7 @@ import {
 import {
   clampSongWindow,
   isDroppedPlaceholderLine,
+  MUSIC_VIDEO_SLICE_MAX_SEC,
   scratchSongSliceTempPath,
   sliceSongMp3,
   type ScratchSong,
@@ -152,10 +153,12 @@ export async function runScratchLtxClip(opts: {
   if (looksLikePlatePositionPrompt(line) && !singing) {
     throw new Error("That's the still position, not speech. Wipe the line box, type what they say, then Save.");
   }
+  const sliceMaxSec = job.styleId === "music_video" ? MUSIC_VIDEO_SLICE_MAX_SEC : undefined;
   const window = clampSongWindow(
     opts.sliceStartSec ?? song?.sliceStartSec ?? 0,
     opts.sliceDurationSec ?? song?.sliceDurationSec ?? 15,
     song?.durationSec || 0,
+    sliceMaxSec,
   );
   const needsSlice = Boolean(song?.fileName) && (window.startSec > 0.05 || (song?.durationSec || 0) > window.durationSec + 0.4);
   const audioPath = needsSlice
@@ -164,6 +167,7 @@ export async function runScratchLtxClip(opts: {
         destPath: scratchSongSliceTempPath(jobId),
         startSec: window.startSec,
         durationSec: window.durationSec,
+        maxSec: sliceMaxSec,
       })
     : sourceAudio;
 
