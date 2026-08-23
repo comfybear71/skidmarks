@@ -3130,6 +3130,28 @@ span.scratch-history-blob {
   line-height: 1.4;
 }
 
+.m-talk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  padding: 0 2px 6px;
+}
+
+.m-talk-kicker {
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.m-talk-hint {
+  color: var(--chrome-dim);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .m-talk-scroll {
   overflow-x: auto;
   overflow-y: hidden;
@@ -3143,8 +3165,36 @@ span.scratch-history-blob {
   display: flex;
   align-items: stretch;
   gap: 8px;
-  min-width: 100%;
+  min-width: max-content;
+  width: max-content;
   padding-bottom: 4px;
+}
+
+.m-talk-block {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.m-talk-scene {
+  display: block;
+  min-height: 14px;
+  padding: 0 2px;
+  color: var(--chrome-dim);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.m-talk-scene--gap {
+  visibility: hidden;
 }
 
 .m-talk-cell {
@@ -3165,8 +3215,10 @@ span.scratch-history-blob {
 .m-talk-thumb {
   display: block;
   width: 100%;
-  height: 72px;
-  object-fit: cover;
+  height: 124px;
+  object-fit: contain;
+  object-position: center;
+  background: #0b0d12;
 }
 
 .m-talk-thumb--empty {

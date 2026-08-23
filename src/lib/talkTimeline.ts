@@ -19,16 +19,20 @@ export type TalkTimelineEvent = {
 export type TalkTimelinePlate = {
   shotId: string;
   sceneId: string;
+  shotNo: number;
+  /** 1-based SHOT 01 number when the title has one; otherwise null. */
+  episodeNo: number | null;
   title: string;
   placeName: string;
+  sceneTitle: string;
   plateFile: string;
   events: TalkTimelineEvent[];
   /** How wide this plate is on the strip — more beats = more room. */
   widthPx: number;
 };
 
-export const TALK_PLATE_MIN_PX = 132;
-export const TALK_BEAT_PX = 56;
+export const TALK_PLATE_MIN_PX = 220;
+export const TALK_BEAT_PX = 80;
 
 const TAG_KIND: { kind: TalkTagKind; tag: string; test: RegExp }[] = [
   { kind: "dial", tag: "DIAL", test: /^dial$/i },
@@ -51,6 +55,14 @@ export function talkTagKind(raw: string): { kind: TalkTagKind; tag: string } | n
     }
   }
   return null;
+}
+
+/** SHOT 01 / SHOT_01 / Shot 4 — episode layout order, not job-add order. */
+export function talkShotNumber(title: string): number | null {
+  const m = String(title || "").match(/\bshot\s*_?\s*0*(\d+)\b/i);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 export function templateTagsFrom(text: string): { kind: TalkTagKind; tag: string; body: string }[] {
@@ -123,7 +135,7 @@ export function eventsForShot(shot: CrashStoryShot): TalkTimelineEvent[] {
       if (!hasCutaway) push("cutaway", "CUTAWAY", beat.action || beat.text || beat.speaker, `cut_${beat.id}`);
       continue;
     }
-    if (!hasDial && beat.text.trim()) {
+    if (beat.text.trim()) {
       push("dial", "DIAL", `${beat.speaker}: ${beat.text}`, `dial_${beat.id}`);
     }
   }
@@ -144,32 +156,92 @@ export function talkPlateWidthPx(beatCount: number, eventCount: number): number 
   return Math.max(TALK_PLATE_MIN_PX, TALK_BEAT_PX * beats + Math.min(48, events * 8));
 }
 
+function plateFileOf(unit: MobileShotUnit | undefined, shot?: CrashStoryShot): string {
+  const fromJob = (unit?.plateFile || "").trim();
+  if (fromJob && fromJob !== "__error__") return fromJob;
+  const fromStory = (shot?.plateFile || "").trim();
+  if (fromStory && fromStory !== "__error__") return fromStory;
+  return "";
+}
+
+function rowFrom(opts: {
+  unit: MobileShotUnit;
+  shot?: CrashStoryShot;
+  placeName: string;
+  sceneTitle: string;
+  shotNo: number;
+}): TalkTimelinePlate {
+  const events = opts.shot ? eventsForShot(opts.shot) : [];
+  const beats = opts.shot ? realBeats(opts.shot).length : 1;
+  const title = (opts.shot?.title || "").trim() || `Plate ${opts.shotNo}`;
+  return {
+    shotId: opts.unit.shotId,
+    sceneId: opts.unit.sceneId,
+    shotNo: opts.shotNo,
+    episodeNo: talkShotNumber(title),
+    title,
+    placeName: opts.placeName,
+    sceneTitle: opts.sceneTitle || opts.placeName,
+    plateFile: plateFileOf(opts.unit, opts.shot),
+    events,
+    widthPx: talkPlateWidthPx(beats, events.length),
+  };
+}
+
+/**
+ * Episode first (SHOT 01, SHOT 02…) then the rest of the pack in story
+ * order. Job-add order is ignored. A still on the story still lands even
+ * if the job row has not caught up yet.
+ */
 export function talkTimelineFrom(opts: {
   story: CrashStoryDoc | null | undefined;
   plated: MobileShotUnit[];
 }): TalkTimelinePlate[] {
-  const story = opts.story;
-  return (opts.plated || []).map((unit, i) => {
-    let shot: CrashStoryShot | undefined;
-    let placeName = "";
-    for (const scene of story?.scenes || []) {
-      const hit = scene.shots.find((sh) => sh.id === unit.shotId);
-      if (!hit) continue;
-      shot = hit;
-      placeName = scene.placeName;
-      break;
+  const plated = opts.plated || [];
+  const byId = new Map(plated.map((u) => [u.shotId, u]));
+  const collected: TalkTimelinePlate[] = [];
+  let shotNo = 0;
+
+  for (const scene of opts.story?.scenes || []) {
+    for (const shot of scene.shots) {
+      const unit = byId.get(shot.id) || {
+        shotId: shot.id,
+        sceneId: scene.id,
+        plateFile: (shot.plateFile || "").trim(),
+      };
+      const file = plateFileOf(unit, shot);
+      if (!file) continue;
+      shotNo += 1;
+      collected.push(
+        rowFrom({
+          unit: { ...unit, sceneId: unit.sceneId || scene.id, plateFile: file },
+          shot,
+          placeName: scene.placeName,
+          sceneTitle: (scene.title || scene.placeName || "").trim(),
+          shotNo,
+        }),
+      );
     }
-    const events = shot ? eventsForShot(shot) : [];
-    const beats = shot ? realBeats(shot).length : 1;
-    const title = (shot?.title || "").trim() || `Plate ${i + 1}`;
-    return {
-      shotId: unit.shotId,
-      sceneId: unit.sceneId,
-      title,
-      placeName,
-      plateFile: (unit.plateFile || "").trim(),
-      events,
-      widthPx: talkPlateWidthPx(beats, events.length),
-    };
-  });
+  }
+
+  for (const unit of plated) {
+    if (collected.some((r) => r.shotId === unit.shotId)) continue;
+    const file = plateFileOf(unit);
+    if (!file) continue;
+    shotNo += 1;
+    collected.push(
+      rowFrom({
+        unit: { ...unit, plateFile: file },
+        placeName: "",
+        sceneTitle: "",
+        shotNo,
+      }),
+    );
+  }
+
+  const episode = collected
+    .filter((r) => r.episodeNo != null)
+    .sort((a, b) => (a.episodeNo || 0) - (b.episodeNo || 0) || a.shotNo - b.shotNo);
+  const rest = collected.filter((r) => r.episodeNo == null);
+  return [...episode, ...rest];
 }

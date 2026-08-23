@@ -9,6 +9,15 @@ function chipClass(kind: TalkTagKind): string {
   return `m-talk-chip is-${kind}`;
 }
 
+function shotLabel(row: TalkTimelinePlate): string {
+  if (row.episodeNo != null) {
+    const n = String(row.episodeNo).padStart(2, "0");
+    const rest = row.title.replace(/\bshot\s*_?\s*0*\d+\b/i, "").replace(/^[—–\-\s]+/, "").trim();
+    return rest ? `${n}  ${rest}` : n;
+  }
+  return row.title;
+}
+
 function PlateCell({
   job,
   row,
@@ -33,7 +42,7 @@ function PlateCell({
       ) : (
         <span className="m-talk-thumb m-talk-thumb--empty" />
       )}
-      <span className="m-talk-title">{row.title}</span>
+      <span className="m-talk-title">{shotLabel(row)}</span>
       {row.placeName ? <span className="m-talk-place">{row.placeName}</span> : null}
       {row.events.length ? (
         <span className="m-talk-chips">
@@ -79,19 +88,33 @@ export function TalkTimeline({
   }
   return (
     <div className="m-talk">
+      <div className="m-talk-head">
+        <span className="m-talk-kicker">Talking timeline</span>
+        <span className="m-talk-hint">Swipe sideways — plates go off the phone.</span>
+      </div>
       <div className="m-talk-scroll">
         <div className="m-talk-inner">
-          {rows.map((row) => (
-            <PlateCell
-              key={row.shotId}
-              job={job}
-              row={{
-                ...row,
-                events: compact ? [] : row.events,
-              }}
-              onOpen={onOpenPlate}
-            />
-          ))}
+          {rows.map((row, i) => {
+            const prev = rows[i - 1];
+            const sceneBreak = !prev || prev.sceneId !== row.sceneId;
+            return (
+              <div key={row.shotId} className="m-talk-block">
+                {sceneBreak ? (
+                  <span className="m-talk-scene">{row.sceneTitle || row.placeName || "Shot"}</span>
+                ) : (
+                  <span className="m-talk-scene m-talk-scene--gap" aria-hidden />
+                )}
+                <PlateCell
+                  job={job}
+                  row={{
+                    ...row,
+                    events: compact ? [] : row.events,
+                  }}
+                  onOpen={onOpenPlate}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
