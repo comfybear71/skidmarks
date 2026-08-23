@@ -133,7 +133,7 @@ console.log("check-music-video-track-lyrics OK");
   assert.match(ui, /Start here/, "pin section start at playhead");
   assert.match(ui, /Clear sections/, "wipe broken section rows");
   assert.match(ui, /m-track-time-set/, "explicit Set on time boxes");
-  assert.match(ui, /sectionCastHint/, "who plates each section");
+  assert.match(ui, /sectionPeopleOnPlates/, "who is on the stills in that section");
 
   // One UI, empty or full. No second screen in front of the track.
   assert.doesNotMatch(ui, /m-track-empty/, "no separate empty-state layout");
@@ -290,7 +290,7 @@ console.log("check-music-video-plate-bar OK");
   const {
     importSectionMarkersFromLyrics,
     meaningfulLyricTags,
-    sectionCastHint,
+    sectionPeopleOnPlates,
     sectionNeedsStartHere,
     withSectionStartAt,
   } = await import("../src/lib/musicVideoTrack.ts");
@@ -319,9 +319,30 @@ console.log("check-music-video-plate-bar OK");
   assert.equal(split[0].endMs, 35_000);
   assert.equal(split[1].startMs, 35_000);
 
-  assert.equal(sectionCastHint("verse", "JACK GHOST"), "JACK GHOST");
-  assert.equal(sectionCastHint("sax_break", "JACK GHOST"), "SAXOPHONE");
-  assert.equal(sectionCastHint("lead_break", "JACK GHOST"), "GUITAR");
+  const jackPlates = [
+    { startMs: 0, endMs: 18_100, label: "DRUMMER" },
+    { startMs: 18_100, endMs: 35_000, label: "JACK GHOST" },
+    { startMs: 35_000, endMs: 101_000, label: "JACK GHOST" },
+    { startMs: 133_000, endMs: 154_600, label: "SAXOPHONE" },
+    { startMs: 232_000, endMs: 247_500, label: "SAXOPHONE" },
+    { startMs: 247_500, endMs: 267_534, label: "GUITAR" },
+  ];
+  assert.equal(
+    sectionPeopleOnPlates({ startMs: 0, endMs: 35_000 }, jackPlates),
+    "DRUMMER · JACK GHOST",
+  );
+  assert.equal(
+    sectionPeopleOnPlates({ startMs: 133_000, endMs: 150_000 }, jackPlates),
+    "SAXOPHONE",
+  );
+  assert.equal(
+    sectionPeopleOnPlates({ startMs: 232_000, endMs: 247_500 }, jackPlates),
+    "SAXOPHONE",
+  );
+  assert.equal(
+    sectionPeopleOnPlates({ startMs: 247_500, endMs: 267_534 }, jackPlates),
+    "GUITAR",
+  );
 }
 
 console.log("check-music-video-section-times OK");

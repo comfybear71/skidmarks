@@ -560,15 +560,24 @@ export function withSectionStartAt(
   });
 }
 
-/** Who plates this section — front man on vocals, band only on breaks. */
-export function sectionCastHint(label: string, leadSinger?: string): string {
-  const lead = (leadSinger || "lead singer").trim() || "lead singer";
-  const id = String(label || "").trim().toLowerCase();
-  if (id === "sax_break") return "SAXOPHONE";
-  if (id === "lead_break") return "GUITAR";
-  if (id === "intro" || id === "outro") return `${lead} · DRUMMER optional`;
-  if (id === "verse" || id === "chorus" || id === "bridge" || id === "crescendo") return lead;
-  return lead;
+/** Who is actually on the stills that sit in this section. Empty if none. */
+export function sectionPeopleOnPlates(
+  section: { startMs: number; endMs: number },
+  plates: { startMs: number; endMs: number; label: string }[],
+): string {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const ordered = [...plates].sort((a, b) => a.startMs - b.startMs);
+  for (const p of ordered) {
+    if (p.endMs <= section.startMs || p.startMs >= section.endMs) continue;
+    const name = String(p.label || "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  return names.join(" · ");
 }
 
 /** A section waiting for Start here — collapsed at the song end. */

@@ -25,7 +25,7 @@ import {
   nextSectionStartMs,
   parseTrackClock,
   plateBarColor,
-  sectionCastHint,
+  sectionPeopleOnPlates,
   sectionColor,
   sectionNeedsStartHere,
   sectionTint,
@@ -644,8 +644,6 @@ export function MusicVideoTrack({
     () => (effectiveDurationMs > 0 ? nextSectionNeedingStart(sortedMarkers, effectiveDurationMs) : null),
     [sortedMarkers, effectiveDurationMs],
   );
-  const leadSinger = (job.speakers?.[0] || job.artist || "").trim();
-
   const lyricCues = useMemo<LyricCue[]>(
     () => song?.lyricCues || job.trackDraft?.lyricCues || [],
     [song?.lyricCues, job.trackDraft?.lyricCues],
@@ -1188,7 +1186,7 @@ export function MusicVideoTrack({
             <ul className="m-track-marker-list">
               {sortedMarkers.map((m) => {
                 const waiting = effectiveDurationMs > 0 && sectionNeedsStartHere(m, effectiveDurationMs);
-                const cast = sectionCastHint(m.label, leadSinger);
+                const cast = sectionPeopleOnPlates(m, plateBlocks);
                 return (
                 <li key={m.id} style={{ borderLeftColor: sectionColor(m.label) }}>
                   <div className="m-track-section-top">
