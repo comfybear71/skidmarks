@@ -6,13 +6,11 @@ import { fileURLToPath } from "node:url";
 import {
   formatTrackClock,
   formatTrackClockPrecise,
-  hitPlateEdge,
   msToSec,
   orderedDoneCutsForStitch,
   secToMs,
   sliceBoundsForPlate,
   sortPlateTimings,
-  stretchPlateEdge,
 } from "../src/lib/musicVideoTrack.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -75,57 +73,22 @@ assert.match(
 assert.match(tree, /compact=\{!platesOpen\}/);
 assert.match(trackUi, /WaveformCanvas/);
 assert.match(trackUi, /Add section/);
+assert.match(trackUi, /Use range/);
 assert.match(trackRoute, /set-plate-timing/);
 assert.match(songRoute, /sliceBoundsForPlate/);
 assert.match(songRoute, /orderedDoneCutsForStitch/);
 assert.match(attach, /trackDraft/);
 assert.match(mobileCss, /\.m-track-wave/);
-assert.match(mobileCss, /\.m-track-stretch-hint/);
-assert.match(trackUi, /stretchPlateEdge/);
-assert.match(trackUi, /onStretchCommit/);
-assert.match(trackRoute, /set-plate-timings/);
+
+// Drag-to-stretch on the coloured bars is gone. Time a still with Use range.
+assert.doesNotMatch(trackUi, /stretchPlateEdge/);
+assert.doesNotMatch(trackUi, /onStretchCommit/);
+assert.doesNotMatch(trackUi, /Drag a coloured box edge/);
+assert.doesNotMatch(trackUi, /Pictures stay put/);
+assert.doesNotMatch(mobileCss, /\.m-track-stretch-hint/);
+assert.doesNotMatch(trackRoute, /set-plate-timings/);
 
 assert.equal(formatTrackClockPrecise(247500), "4:07.5");
 assert.equal(formatTrackClockPrecise(0), "0:00.0");
-
-const boxes = [
-  { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
-  { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
-  { plateId: "c", startMs: 30000, endMs: 45000, sortIndex: 2 },
-];
-const pulled = stretchPlateEdge(boxes, "b", "start", 10000, 45000);
-assert.equal(pulled.find((t) => t.plateId === "a")?.endMs, 10000);
-assert.equal(pulled.find((t) => t.plateId === "b")?.startMs, 10000);
-assert.equal(pulled.find((t) => t.plateId === "b")?.endMs, 30000);
-const pushed = stretchPlateEdge(boxes, "b", "end", 40000, 45000);
-assert.equal(pushed.find((t) => t.plateId === "b")?.endMs, 40000);
-assert.equal(pushed.find((t) => t.plateId === "c")?.startMs, 40000);
-const clamped = stretchPlateEdge(boxes, "b", "end", 100000, 45000);
-assert.equal(clamped.find((t) => t.plateId === "b")?.endMs, 44500);
-assert.equal(clamped.find((t) => t.plateId === "c")?.startMs, 44500);
-const tooSmall = stretchPlateEdge(boxes, "a", "end", 100, 45000);
-assert.equal(tooSmall.find((t) => t.plateId === "a")?.endMs, 500);
-
-const hit = hitPlateEdge({
-  timings: boxes,
-  durationMs: 45000,
-  width: 450,
-  height: 78,
-  x: 150,
-  y: 70,
-});
-assert.ok(hit);
-assert.ok(
-  (hit.plateId === "a" && hit.edge === "end") || (hit.plateId === "b" && hit.edge === "start"),
-);
-const miss = hitPlateEdge({
-  timings: boxes,
-  durationMs: 45000,
-  width: 450,
-  height: 78,
-  x: 150,
-  y: 20,
-});
-assert.equal(miss, null);
 
 console.log("check-music-video-track: ok");
