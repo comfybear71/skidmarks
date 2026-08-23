@@ -30,6 +30,7 @@ import {
   sectionNeedsStartHere,
   sectionTint,
   sectionTitle,
+  plateRailBox,
   sortPlateTimings,
   sortSectionMarkers,
   trackWaveLayout,
@@ -952,38 +953,65 @@ export function MusicVideoTrack({
             </div>
           )}
 
-          {/* Plates outrank the section list, so they sit above it: one
-              horizontal strip, right under the wave. */}
+          {/* Same order and widths as the coloured bars on the wave. */}
           {!compact ? (
             <div className="m-track-rail">
-              <div className="m-track-rail-scroll">
-                {plateRows.map((row) => (
+              <div
+                className={`m-track-rail-scroll${plateBlocks.length ? " m-track-rail-align" : ""}`}
+              >
+                {(plateBlocks.length
+                  ? plateBlocks.map((block) => {
+                      const row = plateRows.find((p) => p.shotId === block.plateId);
+                      const box = plateRailBox(
+                        block.startMs,
+                        block.endMs,
+                        effectiveDurationMs || 1,
+                      );
+                      return {
+                        key: block.plateId,
+                        shotId: block.plateId,
+                        title: row?.title || block.label,
+                        plateFile: row?.plateFile || "",
+                        timed: Boolean(row?.timing),
+                        style: { left: `${box.leftPct}%`, width: `${box.widthPct}%` } as const,
+                      };
+                    })
+                  : plateRows.map((row) => ({
+                      key: row.shotId,
+                      shotId: row.shotId,
+                      title: row.title,
+                      plateFile: row.plateFile,
+                      timed: Boolean(row.timing),
+                      style: undefined,
+                    }))
+                ).map((cell) => (
                   <button
                     type="button"
-                    key={row.shotId}
-                    className={`m-track-rail-cell${row.timing ? " is-timed" : ""}`}
-                    onClick={() => onOpenPlate?.(row.shotId)}
-                    title={row.title}
+                    key={cell.key}
+                    className={`m-track-rail-cell${plateBlocks.length ? " is-align" : ""}${cell.timed ? " is-timed" : ""}`}
+                    style={cell.style}
+                    onClick={() => onOpenPlate?.(cell.shotId)}
+                    title={cell.title}
                   >
-                    {row.plateFile ? (
+                    {cell.plateFile ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={mobileLocationStillUrl(job, row.plateFile)} alt="" />
+                      <img src={mobileLocationStillUrl(job, cell.plateFile)} alt="" />
                     ) : (
                       <span className="m-track-rail-empty" />
                     )}
-                    <span className="m-track-rail-label">{row.title}</span>
+                    <span className="m-track-rail-label">{cell.title}</span>
                   </button>
                 ))}
-                <button
-                  type="button"
-                  className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
-                  onClick={() => setPickOpen((v) => !v)}
-                  aria-expanded={pickOpen}
-                  aria-label="Add a plate"
-                >
-                  +
-                </button>
               </div>
+              <button
+                type="button"
+                className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
+                onClick={() => setPickOpen((v) => !v)}
+                aria-expanded={pickOpen}
+                aria-label="Add a plate"
+              >
+                +
+              </button>
             </div>
           ) : null}
 
