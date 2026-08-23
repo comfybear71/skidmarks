@@ -8,6 +8,7 @@ import {
   formatTrackClockPrecise,
   msToSec,
   orderedDoneCutsForStitch,
+  plateRailBox,
   secToMs,
   sliceBoundsForPlate,
   sortPlateTimings,
@@ -87,6 +88,16 @@ assert.doesNotMatch(trackUi, /Drag a coloured box edge/);
 assert.doesNotMatch(trackUi, /Pictures stay put/);
 assert.doesNotMatch(mobileCss, /\.m-track-stretch-hint/);
 assert.doesNotMatch(trackRoute, /set-plate-timings/);
+
+assert.match(trackUi, /plateRailBox/);
+assert.match(mobileCss, /\.m-track-rail-align/);
+
+const first = plateRailBox(0, 15000, 60000);
+assert.equal(first.leftPct, 0);
+assert.equal(first.widthPct, 25);
+const late = plateRailBox(232000, 247500, 267500);
+assert.ok(Math.abs(late.leftPct - (232000 / 267500) * 100) < 0.0001);
+assert.ok(Math.abs(late.widthPct - (15500 / 267500) * 100) < 0.0001);
 
 assert.equal(formatTrackClockPrecise(247500), "4:07.5");
 assert.equal(formatTrackClockPrecise(0), "0:00.0");

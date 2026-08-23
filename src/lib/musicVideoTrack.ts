@@ -118,6 +118,21 @@ export function sortPlateTimings(list: PlateTiming[]): PlateTiming[] {
   return [...list].sort((a, b) => a.sortIndex - b.sortIndex || a.startMs - b.startMs);
 }
 
+/** Picture tile under the wave — same left/width as that still's slice. */
+export function plateRailBox(
+  startMs: number,
+  endMs: number,
+  durationMs: number,
+): { leftPct: number; widthPct: number } {
+  const song = Math.max(1, durationMs);
+  const start = Math.max(0, startMs);
+  const end = Math.max(start, endMs);
+  return {
+    leftPct: (start / song) * 100,
+    widthPct: ((end - start) / song) * 100,
+  };
+}
+
 export const TRACK_WAVE_RULER_H = 13;
 export const TRACK_WAVE_LANE_H = 26;
 
