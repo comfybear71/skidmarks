@@ -357,6 +357,8 @@ assert.equal(expectedDeskCutCount([4, 2]), 6);
 }
 assert.match(songUi, /songCutsOrderBroken/);
 assert.match(songUi, /Fixed cut order/);
+assert.match(songUi, /Plate clocks are the song/);
+assert.match(songRoute, /Do not rebuild them as 1 × 15s/);
 assert.match(songRoute, /syncSongCutsToDesk/);
 assert.match(songRoute, /Keep done clips/);
 assert.match(songRoute, /action === "add-plate"/);

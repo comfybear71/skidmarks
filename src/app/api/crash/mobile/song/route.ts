@@ -219,6 +219,15 @@ export async function POST(req: Request) {
       if (!song) {
         return NextResponse.json({ error: "No song on this job." }, { status: 400 });
       }
+      // Plate clocks already laid the song. Do not rebuild them as 1 × 15s.
+      if ((song.plateTimings || []).length) {
+        const cuts = clearStuckSongCooks(song.cuts || []);
+        const updated = await patchMobileGenJob(jobId, {
+          scratchSong: { ...song, cuts },
+          error: "",
+        });
+        return NextResponse.json({ ok: true, job: updated });
+      }
       const onList = songDeskPlateIds(song);
       const slices = songDeskRowSlices(song, onList);
       const plateFileByShotId: Record<string, string> = {};

@@ -298,6 +298,8 @@ export function MusicVideoSongCuts({
   useEffect(() => {
     const songNow = jobRef.current.scratchSong;
     if (!songNow?.fileName) return;
+    // Plate clocks are the song. Do not rebuild them into 1 × 15s rows.
+    if ((songNow.plateTimings || []).length) return;
     const onList = songDeskPlateIds(songNow);
     const slices = songDeskRowSlices(songNow, onList);
     const expected = expectedDeskCutCount(slices);
