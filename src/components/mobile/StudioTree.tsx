@@ -16,6 +16,7 @@ import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { MusicVideoSongCuts } from "./MusicVideoSongCuts";
 import { MusicVideoTrack } from "./MusicVideoTrack";
+import { TalkTimeline } from "./TalkTimeline";
 import { isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong";
 import {
   allCastApproved,
@@ -1805,10 +1806,8 @@ export function StudioTree({
         label="Plates"
         headerRight={<CollapseToggle open={platesOpen} onToggle={() => setPlatesOpen((v) => !v)} />}
       >
-        {/* A music video is CAST, LOCATIONS and this: the song, the marks on
-            it, the plates and the renders — one section, in that order.
-            Collapsed keeps the wave and the player on screen; expanding adds
-            the marking tools, lyrics, plates and clips underneath. */}
+        {/* Music video: song TRACK. Skidmarks / talking: plate strip with
+            [DIAL] [SFX] [MUSIC] [CUTAWAY] — not a song drop. */}
         {isMusicVideoSongJob(job) ? (
           <MusicVideoTrack
             job={job}
@@ -1844,7 +1843,15 @@ export function StudioTree({
               void addLocationToPlate(sceneId, speaker);
             }}
           />
-        ) : null}
+        ) : (
+          <TalkTimeline
+            job={job}
+            story={deskStory}
+            plated={songPlates}
+            compact={!platesOpen}
+            onOpenPlate={(shotId) => revealPlates(shotId)}
+          />
+        )}
 
         {lockingScript ? (
           <div style={{ padding: "8px 0 16px" }}>

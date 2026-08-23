@@ -3,6 +3,7 @@ import { readMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import {
   cutFromPlateTiming,
+  songFromTrackDraft,
   type LyricCue,
   type MusicVideoTrackDraft,
   type PlateTiming,
@@ -158,12 +159,20 @@ export async function POST(req: Request) {
       delete draft.songFile;
       delete draft.songDurationSec;
       delete draft.waveformPeaks;
-      const updated = await patchMobileGenJob(jobId, { trackDraft: draft, error: "" });
+      const song = job.scratchSong;
+      // Song-only attach (no spoken beat) — clear the pointer. A carrier
+      // beat is a Saved line; this desk never unhooks that.
+      const parkPointer = Boolean((song?.fileName || "").trim() && !(song?.carrierBeatId || "").trim());
+      const updated = await patchMobileGenJob(jobId, {
+        trackDraft: draft,
+        ...(parkPointer && song ? { scratchSong: { ...song, fileName: "" } } : {}),
+        error: "",
+      });
       return NextResponse.json({ ok: true, job: updated });
     }
 
     if (action === "set-plate-timing") {
-      const song = job.scratchSong;
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       if (!song?.fileName) {
         return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
       }

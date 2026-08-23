@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { MobileGenJob, MobileShotUnit } from "@/lib/mobileGenJob";
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import {
@@ -33,6 +33,7 @@ import {
   plateRailBox,
   sortPlateTimings,
   sortSectionMarkers,
+  trackWaveCssWidth,
   trackWaveLayout,
   withSectionStartAt,
   withSectionTime,
@@ -42,7 +43,7 @@ import {
 } from "@/lib/musicVideoTrack";
 import { decodeWaveformPeaks } from "@/lib/decodeWaveformPeaks";
 import { clearPendingSong, songChipName } from "@/lib/musicVideoStart";
-import { findSongCarrierBeatId, musicVideoCreditLine } from "@/lib/musicVideoSong";
+import { findSongCarrierBeatId, isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong";
 
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
@@ -339,6 +340,39 @@ function LyricPinPanel({
 
 type WavePlateBlock = PlateTiming & { label: string };
 
+/** One sideways scroller for the wave and the plate rail so a long song
+ * does not crush onto one iPhone screen. Vertical flicks still move /m. */
+function TrackScroll({
+  durationMs,
+  children,
+}: {
+  durationMs: number;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [viewW, setViewW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setViewW(el.clientWidth || 0);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const innerW = trackWaveCssWidth(durationMs, viewW);
+  return (
+    <div className="m-track-scroll" ref={ref}>
+      <div
+        className="m-track-scroll-inner"
+        style={innerW ? { width: `${innerW}px` } : undefined}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function WaveformCanvas({
   peaks,
   durationMs,
@@ -364,7 +398,12 @@ function WaveformCanvas({
   onSelectRange: (startMs: number, endMs: number) => void;
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
-  const drag = useRef<{ startMs: number; moved: boolean } | null>(null);
+  const drag = useRef<{
+    startMs: number;
+    startX: number;
+    moved: boolean;
+    pointerType: string;
+  } | null>(null);
   const [cssWidth, setCssWidth] = useState(0);
 
   // A fixed-width canvas stretched by CSS is why this looked soft. Draw at the
@@ -536,13 +575,25 @@ function WaveformCanvas({
       className="m-track-wave"
       style={{ height: `${TRACK_WAVE_HEIGHT}px` }}
       onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
         const ms = msFromEvent(e.clientX);
-        drag.current = { startMs: ms, moved: false };
-        onSeek(ms);
+        drag.current = {
+          startMs: ms,
+          startX: e.clientX,
+          moved: false,
+          pointerType: e.pointerType,
+        };
+        // Touch: let the scroller take the swipe. Mouse: seek + range.
+        if (e.pointerType !== "touch") {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          onSeek(ms);
+        }
       }}
       onPointerMove={(e) => {
         if (!drag.current) return;
+        if (drag.current.pointerType === "touch") {
+          if (Math.abs(e.clientX - drag.current.startX) > 8) drag.current.moved = true;
+          return;
+        }
         const ms = msFromEvent(e.clientX);
         if (Math.abs(ms - drag.current.startMs) > 150) {
           drag.current.moved = true;
@@ -555,6 +606,10 @@ function WaveformCanvas({
         drag.current = null;
         if (!held) return;
         const endMs = msFromEvent(e.clientX);
+        if (held.pointerType === "touch") {
+          if (!held.moved) onSeek(endMs);
+          return;
+        }
         const startMs = Math.min(held.startMs, endMs);
         const end = Math.max(held.startMs, endMs);
         if (end - startMs > 200) onSelectRange(startMs, end);
@@ -926,6 +981,7 @@ export function MusicVideoTrack({
             )}
           </div>
 
+          <TrackScroll durationMs={effectiveDurationMs}>
           {peaks.length ? (
             <WaveformCanvas
               peaks={peaks}
@@ -1012,6 +1068,7 @@ export function MusicVideoTrack({
               </button>
             </div>
           ) : null}
+          </TrackScroll>
 
           {/* One person, one place, one plate — picked here rather than three
               scrolls down inside a Locations card. */}
@@ -1056,7 +1113,11 @@ export function MusicVideoTrack({
               <div className="m-plate-pick-actions">
                 <MobilePrimaryButton
                   size="chip"
-                  disabled={!pickWho || !pickWhere}
+                  disabled={
+                    !pickWho ||
+                    !pickWhere ||
+                    (!job.folderName && !isMusicVideoSongJob(job))
+                  }
                   onClick={() => {
                     onCreatePlate?.(pickWhere, pickWho);
                     setPickOpen(false);
@@ -1064,7 +1125,11 @@ export function MusicVideoTrack({
                     setPickWhere("");
                   }}
                 >
-                  {job.folderName ? `Add ${pickWho || "plate"}` : "Start the video & add"}
+                  {job.folderName
+                    ? `Add ${pickWho || "plate"}`
+                    : isMusicVideoSongJob(job)
+                      ? "Start the video & add"
+                      : "Lock first"}
                 </MobilePrimaryButton>
                 <button type="button" className="m-track-btn" onClick={() => setPickOpen(false)}>
                   Cancel

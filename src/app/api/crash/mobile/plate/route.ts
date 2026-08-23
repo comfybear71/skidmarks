@@ -39,6 +39,7 @@ function patchShotFields(
   patch: {
     staging?: string;
     summary?: string;
+    title?: string;
     plateFile?: string;
     plateTakes?: PlateTake[];
     bibleIds?: string[];
@@ -56,8 +57,8 @@ function patchShotFields(
 /**
  * POST { jobId, shotId, staging } — save the plate prompt and rebuild
  * that one still. Faces and places stay. Not a lineup in the foreground.
- * POST { jobId, shotId, action: "save", summary?, staging? } — write the
- * action / tweak text. Does not composite.
+ * POST { jobId, shotId, action: "save", summary?, staging?, title? } — write the
+ * action / tweak text and the shot title. Does not composite.
  * POST { jobId, shotId, action: "drop" } — clear the shot still pointer
  * and its take list. Clips park in _cleared/. The card stays. Strip ×
  * uses "remove" instead, so an empty slot cannot fill with the location
@@ -106,6 +107,7 @@ export async function POST(req: Request) {
       staging?: string;
       bibleIds?: string[];
       summary?: string;
+      title?: string;
       action?: string;
       shot?: CrashStoryShot;
       takeId?: string;
@@ -123,6 +125,7 @@ export async function POST(req: Request) {
       ? [...new Set(body.bibleIds.map((id) => String(id || "").trim()).filter(Boolean))]
       : undefined;
     const summaryIn = body.summary !== undefined ? String(body.summary) : undefined;
+    const titleIn = body.title !== undefined ? String(body.title) : undefined;
     const action = (body.action || "rebuild").trim().toLowerCase();
     const drop = action === "drop";
     const saveOnly = action === "save";
@@ -149,7 +152,7 @@ export async function POST(req: Request) {
     }
     if ((pick || dropTake) && !takeIdIn) return NextResponse.json({ error: "Need takeId" }, { status: 400 });
     if (removeLine && !beatIdIn) return NextResponse.json({ error: "Need beatId" }, { status: 400 });
-    if (saveOnly && stagingIn === undefined && summaryIn === undefined) {
+    if (saveOnly && stagingIn === undefined && summaryIn === undefined && titleIn === undefined) {
       return NextResponse.json({ error: "Nothing to save" }, { status: 400 });
     }
 
@@ -680,9 +683,10 @@ export async function POST(req: Request) {
     }
 
     if (saveOnly) {
-      const patch: { staging?: string; summary?: string; bibleIds?: string[] } = {};
+      const patch: { staging?: string; summary?: string; title?: string; bibleIds?: string[] } = {};
       if (stagingIn !== undefined) patch.staging = stagingIn;
       if (summaryIn !== undefined) patch.summary = summaryIn;
+      if (titleIn !== undefined) patch.title = titleIn;
       if (bibleIdsIn !== undefined) patch.bibleIds = bibleIdsIn;
       const saved = patchShotFields(story, shotId, patch);
       await writeMobileStory(saved, job.folderName);
@@ -692,6 +696,7 @@ export async function POST(req: Request) {
         job,
         staging: next?.staging,
         summary: next?.summary,
+        title: next?.title,
         bibleIds: next?.bibleIds || [],
       });
     }

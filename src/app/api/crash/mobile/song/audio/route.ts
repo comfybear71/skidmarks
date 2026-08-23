@@ -1,10 +1,15 @@
+import path from "path";
 import { NextResponse } from "next/server";
 import { resolveMobileBeatAudio } from "@/lib/resolveMobileBeatAudio";
+import { resolveMobileMedia, resolveMobileMediaByFilename } from "@/lib/mobileMediaStore";
 import { mobileCandidateFolders, mobileMediaFolder } from "@/lib/mobileJobFolder";
 import { readMobileGenJob } from "@/lib/mobileGenJob";
 import { readMobileStory } from "@/lib/mobileStoryStore";
-import { findSongCarrierBeatId } from "@/lib/musicVideoSong";
+import { findSongCarrierBeatId, isMusicVideoSongJob } from "@/lib/musicVideoSong";
+import { storyDialogueDir } from "@/lib/crashStoryLocations";
+import { isSafeMediaName } from "@/lib/cloudMedia";
 import { serveMediaFile } from "@/lib/serveMediaFile";
+import type { ShowStyleId } from "@/lib/showStylePresets";
 
 export const runtime = "nodejs";
 
@@ -25,24 +30,46 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "No song on this job" }, { status: 404 });
   }
 
-  const story = await readMobileStory(job.styleId, job.folderName);
-  const beatId =
-    (job.scratchSong?.carrierBeatId || "").trim() ||
-    findSongCarrierBeatId(story, fileName, job.shots[0]?.shotId);
-  if (!beatId) {
-    return NextResponse.json({ error: "Song beat not found on this episode" }, { status: 404 });
+  const explicitBeat = (job.scratchSong?.carrierBeatId || "").trim();
+  let beatId = explicitBeat;
+  if (!beatId && isMusicVideoSongJob(job)) {
+    const story = await readMobileStory(job.styleId, job.folderName);
+    beatId = findSongCarrierBeatId(story, fileName, job.shots[0]?.shotId);
+  }
+  const fromBeat = beatId
+    ? await resolveMobileBeatAudio({
+        styleId: job.styleId,
+        folderName: job.folderName,
+        folderCandidates: mobileCandidateFolders(job),
+        beatId,
+        voiceFile: fileName,
+      })
+    : null;
+  if (fromBeat) {
+    return serveMediaFile(req, fromBeat, "audio/mpeg", { "Cache-Control": "private, max-age=300" });
   }
 
-  const filePath = await resolveMobileBeatAudio({
-    styleId: job.styleId,
-    folderName: job.folderName,
-    folderCandidates: mobileCandidateFolders(job),
-    beatId,
-    voiceFile: fileName,
-  });
-  if (!filePath) {
+  // Spoken episode with a dropped song — no carrier beat. Same lookup as
+  // /api/crash/mobile/track/song.
+  if (!isSafeMediaName(fileName)) {
     return NextResponse.json({ error: "Song file missing" }, { status: 404 });
   }
+  const destPath = path.join(storyDialogueDir(job.styleId as ShowStyleId), fileName);
+  const fromFolder = await resolveMobileMedia({
+    styleId: job.styleId,
+    folderName: mobileMediaFolder(job),
+    kind: "audio",
+    fileName,
+    destPath,
+  });
+  const resolved =
+    fromFolder ||
+    (await resolveMobileMediaByFilename({
+      kind: "audio",
+      fileName,
+      destPath,
+    }));
+  if (!resolved) return NextResponse.json({ error: "Song file missing" }, { status: 404 });
 
-  return serveMediaFile(req, filePath, "audio/mpeg", { "Cache-Control": "private, max-age=300" });
+  return serveMediaFile(req, resolved, "audio/mpeg", { "Cache-Control": "private, max-age=300" });
 }

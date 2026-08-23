@@ -4,7 +4,11 @@
  * Times are milliseconds on the full MP3.
  */
 import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
-import { clampSongSliceDuration, clampSongWindow } from "./scratchSongWindow";
+import {
+  clampSongSliceDuration,
+  clampSongWindow,
+  SCRATCH_SONG_SLICE_DEFAULT_SEC,
+} from "./scratchSongWindow";
 
 export type TrackSectionLabel =
   | "intro"
@@ -118,6 +122,18 @@ export function sortPlateTimings(list: PlateTiming[]): PlateTiming[] {
   return [...list].sort((a, b) => a.sortIndex - b.sortIndex || a.startMs - b.startMs);
 }
 
+/** How wide a second of song is on the phone wave. A 3-minute track is
+ * ~5040px — the strip scrolls sideways instead of crushing into one screen. */
+export const TRACK_WAVE_PX_PER_SEC = 28;
+
+/** Canvas / rail inner width: at least the viewport, else seconds × 28px. */
+export function trackWaveCssWidth(durationMs: number, viewportPx: number): number {
+  const view = Math.max(0, Math.round(Number(viewportPx) || 0));
+  const sec = Math.max(0, Number(durationMs) || 0) / 1000;
+  const fromSong = sec > 0 ? Math.round(sec * TRACK_WAVE_PX_PER_SEC) : 0;
+  return Math.max(view, fromSong);
+}
+
 /** Picture tile under the wave — same left/width as that still's slice. */
 export function plateRailBox(
   startMs: number,
@@ -145,6 +161,38 @@ export function trackWaveLayout(width: number, height: number) {
   const laneY = waveTop + waveH + 3;
   const laneBoxH = laneH - 6;
   return { rulerH, laneH, waveTop, waveH, laneY, laneBoxH, width };
+}
+
+/**
+ * A dropped mp3 on a locked spoken episode lives in trackDraft first.
+ * Timing plates needs scratchSong.fileName — copy the pointer, never a beat.
+ */
+export function songFromTrackDraft(
+  draft: MusicVideoTrackDraft | null | undefined,
+  existing?: ScratchSong | null,
+): ScratchSong | null {
+  const fileName = (existing?.fileName || draft?.songFile || "").trim();
+  if (!fileName) return null;
+  const durationSec =
+    (Number(existing?.durationSec) > 0 ? Number(existing?.durationSec) : 0) ||
+    (Number(draft?.songDurationSec) > 0 ? Number(draft?.songDurationSec) : 0);
+  const window = clampSongWindow(
+    existing?.sliceStartSec ?? 0,
+    existing?.sliceDurationSec ?? SCRATCH_SONG_SLICE_DEFAULT_SEC,
+    durationSec,
+  );
+  return {
+    ...(existing || {}),
+    fileName,
+    durationSec,
+    sliceStartSec: window.startSec,
+    sliceDurationSec: window.durationSec,
+    cuts: existing?.cuts || [],
+    waveformPeaks: existing?.waveformPeaks || draft?.waveformPeaks,
+    sectionMarkers: existing?.sectionMarkers || draft?.sectionMarkers,
+    lyricCues: existing?.lyricCues || draft?.lyricCues,
+    plateTimings: existing?.plateTimings || draft?.plateTimings,
+  };
 }
 
 export function plateTimingForShot(
