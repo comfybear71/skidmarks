@@ -134,11 +134,6 @@ function storyBeatOrder(story: CrashStoryDoc | null | undefined, shotId: string)
   return [];
 }
 
-function deskPlates(plates: TalkTimelinePlate[]): TalkTimelinePlate[] {
-  const titled = plates.filter((p) => p.episodeNo != null);
-  return titled.length ? titled : plates;
-}
-
 export function talkClipLayout(
   cells: TalkClipCell[],
   measured: Record<string, number> = {},
@@ -175,9 +170,55 @@ export function talkDeskInnerWidth(cells: TalkClipCell[]): number {
   return cells.reduce((n, cell) => n + cell.widthPx, 0);
 }
 
+function cellFrom(opts: {
+  plate: TalkTimelinePlate;
+  clip: MobileClipUnit | null;
+  story: CrashStoryDoc | null | undefined;
+}): TalkClipCell | null {
+  const beatId = opts.clip?.beatId || firstRealBeatId(opts.story, opts.plate.shotId);
+  if (!beatId && !opts.clip) return null;
+  const meta = beatMeta(opts.story, opts.plate.shotId, beatId || opts.clip?.beatId || "");
+  const clipFile = clipFileBasename(opts.clip?.clipFile || "");
+  const durationSec = talkClipDurationSec(opts.clip?.durationSec);
+  return {
+    key: opts.clip ? `${opts.clip.beatId}:${clipFile || opts.clip.clipStatus}` : `empty:${opts.plate.shotId}`,
+    beatId: beatId || opts.clip?.beatId || "",
+    shotId: opts.plate.shotId,
+    sceneId: opts.plate.sceneId,
+    sceneTitle: opts.plate.sceneTitle || opts.plate.placeName,
+    sceneColor: talkSceneColor(opts.plate.sceneId || opts.plate.sceneTitle),
+    title: opts.plate.title,
+    episodeNo: opts.plate.episodeNo,
+    speaker: (opts.clip?.speaker || meta.speaker || "").trim(),
+    line: (opts.clip?.line || meta.line || "").trim(),
+    plateFile: opts.plate.plateFile,
+    clipFile,
+    voiceFile: (opts.clip?.voiceFile || meta.voiceFile || "").trim(),
+    durationSec,
+    startSec: 0,
+    widthPx: talkClipWidthPx(durationSec),
+    clipStatus: opts.clip?.clipStatus || "empty",
+  };
+}
+
+function clipsOnPlate(
+  plate: TalkTimelinePlate,
+  clips: MobileClipUnit[],
+  story: CrashStoryDoc | null | undefined,
+): MobileClipUnit[] {
+  const order = storyBeatOrder(story, plate.shotId);
+  return uniqueByBeat(
+    clips.filter((c) => c.shotId === plate.shotId && !leftoverHydrateBeat(plate.shotId, c.beatId)),
+  ).sort((a, b) => {
+    const ai = order.indexOf(a.beatId);
+    const bi = order.indexOf(b.beatId);
+    return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+  });
+}
+
 /**
- * Episode-titled shots lead (SHOT 01…). Leftover untitled plates stay off
- * the desk when those exist — this is the cut, not the plate factory.
+ * Episode-titled shots lead (SHOT 01…). Other playable episode clips
+ * follow — leftover untitled stills with no take stay off the desk.
  * Each beat keeps its own still. Width follows that take's duration.
  */
 export function talkClipDeskFrom(opts: {
@@ -185,55 +226,29 @@ export function talkClipDeskFrom(opts: {
   plated: MobileShotUnit[];
   clips: MobileClipUnit[];
 }): TalkClipDesk {
-  const plates = deskPlates(talkTimelineFrom({ story: opts.story, plated: opts.plated }));
+  const allPlates = talkTimelineFrom({ story: opts.story, plated: opts.plated });
+  const titled = allPlates.filter((p) => p.episodeNo != null);
+  const rest = allPlates.filter((p) => p.episodeNo == null);
+  const lead = titled.length ? titled : allPlates;
+  const tail = titled.length ? rest : [];
   const clips = opts.clips || [];
   const cells: TalkClipCell[] = [];
 
-  for (const plate of plates) {
-    const order = storyBeatOrder(opts.story, plate.shotId);
-    const shotClips = uniqueByBeat(
-      clips.filter((c) => c.shotId === plate.shotId && !leftoverHydrateBeat(plate.shotId, c.beatId)),
-    ).sort((a, b) => {
-      const ai = order.indexOf(a.beatId);
-      const bi = order.indexOf(b.beatId);
-      return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
-    });
+  const pushPlate = (plate: TalkTimelinePlate, allowEmpty: boolean) => {
+    const shotClips = clipsOnPlate(plate, clips, opts.story);
     const units: Array<MobileClipUnit | null> = shotClips.length
       ? shotClips
-      : plate.episodeNo != null
+      : allowEmpty
         ? [null]
         : [];
-
     for (const clip of units) {
-      const beatId = clip?.beatId || firstRealBeatId(opts.story, plate.shotId);
-      if (!beatId && !clip) continue;
-      const meta = beatMeta(opts.story, plate.shotId, beatId || clip?.beatId || "");
-      const speaker = (clip?.speaker || meta.speaker || "").trim();
-      const line = (clip?.line || meta.line || "").trim();
-      const voiceFile = (clip?.voiceFile || meta.voiceFile || "").trim();
-      const clipFile = clipFileBasename(clip?.clipFile || "");
-      const durationSec = talkClipDurationSec(clip?.durationSec);
-      cells.push({
-        key: clip ? `${clip.beatId}:${clipFile || clip.clipStatus}` : `empty:${plate.shotId}`,
-        beatId: beatId || clip?.beatId || "",
-        shotId: plate.shotId,
-        sceneId: plate.sceneId,
-        sceneTitle: plate.sceneTitle || plate.placeName,
-        sceneColor: talkSceneColor(plate.sceneId || plate.sceneTitle),
-        title: plate.title,
-        episodeNo: plate.episodeNo,
-        speaker,
-        line,
-        plateFile: plate.plateFile,
-        clipFile,
-        voiceFile,
-        durationSec,
-        startSec: 0,
-        widthPx: talkClipWidthPx(durationSec),
-        clipStatus: clip?.clipStatus || "empty",
-      });
+      const cell = cellFrom({ plate, clip, story: opts.story });
+      if (cell) cells.push(cell);
     }
-  }
+  };
+
+  for (const plate of lead) pushPlate(plate, plate.episodeNo != null);
+  for (const plate of tail) pushPlate(plate, false);
 
   const laid = talkClipLayout(cells);
   return {

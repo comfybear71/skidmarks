@@ -185,11 +185,13 @@ const desk = talkClipDeskFrom({
 });
 assert.deepEqual(
   desk.cells.map((c) => c.shotId),
-  ["shot_01", "shot_02", "shot_04"],
-  "titled SHOT clips only — leftover untitled plates stay off the desk",
+  ["shot_01", "shot_02", "shot_04", "shot_old_bar"],
+  "SHOT 01–04 lead; leftover untitled plates only join when they have a take",
 );
 assert.equal(desk.cells[0].plateFile, "phone.png", "each clip keeps its own still");
 assert.equal(desk.cells[1].plateFile, "two.png");
+assert.equal(desk.cells[3].plateFile, "old_bar.png");
+assert.ok(!desk.cells.some((c) => c.shotId === "shot_loose"), "untitled still with no take stays off");
 assert.notEqual(desk.cells[0].plateFile, desk.cells[1].plateFile);
 assert.equal(desk.cells[0].widthPx, talkClipWidthPx(8));
 assert.equal(desk.cells[1].widthPx, talkClipWidthPx(4));
