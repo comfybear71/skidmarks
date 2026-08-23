@@ -9,6 +9,7 @@ import {
   type PlateTiming,
   type TrackSectionMarker,
 } from "@/lib/musicVideoTrack";
+import { isMusicVideoSongJob } from "@/lib/musicVideoSong";
 import { newId } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -94,6 +95,9 @@ export async function POST(req: Request) {
 
   let job = await readMobileGenJob(jobId);
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  if (!isMusicVideoSongJob(job)) {
+    return NextResponse.json({ error: "TRACK is Music video only." }, { status: 400 });
+  }
 
   try {
     if (action === "save-draft") {

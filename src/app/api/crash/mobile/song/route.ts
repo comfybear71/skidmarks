@@ -72,11 +72,6 @@ export async function POST(req: Request) {
 
   let job = await readMobileGenJob(jobId);
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-  if (action === "set-lyrics") {
-    const lyrics = String((body as { lyrics?: string }).lyrics ?? "");
-    const updated = await patchMobileGenJob(jobId, { lyrics, error: "" });
-    return NextResponse.json({ ok: true, job: updated });
-  }
   if (!isMusicVideoSongJob(job)) {
     return NextResponse.json({ error: "Song cuts on /m are Music video only." }, { status: 400 });
   }
@@ -578,6 +573,12 @@ export async function POST(req: Request) {
         scratchSong: { ...song, stitchedFile: "" },
         error: "",
       });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (action === "set-lyrics") {
+      const lyrics = String((body as { lyrics?: string }).lyrics ?? "");
+      const updated = await patchMobileGenJob(jobId, { lyrics, error: "" });
       return NextResponse.json({ ok: true, job: updated });
     }
 

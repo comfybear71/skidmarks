@@ -16,7 +16,8 @@ import { CastVoiceRow } from "./CastVoiceRow";
 import { PlateReviewEditor } from "./PlateReviewEditor";
 import { MusicVideoSongCuts } from "./MusicVideoSongCuts";
 import { MusicVideoTrack } from "./MusicVideoTrack";
-import { isMusicVideoSongJob, jobShowsMusicTrack, musicVideoCreditLine } from "@/lib/musicVideoSong";
+import { TalkTimeline } from "./TalkTimeline";
+import { isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong";
 import {
   allCastApproved,
   allLocationsApproved,
@@ -1805,10 +1806,9 @@ export function StudioTree({
         label="Plates"
         headerRight={<CollapseToggle open={platesOpen} onToggle={() => setPlatesOpen((v) => !v)} />}
       >
-        {/* TRACK is the default on /m — drop a song on Skidmarks the same
-            way a music video does. Collapsed keeps the wave on screen.
-            Start the video / 15s song-cut LTX stay Music video only. */}
-        {jobShowsMusicTrack(job) ? (
+        {/* Music video: song TRACK. Skidmarks / talking: plate strip with
+            [DIAL] [SFX] [MUSIC] [CUTAWAY] — not a song drop. */}
+        {isMusicVideoSongJob(job) ? (
           <MusicVideoTrack
             job={job}
             story={deskStory}
@@ -1816,10 +1816,8 @@ export function StudioTree({
             onJobChange={onJobChange}
             compact={!platesOpen}
             busy={busy}
-            canStart={
-              isMusicVideoSongJob(job) && canWrite && !lockingScript && !job.folderName
-            }
-            onStart={isMusicVideoSongJob(job) ? onStartMusicVideo : undefined}
+            canStart={canWrite && !lockingScript && !job.folderName}
+            onStart={onStartMusicVideo}
             onOpenPlate={(shotId) => revealPlates(shotId)}
             castOptions={job.speakers.map((name) => {
               const file = approvedCandidateFileName(job.castCandidates, name) || "";
@@ -1837,16 +1835,23 @@ export function StudioTree({
               }),
             }))}
             onCreatePlate={(sceneId, speaker) => {
-              if (isMusicVideoSongJob(job) && !job.folderName) {
+              if (!job.folderName) {
                 pendingPlate.current = { sceneId, speaker };
                 onStartMusicVideo(job.lyrics || "");
                 return;
               }
-              if (!job.folderName) return;
               void addLocationToPlate(sceneId, speaker);
             }}
           />
-        ) : null}
+        ) : (
+          <TalkTimeline
+            job={job}
+            story={deskStory}
+            plated={songPlates}
+            compact={!platesOpen}
+            onOpenPlate={(shotId) => revealPlates(shotId)}
+          />
+        )}
 
         {lockingScript ? (
           <div style={{ padding: "8px 0 16px" }}>

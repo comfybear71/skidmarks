@@ -7,7 +7,6 @@ import { resolveMobileMedia, uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { storyDialogueDir } from "@/lib/crashStoryLocations";
 import { isSafeMediaName } from "@/lib/cloudMedia";
 import { probeSongDurationSec } from "@/lib/scratchSongSlice";
-import { songFromTrackDraft } from "@/lib/musicVideoTrack";
 import { serveMediaFile } from "@/lib/serveMediaFile";
 import { slugToken } from "@/lib/crashStoryNames";
 import { sortableId } from "@/lib/types";
@@ -65,24 +64,14 @@ export async function POST(req: Request) {
     }
 
     const durationSec = probeSongDurationSec(localPath) || 0;
-    const draft = {
-      ...(job.trackDraft || {}),
-      songFile: stamped,
-      songDurationSec: durationSec,
-      // A different song invalidates the old wave.
-      waveformPeaks: undefined,
-    };
-    // Locked episode: also point scratchSong at the file so plate timing
-    // works. Do not overwrite a song that already hangs on a spoken beat.
-    const existingName = (job.scratchSong?.fileName || "").trim();
-    const existingBeat = (job.scratchSong?.carrierBeatId || "").trim();
-    const attachSong =
-      Boolean(job.folderName) && (!existingName || !existingBeat);
     const updated = await patchMobileGenJob(jobId, {
-      trackDraft: draft,
-      ...(attachSong
-        ? { scratchSong: songFromTrackDraft(draft, job.scratchSong) }
-        : {}),
+      trackDraft: {
+        ...(job.trackDraft || {}),
+        songFile: stamped,
+        songDurationSec: durationSec,
+        // A different song invalidates the old wave.
+        waveformPeaks: undefined,
+      },
       error: "",
     });
 
