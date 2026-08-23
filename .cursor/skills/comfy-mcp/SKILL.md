@@ -14,7 +14,7 @@ Official product: [comfy.org/mcp](https://comfy.org/mcp). Docs: [docs.comfy.org/
 | `comfy-cloud` | `https://cloud.comfy.org/mcp` | `X-API-Key` = `COMFY_CLOUD_API_KEY` |
 | `comfy-docs` | `https://docs.comfy.org/mcp` | none (public docs search) |
 
-Cursor cannot OAuth this host. Key is created at [platform.comfy.org/profile/api-keys](https://platform.comfy.org/profile/api-keys) (`comfyui-…`). Same key the desk already uses.
+Cursor cannot OAuth this host. **Keys are already in Cursor** (his word, before this work). Do not ask him to create or paste them. This VM uses `COMFY_CLOUD_API_KEY` (set). `COMFY_API_KEY` is empty — ignore that official alias.
 
 **Subscription:** he is fully subscribed (his word, 2026-08-23). Not a blocker. Still do not generate until he says go.
 

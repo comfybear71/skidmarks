@@ -13,7 +13,7 @@ Project file: `.cursor/mcp.json`
 | `comfy-cloud` | `https://cloud.comfy.org/mcp` | `X-API-Key: $COMFY_CLOUD_API_KEY` |
 | `comfy-docs` | `https://docs.comfy.org/mcp` | none |
 
-Cursor does **not** speak MCP OAuth today. Use a key from [platform.comfy.org/profile/api-keys](https://platform.comfy.org/profile/api-keys) (`comfyui-…`). Same value as desk Animate (`COMFY_CLOUD_API_KEY` in `.env.example`). Official Comfy docs also mention `COMFY_API_KEY` — we keep one name.
+Cursor does **not** speak MCP OAuth today. Keys already live in **Cursor** (his word, 2026-08-23 — before this work). Do not ask him to mint or paste keys. This VM sees `COMFY_CLOUD_API_KEY` (set). Official Comfy docs also mention `COMFY_API_KEY` — that name is empty here; we use the desk name. `COMFY_URL` stays blank (Cloud only).
 
 **Subscription (2026-08-23):** he said he is **fully subscribed**, not credits-only. Do not treat the Comfy plan as a blocker. Still ask before a generate — GPU time is real money.
 
