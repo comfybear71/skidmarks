@@ -470,8 +470,6 @@ function WaveformCanvas({
     ctx.fillRect(0, mid - 0.5, w, 1);
 
     // Plate lane along the bottom — this is the video, laid out on the song.
-    const laneY = waveTop + waveH + 3;
-    const laneBoxH = laneH - 6;
     ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
     ctx.fillRect(0, laneY, w, laneBoxH);
     for (const p of plateTimings) {
