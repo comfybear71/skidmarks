@@ -3117,7 +3117,7 @@ span.scratch-history-blob {
   white-space: nowrap;
 }
 
-/* Talking episode strip — plates + template tags. Not the song TRACK. */
+/* Talking episode strip — speech + clips, same width. Not the song TRACK. */
 .m-talk {
   margin: 0 0 10px;
 }
@@ -3273,3 +3273,192 @@ span.scratch-history-blob {
 .m-talk-chip.is-cutaway { color: #9b7bff; }
 .m-talk-chip.is-visual { color: #4db8ff; }
 .m-talk-chip.is-budget { color: #8fa2b8; }
+
+.m-talk-desk-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  width: 100%;
+  scrollbar-width: thin;
+}
+
+.m-talk-desk-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: max-content;
+  width: max-content;
+  padding-bottom: 4px;
+}
+
+.m-talk-scene-lane {
+  display: flex;
+  align-items: stretch;
+  min-height: 14px;
+}
+
+.m-talk-scene-band {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-left: 3px solid;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 14px;
+}
+
+.m-talk-wave {
+  display: block;
+  height: 56px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #0a0a0c;
+  touch-action: pan-x pan-y;
+}
+
+.m-talk-film {
+  display: flex;
+  align-items: stretch;
+  width: max-content;
+}
+
+.m-talk-film-cell {
+  position: relative;
+  flex: 0 0 auto;
+  height: 92px;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: #0b0d12;
+  cursor: pointer;
+}
+
+.m-talk-film-cell.is-on {
+  box-shadow: inset 0 0 0 2px var(--acid);
+}
+
+.m-talk-film-still,
+.m-talk-film-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  background: #0b0d12;
+}
+
+.m-talk-film-empty {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.05) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.m-talk-film-probe {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.m-talk-film-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 10px 4px 3px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.88));
+  color: #eef4ff;
+  font-size: 8px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.m-talk-film-label em {
+  font-style: normal;
+  color: var(--acid);
+  flex: 0 0 auto;
+}
+
+.m-talk-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 2px 0;
+}
+
+.m-talk-tools-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.m-talk-tools-title {
+  color: var(--chrome);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.m-talk-tools-speaker {
+  color: var(--acid);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.m-talk-tools-clock {
+  color: var(--chrome-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.m-talk-tools-line,
+.m-talk-tools-hint {
+  margin: 0;
+  color: var(--chrome);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.m-talk-tools-hint {
+  color: var(--chrome-dim);
+}
+
+.m-talk-tools-video {
+  width: 100%;
+  max-height: 220px;
+  border-radius: 6px;
+  background: #000;
+  object-fit: contain;
+}
+
+.m-talk-tools-audio {
+  width: 100%;
+}
+
+.m-talk-tools-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.m-talk-tools-error {
+  margin: 0;
+  color: var(--magenta-hot);
+  font-size: 12px;
+}

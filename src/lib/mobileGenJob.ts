@@ -80,6 +80,8 @@ export type MobileClipUnit = {
   /** pending = queued; running = this invoke owns the LTX job; done/error = finished. */
   clipStatus: "pending" | "running" | "done" | "error";
   error: string;
+  /** Seconds this take runs — talking desk sizes the box from this, not a square thumb. */
+  durationSec?: number;
   speaker?: string;
   line?: string;
   voiceFile?: string;

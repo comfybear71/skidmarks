@@ -12,6 +12,14 @@ import {
   templateTagsFrom,
   TALK_PLATE_MIN_PX,
 } from "../src/lib/talkTimeline.ts";
+import {
+  TALK_CLIP_PX_PER_SEC,
+  talkClipClock,
+  talkClipDeskFrom,
+  talkClipWidthPx,
+  talkSceneBands,
+  talkSceneColor,
+} from "../src/lib/talkClipTimeline.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -133,18 +141,85 @@ const fromStoryOnly = talkTimelineFrom({
 });
 assert.equal(fromStoryOnly[0].plateFile, "phone.png", "story still lands when the job row is empty");
 
+const desk = talkClipDeskFrom({
+  story,
+  plated,
+  clips: [
+    {
+      beatId: "b3",
+      shotId: "shot_01",
+      sceneId: "scene_lounge",
+      clipFile: "act1_shot01.mp4",
+      clipStatus: "done",
+      error: "",
+      durationSec: 8,
+    },
+    {
+      beatId: "b5",
+      shotId: "shot_02",
+      sceneId: "scene_lounge",
+      clipFile: "act1_shot02.mp4",
+      clipStatus: "done",
+      error: "",
+      durationSec: 4,
+    },
+    {
+      beatId: "b2",
+      shotId: "shot_04",
+      sceneId: "scene_bar",
+      clipFile: "act1_shot04.mp4",
+      clipStatus: "done",
+      error: "",
+      durationSec: 5,
+    },
+    {
+      beatId: "b1",
+      shotId: "shot_old_bar",
+      sceneId: "scene_bar",
+      clipFile: "leftover.mp4",
+      clipStatus: "done",
+      error: "",
+      durationSec: 12,
+    },
+  ],
+});
+assert.deepEqual(
+  desk.cells.map((c) => c.shotId),
+  ["shot_01", "shot_02", "shot_04"],
+  "titled SHOT clips only — leftover untitled plates stay off the desk",
+);
+assert.equal(desk.cells[0].plateFile, "phone.png", "each clip keeps its own still");
+assert.equal(desk.cells[1].plateFile, "two.png");
+assert.notEqual(desk.cells[0].plateFile, desk.cells[1].plateFile);
+assert.equal(desk.cells[0].widthPx, talkClipWidthPx(8));
+assert.equal(desk.cells[1].widthPx, talkClipWidthPx(4));
+assert.ok(desk.cells[0].widthPx > desk.cells[1].widthPx, "longer take is a wider box");
+assert.equal(desk.cells[0].widthPx, 8 * TALK_CLIP_PX_PER_SEC);
+assert.equal(talkSceneColor("scene_lounge"), talkSceneColor("scene_lounge"));
+assert.notEqual(talkSceneColor("scene_lounge"), talkSceneColor("scene_bar"));
+assert.equal(desk.cells[0].sceneColor, desk.cells[1].sceneColor, "same scene, same colour");
+assert.notEqual(desk.cells[0].sceneColor, desk.cells[2].sceneColor, "bar is a different colour");
+const bands = talkSceneBands(desk.cells);
+assert.equal(bands.length, 2);
+assert.equal(bands[0].widthPx, desk.cells[0].widthPx + desk.cells[1].widthPx);
+assert.equal(talkClipClock(8), "8s");
+
 const talkCss = css.slice(css.indexOf("/* Talking episode strip"));
+const editor = readFileSync(join(root, "src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 assert.match(talkUi, /Talking timeline/);
-assert.match(talkUi, /Swipe sideways/);
+assert.match(talkUi, /speech and picture, same width/);
+assert.match(talkUi, /Change audio/);
+assert.match(talkUi, /Redo clip/);
 assert.doesNotMatch(talkUi, /Drop the mp3|Start the video|WaveformCanvas/);
-assert.match(talkCss, /\.m-talk-scroll\s*\{[^}]*overflow-x:\s*auto/s);
-assert.match(talkCss, /\.m-talk-thumb\s*\{[^}]*object-fit:\s*contain/s);
-assert.match(talkCss, /\.m-talk-inner\s*\{[^}]*display:\s*flex/s);
-assert.match(talkCss, /\.m-talk-cell\s*\{[^}]*flex:\s*0 0 auto/s);
-assert.match(talkCss, /\.m-talk-inner\s*\{[^}]*min-width:\s*max-content/s);
+assert.match(talkCss, /\.m-talk-desk-scroll\s*\{[^}]*overflow-x:\s*auto/s);
+assert.match(talkCss, /\.m-talk-desk-inner\s*\{[^}]*min-width:\s*max-content/s);
+assert.match(talkCss, /\.m-talk-film-cell\s*\{[^}]*flex:\s*0 0 auto/s);
+assert.match(talkCss, /\.m-talk-film-still[\s\S]*object-fit:\s*contain/);
 assert.match(tree, /isMusicVideoSongJob\(job\) \? \(/);
 assert.match(tree, /<TalkTimeline/);
+assert.match(tree, /onJobChange=\{onJobChange\}/);
 assert.match(tree, /<MusicVideoTrack/);
+assert.match(editor, /isMusicVideoSongJob\(job\) && plateClipRail\.clips\.length/);
 assert.doesNotMatch(song, /jobShowsMusicTrack/);
 assert.match(trackRoute, /Music video only/);
 

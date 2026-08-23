@@ -1806,8 +1806,8 @@ export function StudioTree({
         label="Plates"
         headerRight={<CollapseToggle open={platesOpen} onToggle={() => setPlatesOpen((v) => !v)} />}
       >
-        {/* Music video: song TRACK. Skidmarks / talking: plate strip with
-            [DIAL] [SFX] [MUSIC] [CUTAWAY] — not a song drop. */}
+        {/* Music video: song TRACK. Skidmarks / talking: clip desk —
+            speech + picture same width. Not a song drop. */}
         {isMusicVideoSongJob(job) ? (
           <MusicVideoTrack
             job={job}
@@ -1850,6 +1850,7 @@ export function StudioTree({
             plated={songPlates}
             compact={!platesOpen}
             onOpenPlate={(shotId) => revealPlates(shotId)}
+            onJobChange={onJobChange}
           />
         )}
 
