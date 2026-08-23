@@ -18,6 +18,7 @@ import { CRASH_DIR } from "./paths";
 import { sortableId } from "./types";
 import { loadWorkflowTemplate } from "./workflowTemplates";
 import { ltxFollowsMp3DurationSec, LTX_MAX_DURATION_SEC } from "./ltxDuration";
+import { probeDurationSeconds } from "./mediaDuration";
 import { ltxSendPrompt } from "./mobileImageMotion";
 import { letterboxPlateForCloudIa2v } from "./ltxCloudPlate";
 
@@ -32,6 +33,13 @@ function estimateMp3DurationSec(filePath: string): number {
     /* ignore */
   }
   return 3;
+}
+
+/** Clock from the file itself. Size/bitrate guess doubled Jack/Proof slices. */
+export function mp3DurationForLtxSec(filePath: string): number {
+  const probed = probeDurationSeconds(filePath);
+  if (probed && probed > 0) return Math.min(probed, LTX_MAX_DURATION_SEC);
+  return estimateMp3DurationSec(filePath);
 }
 
 const IA2V_TEMPLATE_FILE = "LTX_2.3_IA2V_Cloud.json";
@@ -203,7 +211,7 @@ export async function runLtxCloudIa2v(
     imageMotion,
     plateFileName: path.basename(input.platePath),
   });
-  const durationSec = ltxFollowsMp3DurationSec(estimateMp3DurationSec(input.audioPath));
+  const durationSec = ltxFollowsMp3DurationSec(mp3DurationForLtxSec(input.audioPath));
 
   const framed = await letterboxPlateForCloudIa2v(input.platePath);
 
