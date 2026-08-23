@@ -318,9 +318,9 @@ export function TalkTimeline({
       <div className="m-talk-desk-scroll">
         <div className="m-talk-desk-inner" style={{ width: `${innerW}px` }}>
           <div className="m-talk-scene-lane" aria-hidden>
-            {bands.map((band) => (
+            {bands.map((band, i) => (
               <span
-                key={`${band.sceneId}-${band.title}`}
+                key={`${band.sceneId}-${i}`}
                 className="m-talk-scene-band"
                 style={{ width: `${band.widthPx}px`, color: band.color, borderColor: band.color }}
               >
