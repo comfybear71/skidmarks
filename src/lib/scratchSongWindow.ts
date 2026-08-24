@@ -21,6 +21,8 @@ export type ScratchSongCut = {
   clipFile?: string;
   status?: "pending" | "running" | "done" | "error";
   error?: string;
+  /** Forgotten who-plays: trumpet actually plays, Jack sways or sings hidden. */
+  performance?: "play" | "sway" | "sing";
 };
 
 export type ScratchSong = {

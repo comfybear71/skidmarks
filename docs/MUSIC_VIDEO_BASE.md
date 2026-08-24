@@ -49,19 +49,19 @@ Position rules that stay:
 
 **Gap to fix on the next song (not Forgotten):** `buildMusicVideoStartStory` only applies this pack when `isForgottenSongJob`. Other titles still get the old generic “half turned away in profile” line. Lift the camera pack to all `music_video` before the next Start.
 
-## Two floors (unchanged)
+## Two floors + intermission
 
 People stills → `/m` LTX-2.3 IA2V with the Saved mp3.  
-Concert loop (gold/black, no people) → holy still first, then muted LTX-2.5 I2V. The look is the **Double Talkin' Jive** LED backdrop (Bangkok Thunderdome): gold skulls, metallic snakes, hypnotic creep. Study: `docs/CONCERT_LOOP_PLATE.md`. **Hold — a few more video tests, then implement. Not now.**
+**Intermission** (no singer, no trumpet) → insert animation. Concert loop (gold/black, no people) is that insert: holy still first, then muted LTX-2.5 I2V. Look: **Double Talkin' Jive** LED (Bangkok Thunderdome). Study: `docs/CONCERT_LOOP_PLATE.md`. **Hold generate** until he names T4/T5. Clock the gaps now.
 
-## Eventual goal — who is playing, then plate (no code yet)
+**Forgotten mix (2026-08-24, his ear):** no saxophone. Jack only on the vocal hits (face hidden). Horn fades in, **actually plays**, fades out, revolves back. Map: `src/lib/forgottenWhoPlays.ts`.
 
-Stuie’s thought, **2026-08-24**, no build tonight:
+## Who is playing, then plate
 
-1. **Manual first:** with the mp3 on the desk, mark Sections / Marquee for *when singer*, *when horn*, *when sax*, *when drums* — then plate that person into that window.
-2. **Later automatic:** listen to the mix (stems / instrument activity / vocal onset) and write those windows so he does not have to tap Start here on every break.
+1. **Manual first (now on Forgotten):** mark when singer / when trumpet — then plate that person. Animation fills the rest.
+2. **Later automatic:** listen to the mix and write those windows.
 
-That is the destination. Forgotten’s pins are sheet-spread only. Do not claim the desk can hear the trumpet.
+Do not claim the desk can hear the trumpet. Do not put sax on Forgotten.
 
 ## Queue tonight
 

@@ -30,6 +30,8 @@ This is a **place / art plate**. Nobody from the band is on it. Instruments are 
 
 **2026-08-24, his words:** study now. A few more test runs with video. Then we move onto implementing this.
 
+**Why it exists on Forgotten:** Jack only comes in on the vocal hits. Horn fades in, actually plays, fades out, revolves back. The rest of the 4:51 is intermission — this animation is what goes there. Gaps: `forgottenIntermissions()` in `src/lib/forgottenWhoPlays.ts`.
+
 Until then:
 
 - Do not fire Cloud `video_ltx2_5_i2v` for this look.
