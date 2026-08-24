@@ -622,9 +622,31 @@ export function isLyricFilenameLine(text: string): boolean {
 }
 
 /**
+ * Pair each lyric [tag] to the next unused Section of the same name, in
+ * time order. Extra rows he taps in (a second Bridge, a third Verse) are
+ * skipped — they do not steal the next verse's words.
+ */
+export function sectionMarkerForLyricTag(
+  tags: LyricTag[],
+  markers: TrackSectionMarker[],
+): Array<TrackSectionMarker | null> {
+  const sorted = sortSectionMarkers(markers);
+  let j = 0;
+  return tags.map((tag) => {
+    const want = String(tag.label || "").trim().toLowerCase();
+    while (j < sorted.length) {
+      const m = sorted[j]!;
+      j += 1;
+      if (String(m.label || "").trim().toLowerCase() === want) return m;
+    }
+    return null;
+  });
+}
+
+/**
  * Pin each sung line inside the section window it sits under on the sheet.
  * Intro with no words stays empty. Even spread inside the window — this is
- * lining from the sheet, not hearing the vocal. Pin can still nudge a line.
+ * lining from the Sections on the job, not hearing the vocal.
  */
 export function lyricCuesFromSectionSheet(opts: {
   lyrics: string;
@@ -641,7 +663,7 @@ export function lyricCuesFromSectionSheet(opts: {
   );
   if (!tags.length || !markers.length) return [];
 
-  const sung = lyricLinesFrom(lyrics).filter((line) => !isLyricFilenameLine(line.text));
+  const sung = lyricLinesFrom(lyrics);
   const buckets = tags.map(() => [] as LyricLine[]);
   for (const line of sung) {
     let tagIdx = -1;
@@ -652,12 +674,12 @@ export function lyricCuesFromSectionSheet(opts: {
     buckets[tagIdx]!.push(line);
   }
 
+  const paired = sectionMarkerForLyricTag(tags, markers);
   const cues: LyricCue[] = [];
-  const used = Math.min(tags.length, markers.length);
-  for (let i = 0; i < used; i++) {
+  for (let i = 0; i < tags.length; i++) {
     const group = buckets[i]!;
-    const marker = markers[i]!;
-    if (!group.length) continue;
+    const marker = paired[i];
+    if (!marker || !group.length) continue;
     const startMs = marker.startMs;
     const span = Math.max(1, marker.endMs - startMs);
     for (let n = 0; n < group.length; n++) {

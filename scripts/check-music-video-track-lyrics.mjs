@@ -142,6 +142,7 @@ console.log("check-music-video-track-lyrics OK");
   assert.match(ui, /set-lyric-cues/, "existing sections get pins without rewriting times");
   assert.match(ui, /Start here/, "pin section start at playhead");
   assert.match(ui, /Clear sections/, "wipe broken section rows");
+  assert.match(ui, /Clear all/, "Marquee can wipe every pin without touching Sections");
   assert.match(ui, /m-track-time-set/, "explicit Set on time boxes");
   assert.match(ui, /sectionPeopleOnPlates/, "who is on the stills in that section");
 
@@ -402,6 +403,38 @@ console.log("check-music-video-plate-bar OK");
   for (let i = 1; i < pins.length; i++) {
     assert.ok(pins[i].atMs >= pins[i - 1].atMs, "pins stay in clock order");
   }
+
+  // Extra Section rows (a short Bridge, a third Verse) must not steal the
+  // next verse's words. Pair by name, skip extras.
+  const { sectionMarkerForLyricTag } = await import("../src/lib/musicVideoTrack.ts");
+  const his = [
+    { id: "i", label: "intro", startMs: 0, endMs: 45_000 },
+    { id: "v1", label: "verse", startMs: 45_000, endMs: 81_000 },
+    { id: "c1", label: "chorus", startMs: 81_000, endMs: 117_000 },
+    { id: "b1", label: "bridge", startMs: 117_000, endMs: 127_000 },
+    { id: "v2", label: "verse", startMs: 127_000, endMs: 160_000 },
+    { id: "c2", label: "chorus", startMs: 160_000, endMs: 196_000 },
+    { id: "b2", label: "bridge", startMs: 196_000, endMs: 221_000 },
+    { id: "v3", label: "verse", startMs: 221_000, endMs: 255_000 },
+    { id: "o", label: "outro", startMs: 255_000, endMs: 291_480 },
+  ];
+  const tags = meaningfulLyricTags(forgottenLyrics);
+  assert.equal(tags.map((t) => t.label).join(","), "intro,verse,chorus,verse,chorus,bridge,outro");
+  const paired = sectionMarkerForLyricTag(tags, his);
+  assert.equal(paired.map((m) => m?.id).join(","), "i,v1,c1,v2,c2,b2,o");
+  const hisPins = lyricCuesFromSectionSheet({
+    lyrics: forgottenLyrics,
+    durationMs: 291_480,
+    markers: his,
+  });
+  const firstHis = hisPins.find((c) => c.lineIndex === firstSung.index);
+  assert.ok(firstHis.atMs >= 45_000 && firstHis.atMs < 81_000, "verse 1 words sit in 0:45–1:21");
+  assert.ok(
+    !hisPins.some((c) => c.atMs >= 117_000 && c.atMs < 127_000),
+    "the extra first Bridge gets no sheet lines",
+  );
+  const lastHis = hisPins[hisPins.length - 1];
+  assert.ok(lastHis.atMs >= 255_000, "outro words stay in 4:15–4:51");
 
   const inner = waveW(291_480, 400);
   assert.ok(inner > 400, "a 4:51 song is wider than the phone");

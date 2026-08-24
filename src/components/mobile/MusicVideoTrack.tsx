@@ -294,8 +294,8 @@ function LyricPinPanel({
 
   return (
     <>
-      {onImportFromLyrics ? (
-        <div className="m-track-marker-row">
+      <div className="m-track-marker-row">
+        {onImportFromLyrics ? (
           <button
             type="button"
             className="m-track-btn"
@@ -304,8 +304,16 @@ function LyricPinPanel({
           >
             Import from lyrics
           </button>
-        </div>
-      ) : null}
+        ) : null}
+        <button
+          type="button"
+          className="m-track-btn"
+          disabled={Boolean(busy) || !lyricCues.length}
+          onClick={() => void saveCues([])}
+        >
+          Clear all
+        </button>
+      </div>
     <ul className="m-track-lyric-list">
       {lyricLines.map((line) => {
         const cue = lyricCueFor(lyricCues, line.index);
