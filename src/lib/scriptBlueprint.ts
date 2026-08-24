@@ -69,7 +69,7 @@ ${blank}
 ${EPISODE_CONSTRUCTION_EXAMPLE}`;
 }
 
-/** Skidmarks talking-desk template — rules + blank construction + Little Red example. */
+/** Skidmarks talking-desk template — rules + blank construction + talking example. */
 export function skidmarksTemplateFromJob(job: {
   speakers?: string[];
   scenes?: { placeName?: string }[];

@@ -21,6 +21,16 @@ export function visualActionFromSummary(summary?: string): string {
   return (m?.[1] || "").trim();
 }
 
+/** Construction [BUDGET_TIER] — CHEAP_TAKE stays a talking-head. */
+export function budgetTierFromSummary(summary?: string): string {
+  const m = String(summary || "").match(/\[BUDGET_TIER\]\s*([^\n]+)/i);
+  return (m?.[1] || "").trim().toUpperCase();
+}
+
+export function isCheapTalkingTake(summary?: string): boolean {
+  return /^CHEAP_TAKE\b/.test(budgetTierFromSummary(summary));
+}
+
 /** True when Position is the talking-desk MCU default, not a shot camera. */
 export function isTalkingMcuDefault(staging?: string): boolean {
   const t = String(staging || "");
@@ -32,8 +42,8 @@ export function isTalkingMcuDefault(staging?: string): boolean {
 }
 
 /**
- * Camera sentence from the 20-position campaign + plateFramingLine research.
- * Visual action stays the body. Do not invent props.
+ * Named camera only. Empty string means talking-desk MCU — do not invent
+ * "not a sitting talking-head" as a second camera.
  */
 export function cameraLineFromVisual(visual: string, people: number): string {
   const t = visual.toLowerCase();
@@ -62,34 +72,36 @@ export function cameraLineFromVisual(visual: string, people: number): string {
   if (/\bslumped\b|\bcot\b|\bbandages\b/.test(t)) {
     return "MEDIUM SHOT. Body using the bed — slumped, not sitting upright facing camera as a talking plate.";
   }
-  if (people >= 2) {
-    return "MEDIUM SHOT. Wide enough to show everyone clearly. Not a one-person talking portrait.";
-  }
-  return "MEDIUM SHOT. Pose from the visual — not a sitting talking-head default.";
+  void people;
+  return "";
 }
 
-/** Construction still Position: visual action + campaign camera + who is in frame. */
+/** Construction still Position: named camera, or the talking MCU. */
 export function compileConstructionStillPosition(opts: {
   visual: string;
   place: string;
   speakers: string[];
+  cheap?: boolean;
 }): string {
   const visual = opts.visual.trim();
   const place = opts.place.trim() || "this place";
   const speakers = [
     ...new Set(opts.speakers.map((s) => s.trim()).filter(Boolean)),
   ];
-  if (!visual) {
-    if (speakers.length === 1) {
-      return compileScriptedPosition({ name: speakers[0], place });
-    }
+  const talkingName = speakers[0] || "";
+  if (!visual || opts.cheap) {
+    if (talkingName) return compileScriptedPosition({ name: talkingName, place });
     return "";
   }
   const camera = cameraLineFromVisual(visual, speakers.length);
+  if (!camera) {
+    if (talkingName) return compileScriptedPosition({ name: talkingName, place });
+    return "";
+  }
   const who =
     speakers.length <= 1
-      ? speakers[0]
-        ? `Only ${speakers[0]} in frame, no one else appears.`
+      ? talkingName
+        ? `Only ${talkingName} in frame, no one else appears.`
         : ""
       : `Exactly ${speakers.length} people in frame: ${speakers.join(", ")}. No extras.`;
   return [visual, `Place: ${place}.`, camera, who].filter(Boolean).join(" ");
@@ -97,7 +109,7 @@ export function compileConstructionStillPosition(opts: {
 
 /** True once compileConstructionStillPosition has added a research camera. */
 export function hasResearchCameraLine(staging?: string): boolean {
-  return /TIGHT CLOSE-UP|WIDE full-body|LOW ANGLE|Walking toward camera|Leaning, three-quarter|Body using the bed|Pose from the visual|Wide enough to show everyone/i.test(
+  return /TIGHT CLOSE-UP|WIDE full-body|LOW ANGLE|Walking toward camera|Leaning, three-quarter|Body using the bed/i.test(
     String(staging || ""),
   );
 }
@@ -112,8 +124,8 @@ export function isBareVisualAction(staging: string, visual: string): boolean {
 }
 
 /**
- * Prefer the construction camera / existing Position. Only fall back to the
- * talking MCU default when the shot has no visual and no Position.
+ * One environment: talking-desk MCU unless the director typed a camera,
+ * or [VISUAL_ACTION] names a real move and the shot is not CHEAP_TAKE.
  */
 export function resolvePlateStaging(opts: {
   stagingIn?: string;
@@ -126,11 +138,13 @@ export function resolvePlateStaging(opts: {
   const incoming = (opts.stagingIn || "").trim();
   const existing = (opts.existingStaging || "").trim();
   const visual = visualActionFromSummary(opts.summary);
+  const cheap = isCheapTalkingTake(opts.summary);
   const speakers = (opts.speakers || [])
     .map((s) => s.trim())
     .filter(Boolean);
   const names = speakers.length ? speakers : opts.speaker.trim() ? [opts.speaker.trim()] : [];
   const place = opts.place.trim() || "this place";
+  const namedCamera = !cheap && visual ? cameraLineFromVisual(visual, names.length) : "";
 
   if (
     incoming &&
@@ -146,13 +160,21 @@ export function resolvePlateStaging(opts: {
   ) {
     return existing;
   }
-  if (visual) {
-    return compileConstructionStillPosition({ visual, place, speakers: names });
+  if (namedCamera) {
+    return compileConstructionStillPosition({
+      visual,
+      place,
+      speakers: names,
+      cheap: false,
+    });
   }
   if (incoming) return incoming;
   if (existing) return existing;
   if (opts.speaker.trim()) {
     return compileScriptedPosition({ name: opts.speaker.trim(), place });
+  }
+  if (names[0]) {
+    return compileScriptedPosition({ name: names[0], place });
   }
   return "";
 }

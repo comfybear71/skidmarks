@@ -40,6 +40,37 @@ const tight = cameraLineFromVisual(
   1,
 );
 assert.match(tight, /TIGHT CLOSE-UP/);
+assert.equal(
+  cameraLineFromVisual("CrackWhore Darryl sits at the bar, facing camera, mouth clear, empty hands.", 1),
+  "",
+);
+assert.equal(
+  cameraLineFromVisual(
+    "Wide establishing shot. Red walks from screen-left to center-frame. Camera is completely static.",
+    1,
+  ),
+  "",
+);
+
+const cheapTalk = compileConstructionStillPosition({
+  visual: "CrackWhore Darryl sits at the bar, facing camera, mouth clear, empty hands.",
+  place: "Dirty Dog Pub",
+  speakers: ["CRACKWHORE DARRYL"],
+  cheap: true,
+});
+assert.equal(isTalkingMcuDefault(cheapTalk), true);
+assert.doesNotMatch(cheapTalk, /not a sitting talking-head/);
+assert.doesNotMatch(cheapTalk, /cartoon/);
+
+const wolfWords = compileConstructionStillPosition({
+  visual:
+    "Dynamic LTX motion pass. The Wolf leaps. cartoon eyes widening. LTX simulation triggers.",
+  place: "Grandma Bedroom",
+  speakers: ["RED"],
+});
+assert.equal(isTalkingMcuDefault(wolfWords), true);
+assert.doesNotMatch(wolfWords, /cartoon eyes/);
+assert.doesNotMatch(wolfWords, /LTX simulation/);
 
 assert.equal(
   resolvePlateStaging({
@@ -92,5 +123,27 @@ assert.equal(
   compiledWalk,
 );
 assert.match(compiledWalk, /Walking toward camera/);
+
+assert.equal(
+  resolvePlateStaging({
+    stagingIn: mcu,
+    existingStaging: mcu,
+    summary:
+      "[BUDGET_TIER] CHEAP_TAKE\n[VISUAL_ACTION] Comfy strolls down the gravel pavement.",
+    speaker: "COMFY",
+    place: "Front of the houses",
+  }),
+  mcu,
+);
+
+assert.equal(
+  resolvePlateStaging({
+    summary:
+      "[BUDGET_TIER] CHEAP_TAKE\n[VISUAL_ACTION] CrackWhore Darryl sits at the bar, facing camera.",
+    speaker: "CRACKWHORE DARRYL",
+    place: "Dirty Dog Pub",
+  }),
+  compileScriptedPosition({ name: "CRACKWHORE DARRYL", place: "Dirty Dog Pub" }),
+);
 
 console.log("check-mobile-plate-script: ok");
