@@ -41,7 +41,7 @@ Run a listed id later with `run_template` / `get_template` (`https://cloud.comfy
 | Echo / latent inject | No named template in this pull. | — |
 | Low-motion LTX + FILM/RIFE | `utility_video_frame_interpolation` (models **FILM, RIFE**). Also `utility-frame_interpolation-film`, `utility_gimm_frame_interpolation`. | Post on a finished mp4. Do not replace IA2V. |
 | Wan Animate / path draw | `video_wan_animate2`, `video_wan_animate2_distilled`, `video_wan2_2_14B_animate`, `video_wanmove_480p`. | Already in `docs/COMFY_ANIMATION_RESEARCH.md`. Motion without our mp3. |
-| Kick / identity lock | `video_ltx2_3_id_lora` (ID LoRA + audio). Research dump IC-LoRA weight 0.75. | Optional later. Not speech default. |
+| Kick / identity lock | `video_ltx2_3_id_lora` (ID LoRA + audio). Hub file `ltx-2.3-id-lora-talkvid-3k.safetensors` at **strength 1.0** (template default). The 0.75 figure in older notes is the **IC-LoRA** dump, not this node. | On `/m` speech IA2V: after distilled LoRA (340:293), then `LTXVReferenceAudio` into stage-2 CFGGuider (340:315). Stage 1 stays distilled-only. Face ref = shot plate / single cast card, never `plate_{slug}`. |
 
 ## Other LTX ids (do not put on `/m` speech)
 

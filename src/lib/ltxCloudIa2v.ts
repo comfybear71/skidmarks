@@ -225,6 +225,9 @@ export async function runLtxCloudIa2v(
     comfySource: "cloud",
   });
   const prompt = loadIa2vTemplate();
+  // Start frame = this shot plate (one face in the scene). ID LoRA
+  // (340:352 talkvid-3k @ 1.0, Hub default — not the 0.75 IC-LoRA dump)
+  // locks that face through motion. Do not swap in plate_{slug} sheets.
   patchNodeInputs(prompt, "269", { image: plateUp.name });
   patchNodeInputs(prompt, "276", { audio: audioUp.name });
   patchNodeInputs(prompt, "340:319", { value: cloudPrompt });

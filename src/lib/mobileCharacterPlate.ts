@@ -16,7 +16,9 @@ import {
 import type { MobileGenJob } from "./mobileGenJob";
 import { getShowStylePreset } from "./showStylePresets";
 
-async function resolveApprovedFace(job: MobileGenJob, name: string): Promise<string | null> {
+/** Single approved face card — the ID-LoRA / IA2V identity still.
+ * Never the 4-up `plate_{slug}` sheet from ensureCharacterPlate(). */
+export async function resolveApprovedFace(job: MobileGenJob, name: string): Promise<string | null> {
   const fileName = approvedCandidateFileName(job.castCandidates, name);
   if (fileName) {
     const dest = path.join(CRASH_DIR, "gen", fileName);

@@ -107,7 +107,7 @@ From the official 2.3 page — pick by job, don’t mix:
 | FLF2V | start + end still | Key in-betweens (tutorial 4) |
 | **IA2V** | **still + audio** | **`/m` gold — this is us** |
 | IC-LoRA | still + driving video (depth/pose/edge) | Pose lock without Wan Animate |
-| ID-LoRA | still + short audio | Voice/look personalise — not our shelf |
+| ID-LoRA | still + short audio | On `/m` IA2V: `ltx-2.3-id-lora-talkvid-3k` @ 1.0 after distilled. Face = shot plate / single card, not the 4-up sheet. |
 
 Checkpoint we already name in the committed graph: `ltx-2.3-22b-dev-fp8.safetensors` + distilled LoRA + spatial upscaler.
 

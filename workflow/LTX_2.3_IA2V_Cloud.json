@@ -337,7 +337,7 @@
     "inputs": {
       "cfg": 1,
       "model": [
-        "340:293",
+        "340:353",
         0
       ],
       "positive": [
@@ -819,6 +819,51 @@
     "class_type": "PrimitiveBoolean",
     "_meta": {
       "title": "Boolean (Enable Prompt Enhance)"
+    }
+  },
+  "340:352": {
+    "inputs": {
+      "lora_name": "ltx-2.3-id-lora-talkvid-3k.safetensors",
+      "strength_model": 1,
+      "model": [
+        "340:293",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load ID LoRA"
+    }
+  },
+  "340:353": {
+    "inputs": {
+      "identity_guidance_scale": 3,
+      "start_percent": 0,
+      "end_percent": 1,
+      "model": [
+        "340:352",
+        0
+      ],
+      "positive": [
+        "340:307",
+        0
+      ],
+      "negative": [
+        "340:307",
+        1
+      ],
+      "reference_audio": [
+        "276",
+        0
+      ],
+      "audio_vae": [
+        "340:335",
+        0
+      ]
+    },
+    "class_type": "LTXVReferenceAudio",
+    "_meta": {
+      "title": "LTXV Reference Audio"
     }
   }
 }
