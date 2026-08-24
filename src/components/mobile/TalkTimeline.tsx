@@ -14,6 +14,7 @@ import {
 } from "@/lib/scratchSongDrop";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
+  talkActScriptsFrom,
   talkClipClock,
   talkClipDeskFrom,
   talkClipLayout,
@@ -496,8 +497,11 @@ export function TalkTimeline({
   const [pickWhere, setPickWhere] = useState("");
   const [deskBusy, setDeskBusy] = useState("");
   const [deskError, setDeskError] = useState("");
+  const [openActId, setOpenActId] = useState("");
   const cells = useMemo(() => talkClipLayout(desk.cells, measured), [desk.cells, measured]);
   const bands = talkSceneBands(cells);
+  const acts = useMemo(() => talkActScriptsFrom(cells), [cells]);
+  const openAct = acts.find((a) => a.id === openActId) || null;
   const innerW = talkDeskInnerWidth(cells);
   const selected = cells.find((c) => c.key === pickedKey) || cells[0] || null;
 
@@ -662,6 +666,41 @@ export function TalkTimeline({
           Tap a box to play it. + adds a slot. × parks it — files stay. Send cooks that clip.
         </span>
       </div>
+      {!compact && acts.length ? (
+        <div className="m-talk-acts">
+          {acts.map((act) => (
+            <button
+              type="button"
+              key={act.id}
+              className={`m-mv-lyr-toggle${openActId === act.id ? " is-open" : ""}`}
+              aria-expanded={openActId === act.id}
+              onClick={() => {
+                setOpenActId((cur) => (cur === act.id ? "" : act.id));
+                const first = act.cellKeys[0];
+                if (first) setPickedKey(first);
+              }}
+            >
+              Act {act.roman} <span className="m-mv-lyr-caret">{openActId === act.id ? "▾" : "▸"}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {!compact && openAct ? (
+        <div className="m-mv-lyrics">
+          <div className="m-mv-lyrics-note">
+            Act {openAct.roman} · {openAct.title} · {openAct.lineCount}{" "}
+            {openAct.lineCount === 1 ? "line" : "lines"} — this stretch, not a song
+          </div>
+          <textarea
+            className="m-mv-lyrics-input"
+            value={openAct.script}
+            rows={Math.min(12, Math.max(4, openAct.lineCount * 3))}
+            spellCheck={false}
+            readOnly
+            aria-label={`Script for Act ${openAct.roman}`}
+          />
+        </div>
+      ) : null}
       {cells.length ? (
         <div className="m-talk-desk-scroll">
           <div className="m-talk-desk-inner" style={{ width: `${innerW + 56}px` }}>

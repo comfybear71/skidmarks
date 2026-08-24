@@ -14,6 +14,7 @@ import {
 } from "../src/lib/talkTimeline.ts";
 import {
   TALK_CLIP_PX_PER_SEC,
+  talkActScriptsFrom,
   talkClipClock,
   talkClipDeskFrom,
   talkClipWidthPx,
@@ -235,6 +236,12 @@ assert.equal(bands[0].widthPx, desk.cells[0].widthPx + desk.cells[1].widthPx);
 assert.equal(talkClipClock(8), "8s");
 assert.equal(talkNextShotTitle(desk.cells, "MATTY"), "SHOT 05 — MATTY");
 assert.equal(talkNextShotTitle([], "TEE"), "SHOT 01 — TEE");
+const actScripts = talkActScriptsFrom(desk.cells);
+assert.equal(actScripts.length, 2);
+assert.equal(actScripts[0].roman, "I");
+assert.equal(actScripts[1].roman, "II");
+assert.match(actScripts[0].script, /SHOT 01/);
+assert.match(actScripts[1].script, /SHOT 04|MATTY BAR|bar/i);
 
 const plateOnly = talkClipDeskFrom({
   story,
@@ -261,6 +268,8 @@ assert.match(talkUi, /Remove video/);
 assert.match(talkUi, /\+ Add clip/);
 assert.match(talkUi, /Send this/);
 assert.match(talkUi, /Remove slot/);
+assert.match(talkUi, /Act \{act\.roman\}/);
+assert.match(talkUi, /this stretch, not a song/);
 assert.match(talkUi, /audioSrc && !clipSrc/);
 assert.doesNotMatch(talkUi, /Drop the mp3|Start the video|WaveformCanvas|m-talk-tools-video|scrollIntoView|revealPlates/);
 assert.match(talkCss, /\.m-talk-desk-scroll\s*\{[^}]*overflow-x:\s*auto/s);

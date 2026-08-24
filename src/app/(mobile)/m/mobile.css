@@ -3434,6 +3434,13 @@ span.scratch-history-blob {
   margin-top: 8px;
 }
 
+.m-talk-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
 .m-talk-film-label {
   position: absolute;
   left: 0;

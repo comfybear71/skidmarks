@@ -100,6 +100,54 @@ export type TalkClipDesk = {
   innerWidthPx: number;
 };
 
+export type TalkActScript = {
+  id: string;
+  sceneId: string;
+  roman: string;
+  title: string;
+  script: string;
+  lineCount: number;
+  cellKeys: string[];
+};
+
+const TALK_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"] as const;
+
+export function talkActRoman(n: number): string {
+  return TALK_ROMAN[Math.max(1, Math.floor(n)) - 1] || String(n);
+}
+
+function talkActCellScript(cell: TalkClipCell): string {
+  const bits = [cell.title, cell.speaker, cell.line || "No line yet"].filter(Boolean);
+  return `${bits.join("\n")}\n\n`;
+}
+
+/**
+ * One script box per stretch on the talking desk — same job as lyrics
+ * on a music-video section. Built from the live cells. Does not rewrite story.
+ */
+export function talkActScriptsFrom(cells: TalkClipCell[]): TalkActScript[] {
+  const acts: TalkActScript[] = [];
+  for (const cell of cells) {
+    const last = acts[acts.length - 1];
+    if (last && last.sceneId === cell.sceneId) {
+      last.cellKeys.push(cell.key);
+      last.script += talkActCellScript(cell);
+      last.lineCount += 1;
+      continue;
+    }
+    acts.push({
+      id: `${cell.sceneId}:${acts.length}`,
+      sceneId: cell.sceneId,
+      roman: talkActRoman(acts.length + 1),
+      title: cell.sceneTitle || "Shot",
+      script: talkActCellScript(cell),
+      lineCount: 1,
+      cellKeys: [cell.key],
+    });
+  }
+  return acts.map((act) => ({ ...act, script: act.script.trim() }));
+}
+
 function uniqueByBeat(clips: MobileClipUnit[]): MobileClipUnit[] {
   const seen = new Set<string>();
   const out: MobileClipUnit[] = [];
