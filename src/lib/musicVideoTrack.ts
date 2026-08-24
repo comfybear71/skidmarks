@@ -134,6 +134,28 @@ export function trackWaveCssWidth(durationMs: number, viewportPx: number): numbe
   return Math.max(view, fromSong);
 }
 
+/**
+ * Keep the playhead on screen: the wave slides right-to-left, the needle
+ * stays at `followRatio` of the viewport (default a third in).
+ */
+export function trackPlayheadScrollLeft(opts: {
+  playheadMs: number;
+  durationMs: number;
+  viewW: number;
+  innerW: number;
+  followRatio?: number;
+}): number {
+  const durationMs = Math.max(0, Number(opts.durationMs) || 0);
+  const viewW = Math.max(0, Math.round(Number(opts.viewW) || 0));
+  const innerW = Math.max(0, Math.round(Number(opts.innerW) || 0));
+  if (!durationMs || !viewW || innerW <= viewW) return 0;
+  const x = (Math.max(0, Number(opts.playheadMs) || 0) / durationMs) * innerW;
+  const ratio = Number.isFinite(opts.followRatio) ? Number(opts.followRatio) : 0.35;
+  const target = x - viewW * Math.min(0.8, Math.max(0.1, ratio));
+  const max = innerW - viewW;
+  return Math.max(0, Math.min(max, Math.round(target)));
+}
+
 /** Picture tile under the wave — same left/width as that still's slice. */
 export function plateRailBox(
   startMs: number,
@@ -562,8 +584,10 @@ export function meaningfulLyricTags(lyrics: string): LyricTag[] {
 
 /**
  * Build section rows from [Intro] / [Verse 1] / [Chorus] in the lyrics.
- * With no Marquee pins yet: first row spans the song; the rest wait at the end
- * for Start here. With pins on tag lines, times come from those cues.
+ * Times follow where those tags sit on the sheet (line index across the
+ * song). Marquee pins can still nudge a row later with Start here.
+ * Parking every row but the first at 0:00 used to hide Verse/Chorus —
+ * only INTRO painted the whole wave.
  */
 export function importSectionMarkersFromLyrics(opts: {
   lyrics: string;
@@ -573,15 +597,23 @@ export function importSectionMarkersFromLyrics(opts: {
   if (!tags.length) return [];
   const songMs = Math.max(1000, Math.round(opts.durationMs));
   const now = Date.now();
+  const lineCount = Math.max(1, String(opts.lyrics || "").split(/\r?\n/).length);
+  const MIN = 1000;
 
-  // Marquee lyric pins are per sung line — never feed them here or you get
-  // one-second bands when several [tags] sit on nearby lines.
-  return tags.map((t, i) => ({
-    id: `marker_${now}_${i}`,
-    label: t.label,
-    startMs: i === 0 ? 0 : songMs,
-    endMs: songMs,
-  }));
+  return tags.map((t, i) => {
+    const startMs = i === 0 ? 0 : evenLineStartMs(t.lineIndex, lineCount, songMs);
+    const next = tags[i + 1];
+    const rawEnd = next
+      ? evenLineStartMs(next.lineIndex, lineCount, songMs)
+      : songMs;
+    const endMs = Math.min(songMs, Math.max(startMs + MIN, rawEnd));
+    return {
+      id: `marker_${now}_${i}`,
+      label: t.label,
+      startMs,
+      endMs,
+    };
+  });
 }
 
 /** Scrub to a moment, tap Start here — closes the previous section at the same point. */

@@ -33,6 +33,7 @@ import {
   plateRailBox,
   sortPlateTimings,
   sortSectionMarkers,
+  trackPlayheadScrollLeft,
   trackWaveCssWidth,
   trackWaveLayout,
   withSectionStartAt,
@@ -341,12 +342,18 @@ function LyricPinPanel({
 type WavePlateBlock = PlateTiming & { label: string };
 
 /** One sideways scroller for the wave and the plate rail so a long song
- * does not crush onto one iPhone screen. Vertical flicks still move /m. */
+ * does not crush onto one iPhone screen. Vertical flicks still move /m.
+ * While the song plays, the strip follows the needle so it cannot walk
+ * off the right edge — the wave moves right-to-left. */
 function TrackScroll({
   durationMs,
+  playheadMs,
+  follow,
   children,
 }: {
   durationMs: number;
+  playheadMs: number;
+  follow: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -361,6 +368,16 @@ function TrackScroll({
     return () => ro.disconnect();
   }, []);
   const innerW = trackWaveCssWidth(durationMs, viewW);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !follow || !innerW || !viewW) return;
+    el.scrollLeft = trackPlayheadScrollLeft({
+      playheadMs,
+      durationMs,
+      viewW,
+      innerW,
+    });
+  }, [follow, playheadMs, durationMs, viewW, innerW]);
   return (
     <div className="m-track-scroll" ref={ref}>
       <div
@@ -983,7 +1000,11 @@ export function MusicVideoTrack({
             )}
           </div>
 
-          <TrackScroll durationMs={effectiveDurationMs}>
+          <TrackScroll
+            durationMs={effectiveDurationMs}
+            playheadMs={playheadMs}
+            follow={playing}
+          >
           {peaks.length ? (
             <WaveformCanvas
               peaks={peaks}

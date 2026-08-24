@@ -310,8 +310,11 @@ console.log("check-music-video-plate-bar OK");
   const fresh = importSectionMarkersFromLyrics({ lyrics: jackLyrics, durationMs: 268_000 });
   assert.equal(fresh.length, 5);
   assert.equal(fresh[0].startMs, 0);
-  assert.equal(fresh[0].endMs, 268_000);
-  assert.ok(sectionNeedsStartHere(fresh[1], 268_000), "verse waits for Start here");
+  assert.ok(fresh[0].endMs < 268_000, "intro does not swallow the whole song");
+  assert.ok(fresh[1].startMs > 0, "verse starts where [Verse 1] sits on the sheet");
+  assert.ok(fresh[1].endMs > fresh[1].startMs);
+  assert.equal(fresh[fresh.length - 1].endMs, 268_000, "outro reaches the end");
+  assert.ok(!sectionNeedsStartHere(fresh[1], 268_000), "lyric tags are already timed");
 
   const split = withSectionStartAt(
     fresh,
@@ -345,6 +348,40 @@ console.log("check-music-video-plate-bar OK");
   assert.equal(
     sectionPeopleOnPlates({ startMs: 247_500, endMs: 267_534 }, jackPlates),
     "GUITAR",
+  );
+
+  const { FORGOTTEN_LYRICS: forgottenLyrics } = await import(
+    "../src/lib/musicVideoGroupPlate.ts",
+  );
+  const { trackPlayheadScrollLeft: scrollLeft, trackWaveCssWidth: waveW } = await import(
+    "../src/lib/musicVideoTrack.ts",
+  );
+  const forgotten = importSectionMarkersFromLyrics({
+    lyrics: forgottenLyrics,
+    durationMs: 291_480,
+  });
+  assert.equal(forgotten.map((m) => m.label).join(","), "intro,verse,chorus,verse,chorus,bridge,outro");
+  assert.ok(forgotten[0].endMs < 80_000, "Forgotten intro is not the whole 4:51");
+  assert.ok(forgotten.some((m) => m.label === "chorus" && m.startMs > 30_000));
+
+  const inner = waveW(291_480, 400);
+  assert.ok(inner > 400, "a 4:51 song is wider than the phone");
+  const at30 = scrollLeft({
+    playheadMs: 30_000,
+    durationMs: 291_480,
+    viewW: 400,
+    innerW: inner,
+  });
+  const at90 = scrollLeft({
+    playheadMs: 90_000,
+    durationMs: 291_480,
+    viewW: 400,
+    innerW: inner,
+  });
+  assert.ok(at90 > at30, "the wave slides so the needle stays on screen");
+  assert.equal(
+    scrollLeft({ playheadMs: 0, durationMs: 291_480, viewW: 400, innerW: inner }),
+    0,
   );
 }
 

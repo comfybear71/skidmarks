@@ -19,6 +19,7 @@ import type { ScriptCharacterData } from "./types";
 import { newId } from "./types";
 import {
   forgottenResearchDrafts,
+  forgottenSoloCamera,
   isForgottenSongJob,
 } from "./musicVideoGroupPlate";
 
@@ -156,7 +157,9 @@ export function buildMusicVideoStartStory(job: MobileGenJob): {
           id: newId("shot"),
           title: speaker.trim(),
           summary: `[BUDGET_TIER] CHEAP_TAKE. ${speaker.trim()} at ${placeName}`,
-          staging: defaultMusicVideoBandStaging(speaker, placeName),
+          staging: isForgottenSongJob(job)
+            ? forgottenSoloCamera(speaker, placeName)
+            : defaultMusicVideoBandStaging(speaker, placeName),
           plateFile: "",
           beats: [{ id: newId("beat"), speaker: speaker.trim(), text: "" }],
           sfx: [],

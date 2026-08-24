@@ -657,6 +657,9 @@ export async function POST(req: Request) {
           silentCast: [],
           styleRealism: job.styleRealism,
           job,
+          // Music video: never refine the last still — Jack's graphic card
+          // plus a cartoon take is how the Forgotten plates went cel.
+          useLastStill: job.styleId === "music_video" ? false : undefined,
         });
         const updated = await patchMobileGenJob(jobId, {
           error: "",

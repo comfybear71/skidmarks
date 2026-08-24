@@ -8,6 +8,25 @@
 
 export const MUSIC_VIDEO_GROUP_MAX = 3;
 
+/** Seedream cel-ifies Jack's graphic card. This lock must be on the send. */
+export const MUSIC_VIDEO_NO_CEL =
+  "Live-action photograph. Real human skin, real cloth, real brass and wood. No cel shading, no GTA, no Archer, no comic outlines, no cartoon, no anime, no illustrated character sheet.";
+
+/** Learned Crash Lab cameras — music video only, no clothes-change / pie / beer. */
+export const MUSIC_VIDEO_CAMERAS = {
+  "tight-cu":
+    "TIGHT CLOSE-UP, face fills the frame, shoulders barely visible, huge and near the camera. Not a distant full-body. Not a wide of the place.",
+  mcu: "MEDIUM CLOSE-UP, head and shoulders fill the frame, crop the waist and legs, huge and near the camera. Not a distant full-body.",
+  medium: "MEDIUM SHOT, full upper body. Three-quarter, not a lineup.",
+  wide: "WIDE full-body, head to toe, lots of the place around them, smaller in frame. Show the ground and the sky.",
+  ots: "MEDIUM SHOT. Three-quarter back, looking back over the shoulder at the camera. Same face. Not a selfie.",
+  sitting: "MEDIUM SHOT. Sitting, knees bent, planted. Use the place as a seat, not a backdrop.",
+  "ots-two":
+    "OVER THE SHOULDER two-shot. Camera looks past the nearer person at the farther one. Not a lineup. Not a selfie.",
+  "wide-three":
+    "WIDE three-shot. All three in the place, not a police lineup facing camera. Depth, not a mug-shot row.",
+} as const;
+
 export const FORGOTTEN_LYRICS = `FORGOTTEN.mp3 [Instrumental Intro,  muted trumpet snaking middle eastern melody, dark Arabic scale, heavy 12-string drone, deep dragging slide bass]
 
 [Verse 1]
@@ -179,8 +198,7 @@ export function forgottenResearchDrafts(
 
   if (jack && horn) {
     const speakers2 = [jack, horn];
-    const visual =
-      "static camera, cheap two-shot. JACK GHOST lost, boots in the dirt, empty hands. HORN plays the muted trumpet, snaking Middle Eastern melody. Not a selfie. Not a lineup.";
+    const visual = `${MUSIC_VIDEO_CAMERAS["ots-two"]} Look past JACK GHOST at HORN. JACK GHOST lost, boots in the dirt, empty hands. HORN plays the muted trumpet. Cheap two-shot.`;
     out.push({
       speakers: speakers2,
       title: `${jack} + ${horn}`,
@@ -193,8 +211,7 @@ export function forgottenResearchDrafts(
 
   if (jack && sax) {
     const speakers2 = [jack, sax];
-    const visual =
-      "static camera, cheap two-shot. JACK GHOST half turned, mouth closed. SAXOPHONE holds the sax. Eyes not on camera. Not a selfie.";
+    const visual = `${MUSIC_VIDEO_CAMERAS.medium} JACK GHOST half turned, mouth closed. SAXOPHONE holds the sax. Eyes not on camera. Cheap two-shot.`;
     out.push({
       speakers: speakers2,
       title: `${jack} + ${sax}`,
@@ -207,8 +224,7 @@ export function forgottenResearchDrafts(
 
   if (horn && sax) {
     const speakers2 = [horn, sax];
-    const visual =
-      "static camera, cheap two-shot. Horn section only. HORN muted trumpet. SAXOPHONE sax. No singer. No extras.";
+    const visual = `${MUSIC_VIDEO_CAMERAS["ots-two"]} Horn section only. Look past HORN at SAXOPHONE. HORN muted trumpet. SAXOPHONE sax. No singer.`;
     out.push({
       speakers: speakers2,
       title: `${horn} + ${sax}`,
@@ -221,8 +237,7 @@ export function forgottenResearchDrafts(
 
   if (jack && horn && sax) {
     const speakers3 = [jack, horn, sax];
-    const visual =
-      "three people only. JACK GHOST centre, empty hands, cannot remember his name. HORN and SAXOPHONE either side with their named horns. Wall of blurred mirrors or sulfur red sky already in the place. Static camera. Not five of the band. Not a selfie.";
+    const visual = `${MUSIC_VIDEO_CAMERAS["wide-three"]} JACK GHOST centre, empty hands, cannot remember his name. HORN and SAXOPHONE either side with their named horns. Sulfur red sky already in the place.`;
     out.push({
       speakers: speakers3,
       title: `${jack} + ${horn} + ${sax}`,
@@ -234,6 +249,65 @@ export function forgottenResearchDrafts(
   }
 
   return out;
+}
+
+export function forgottenSoloCamera(speaker: string, placeName: string): string {
+  const who = speaker.trim();
+  const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
+  const key =
+    who === "JACK GHOST"
+      ? "tight-cu"
+      : who === "SAXOPHONE"
+        ? "mcu"
+        : who === "DRUMMER"
+          ? "sitting"
+          : who === "GUITAR"
+            ? "wide"
+            : who === "HORN"
+              ? "ots"
+              : "medium";
+  return defaultMusicVideoGroupStaging([who], place, MUSIC_VIDEO_CAMERAS[key]);
+}
+
+/** Position for an existing Forgotten shot title — cameras from the Crash Lab set. */
+export function forgottenPlateStaging(
+  title: string,
+  speakers: string[],
+  placeName: string,
+): string {
+  const names = clampMusicVideoGroup(speakers.length ? speakers : [title]);
+  const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
+  const t = title.trim().toUpperCase();
+  if (names.length <= 1) return forgottenSoloCamera(names[0] || title, place);
+  if (/\bJACK\b/.test(t) && /\bHORN\b/.test(t) && /\bSAX/.test(t)) {
+    return defaultMusicVideoGroupStaging(
+      names,
+      place,
+      `${MUSIC_VIDEO_CAMERAS["wide-three"]} JACK GHOST centre, empty hands. HORN and SAXOPHONE either side.`,
+    );
+  }
+  if (/\bJACK\b/.test(t) && /\bHORN\b/.test(t)) {
+    return defaultMusicVideoGroupStaging(
+      names,
+      place,
+      `${MUSIC_VIDEO_CAMERAS["ots-two"]} Look past JACK GHOST at HORN and the muted trumpet.`,
+    );
+  }
+  if (/\bJACK\b/.test(t) && /\bSAX/.test(t)) {
+    return defaultMusicVideoGroupStaging(
+      names,
+      place,
+      `${MUSIC_VIDEO_CAMERAS.medium} JACK GHOST half turned. SAXOPHONE holds the sax.`,
+    );
+  }
+  if (/\bHORN\b/.test(t) && /\bSAX/.test(t)) {
+    return defaultMusicVideoGroupStaging(
+      names,
+      place,
+      `${MUSIC_VIDEO_CAMERAS["ots-two"]} Look past HORN at SAXOPHONE. Horn section only.`,
+    );
+  }
+  return defaultMusicVideoGroupStaging(names, place, MUSIC_VIDEO_CAMERAS.medium);
 }
 
 /** Rewrite Position after Add cast so the still names everyone on the card. */
