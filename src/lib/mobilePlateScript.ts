@@ -95,6 +95,22 @@ export function compileConstructionStillPosition(opts: {
   return [visual, `Place: ${place}.`, camera, who].filter(Boolean).join(" ");
 }
 
+/** True once compileConstructionStillPosition has added a research camera. */
+export function hasResearchCameraLine(staging?: string): boolean {
+  return /TIGHT CLOSE-UP|WIDE full-body|LOW ANGLE|Walking toward camera|Leaning, three-quarter|Body using the bed|Pose from the visual|Wide enough to show everyone/i.test(
+    String(staging || ""),
+  );
+}
+
+/** Lock stores raw [VISUAL_ACTION] as Position — that still needs a camera. */
+export function isBareVisualAction(staging: string, visual: string): boolean {
+  const a = staging.replace(/\s+/g, " ").trim();
+  const b = visual.replace(/\s+/g, " ").trim();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return a.startsWith(b) && !hasResearchCameraLine(a);
+}
+
 /**
  * Prefer the construction camera / existing Position. Only fall back to the
  * talking MCU default when the shot has no visual and no Position.
@@ -116,8 +132,20 @@ export function resolvePlateStaging(opts: {
   const names = speakers.length ? speakers : opts.speaker.trim() ? [opts.speaker.trim()] : [];
   const place = opts.place.trim() || "this place";
 
-  if (incoming && !isTalkingMcuDefault(incoming)) return incoming;
-  if (existing && !isTalkingMcuDefault(existing)) return existing;
+  if (
+    incoming &&
+    !isTalkingMcuDefault(incoming) &&
+    !isBareVisualAction(incoming, visual)
+  ) {
+    return incoming;
+  }
+  if (
+    existing &&
+    !isTalkingMcuDefault(existing) &&
+    !isBareVisualAction(existing, visual)
+  ) {
+    return existing;
+  }
   if (visual) {
     return compileConstructionStillPosition({ visual, place, speakers: names });
   }

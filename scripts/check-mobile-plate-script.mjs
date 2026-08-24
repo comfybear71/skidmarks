@@ -76,4 +76,21 @@ assert.match(
   /Medium close-up of COMFY/,
 );
 
+const rawVisual = "Comfy strolls down the gravel pavement.";
+const compiledWalk = compileConstructionStillPosition({
+  visual: rawVisual,
+  place: "Front of the houses",
+  speakers: ["COMFY"],
+});
+assert.equal(
+  resolvePlateStaging({
+    existingStaging: rawVisual,
+    summary: `[VISUAL_ACTION] ${rawVisual}`,
+    speaker: "COMFY",
+    place: "Front of the houses",
+  }),
+  compiledWalk,
+);
+assert.match(compiledWalk, /Walking toward camera/);
+
 console.log("check-mobile-plate-script: ok");
