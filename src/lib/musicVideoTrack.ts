@@ -134,6 +134,28 @@ export function trackWaveCssWidth(durationMs: number, viewportPx: number): numbe
   return Math.max(view, fromSong);
 }
 
+/**
+ * Keep the playhead on screen: the wave slides right-to-left, the needle
+ * stays at `followRatio` of the viewport (default a third in).
+ */
+export function trackPlayheadScrollLeft(opts: {
+  playheadMs: number;
+  durationMs: number;
+  viewW: number;
+  innerW: number;
+  followRatio?: number;
+}): number {
+  const durationMs = Math.max(0, Number(opts.durationMs) || 0);
+  const viewW = Math.max(0, Math.round(Number(opts.viewW) || 0));
+  const innerW = Math.max(0, Math.round(Number(opts.innerW) || 0));
+  if (!durationMs || !viewW || innerW <= viewW) return 0;
+  const x = (Math.max(0, Number(opts.playheadMs) || 0) / durationMs) * innerW;
+  const ratio = Number.isFinite(opts.followRatio) ? Number(opts.followRatio) : 0.35;
+  const target = x - viewW * Math.min(0.8, Math.max(0.1, ratio));
+  const max = innerW - viewW;
+  return Math.max(0, Math.min(max, Math.round(target)));
+}
+
 /** Picture tile under the wave — same left/width as that still's slice. */
 export function plateRailBox(
   startMs: number,
@@ -300,7 +322,7 @@ export function lyricLinesFrom(lyrics: string): LyricLine[] {
   return (lyrics || "")
     .split(/\r?\n/)
     .map((raw, index) => ({ index, text: stripLyricTags(raw) }))
-    .filter((line) => line.text.length > 0);
+    .filter((line) => line.text.length > 0 && !isLyricFilenameLine(line.text));
 }
 
 /** Drop every [...] run and tidy the whitespace it leaves behind. */
@@ -562,8 +584,10 @@ export function meaningfulLyricTags(lyrics: string): LyricTag[] {
 
 /**
  * Build section rows from [Intro] / [Verse 1] / [Chorus] in the lyrics.
- * With no Marquee pins yet: first row spans the song; the rest wait at the end
- * for Start here. With pins on tag lines, times come from those cues.
+ * Times follow where those tags sit on the sheet (line index across the
+ * song). Marquee pins can still nudge a row later with Start here.
+ * Parking every row but the first at 0:00 used to hide Verse/Chorus —
+ * only INTRO painted the whole wave.
  */
 export function importSectionMarkersFromLyrics(opts: {
   lyrics: string;
@@ -573,15 +597,78 @@ export function importSectionMarkersFromLyrics(opts: {
   if (!tags.length) return [];
   const songMs = Math.max(1000, Math.round(opts.durationMs));
   const now = Date.now();
+  const lineCount = Math.max(1, String(opts.lyrics || "").split(/\r?\n/).length);
+  const MIN = 1000;
 
-  // Marquee lyric pins are per sung line — never feed them here or you get
-  // one-second bands when several [tags] sit on nearby lines.
-  return tags.map((t, i) => ({
-    id: `marker_${now}_${i}`,
-    label: t.label,
-    startMs: i === 0 ? 0 : songMs,
-    endMs: songMs,
-  }));
+  return tags.map((t, i) => {
+    const startMs = i === 0 ? 0 : evenLineStartMs(t.lineIndex, lineCount, songMs);
+    const next = tags[i + 1];
+    const rawEnd = next
+      ? evenLineStartMs(next.lineIndex, lineCount, songMs)
+      : songMs;
+    const endMs = Math.min(songMs, Math.max(startMs + MIN, rawEnd));
+    return {
+      id: `marker_${now}_${i}`,
+      label: t.label,
+      startMs,
+      endMs,
+    };
+  });
+}
+
+/** A dropped filename is not a sung line — keep it off the marquee. */
+export function isLyricFilenameLine(text: string): boolean {
+  return /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(String(text || "").trim());
+}
+
+/**
+ * Pin each sung line inside the section window it sits under on the sheet.
+ * Intro with no words stays empty. Even spread inside the window — this is
+ * lining from the sheet, not hearing the vocal. Pin can still nudge a line.
+ */
+export function lyricCuesFromSectionSheet(opts: {
+  lyrics: string;
+  durationMs: number;
+  markers?: TrackSectionMarker[];
+}): LyricCue[] {
+  const lyrics = String(opts.lyrics || "");
+  const songMs = Math.max(1000, Math.round(opts.durationMs));
+  const tags = meaningfulLyricTags(lyrics);
+  const markers = sortSectionMarkers(
+    opts.markers?.length
+      ? opts.markers
+      : importSectionMarkersFromLyrics({ lyrics, durationMs: songMs }),
+  );
+  if (!tags.length || !markers.length) return [];
+
+  const sung = lyricLinesFrom(lyrics).filter((line) => !isLyricFilenameLine(line.text));
+  const buckets = tags.map(() => [] as LyricLine[]);
+  for (const line of sung) {
+    let tagIdx = -1;
+    for (let i = 0; i < tags.length; i++) {
+      if (tags[i]!.lineIndex <= line.index) tagIdx = i;
+    }
+    if (tagIdx < 0) continue;
+    buckets[tagIdx]!.push(line);
+  }
+
+  const cues: LyricCue[] = [];
+  const used = Math.min(tags.length, markers.length);
+  for (let i = 0; i < used; i++) {
+    const group = buckets[i]!;
+    const marker = markers[i]!;
+    if (!group.length) continue;
+    const startMs = marker.startMs;
+    const span = Math.max(1, marker.endMs - startMs);
+    for (let n = 0; n < group.length; n++) {
+      const atMs = Math.min(
+        marker.endMs - 1,
+        Math.max(startMs, Math.round(startMs + (span * n) / group.length)),
+      );
+      cues.push({ lineIndex: group[n]!.index, atMs });
+    }
+  }
+  return cues.sort((a, b) => a.atMs - b.atMs || a.lineIndex - b.lineIndex);
 }
 
 /** Scrub to a moment, tap Start here — closes the previous section at the same point. */

@@ -17,6 +17,11 @@ const lines = lyricLinesFrom("one\n\n  two  \n\nthree\n");
 assert.equal(lines.length, 3);
 assert.deepEqual(lines.map((l) => l.text), ["one", "two", "three"]);
 assert.deepEqual(lyricLinesFrom(""), []);
+assert.deepEqual(
+  lyricLinesFrom("FORGOTTEN.mp3\nThe last thing I felt\n").map((l) => l.text),
+  ["The last thing I felt"],
+  "a dropped filename is not a lyric line",
+);
 
 // Pinning is upsert-by-line and stays in clock order.
 let cues = withLyricCue([], 2, 8000);
@@ -133,6 +138,8 @@ console.log("check-music-video-track-lyrics OK");
   assert.match(ui, /platesOnTrackOpen/, "plates on the track fold away");
   assert.match(ui, /<DeskFold/, "long lists share the desk fold");
   assert.match(ui, /Import from lyrics/, "sections import from lyric tags");
+  assert.match(ui, /lyricCuesFromSectionSheet/, "Import also pins Marquee from section windows");
+  assert.match(ui, /set-lyric-cues/, "existing sections get pins without rewriting times");
   assert.match(ui, /Start here/, "pin section start at playhead");
   assert.match(ui, /Clear sections/, "wipe broken section rows");
   assert.match(ui, /m-track-time-set/, "explicit Set on time boxes");
@@ -310,8 +317,11 @@ console.log("check-music-video-plate-bar OK");
   const fresh = importSectionMarkersFromLyrics({ lyrics: jackLyrics, durationMs: 268_000 });
   assert.equal(fresh.length, 5);
   assert.equal(fresh[0].startMs, 0);
-  assert.equal(fresh[0].endMs, 268_000);
-  assert.ok(sectionNeedsStartHere(fresh[1], 268_000), "verse waits for Start here");
+  assert.ok(fresh[0].endMs < 268_000, "intro does not swallow the whole song");
+  assert.ok(fresh[1].startMs > 0, "verse starts where [Verse 1] sits on the sheet");
+  assert.ok(fresh[1].endMs > fresh[1].startMs);
+  assert.equal(fresh[fresh.length - 1].endMs, 268_000, "outro reaches the end");
+  assert.ok(!sectionNeedsStartHere(fresh[1], 268_000), "lyric tags are already timed");
 
   const split = withSectionStartAt(
     fresh,
@@ -345,6 +355,72 @@ console.log("check-music-video-plate-bar OK");
   assert.equal(
     sectionPeopleOnPlates({ startMs: 247_500, endMs: 267_534 }, jackPlates),
     "GUITAR",
+  );
+
+  const { FORGOTTEN_LYRICS: forgottenLyrics } = await import(
+    "../src/lib/musicVideoGroupPlate.ts",
+  );
+  const { trackPlayheadScrollLeft: scrollLeft, trackWaveCssWidth: waveW } = await import(
+    "../src/lib/musicVideoTrack.ts",
+  );
+  const forgotten = importSectionMarkersFromLyrics({
+    lyrics: forgottenLyrics,
+    durationMs: 291_480,
+  });
+  assert.equal(forgotten.map((m) => m.label).join(","), "intro,verse,chorus,verse,chorus,bridge,outro");
+  assert.ok(forgotten[0].endMs < 80_000, "Forgotten intro is not the whole 4:51");
+  assert.ok(forgotten.some((m) => m.label === "chorus" && m.startMs > 30_000));
+
+  const {
+    lyricCuesFromSectionSheet,
+    isLyricFilenameLine,
+    lyricLinesFrom: sungLines,
+  } = await import("../src/lib/musicVideoTrack.ts");
+  assert.equal(isLyricFilenameLine("FORGOTTEN.mp3"), true);
+  assert.equal(isLyricFilenameLine("The last thing I felt"), false);
+
+  const pins = lyricCuesFromSectionSheet({
+    lyrics: forgottenLyrics,
+    durationMs: 291_480,
+    markers: forgotten,
+  });
+  const sung = sungLines(forgottenLyrics).filter((l) => !isLyricFilenameLine(l.text));
+  assert.equal(pins.length, sung.length, "every sung line gets a pin");
+  assert.ok(!pins.some((c) => sungLines(forgottenLyrics).find((l) => l.index === c.lineIndex)?.text === "FORGOTTEN.mp3"));
+  // Intro is instrumental — first sung line sits in verse, not at 0:00.
+  const firstSung = sung[0];
+  const firstPin = pins.find((c) => c.lineIndex === firstSung.index);
+  assert.ok(firstPin, "first sung line is pinned");
+  assert.ok(firstPin.atMs >= forgotten[1].startMs, "first sung line starts in verse, not intro");
+  assert.ok(firstPin.atMs < forgotten[1].endMs, "first sung line stays in verse");
+  // Outro lines stay in the outro window.
+  const lastPin = pins[pins.length - 1];
+  const outro = forgotten[forgotten.length - 1];
+  assert.ok(lastPin.atMs >= outro.startMs, "last line is in outro");
+  assert.ok(lastPin.atMs < outro.endMs);
+  // Pins walk forward through the song.
+  for (let i = 1; i < pins.length; i++) {
+    assert.ok(pins[i].atMs >= pins[i - 1].atMs, "pins stay in clock order");
+  }
+
+  const inner = waveW(291_480, 400);
+  assert.ok(inner > 400, "a 4:51 song is wider than the phone");
+  const at30 = scrollLeft({
+    playheadMs: 30_000,
+    durationMs: 291_480,
+    viewW: 400,
+    innerW: inner,
+  });
+  const at90 = scrollLeft({
+    playheadMs: 90_000,
+    durationMs: 291_480,
+    viewW: 400,
+    innerW: inner,
+  });
+  assert.ok(at90 > at30, "the wave slides so the needle stays on screen");
+  assert.equal(
+    scrollLeft({ playheadMs: 0, durationMs: 291_480, viewW: 400, innerW: inner }),
+    0,
   );
 }
 
@@ -438,12 +514,36 @@ console.log("check-music-video-marquee-word OK");
   assert.match(src, /uploadMobileMedia/, "the mp3 goes to Blob, not just memory");
   assert.match(src, /songFile/, "the job remembers the file name");
   assert.match(src, /export async function GET/, "and it can be streamed back after a refresh");
+  assert.match(src, /action === "prepare"/, "big songs prepare a Blob path");
+  assert.match(src, /action === "attach"/, "then attach the Blob URL");
+  assert.match(src, /registerMobileMediaBlob/, "client Blob drops get a Neon row");
 
   const drop = readFileSync(
     new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url),
     "utf8",
   );
   assert.match(drop, /track\/song/, "dropping an mp3 posts it straight away");
+  assert.match(drop, /dropTrackSongViaBlob/, "songs over the Studio POST limit go to Blob");
+  assert.match(drop, /arrayBuffer/, "the File is copied before the handle can vanish");
+
+  const blob = readFileSync(
+    new URL("../src/lib/scratchSongDrop.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(blob, /export async function dropTrackSongViaBlob/, "track drop has its own Blob pipe");
+  assert.match(blob, /track\/song-blob/, "token route does not need a beat");
+  const errSrc = readFileSync(
+    new URL("../src/lib/studioFetchError.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    errSrc,
+    /requested file or directory could not be found/,
+    "the OneDrive/Chrome vanish error is translated",
+  );
+
+  const token = new URL("../src/app/api/crash/mobile/track/song-blob/route.ts", import.meta.url);
+  assert.ok(existsSync(token), "there is a token route for the track song Blob drop");
 
   const ui = readFileSync(
     new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url),
@@ -627,6 +727,7 @@ console.log("check-music-video-plate-picker OK");
   assert.match(drop, /drop-song/, "and the saved reference goes with it");
 
   assert.match(route, /action === "drop-song"/);
+  assert.match(route, /body.lyricCues !== undefined/, "Import from lyrics can save pins with the sections");
   // Park, never delete: the mp3 stays in Blob so dropping cannot lose a file.
   const action = route.slice(route.indexOf('action === "drop-song"'), route.indexOf('action === "drop-song"') + 700);
   assert.match(action, /delete draft\.songFile/);

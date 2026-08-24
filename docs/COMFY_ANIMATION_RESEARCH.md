@@ -132,3 +132,4 @@ Checkpoint we already name in the committed graph: `ltx-2.3-22b-dev-fp8.safetens
 - Optional: Wan Animate **Move** if we ever record a driving take.
 - Optional: AnimateDiff loops from a folder of plates (VJ, not dialogue).
 - Optional: Director Multi **after** IA2V clips exist — concat, don’t rewrite `story_json`.
+- **Concert loop plates** (Jack Ash, logged 2026-08-24): gold/black art I2V, no band — `docs/CONCERT_LOOP_PLATE.md`. Not `/m` speech.

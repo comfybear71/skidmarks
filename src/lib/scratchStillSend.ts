@@ -18,6 +18,7 @@ import {
   SCRATCH_SINGLE_FRAME_LOCK,
 } from "./sirayI2v";
 import { candidateLookPrompt } from "./mobileJobReady";
+import { MUSIC_VIDEO_NO_CEL } from "./musicVideoGroupPlate";
 
 export type ScratchSendLayer = {
   id: string;
@@ -166,7 +167,12 @@ export function buildScratchStillSend(opts: {
   ]
     .filter(Boolean)
     .join(" ");
-  const style = buildCrashGenLook(opts.styleId, styleRealism);
+  const style = [
+    buildCrashGenLook(opts.styleId, styleRealism),
+    opts.styleId === "music_video" ? MUSIC_VIDEO_NO_CEL : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const startLock = scratchStartImageLock(false);
   const nudeLock = nude ? scratchNudeStillLock(nudeText, speakers) : "";
   const multiNude =

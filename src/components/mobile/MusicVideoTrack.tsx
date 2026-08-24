@@ -20,6 +20,7 @@ import {
   withoutLyricCue,
   plateTimingForShot,
   importSectionMarkersFromLyrics,
+  lyricCuesFromSectionSheet,
   meaningfulLyricTags,
   nextSectionNeedingStart,
   nextSectionStartMs,
@@ -33,6 +34,7 @@ import {
   plateRailBox,
   sortPlateTimings,
   sortSectionMarkers,
+  trackPlayheadScrollLeft,
   trackWaveCssWidth,
   trackWaveLayout,
   withSectionStartAt,
@@ -257,6 +259,7 @@ function LyricPinPanel({
   onBusy,
   onJobChange,
   onSeek,
+  onImportFromLyrics,
 }: {
   job: MobileGenJob;
   lyricLines: ReturnType<typeof lyricLinesFrom>;
@@ -266,6 +269,7 @@ function LyricPinPanel({
   onBusy: (v: string) => void;
   onJobChange: (job: MobileGenJob) => void;
   onSeek: (ms: number) => void;
+  onImportFromLyrics?: () => void;
 }) {
   const activeLine = activeLyricLineIndex(lyricCues, playheadMs);
 
@@ -289,6 +293,19 @@ function LyricPinPanel({
   }
 
   return (
+    <>
+      {onImportFromLyrics ? (
+        <div className="m-track-marker-row">
+          <button
+            type="button"
+            className="m-track-btn"
+            disabled={Boolean(busy)}
+            onClick={() => onImportFromLyrics()}
+          >
+            Import from lyrics
+          </button>
+        </div>
+      ) : null}
     <ul className="m-track-lyric-list">
       {lyricLines.map((line) => {
         const cue = lyricCueFor(lyricCues, line.index);
@@ -335,18 +352,25 @@ function LyricPinPanel({
         );
       })}
     </ul>
+    </>
   );
 }
 
 type WavePlateBlock = PlateTiming & { label: string };
 
 /** One sideways scroller for the wave and the plate rail so a long song
- * does not crush onto one iPhone screen. Vertical flicks still move /m. */
+ * does not crush onto one iPhone screen. Vertical flicks still move /m.
+ * While the song plays, the strip follows the needle so it cannot walk
+ * off the right edge — the wave moves right-to-left. */
 function TrackScroll({
   durationMs,
+  playheadMs,
+  follow,
   children,
 }: {
   durationMs: number;
+  playheadMs: number;
+  follow: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -361,6 +385,16 @@ function TrackScroll({
     return () => ro.disconnect();
   }, []);
   const innerW = trackWaveCssWidth(durationMs, viewW);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !follow || !innerW || !viewW) return;
+    el.scrollLeft = trackPlayheadScrollLeft({
+      playheadMs,
+      durationMs,
+      viewW,
+      innerW,
+    });
+  }, [follow, playheadMs, durationMs, viewW, innerW]);
   return (
     <div className="m-track-scroll" ref={ref}>
       <div
@@ -849,6 +883,51 @@ export function MusicVideoTrack({
     }
   }
 
+  /** Sections from the lyric tags, and Marquee pins inside those windows. */
+  async function importFromLyrics(replaceMarkers: boolean) {
+    const dur = effectiveDurationMs || 130_000;
+    const lyrics = job.lyrics || "";
+    const next =
+      replaceMarkers || !markers.length
+        ? importSectionMarkersFromLyrics({
+            lyrics,
+            durationMs: dur,
+          })
+        : markers;
+    if (!next.length) {
+      setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");
+      return;
+    }
+    const lyricCues = lyricCuesFromSectionSheet({
+      lyrics,
+      durationMs: dur,
+      markers: next,
+    });
+    setBusy("markers");
+    setNote("");
+    try {
+      if (replaceMarkers || !markers.length) {
+        const action = song?.fileName ? "save-track" : "save-draft";
+        const updated = await trackAction(action, {
+          jobId: job.id,
+          sectionMarkers: sortSectionMarkers(next),
+          lyricCues,
+        });
+        if (updated) onJobChange(updated);
+      } else {
+        const updated = await trackAction("set-lyric-cues", {
+          jobId: job.id,
+          lyricCues,
+        });
+        if (updated) onJobChange(updated);
+      }
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't import from lyrics");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function schedulePlate(shotId: string, startMs: number, endMs: number, sortIndex: number) {
     if (!song?.fileName) {
       setNote("Start the video and attach the song before timing plates.");
@@ -950,6 +1029,7 @@ export function MusicVideoTrack({
               busy={busy}
               onBusy={setBusy}
               onJobChange={onJobChange}
+              onImportFromLyrics={() => void importFromLyrics(false)}
               onSeek={(ms) => {
                 setPlayheadMs(ms);
                 if (audioRef.current) audioRef.current.currentTime = ms / 1000;
@@ -983,7 +1063,11 @@ export function MusicVideoTrack({
             )}
           </div>
 
-          <TrackScroll durationMs={effectiveDurationMs}>
+          <TrackScroll
+            durationMs={effectiveDurationMs}
+            playheadMs={playheadMs}
+            follow={playing}
+          >
           {peaks.length ? (
             <WaveformCanvas
               peaks={peaks}
@@ -1153,19 +1237,7 @@ export function MusicVideoTrack({
                   type="button"
                   className="m-track-btn"
                   disabled={Boolean(busy) || !lyricTagsReady}
-                  onClick={() => {
-                    const dur = effectiveDurationMs || 130_000;
-                    const next = importSectionMarkersFromLyrics({
-                      lyrics: job.lyrics || "",
-                      durationMs: dur,
-                    });
-                    if (!next.length) {
-                      setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");
-                      return;
-                    }
-                    setNote("");
-                    void saveMarkers(next);
-                  }}
+                  onClick={() => void importFromLyrics(true)}
                 >
                   Import from lyrics
                 </button>
@@ -1240,23 +1312,7 @@ export function MusicVideoTrack({
                   type="button"
                   className="m-track-btn"
                   disabled={Boolean(busy) || !lyricTagsReady}
-                  onClick={() => {
-                    const dur = effectiveDurationMs || 130_000;
-                    const next = importSectionMarkersFromLyrics({
-                      lyrics: job.lyrics || "",
-                      durationMs: dur,
-                    });
-                    if (!next.length) {
-                      setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");
-                      return;
-                    }
-                    setNote(
-                      markers.length
-                        ? "Replaced sections from lyrics — play and tap Start here on each row."
-                        : "",
-                    );
-                    void saveMarkers(next);
-                  }}
+                  onClick={() => void importFromLyrics(true)}
                 >
                   Import from lyrics
                 </button>

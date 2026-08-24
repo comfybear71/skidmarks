@@ -8,6 +8,7 @@ import { clearAllStoryShots, clipQueueError } from "@/lib/mobileClipQueue";
 import { isEpisodeClipPlanError, planParkClipsUnderPlate } from "@/lib/mobileEpisodeClips";
 import { CUTAWAY_ACTIONS } from "@/lib/cutawayActions";
 import { buildCutawayMotion, defaultSoloStaging } from "@/lib/mobileImageMotion";
+import { stagingAfterAddCast } from "@/lib/musicVideoGroupPlate";
 import { candidateLookPrompt, phaseAfterPlateAdd } from "@/lib/mobileJobReady";
 import { beatsAfterRemoveLine, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import { castNamesMatch } from "@/lib/mobileDropCast";
@@ -467,7 +468,13 @@ export async function POST(req: Request) {
                         ...sh,
                         beats,
                         title: cast.join(", ") || sh.title,
-                        staging: sh.staging?.trim() || (cast.length === 1 ? defaultSoloStaging(speakerIn) : ""),
+                        staging: stagingAfterAddCast({
+                          styleId: job.styleId,
+                          speakers: cast,
+                          placeName: scene!.placeName,
+                          previous: sh.staging,
+                          soloStaging: defaultSoloStaging,
+                        }),
                       }
                     : sh,
                 ),
@@ -650,6 +657,9 @@ export async function POST(req: Request) {
           silentCast: [],
           styleRealism: job.styleRealism,
           job,
+          // Music video: never refine the last still — Jack's graphic card
+          // plus a cartoon take is how the Forgotten plates went cel.
+          useLastStill: job.styleId === "music_video" ? false : undefined,
         });
         const updated = await patchMobileGenJob(jobId, {
           error: "",

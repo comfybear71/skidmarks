@@ -24,6 +24,60 @@ export function probeBrowserAudioDurationSec(file: File): Promise<number> {
   });
 }
 
+/**
+ * Track drop → Blob, then a tiny JSON attach. No beat needed.
+ * The old FormData POST dies on Vercel around 4.5MB (Jack Ash songs are bigger).
+ */
+export async function dropTrackSongViaBlob(opts: {
+  jobId: string;
+  file: File;
+  durationSec: number;
+}): Promise<{ job?: MobileGenJob; fileName?: string; durationSec?: number }> {
+  const prepRes = await fetch("/api/crash/mobile/track/song", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "prepare",
+      jobId: opts.jobId,
+      name: opts.file.name || "song.mp3",
+    }),
+  });
+  const prep = await readApiJson<{
+    fileName?: string;
+    pathname?: string;
+    error?: string;
+  }>(prepRes);
+  const fileName = (prep.fileName || "").trim();
+  const pathname = (prep.pathname || "").trim();
+  if (!fileName || !pathname) {
+    throw new Error("Couldn't prepare the cloud song drop");
+  }
+  const blob = await upload(pathname, opts.file, {
+    access: "public",
+    handleUploadUrl: "/api/crash/mobile/track/song-blob",
+    clientPayload: JSON.stringify({
+      jobId: opts.jobId,
+      fileName,
+    }),
+    contentType: "audio/mpeg",
+    multipart: opts.file.size > 8 * 1024 * 1024,
+  });
+  const attachRes = await fetch("/api/crash/mobile/track/song", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "attach",
+      jobId: opts.jobId,
+      fileName,
+      blobUrl: blob.url,
+      durationSec: opts.durationSec,
+    }),
+  });
+  return readApiJson<{ job?: MobileGenJob; fileName?: string; durationSec?: number; error?: string }>(
+    attachRes,
+  );
+}
+
 /** Full track → Blob, then a tiny JSON attach. Bypasses the 4.5MB Studio POST. */
 export async function dropScratchSongViaBlob(opts: {
   jobId: string;

@@ -2,7 +2,12 @@
 
 import { useRef, useState, useSyncExternalStore, useEffect } from "react";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
-import { probeBrowserAudioDurationSec, dropScratchSongViaBlob, SCRATCH_SONG_DIRECT_POST_MAX_BYTES } from "@/lib/scratchSongDrop";
+import {
+  probeBrowserAudioDurationSec,
+  dropScratchSongViaBlob,
+  dropTrackSongViaBlob,
+  SCRATCH_SONG_DIRECT_POST_MAX_BYTES,
+} from "@/lib/scratchSongDrop";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   isMp3File,
@@ -126,6 +131,17 @@ export function SongPlayer({
       </span>
     </div>
   );
+}
+
+async function postTrackSong(
+  jobId: string,
+  file: File,
+): Promise<{ job?: MobileGenJob }> {
+  const form = new FormData();
+  form.set("jobId", jobId);
+  form.set("file", file, file.name || "song.mp3");
+  const res = await fetch("/api/crash/mobile/track/song", { method: "POST", body: form });
+  return readApiJson<{ job?: MobileGenJob; error?: string }>(res);
 }
 
 /** Parked mp3 from before Lock — attach once a carrier beat exists. */
@@ -282,18 +298,37 @@ export function SongDropRow({
       return;
     }
     setErr("");
-    const durationSec = await probeBrowserAudioDurationSec(file);
+    // Read the bytes now. A OneDrive/Chrome File handle can vanish before
+    // FormData is sent — that was the red "file or directory could not be found".
+    let copy: File;
+    try {
+      const buf = await file.arrayBuffer();
+      copy = new File([buf], file.name || "song.mp3", { type: file.type || "audio/mpeg" });
+    } catch (e) {
+      setErr(studioFetchError(e, "That file vanished before Studio could read it. Copy it to Downloads and drop that copy."));
+      return;
+    }
+    const durationSec = await probeBrowserAudioDurationSec(copy);
     // Park first so the desk swaps to the player straight away, then save it.
     // Parking alone used to be the whole story, so a refresh lost the song.
-    parkPendingSong(jobId, { file, durationSec });
-    onPicked?.(file.name, durationSec);
+    parkPendingSong(jobId, { file: copy, durationSec });
+    onPicked?.(copy.name, durationSec);
     try {
-      const form = new FormData();
-      form.set("jobId", jobId);
-      form.set("file", file, file.name || "song.mp3");
-      const res = await fetch("/api/crash/mobile/track/song", { method: "POST", body: form });
-      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
-      if (data.job) onSaved?.(data.job);
+      let job: MobileGenJob | undefined;
+      if (copy.size > SCRATCH_SONG_DIRECT_POST_MAX_BYTES) {
+        try {
+          const data = await dropTrackSongViaBlob({ jobId, file: copy, durationSec });
+          job = data.job;
+        } catch (e) {
+          if (!/Cloud song drop is off/i.test(e instanceof Error ? e.message : String(e))) {
+            throw e;
+          }
+          job = (await postTrackSong(jobId, copy)).job;
+        }
+      } else {
+        job = (await postTrackSong(jobId, copy)).job;
+      }
+      if (job) onSaved?.(job);
     } catch (e) {
       setErr(studioFetchError(e, "Song is on screen but did not save — drop it again"));
     }

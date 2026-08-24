@@ -5,6 +5,7 @@ import { canLockEpisode } from "@/lib/mobileJobReady";
 import { importPastedStory } from "@/lib/mobilePasteScript";
 import { buildMusicVideoStartStory } from "@/lib/musicVideoStart";
 import { findSongCarrierBeatId, isMusicVideoSongJob } from "@/lib/musicVideoSong";
+import { FORGOTTEN_LYRICS, isForgottenSongJob } from "@/lib/musicVideoGroupPlate";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -56,7 +57,10 @@ export async function POST(req: Request) {
       parsedCharacters: built.characters,
     });
 
-    const lyrics = typeof body.lyrics === "string" ? body.lyrics : job.lyrics || "";
+    const incoming = typeof body.lyrics === "string" ? body.lyrics : job.lyrics || "";
+    const lyrics =
+      incoming.trim() ||
+      (isForgottenSongJob({ ...job, lyrics: incoming }) ? FORGOTTEN_LYRICS : "");
     const withLyrics =
       lyrics.trim() && lyrics !== (job.lyrics || "")
         ? await patchMobileGenJob(jobId, { lyrics })
