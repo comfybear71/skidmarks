@@ -342,7 +342,7 @@ assert.match(talkUi, /skidmarksBlankFromJob/);
 assert.match(talkUi, /Copy blank template/);
 assert.match(talkUi, /m-talk-copy-icon/);
 assert.match(talkUi, /House rules/);
-assert.match(talkUi, />Blank</);
+assert.match(talkUi, /Blank <span className="m-mv-lyr-caret">/);
 assert.match(talkUi, /m-talk-doc-chips/);
 assert.match(talkUi, /m-talk-doc-fold/);
 assert.doesNotMatch(talkUi, /EPISODE_CONSTRUCTION_EXAMPLE/);
