@@ -152,6 +152,28 @@ export function eventsForShot(shot: CrashStoryShot): TalkTimelineEvent[] {
   return events;
 }
 
+/** Final-stage film chrome: ACT above the player, SFX under it, the rest folded. */
+export type TalkFilmChrome = {
+  act: TalkTimelineEvent | null;
+  sfx: TalkTimelineEvent[];
+  notes: TalkTimelineEvent[];
+};
+
+export function talkFilmChrome(events: TalkTimelineEvent[]): TalkFilmChrome {
+  const list = Array.isArray(events) ? events : [];
+  return {
+    act: list.find((e) => e.kind === "act") ?? null,
+    sfx: list.filter((e) => e.kind === "sfx"),
+    notes: list.filter((e) => e.kind !== "act" && e.kind !== "sfx"),
+  };
+}
+
+export function talkFilmTagText(ev: Pick<TalkTimelineEvent, "tag" | "detail">): string {
+  const tag = String(ev.tag || "").trim();
+  const detail = String(ev.detail || "").trim();
+  return detail ? `[${tag}] ${detail}` : `[${tag}]`;
+}
+
 export function talkPlateWidthPx(beatCount: number, eventCount: number): number {
   const beats = Math.max(1, Math.floor(Number(beatCount) || 1));
   const events = Math.max(0, Math.floor(Number(eventCount) || 0));

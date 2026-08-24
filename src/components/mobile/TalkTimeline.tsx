@@ -24,6 +24,7 @@ import {
   talkSkidmarksActsFrom,
   type TalkClipCell,
 } from "@/lib/talkClipTimeline";
+import { talkFilmChrome, talkFilmTagText, type TalkTimelineEvent } from "@/lib/talkTimeline";
 import { copyTextToClipboard } from "@/lib/copyText";
 import { skidmarksBlankFromJob } from "@/lib/scriptBlueprint";
 import { EPISODE_TEMPLATE_RULES } from "@/lib/episodeTemplate";
@@ -157,6 +158,10 @@ function TalkSpeechLane({
   );
 }
 
+function TalkFilmTag({ ev }: { ev: TalkTimelineEvent }) {
+  return <em className={`m-talk-tag is-${ev.kind}`}>{talkFilmTagText(ev)}</em>;
+}
+
 function TalkFilmCell({
   job,
   cell,
@@ -180,6 +185,7 @@ function TalkFilmCell({
   const clipSrc = cell.clipFile ? mobileClipSrc(job, cell.clipFile) : "";
   const audioSrc = beatAudioUrl(job, cell.beatId, cell.voiceFile);
   const canPlay = Boolean(clipSrc || audioSrc);
+  const chrome = talkFilmChrome(cell.events);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -202,81 +208,102 @@ function TalkFilmCell({
     <div
       className={`m-talk-film-cell${selected ? " is-on" : ""}${playing ? " is-play" : ""}`}
       style={{ width: `${cell.widthPx}px`, borderColor: cell.sceneColor }}
-      role="button"
-      tabIndex={0}
-      title={cell.title}
-      onClick={onPick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onPick();
-        }
-      }}
     >
-      {clipSrc ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
-        <video
-          ref={videoRef}
-          className="m-talk-film-video"
-          src={clipSrc}
-          poster={poster || undefined}
-          playsInline
-          preload="metadata"
-          onLoadedMetadata={(e) => {
-            const sec = e.currentTarget.duration;
-            if (!Number.isFinite(sec) || sec <= 0) return;
-            onMeasured(sec);
-          }}
-        />
-      ) : poster ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={poster} alt="" className="m-talk-film-still" />
-      ) : (
-        <span className="m-talk-film-empty" />
-      )}
-      {audioSrc && !clipSrc ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
-        <audio
-          ref={audioRef}
-          className="m-talk-film-audio"
-          src={audioSrc}
-          preload="metadata"
-          onLoadedMetadata={(e) => {
-            const sec = e.currentTarget.duration;
-            if (!Number.isFinite(sec) || sec <= 0) return;
-            onMeasured(sec);
-          }}
-        />
-      ) : null}
-      <span className="m-talk-film-play" aria-hidden>
-        {canPlay ? (playing ? "❚❚" : "▶") : "+"}
-      </span>
-      {cell.events.length ? (
-        <span className="m-talk-film-tags">
-          {cell.events.map((ev) => (
-            <em key={ev.id} className={`m-talk-tag is-${ev.kind}`}>
-              [{ev.tag}]{ev.detail ? ` ${ev.detail}` : ""}
-            </em>
-          ))}
+      <div className="m-talk-film-head">
+        {chrome.act ? (
+          <TalkFilmTag ev={chrome.act} />
+        ) : (
+          <span className="m-talk-film-title">{cell.title}</span>
+        )}
+      </div>
+      <div
+        className="m-talk-film-stage"
+        role="button"
+        tabIndex={0}
+        title={cell.title}
+        onClick={onPick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onPick();
+          }
+        }}
+      >
+        {clipSrc ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video
+            ref={videoRef}
+            className="m-talk-film-video"
+            src={clipSrc}
+            poster={poster || undefined}
+            playsInline
+            preload="metadata"
+            onLoadedMetadata={(e) => {
+              const sec = e.currentTarget.duration;
+              if (!Number.isFinite(sec) || sec <= 0) return;
+              onMeasured(sec);
+            }}
+          />
+        ) : poster ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={poster} alt="" className="m-talk-film-still" />
+        ) : (
+          <span className="m-talk-film-empty" />
+        )}
+        {audioSrc && !clipSrc ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <audio
+            ref={audioRef}
+            className="m-talk-film-audio"
+            src={audioSrc}
+            preload="metadata"
+            onLoadedMetadata={(e) => {
+              const sec = e.currentTarget.duration;
+              if (!Number.isFinite(sec) || sec <= 0) return;
+              onMeasured(sec);
+            }}
+          />
+        ) : null}
+        <span className="m-talk-film-play" aria-hidden>
+          {canPlay ? (playing ? "❚❚" : "▶") : "+"}
         </span>
+        {selected && onRemove ? (
+          <button
+            type="button"
+            className="m-talk-film-x"
+            aria-label={`Remove ${cell.title} from the talking desk`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+          >
+            ×
+          </button>
+        ) : null}
+        <span className="m-talk-film-clock">{talkClipClock(cell.durationSec)}</span>
+      </div>
+      {chrome.sfx.length ? (
+        <div className="m-talk-film-sfx">
+          {chrome.sfx.map((ev) => (
+            <TalkFilmTag key={ev.id} ev={ev} />
+          ))}
+        </div>
       ) : null}
-      {selected && onRemove ? (
-        <button
-          type="button"
-          className="m-talk-film-x"
-          aria-label={`Remove ${cell.title} from the talking desk`}
+      {chrome.notes.length ? (
+        <details
+          className="m-talk-film-notes"
           onClick={(e) => {
             e.stopPropagation();
-            onRemove();
           }}
         >
-          ×
-        </button>
+          <summary>notes</summary>
+          <span className="m-talk-film-notes-body">
+            {chrome.notes.map((ev) => (
+              <TalkFilmTag key={ev.id} ev={ev} />
+            ))}
+          </span>
+        </details>
       ) : null}
-      <span className="m-talk-film-label">
-        {cell.title}
-        <em>{talkClipClock(cell.durationSec)}</em>
-      </span>
     </div>
   );
 }
