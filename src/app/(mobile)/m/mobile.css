@@ -3496,6 +3496,46 @@ span.scratch-history-blob {
   margin: 8px 0 0;
 }
 
+.m-talk-template-link {
+  margin-left: auto;
+}
+
+.m-talk-act-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin: 8px 0 4px;
+}
+
+.m-talk-act-panel.is-template-open {
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 1fr);
+}
+
+.m-talk-act-main,
+.m-talk-act-template {
+  min-width: 0;
+}
+
+.m-talk-template-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.m-talk-template-tools .m-mv-lyrics-note {
+  flex: 1;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .m-talk-act-panel.is-template-open {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .m-talk-film-label {
   position: absolute;
   left: 0;

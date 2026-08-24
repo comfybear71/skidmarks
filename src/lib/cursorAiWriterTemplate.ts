@@ -1,5 +1,6 @@
 import type { ShowStyleId } from "./showStylePresets";
 import { getShowStylePreset } from "./showStylePresets";
+import { skidmarksTemplateFromRoster } from "./scriptBlueprint";
 
 export type AiWriterLiveData = {
   cast: { name: string; brief: string }[];
@@ -231,32 +232,25 @@ function skidBrief(live?: AiWriterLiveData): string {
   return `SKIDMARKS — AI episode writer brief
 ${GOOGLE_INSTRUCTION}
 
-Give this whole document to Google AI / ChatGPT. Paste its reply into Studio → PROMPT → Go.
+Give this whole document to Google AI / ChatGPT. Paste the SCENE / SHOT / BEAT reply into Lab. Do not paste it into the talking Act box — that box is the live desk, not a new episode.
 
 WHAT THIS SHOW IS
-Stylised 3D nasty English comedy. Arsehole gets smashed — NOT cartoon, NOT photoreal.
-Shape: Darryl (or arsehole) mansplains → Kim furious → office/pub humiliation → punch sting.
+Stylised 3D nasty English / Australian comedy. Every episode walks the same nine-stage plan. Only the prick and the place change.
+Not cartoon. Not photoreal. Not a four-shot gag reel.
 
 LOCKED CAST (spell exactly — from Studio Characters gallery)
 ${castBlock}
 
-PLACES (Place: field must match exactly — from World cards)
+PLACES (use these names)
 ${placeBlock}
 
-PLATE LINE
-Stylised 3D animated feature render, clean simplified forms, believable materials, overcast grey English daylight.
-Exaggeration from modelling — not drawn outlines. Name materials (wet cast iron, sticky carpet).
-
-DIALOGUE RULES
-- Shots 1–3: THREE lines each
-- Shot 4: punch / humiliation / Kim wins
-
 FORBIDDEN
+- Do not add, skip, or reorder the nine stages
 - No folder trees, no line_1.mp3, no Resolve steps in your reply
 - No American cartoon tone
 - Positive plate prompts only
 
-${outputFormat("skidmarks")}`;
+${skidmarksTemplateFromRoster(live)}`;
 }
 
 function docBrief(live?: AiWriterLiveData): string {
