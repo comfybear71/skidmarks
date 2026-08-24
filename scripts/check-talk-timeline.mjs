@@ -5,6 +5,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   eventsForShot,
+  talkFilmChrome,
+  talkFilmTagText,
   talkPlateWidthPx,
   talkShotNumber,
   talkTagKind,
@@ -188,6 +190,25 @@ assert.ok(
 assert.ok(eventsForShot(story.scenes[0].shots[1]).some((e) => e.kind === "cutaway"));
 assert.ok(talkPlateWidthPx(1, 0) >= TALK_PLATE_MIN_PX);
 
+const filmChrome = talkFilmChrome([
+  { id: "a", kind: "act", tag: "ACT", detail: "I — He shows up" },
+  { id: "v", kind: "visual", tag: "VISUAL", detail: "Comfy strolls" },
+  { id: "s", kind: "sfx", tag: "SFX", detail: "Crunching gravel" },
+  { id: "m", kind: "music", tag: "MUSIC", detail: "Acoustic guitar" },
+  { id: "d", kind: "dial", tag: "DIAL", detail: "COMFY: oi" },
+]);
+assert.equal(filmChrome.act?.detail, "I — He shows up");
+assert.deepEqual(
+  filmChrome.sfx.map((e) => e.kind),
+  ["sfx"],
+);
+assert.deepEqual(
+  filmChrome.notes.map((e) => e.kind),
+  ["visual", "music", "dial"],
+);
+assert.equal(talkFilmTagText(filmChrome.act), "[ACT] I — He shows up");
+assert.deepEqual(talkFilmChrome([]), { act: null, sfx: [], notes: [] });
+
 const fromStoryOnly = talkTimelineFrom({
   story,
   plated: [{ shotId: "shot_01", sceneId: "scene_lounge", plateFile: "" }],
@@ -347,7 +368,16 @@ assert.match(talkUi, /m-talk-doc-chips/);
 assert.match(talkUi, /m-talk-doc-fold/);
 assert.doesNotMatch(talkUi, /EPISODE_CONSTRUCTION_EXAMPLE/);
 assert.doesNotMatch(talkUi, /Little Red Riding Hood/);
-assert.match(talkUi, /m-talk-film-tags/);
+assert.match(talkUi, /m-talk-film-head/);
+assert.match(talkUi, /m-talk-film-stage/);
+assert.match(talkUi, /m-talk-film-sfx/);
+assert.match(talkUi, /m-talk-film-notes/);
+assert.match(talkUi, /talkFilmChrome/);
+assert.doesNotMatch(talkUi, /m-talk-film-tags/);
+assert.match(talkCss, /\.m-talk-film-head/);
+assert.match(talkCss, /\.m-talk-film-stage/);
+assert.match(talkCss, /\.m-talk-film-sfx/);
+assert.match(talkCss, /\.m-talk-film-notes/);
 assert.match(talkCss, /\.m-talk-tag/);
 assert.match(talkUi, /styleId === "skidmarks"/);
 assert.match(talkCss, /\.m-talk-template-link/);
