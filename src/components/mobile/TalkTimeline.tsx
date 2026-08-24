@@ -23,6 +23,8 @@ import {
   talkSceneBands,
   type TalkClipCell,
 } from "@/lib/talkClipTimeline";
+import { copyTextToClipboard } from "@/lib/copyText";
+import { skidmarksTemplateFromJob } from "@/lib/scriptBlueprint";
 import { MobilePrimaryButton } from "./MobileUi";
 
 function stillUrl(job: MobileGenJob, plateFile: string): string {
@@ -498,10 +500,17 @@ export function TalkTimeline({
   const [deskBusy, setDeskBusy] = useState("");
   const [deskError, setDeskError] = useState("");
   const [openActId, setOpenActId] = useState("");
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateCopied, setTemplateCopied] = useState(false);
   const cells = useMemo(() => talkClipLayout(desk.cells, measured), [desk.cells, measured]);
   const bands = talkSceneBands(cells);
   const acts = useMemo(() => talkActScriptsFrom(cells), [cells]);
   const openAct = acts.find((a) => a.id === openActId) || null;
+  const isSkidmarks = job.styleId === "skidmarks";
+  const skidTemplate = useMemo(
+    () => (isSkidmarks ? skidmarksTemplateFromJob(job) : ""),
+    [isSkidmarks, job],
+  );
   const innerW = talkDeskInnerWidth(cells);
   const selected = cells.find((c) => c.key === pickedKey) || cells[0] || null;
 
@@ -666,7 +675,7 @@ export function TalkTimeline({
           Tap a box to play it. + adds a slot. × parks it — files stay. Send cooks that clip.
         </span>
       </div>
-      {!compact && acts.length ? (
+      {!compact && (acts.length || isSkidmarks) ? (
         <div className="m-talk-acts">
           {acts.map((act) => (
             <button
@@ -683,22 +692,70 @@ export function TalkTimeline({
               Act {act.roman} <span className="m-mv-lyr-caret">{openActId === act.id ? "▾" : "▸"}</span>
             </button>
           ))}
+          {isSkidmarks ? (
+            <button
+              type="button"
+              className={`m-mv-lyr-toggle m-talk-template-link${templateOpen ? " is-open" : ""}`}
+              aria-expanded={templateOpen}
+              onClick={() => setTemplateOpen((v) => !v)}
+            >
+              Template <span className="m-mv-lyr-caret">{templateOpen ? "▾" : "▸"}</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
-      {!compact && openAct ? (
-        <div className="m-mv-lyrics">
-          <div className="m-mv-lyrics-note">
-            Act {openAct.roman} · {openAct.title} · {openAct.lineCount}{" "}
-            {openAct.lineCount === 1 ? "line" : "lines"} — this stretch, not a song
-          </div>
-          <textarea
-            className="m-mv-lyrics-input"
-            value={openAct.script}
-            rows={Math.min(12, Math.max(4, openAct.lineCount * 3))}
-            spellCheck={false}
-            readOnly
-            aria-label={`Script for Act ${openAct.roman}`}
-          />
+      {!compact && (openAct || (isSkidmarks && templateOpen)) ? (
+        <div
+          className={`m-talk-act-panel${isSkidmarks && templateOpen ? " is-template-open" : ""}`}
+        >
+          {openAct ? (
+            <div className="m-talk-act-main">
+              <div className="m-mv-lyrics-note">
+                Act {openAct.roman} · {openAct.title} · {openAct.lineCount}{" "}
+                {openAct.lineCount === 1 ? "line" : "lines"} — this stretch, not a song
+              </div>
+              <textarea
+                className="m-mv-lyrics-input"
+                value={openAct.script}
+                rows={Math.min(12, Math.max(4, openAct.lineCount * 3))}
+                spellCheck={false}
+                readOnly
+                aria-label={`Script for Act ${openAct.roman}`}
+              />
+            </div>
+          ) : null}
+          {isSkidmarks && templateOpen ? (
+            <div className="m-talk-act-template">
+              <div className="m-talk-template-tools">
+                <div className="m-mv-lyrics-note">
+                  Skidmarks plan · nine stages · this pack&apos;s cast and places. Copy into
+                  an outside AI. Does not change this episode.
+                </div>
+                <MobilePrimaryButton
+                  size="chip"
+                  tone="ghost"
+                  onClick={() => {
+                    void copyTextToClipboard(skidTemplate)
+                      .then(() => {
+                        setTemplateCopied(true);
+                        window.setTimeout(() => setTemplateCopied(false), 2000);
+                      })
+                      .catch(() => setTemplateCopied(false));
+                  }}
+                >
+                  {templateCopied ? "Copied" : "Copy template"}
+                </MobilePrimaryButton>
+              </div>
+              <textarea
+                className="m-mv-lyrics-input"
+                value={skidTemplate}
+                rows={14}
+                spellCheck={false}
+                readOnly
+                aria-label="Skidmarks episode template"
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
       {cells.length ? (
