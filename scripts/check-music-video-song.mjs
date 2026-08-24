@@ -418,5 +418,9 @@ assert.match(songUi, /\n\s+−\n/);
 assert.match(songUi, /\n\s+\+\n/);
 assert.doesNotMatch(songUi, /Drop parked/);
 assert.doesNotMatch(songUi, /ol className="scratch-song-cuts"/);
+assert.match(songUi, /cutsOpen/, "song cuts fold away");
+assert.match(songUi, /<DeskFold/, "song cuts use the same desk fold");
+assert.match(editor, /label="Stills"/, "stills strip folds on every style");
+assert.match(editor, /label="Clips"/, "clips rail folds on music video");
 
 console.log("check-music-video-song: ok");

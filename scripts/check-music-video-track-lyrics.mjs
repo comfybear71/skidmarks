@@ -94,7 +94,7 @@ console.log("check-music-video-track-lyrics OK");
   assert.match(ui, /m-track-rail/);
   // Plates outrank the section list, so the strip sits above it.
   assert.ok(
-    ui.indexOf("m-track-rail") < ui.indexOf("m-track-fold"),
+    ui.indexOf("m-track-rail") < ui.indexOf('label="Sections"'),
     "the plates strip sits above the sections",
   );
 
@@ -129,6 +129,9 @@ console.log("check-music-video-track-lyrics OK");
   assert.doesNotMatch(ui, /m-track-marquee-word/);
   assert.ok(ui.includes("playing && ribbon"), "nothing moves before Play");
   assert.match(ui, /sectionsOpen/, "the section list folds away");
+  assert.match(ui, /openSectionId/, "each section row folds");
+  assert.match(ui, /platesOnTrackOpen/, "plates on the track fold away");
+  assert.match(ui, /<DeskFold/, "long lists share the desk fold");
   assert.match(ui, /Import from lyrics/, "sections import from lyric tags");
   assert.match(ui, /Start here/, "pin section start at playhead");
   assert.match(ui, /Clear sections/, "wipe broken section rows");

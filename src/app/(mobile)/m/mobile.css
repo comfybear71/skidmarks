@@ -945,9 +945,16 @@ body {
 
 .m-track-section-top {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
+  width: 100%;
   min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .m-track-section-cast {
@@ -1092,6 +1099,54 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--chrome-dim);
+}
+
+.m-desk-fold {
+  margin-top: 8px;
+}
+
+.m-desk-fold-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--chrome);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.m-desk-fold-btn.is-open {
+  color: var(--acid);
+}
+
+.m-desk-fold-n {
+  color: var(--chrome-dim);
+  font-weight: 700;
+}
+
+.m-desk-fold-caret {
+  margin-left: auto;
+  color: var(--chrome-dim);
+  font-size: 11px;
+}
+
+.m-desk-fold-body {
+  margin-top: 4px;
+}
+
+.m-track-section-clock {
+  margin-left: auto;
+  color: var(--acid);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .m-track-plate-row {

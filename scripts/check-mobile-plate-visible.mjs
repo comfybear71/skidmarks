@@ -57,7 +57,8 @@ assert.doesNotMatch(
 );
 
 assert.match(editor, /focusShotId/);
-assert.match(editor, /if \(id\) setOpenShotId\(id\)/);
+assert.match(editor, /setOpenShotId\(id\)/);
+assert.match(editor, /setStillsStripOpen\(true\)/);
 assert.doesNotMatch(
   editor,
   /if \(!shots\.length && !story\) return null/,

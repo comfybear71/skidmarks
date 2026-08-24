@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { MobilePrimaryButton } from "@/components/mobile/MobileUi";
+import { DeskFold, MobilePrimaryButton } from "@/components/mobile/MobileUi";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import type { MobileShotUnit } from "@/lib/mobileGenJob";
@@ -131,6 +131,7 @@ export function MusicVideoSongCuts({
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playing, setPlaying] = useState("");
+  const [cutsOpen, setCutsOpen] = useState(false);
   const song = job.scratchSong;
   const beatId =
     (song?.carrierBeatId || "").trim() ||
@@ -421,6 +422,12 @@ export function MusicVideoSongCuts({
         </label>
       ) : null}
       {song?.fileName && deskPlates.length ? (
+        <DeskFold
+          label="Song cuts"
+          count={progress || deskPlates.length}
+          open={cutsOpen}
+          onToggle={() => setCutsOpen((v) => !v)}
+        >
         <ul className="scratch-song-cuts">
           {deskPlates.map((row, i) => {
             const s = row.unit;
@@ -498,6 +505,7 @@ export function MusicVideoSongCuts({
             );
           })}
         </ul>
+        </DeskFold>
       ) : null}
       <div className="scratch-song-actions">
         <MobilePrimaryButton

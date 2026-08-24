@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  DeskFold,
   MobileAudioPlayer,
   MobilePrimaryButton,
   MobileTextInput,
@@ -229,6 +230,8 @@ export function PlateReviewEditor({
   const [actionError, setActionError] = useState("");
   const [songAddFor, setSongAddFor] = useState<string | null>(null);
   const [clipBusy, setClipBusy] = useState(false);
+  const [clipsOpen, setClipsOpen] = useState(false);
+  const [stillsStripOpen, setStillsStripOpen] = useState(false);
 
   const shots = episodeJobShots(job, story);
   const shotIdsKey = shots.map((s) => s.shotId).join("\0");
@@ -255,7 +258,10 @@ export function PlateReviewEditor({
 
   useEffect(() => {
     const id = (focusShotId || "").trim();
-    if (id) setOpenShotId(id);
+    if (id) {
+      setOpenShotId(id);
+      setStillsStripOpen(true);
+    }
   }, [focusShotId]);
 
   const shotById = (shotId: string): CrashStoryShot | null => {
@@ -531,6 +537,13 @@ export function PlateReviewEditor({
           New plate — this one. No still yet. Tap it, then Draw.
         </div>
       ) : null}
+      {musicVideoTrackOwnsEmptyPlates ? null : (
+      <DeskFold
+        label="Stills"
+        count={shots.length}
+        open={stillsStripOpen}
+        onToggle={() => setStillsStripOpen((v) => !v)}
+      >
       {collapsed ? null : shots.length || job.finalVideoFile ? (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", margin: "0 2px 8px" }}>
           <button
@@ -628,7 +641,6 @@ export function PlateReviewEditor({
         <div style={{ fontSize: "12px", color: "var(--magenta-hot)", marginBottom: "8px" }}>{actionError}</div>
       ) : null}
 
-      {musicVideoTrackOwnsEmptyPlates ? null : (
       <div
         style={{
           display: "flex",
@@ -833,30 +845,35 @@ export function PlateReviewEditor({
           </button>
         )}
       </div>
+      </DeskFold>
       )}
 
       {!collapsed && isMusicVideoSongJob(job) && plateClipRail.clips.length ? (
-        <div className="m-plate-clips-bleed">
-          <div className="m-plate-clips-bleed-label">
-            Clips
+        <DeskFold
+          label="Clips"
+          count={plateClipRail.clips.length}
+          open={clipsOpen}
+          onToggle={() => setClipsOpen((v) => !v)}
+        >
+          <div className="m-plate-clips-bleed">
             {plateClipRail.focusLabel ? (
               <span className="m-plate-clips-bleed-focus">{plateClipRail.focusLabel}</span>
             ) : null}
+            <div className="m-plate-clip-rail">
+              <PlateClipThumbs
+                job={job}
+                clips={plateClipRail.clips}
+                poster={plateClipRail.poster}
+                preload
+                layout="strip"
+                removeDisabled={clipBusy}
+                onRemoveTake={({ beatId, fileName }) =>
+                  void postClipAction({ action: "remove-clip", beatId, fileName })
+                }
+              />
+            </div>
           </div>
-          <div className="m-plate-clip-rail">
-            <PlateClipThumbs
-              job={job}
-              clips={plateClipRail.clips}
-              poster={plateClipRail.poster}
-              preload
-              layout="strip"
-              removeDisabled={clipBusy}
-              onRemoveTake={({ beatId, fileName }) =>
-                void postClipAction({ action: "remove-clip", beatId, fileName })
-              }
-            />
-          </div>
-        </div>
+        </DeskFold>
       ) : null}
 
       {addError ? (
