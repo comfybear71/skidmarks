@@ -140,7 +140,7 @@ export function defaultMusicVideoGroupStaging(
   visual = "",
 ): string {
   const names = clampMusicVideoGroup(speakers);
-  const place = placeName.trim() || "the stage";
+  const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
   const who = rollCall(names);
   const props = names
     .map((n) => {
