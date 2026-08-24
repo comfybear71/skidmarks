@@ -87,7 +87,7 @@ const story = {
           summary: "[DIAL] JO TOO\n[VISUAL_ACTION] oversized phone\n[MUSIC]",
           plateFile: "phone.png",
           beats: [
-            { id: "b3", speaker: "LAND LANDY", text: "" },
+            { id: "b3", speaker: "LAND LANDY", text: "", voiceFile: "land.mp3" },
             { id: "b4", speaker: "CRAZY BIG HOLE JO TOO", text: "" },
           ],
           sfx: [],
@@ -206,20 +206,42 @@ assert.equal(bands.length, 2);
 assert.equal(bands[0].widthPx, desk.cells[0].widthPx + desk.cells[1].widthPx);
 assert.equal(talkClipClock(8), "8s");
 
+const plateOnly = talkClipDeskFrom({
+  story,
+  plated: [{ shotId: "shot_01", sceneId: "scene_lounge", plateFile: "phone.png" }],
+  clips: [],
+});
+const plateOnlyLead = plateOnly.cells.find((c) => c.shotId === "shot_01");
+assert.ok(plateOnlyLead, "titled plate with no take still sits on the desk");
+assert.equal(plateOnlyLead.clipFile, "");
+assert.equal(plateOnlyLead.plateFile, "phone.png");
+assert.equal(plateOnlyLead.voiceFile, "land.mp3", "plate-only keeps the saved line");
+assert.ok(plateOnly.cells.every((c) => !c.clipFile), "no takes still allowed");
+assert.ok(!plateOnly.cells.some((c) => c.shotId === "shot_old_bar"), "untitled leftover without a take stays off");
+
 const talkCss = css.slice(css.indexOf("/* Talking episode strip"));
 const editor = readFileSync(join(root, "src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 assert.match(talkUi, /Talking timeline/);
-assert.match(talkUi, /speech and picture, same width/);
+assert.match(talkUi, /Tap a box to play it here/);
 assert.match(talkUi, /Change audio/);
+assert.match(talkUi, /Add audio/);
 assert.match(talkUi, /Redo clip/);
-assert.doesNotMatch(talkUi, /Drop the mp3|Start the video|WaveformCanvas/);
+assert.match(talkUi, /Add video/);
+assert.match(talkUi, /Remove video/);
+assert.match(talkUi, /plate-only still plays the line/);
+assert.match(talkUi, /audioSrc && !clipSrc/);
+assert.doesNotMatch(talkUi, /Drop the mp3|Start the video|WaveformCanvas|m-talk-tools-video|scrollIntoView|revealPlates/);
 assert.match(talkCss, /\.m-talk-desk-scroll\s*\{[^}]*overflow-x:\s*auto/s);
 assert.match(talkCss, /\.m-talk-desk-inner\s*\{[^}]*min-width:\s*max-content/s);
 assert.match(talkCss, /\.m-talk-film-cell\s*\{[^}]*flex:\s*0 0 auto/s);
-assert.match(talkCss, /\.m-talk-film-still[\s\S]*object-fit:\s*contain/);
+assert.match(talkCss, /\.m-talk-film-video[\s\S]*object-fit:\s*contain/);
+assert.match(talkCss, /\.m-talk-tray-toggle/);
 assert.match(tree, /isMusicVideoSongJob\(job\) \? \(/);
 assert.match(tree, /<TalkTimeline/);
 assert.match(tree, /onJobChange=\{onJobChange\}/);
+assert.match(tree, /<TalkTimeline[\s\S]*?onJobChange=\{onJobChange\}\s*\/>/);
+assert.doesNotMatch(tree, /<TalkTimeline[\s\S]*?onOpenPlate=/);
+assert.match(tree, /Hide stills/);
 assert.match(tree, /<MusicVideoTrack/);
 assert.match(editor, /isMusicVideoSongJob\(job\) && plateClipRail\.clips\.length/);
 assert.doesNotMatch(song, /jobShowsMusicTrack/);
