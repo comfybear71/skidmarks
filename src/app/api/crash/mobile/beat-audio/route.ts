@@ -139,14 +139,31 @@ export async function POST(req: Request) {
       speaker,
       text: firstLine,
     });
+    // synthesizeStoryBeat reads the local desk / active pack, which can be
+    // an older copy of this episode. Write back onto the Neon story we just
+    // read so earlier Saved mp3 pointers are not wiped.
+    const voicedStory = {
+      ...story,
+      scenes: story.scenes.map((sc) => ({
+        ...sc,
+        shots: sc.shots.map((sh) => ({
+          ...sh,
+          beats: sh.beats.map((b) =>
+            b.id === beatId
+              ? { ...b, voiceFile: result.voiceFile, text: firstLine, speaker }
+              : b,
+          ),
+        })),
+      })),
+    };
     const lookLock =
       candidateLookPrompt(job.castCandidates, speaker) ||
       job.roster.find((c) => c.name.trim().toLowerCase() === speaker.trim().toLowerCase())
         ?.appearance ||
       "";
     const next = {
-      ...result.story,
-      scenes: result.story.scenes.map((sc) => ({
+      ...voicedStory,
+      scenes: voicedStory.scenes.map((sc) => ({
         ...sc,
         shots: sc.shots.map((sh) => {
           const leftovers = leftoverHydrateSpeakers(sh.id, sh.beats);
@@ -225,13 +242,15 @@ export async function POST(req: Request) {
           text: chunk,
         });
         working = {
-          ...extra.story,
-          scenes: extra.story.scenes.map((sc) => ({
+          ...working,
+          scenes: working.scenes.map((sc) => ({
             ...sc,
             shots: sc.shots.map((sh) => {
               if (sh.id !== shotId) return sh;
               const leftovers = leftoverHydrateSpeakers(sh.id, sh.beats);
-              const beats = dropLeftoverHydrateBeats(sh.id, sh.beats, extraId);
+              const beats = dropLeftoverHydrateBeats(sh.id, sh.beats, extraId).map((b) =>
+                b.id === extraId ? { ...b, voiceFile: extra.voiceFile, text: chunk, speaker } : b,
+              );
               const onCard = shotSpeakersOnCard({
                 shotId: sh.id,
                 title: sh.title,

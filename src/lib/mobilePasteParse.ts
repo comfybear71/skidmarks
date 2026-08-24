@@ -429,7 +429,165 @@ function parseProductionPaste(text: string, styleId: ShowStyleId, fallbackTitle:
   return { title, logline: ep.logline || "", characters, story };
 }
 
-/** One paste → story. JSON, --- SHOT --- blocks, or production screenplay. */
+const CONSTRUCTION_HINT =
+  /MASTER EPISODE CONSTRUCTION TEMPLATE|##\s*<ACT_|##\s*<SHOT_|\*\s*\[EP_TITLE\]:/i;
+
+const CONSTRUCTION_SKIP_KEYS = new Set([
+  "ACT",
+  "ACT_NOTE",
+  "BUDGET_TIER",
+  "CAST",
+  "CAST_BACKGROUND",
+  "CAST_MAIN",
+  "COLOR_LUT",
+  "CUTAWAY",
+  "DIAL",
+  "ENV",
+  "ENV_SETS",
+  "EP_NUM",
+  "EP_TITLE",
+  "GENRE_STYLE",
+  "GRAIN_OVERLAY",
+  "MASTER_AUDIO_NOTE",
+  "MUSIC",
+  "PROP_LIST",
+  "SFX",
+  "TARGET_RUN_TIME",
+  "TIME_LIGHTING",
+  "VISUAL_ACTION",
+]);
+
+function isConstructionTemplate(text: string): boolean {
+  return CONSTRUCTION_HINT.test(text);
+}
+
+function normalizeConstruction(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/##\s*<ACT_/gi, "\n## <ACT_")
+    .replace(/##\s*<SHOT_/gi, "\n## <SHOT_");
+}
+
+function constructionTag(line: string): { key: string; value: string } | null {
+  const m = line.match(/^\*?\s*\[([A-Z0-9_]+)\]:\s*(.*)$/i);
+  if (!m) return null;
+  return { key: m[1].toUpperCase(), value: (m[2] || "").trim() };
+}
+
+function stripWrapQuotes(raw: string): string {
+  return raw.trim().replace(/^[“"']|[”"']$/g, "").trim();
+}
+
+function constructionSpeakerLine(line: string): { speaker: string; text: string } | null {
+  const t = line.replace(/^\*\s*/, "").trim();
+  if (!t) return null;
+  const body = t.replace(/^\[DIAL\]:\s*/i, "").trim();
+  const m = body.match(/^([A-Z][A-Z0-9]*(?:\s+[A-Z0-9]+){0,8}):\s*(.+)$/);
+  if (!m) return null;
+  const speaker = m[1].trim();
+  if (CONSTRUCTION_SKIP_KEYS.has(speaker.replace(/\s+/g, "_"))) return null;
+  const text = stripWrapQuotes(m[2]);
+  if (!speaker || !text) return null;
+  return { speaker, text };
+}
+
+function constructionField(block: string, key: string): string {
+  const re = new RegExp(`^\\*?\\s*\\[${key}\\]:\\s*(.*)$`, "im");
+  return (block.match(re)?.[1] || "").trim();
+}
+
+/** Blank construction / filled MASTER EPISODE CONSTRUCTION TEMPLATE. */
+function parseConstructionTemplate(
+  raw: string,
+  styleId: ShowStyleId,
+  fallbackTitle: string,
+): MobilePasteResult {
+  const text = normalizeConstruction(raw);
+  const title = constructionField(text, "EP_TITLE") || fallbackTitle;
+  const actChunks = text.split(/##\s*<ACT_[^>]*>/i).slice(1);
+  if (!actChunks.length) {
+    throw new Error("Construction template needs at least one ## <ACT_I> block.");
+  }
+
+  const shots: LooseShot[] = [];
+  let shotNo = 0;
+  for (const actChunk of actChunks) {
+    const actName = constructionField(actChunk, "ACT") || "";
+    const actPlace = constructionField(actChunk, "ENV");
+    const shotChunks = actChunk.split(/##\s*<SHOT_[^>]*>/i).slice(1);
+    for (const shotChunk of shotChunks) {
+      shotNo += 1;
+      let placeName = actPlace;
+      let visual = "";
+      let sfx = "";
+      let music = "";
+      let cutaway = "";
+      const spoken: { speaker: string; text: string }[] = [];
+      let mode = "";
+      for (const rawLine of shotChunk.split("\n")) {
+        const line = rawLine.trim();
+        if (!line || line === "*") continue;
+        if (/^##\s*\[/.test(line) || /^---/.test(line)) {
+          mode = "";
+          continue;
+        }
+        const tag = constructionTag(line);
+        if (tag) {
+          mode = tag.key;
+          if (tag.key === "ENV" && tag.value) placeName = tag.value;
+          if (tag.key === "VISUAL_ACTION") visual = tag.value;
+          if (tag.key === "SFX") sfx = tag.value;
+          if (tag.key === "MUSIC") music = tag.value;
+          if (tag.key === "CUTAWAY") cutaway = tag.value;
+          if (tag.key === "DIAL") {
+            const hit = constructionSpeakerLine(tag.value);
+            if (hit) spoken.push(hit);
+          }
+          continue;
+        }
+        const hit = constructionSpeakerLine(line);
+        if (hit) {
+          spoken.push(hit);
+          mode = "DIAL";
+        }
+      }
+      const place = (placeName || "").trim();
+      if (!place) {
+        throw new Error(`SHOT ${String(shotNo).padStart(2, "0")}: need [ENV] on the act or shot.`);
+      }
+      const no = String(shotNo).padStart(2, "0");
+      const actBit = actName.replace(/^[IVX]+\s*—\s*/i, "").trim() || actName;
+      const tags = [
+        actName ? `[ACT] ${actName}` : "",
+        visual ? `[VISUAL_ACTION] ${visual}` : "",
+        sfx ? `[SFX] ${sfx}` : "",
+        music ? `[MUSIC] ${music}` : "",
+        cutaway ? `[CUTAWAY] ${cutaway}` : "",
+      ].filter(Boolean);
+      shots.push({
+        placeName: place,
+        title: `SHOT ${no}${actBit ? ` — ${actBit}` : ""}`,
+        summary: tags.join("\n"),
+        staging: visual,
+        lines: spoken,
+      });
+    }
+  }
+
+  if (!shots.length) {
+    throw new Error("Construction template needs at least one ## <SHOT_01> inside an act.");
+  }
+
+  const story = shotsToStory(styleId, title, "", shots);
+  return {
+    title,
+    logline: "",
+    characters: charactersFromNames(speakersFromStory(story)),
+    story,
+  };
+}
+
+/** One paste → story. JSON, construction template, --- SHOT ---, or screenplay. */
 export function parseMobilePaste(
   raw: string,
   styleId: ShowStyleId,
@@ -454,9 +612,11 @@ export function parseMobilePaste(
     return json;
   }
 
-  const pasted = /---\s*SHOT/i.test(text)
-    ? parseShotBlocks(text, styleId)
-    : parseProductionPaste(text, styleId, fallbackTitle);
+  const pasted = isConstructionTemplate(text)
+    ? parseConstructionTemplate(text, styleId, fallbackTitle)
+    : /---\s*SHOT/i.test(text)
+      ? parseShotBlocks(text, styleId)
+      : parseProductionPaste(text, styleId, fallbackTitle);
   if (!storyHasSpokenLine(pasted.story)) {
     throw new Error("Need at least one spoken line. Tap AI, then tweak.");
   }

@@ -85,6 +85,53 @@ const json = parseMobilePaste(
 assert.equal(json.story.scenes[0].placeName, "Front of the houses");
 assert.equal(json.story.scenes[0].shots[0].beats[0].speaker, "Jo");
 
+const construction = `## MASTER EPISODE CONSTRUCTION TEMPLATE
+## [EPISODE_METADATA]
+* [EP_TITLE]: The Mouth of the Hole
+## [EPISODE_TIMELINE]## <ACT_I>
+* [ACT]: I — He shows up
+* [ENV]: Front of the houses
+## <SHOT_01>
+* [VISUAL_ACTION]: Comfy strolls down the gravel.
+* [SFX]: Crunching gravel.
+## <SHOT_02>
+* [CAST]: COMFY, CRAZY BIG HOLE JO TOO
+* [VISUAL_ACTION]: Jo Too leans out of a window.
+* [DIAL]: CRAZY BIG HOLE JO TOO: "Comfy, hey comfy, i wanna talk to you about your wife LandLady..."
+## <ACT_III>
+* [ACT]: III — Keeps proving it
+* [ENV]: By the pool
+## <SHOT_01>
+* [VISUAL_ACTION]: Tee is sunbathing. Jo knocks the sunglasses in.
+* CRAZY BIG HOLE JO TOO: "Go dive for 'em, looks like you need the exercise."
+## <ACT_IV>
+* [ACT]: IV — Gets a beat down
+* [ENV]: MATTY BAR
+## <SHOT_01>
+* [VISUAL_ACTION]: Comfy corners Jo Too.
+* [DIAL]: LADDER ONE: "Hey! Watch it, man!"
+CRAZY BIG HOLE JO TOO: "Keep moving, box boy, before I dump your milk!"
+`;
+
+const built = parseMobilePaste(construction, "skidmarks", "CRAZY BIG HOLE");
+assert.equal(built.title, "The Mouth of the Hole");
+assert.equal(built.story.scenes.length, 3);
+assert.equal(
+  built.story.scenes.map((s) => s.placeName).join(" | "),
+  "Front of the houses | By the pool | MATTY BAR",
+);
+assert.equal(built.story.scenes[0].shots.length, 2);
+assert.equal(built.story.scenes[0].shots[0].title, "SHOT 01 — He shows up");
+assert.equal(built.story.scenes[0].shots[1].beats[0].speaker, "Crazy Big Hole Jo Too");
+assert.match(built.story.scenes[0].shots[1].beats[0].text, /LandLady/);
+assert.equal(built.story.scenes[1].shots[0].beats[0].text, "Go dive for 'em, looks like you need the exercise.");
+assert.equal(built.story.scenes[2].shots[0].beats.length, 2);
+assert.equal(built.story.scenes[2].shots[0].beats[0].speaker, "Ladder One");
+assert.equal(built.story.scenes[2].shots[0].beats[1].speaker, "Crazy Big Hole Jo Too");
+assert.match(built.story.scenes[0].shots[1].summary, /\[VISUAL_ACTION\]/);
+assert.match(built.story.scenes[0].shots[1].staging || "", /window/);
+assert.equal(storyHasSpokenLine(built.story), true);
+
 assert.equal(normalizePlaceKey("INT. MATTY BAR - DAY"), "matty bar");
 assert.equal(normalizePlaceKey("Matty bar"), "matty bar");
 
