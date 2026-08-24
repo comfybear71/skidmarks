@@ -616,6 +616,61 @@ export function importSectionMarkersFromLyrics(opts: {
   });
 }
 
+/** A dropped filename is not a sung line — keep it off the marquee. */
+export function isLyricFilenameLine(text: string): boolean {
+  return /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(String(text || "").trim());
+}
+
+/**
+ * Pin each sung line inside the section window it sits under on the sheet.
+ * Intro with no words stays empty. Even spread inside the window — this is
+ * lining from the sheet, not hearing the vocal. Pin can still nudge a line.
+ */
+export function lyricCuesFromSectionSheet(opts: {
+  lyrics: string;
+  durationMs: number;
+  markers?: TrackSectionMarker[];
+}): LyricCue[] {
+  const lyrics = String(opts.lyrics || "");
+  const songMs = Math.max(1000, Math.round(opts.durationMs));
+  const tags = meaningfulLyricTags(lyrics);
+  const markers = sortSectionMarkers(
+    opts.markers?.length
+      ? opts.markers
+      : importSectionMarkersFromLyrics({ lyrics, durationMs: songMs }),
+  );
+  if (!tags.length || !markers.length) return [];
+
+  const sung = lyricLinesFrom(lyrics).filter((line) => !isLyricFilenameLine(line.text));
+  const buckets = tags.map(() => [] as LyricLine[]);
+  for (const line of sung) {
+    let tagIdx = -1;
+    for (let i = 0; i < tags.length; i++) {
+      if (tags[i]!.lineIndex <= line.index) tagIdx = i;
+    }
+    if (tagIdx < 0) continue;
+    buckets[tagIdx]!.push(line);
+  }
+
+  const cues: LyricCue[] = [];
+  const used = Math.min(tags.length, markers.length);
+  for (let i = 0; i < used; i++) {
+    const group = buckets[i]!;
+    const marker = markers[i]!;
+    if (!group.length) continue;
+    const startMs = marker.startMs;
+    const span = Math.max(1, marker.endMs - startMs);
+    for (let n = 0; n < group.length; n++) {
+      const atMs = Math.min(
+        marker.endMs - 1,
+        Math.max(startMs, Math.round(startMs + (span * n) / group.length)),
+      );
+      cues.push({ lineIndex: group[n]!.index, atMs });
+    }
+  }
+  return cues.sort((a, b) => a.atMs - b.atMs || a.lineIndex - b.lineIndex);
+}
+
 /** Scrub to a moment, tap Start here — closes the previous section at the same point. */
 export function withSectionStartAt(
   markers: TrackSectionMarker[],

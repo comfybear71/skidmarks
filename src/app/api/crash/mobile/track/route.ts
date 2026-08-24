@@ -110,6 +110,7 @@ export async function POST(req: Request) {
         ...(body.plateTimings !== undefined
           ? { plateTimings: cleanPlateTimings(body.plateTimings) || [] }
           : {}),
+        ...(body.lyricCues !== undefined ? { lyricCues: cleanLyricCues(body.lyricCues) } : {}),
       };
       const updated = await patchMobileGenJob(jobId, { trackDraft: draft, error: "" });
       return NextResponse.json({ ok: true, job: updated, trackDraft: draft });
@@ -126,6 +127,7 @@ export async function POST(req: Request) {
         ...(body.sectionMarkers !== undefined
           ? { sectionMarkers: cleanMarkers(body.sectionMarkers) || [] }
           : {}),
+        ...(body.lyricCues !== undefined ? { lyricCues: cleanLyricCues(body.lyricCues) } : {}),
       };
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: nextSong,

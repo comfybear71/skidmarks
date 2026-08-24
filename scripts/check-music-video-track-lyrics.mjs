@@ -133,6 +133,8 @@ console.log("check-music-video-track-lyrics OK");
   assert.match(ui, /platesOnTrackOpen/, "plates on the track fold away");
   assert.match(ui, /<DeskFold/, "long lists share the desk fold");
   assert.match(ui, /Import from lyrics/, "sections import from lyric tags");
+  assert.match(ui, /lyricCuesFromSectionSheet/, "Import also pins Marquee from section windows");
+  assert.match(ui, /set-lyric-cues/, "existing sections get pins without rewriting times");
   assert.match(ui, /Start here/, "pin section start at playhead");
   assert.match(ui, /Clear sections/, "wipe broken section rows");
   assert.match(ui, /m-track-time-set/, "explicit Set on time boxes");
@@ -363,6 +365,38 @@ console.log("check-music-video-plate-bar OK");
   assert.equal(forgotten.map((m) => m.label).join(","), "intro,verse,chorus,verse,chorus,bridge,outro");
   assert.ok(forgotten[0].endMs < 80_000, "Forgotten intro is not the whole 4:51");
   assert.ok(forgotten.some((m) => m.label === "chorus" && m.startMs > 30_000));
+
+  const {
+    lyricCuesFromSectionSheet,
+    isLyricFilenameLine,
+    lyricLinesFrom: sungLines,
+  } = await import("../src/lib/musicVideoTrack.ts");
+  assert.equal(isLyricFilenameLine("FORGOTTEN.mp3"), true);
+  assert.equal(isLyricFilenameLine("The last thing I felt"), false);
+
+  const pins = lyricCuesFromSectionSheet({
+    lyrics: forgottenLyrics,
+    durationMs: 291_480,
+    markers: forgotten,
+  });
+  const sung = sungLines(forgottenLyrics).filter((l) => !isLyricFilenameLine(l.text));
+  assert.equal(pins.length, sung.length, "every sung line gets a pin");
+  assert.ok(!pins.some((c) => sungLines(forgottenLyrics).find((l) => l.index === c.lineIndex)?.text === "FORGOTTEN.mp3"));
+  // Intro is instrumental — first sung line sits in verse, not at 0:00.
+  const firstSung = sung[0];
+  const firstPin = pins.find((c) => c.lineIndex === firstSung.index);
+  assert.ok(firstPin, "first sung line is pinned");
+  assert.ok(firstPin.atMs >= forgotten[1].startMs, "first sung line starts in verse, not intro");
+  assert.ok(firstPin.atMs < forgotten[1].endMs, "first sung line stays in verse");
+  // Outro lines stay in the outro window.
+  const lastPin = pins[pins.length - 1];
+  const outro = forgotten[forgotten.length - 1];
+  assert.ok(lastPin.atMs >= outro.startMs, "last line is in outro");
+  assert.ok(lastPin.atMs < outro.endMs);
+  // Pins walk forward through the song.
+  for (let i = 1; i < pins.length; i++) {
+    assert.ok(pins[i].atMs >= pins[i - 1].atMs, "pins stay in clock order");
+  }
 
   const inner = waveW(291_480, 400);
   assert.ok(inner > 400, "a 4:51 song is wider than the phone");
@@ -688,6 +722,7 @@ console.log("check-music-video-plate-picker OK");
   assert.match(drop, /drop-song/, "and the saved reference goes with it");
 
   assert.match(route, /action === "drop-song"/);
+  assert.match(route, /body.lyricCues !== undefined/, "Import from lyrics can save pins with the sections");
   // Park, never delete: the mp3 stays in Blob so dropping cannot lose a file.
   const action = route.slice(route.indexOf('action === "drop-song"'), route.indexOf('action === "drop-song"') + 700);
   assert.match(action, /delete draft\.songFile/);
