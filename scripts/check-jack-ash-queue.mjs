@@ -42,6 +42,9 @@ assert.match(loop, /video_ltx2_5_i2v/);
 assert.match(loop, /LTX-2\.3 IA2V/);
 assert.match(loop, /No people/);
 assert.match(loop, /motion_bucket_id/);
+assert.match(loop, /Thunderdome/);
+assert.match(loop, /Double Talkin/);
+assert.match(loop, /after more video/);
 assert.doesNotMatch(loop, /swap \/m speech/i);
 
 assert.equal(archiveEntry("concert-loop-not-speech")?.verdict, "fails");
