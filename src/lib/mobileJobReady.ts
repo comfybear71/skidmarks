@@ -146,6 +146,21 @@ export function shouldAutoOpenNextCast(opts: {
   return Boolean(opts.speakerCount && !opts.openCast && opts.firstOpenCast);
 }
 
+/**
+ * Who the CAST picker shows. Remove from cast must not fall through to
+ * the next person without an approved face — that remounts the picker
+ * and draws a new character.
+ */
+export function castPickerFocus(opts: {
+  openCast: string | null;
+  firstOpenCast: string | null;
+  stayClosed: boolean;
+}): string | null {
+  if (opts.openCast) return opts.openCast;
+  if (opts.stayClosed) return null;
+  return opts.firstOpenCast;
+}
+
 /** Drop one take from the strip. Does not delete the file — More still
  * appends; this is an explicit tap on ×. */
 export function dropCandidateTake<T extends { id: string }>(

@@ -124,6 +124,22 @@ export function dropSpeakerFromList(names: string[], who: string): string[] {
   return names.filter((s) => !castNamesMatch(s, who));
 }
 
+export function rememberDroppedCast(existing: string[] | undefined, who: string): string[] {
+  const name = who.trim();
+  if (!name) return existing ? [...existing] : [];
+  const next = [...(existing || [])];
+  if (!next.some((n) => castNamesMatch(n, name))) next.push(name);
+  return next;
+}
+
+export function forgetDroppedCast(existing: string[] | undefined, who: string): string[] {
+  return (existing || []).filter((n) => !castNamesMatch(n, who));
+}
+
+export function speakerWasDropped(existing: string[] | undefined, who: string): boolean {
+  return (existing || []).some((n) => castNamesMatch(n, who));
+}
+
 export function dropSpeakerFromRecord<T>(
   rec: Record<string, T> | undefined,
   who: string,

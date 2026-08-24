@@ -16,6 +16,8 @@ import {
   clipsAfterDroppedSpeaker,
   dropSpeakerFromList,
   dropSpeakerFromRecord,
+  forgetDroppedCast,
+  rememberDroppedCast,
   scrubSpeakerFromStory,
   shotsAfterDroppedSpeaker,
 } from "@/lib/mobileDropCast";
@@ -119,7 +121,10 @@ export async function POST(req: Request) {
         if (!listCharacters().some((c) => c.name.trim().toLowerCase() === name.toLowerCase())) {
           createCharacter({ name, lookNote: description, pastNote: description });
         }
-        const updated = await patchMobileGenJob(jobId, { speakers: [...job.speakers, name] });
+        const updated = await patchMobileGenJob(jobId, {
+          speakers: [...job.speakers, name],
+          droppedCast: forgetDroppedCast(job.droppedCast, name),
+        });
         return NextResponse.json({ ok: true, job: updated });
       }
 
@@ -195,6 +200,7 @@ export async function POST(req: Request) {
         );
         const updated = await patchMobileGenJob(jobId, {
           speakers: dropSpeakerFromList(job.speakers, who),
+          droppedCast: rememberDroppedCast(job.droppedCast, who),
           castCandidates: dropSpeakerFromRecord(job.castCandidates, who),
           speakerVoices: dropSpeakerFromRecord(job.speakerVoices, who),
           characterPlates: dropSpeakerFromRecord(job.characterPlates, who),
@@ -221,6 +227,10 @@ export async function POST(req: Request) {
           },
         });
         return NextResponse.json({ ok: true, job: updated });
+      }
+
+      if (action === "generate" && !job.speakers.some((s) => castNamesMatch(s, target))) {
+        return NextResponse.json({ ok: true, job });
       }
 
       let character = listCharacters().find(
@@ -260,10 +270,14 @@ export async function POST(req: Request) {
           prior?.prompt,
           mobileCandidateFolders(job),
         );
+        const live = await readMobileGenJob(jobId);
+        if (!live || !live.speakers.some((s) => castNamesMatch(s, target))) {
+          return NextResponse.json({ ok: true, job: live || job });
+        }
         const updated = await patchMobileGenJob(jobId, {
           castCandidates: {
-            ...job.castCandidates,
-            [target]: keepCandidateTakes(job.castCandidates[target], candidates),
+            ...live.castCandidates,
+            [target]: keepCandidateTakes(live.castCandidates[target], candidates),
           },
         });
         return NextResponse.json({ ok: true, job: updated });

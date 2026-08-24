@@ -10,6 +10,7 @@ import {
   type MobileShotUnit,
 } from "./mobileGenJob";
 import { phaseAfterScreenplay } from "./mobileJobReady";
+import { speakerWasDropped } from "./mobileDropCast";
 import { normalizePlaceKey } from "./mobilePasteScript";
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import type { ScriptCharacterData } from "./types";
@@ -87,6 +88,7 @@ export async function applyImportedStoryToJob(opts: {
   }
   for (const raw of [...parsedCharacters.map((c) => c.name.trim()), ...beatSpeakers]) {
     if (!raw) continue;
+    if (speakerWasDropped(job.droppedCast, raw)) continue;
     const key = raw.toLowerCase();
     if (!byLower.has(key)) byLower.set(key, raw);
   }

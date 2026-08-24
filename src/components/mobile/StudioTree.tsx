@@ -29,6 +29,7 @@ import {
   preferredCandidate,
   shouldAutoGenerateCastFace,
   shouldAutoOpenNextCast,
+  castPickerFocus,
 } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl, mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
 import {
@@ -960,7 +961,7 @@ export function StudioTree({
   const [savingBand, setSavingBand] = useState(false);
   const [bandNameDraft, setBandNameDraft] = useState("");
   const [openCast, setOpenCast] = useState<string | null>(null);
-  const skipCastAutoOpen = useRef(false);
+  const [castStayClosed, setCastStayClosed] = useState(false);
   const [openPlace, setOpenPlace] = useState<string | null>(null);
   const [castOpen, setCastOpen] = useState(true);
   const [locationsOpen, setLocationsOpen] = useState(true);
@@ -1068,13 +1069,17 @@ export function StudioTree({
     episodeHint,
   );
 
-  const firstOpenCast = job.speakers.find((n) => !job.castCandidates[n]?.some((c) => c.approved));
+  const firstOpenCast = job.speakers.find((n) => !approvedCandidateFileName(job.castCandidates, n));
   const firstOpenPlace = job.scenes.find(
     (s) =>
       !s.worldThumbKey?.trim() &&
       !job.locationCandidates[s.id]?.some((c) => c.approved),
   );
-  const castFocus = openCast || firstOpenCast || null;
+  const castFocus = castPickerFocus({
+    openCast,
+    firstOpenCast: firstOpenCast || null,
+    stayClosed: castStayClosed,
+  });
   const placeFocus = openPlace || firstOpenPlace?.id || null;
   const placeScene = job.scenes.find((s) => s.id === placeFocus);
   const placePick =
@@ -1116,13 +1121,13 @@ export function StudioTree({
         speakerCount: job.speakers.length,
         openCast,
         firstOpenCast: firstOpenCast || null,
-        userJustClosed: skipCastAutoOpen.current,
+        userJustClosed: castStayClosed,
       })
     ) {
       return;
     }
     setOpenCast(firstOpenCast || null);
-  }, [job.speakers.length, firstOpenCast, openCast]);
+  }, [job.speakers.length, firstOpenCast, openCast, castStayClosed]);
   useEffect(() => {
     if (job.scenes.length && !openPlace && firstOpenPlace) setOpenPlace(firstOpenPlace.id);
   }, [job.scenes.length, firstOpenPlace, openPlace]);
@@ -1460,7 +1465,7 @@ export function StudioTree({
                 onClick={() => {
                   setCastOpen(true);
                   setAdding(null);
-                  skipCastAutoOpen.current = false;
+                  setCastStayClosed(false);
                   setOpenCast(name);
                 }}
                 onRemove={
@@ -1474,7 +1479,7 @@ export function StudioTree({
                           return;
                         }
                         if (openCast === name) setOpenCast(null);
-                        skipCastAutoOpen.current = true;
+                        setCastStayClosed(true);
                         onDropCast(name);
                       }
                 }
@@ -1561,7 +1566,7 @@ export function StudioTree({
             onAdd={(name, description, file) => {
               onAddCast(name, description, file);
               setAdding(null);
-              skipCastAutoOpen.current = false;
+              setCastStayClosed(false);
               setOpenCast(name);
             }}
             onCancel={() => setAdding(null)}
@@ -1616,7 +1621,7 @@ export function StudioTree({
                 return;
               }
               setOpenCast(null);
-              skipCastAutoOpen.current = true;
+              setCastStayClosed(true);
               onDropCast(castFocus);
             }}
           />

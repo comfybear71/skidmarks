@@ -4,11 +4,15 @@ import {
   castNamesMatch,
   dropSpeakerFromList,
   dropSpeakerFromRecord,
+  forgetDroppedCast,
+  rememberDroppedCast,
   scrubSpeakerFromStory,
   shotsAfterDroppedSpeaker,
+  speakerWasDropped,
   stripSpeakerWord,
 } from "../src/lib/mobileDropCast.ts";
 import {
+  castPickerFocus,
   shouldAutoGenerateCastFace,
   shouldAutoOpenNextCast,
 } from "../src/lib/mobileJobReady.ts";
@@ -60,6 +64,39 @@ assert.equal(
   }),
   true,
 );
+assert.equal(
+  castPickerFocus({
+    openCast: null,
+    firstOpenCast: "TEE",
+    stayClosed: true,
+  }),
+  null,
+  "Remove from cast must not show the next empty person",
+);
+assert.equal(
+  castPickerFocus({
+    openCast: null,
+    firstOpenCast: "TEE",
+    stayClosed: false,
+  }),
+  "TEE",
+);
+assert.equal(
+  castPickerFocus({
+    openCast: "CRAZY BIG HOLE JO",
+    firstOpenCast: "TEE",
+    stayClosed: true,
+  }),
+  "CRAZY BIG HOLE JO",
+);
+assert.deepEqual(
+  rememberDroppedCast(["STUBALLS"], "CRAZY BIG HOLE JO"),
+  ["STUBALLS", "CRAZY BIG HOLE JO"],
+);
+assert.equal(speakerWasDropped(["CRAZY BIG HOLE JO"], "crazy big hole jo"), true);
+assert.deepEqual(forgetDroppedCast(["CRAZY BIG HOLE JO", "STUBALLS"], "CRAZY BIG HOLE JO"), [
+  "STUBALLS",
+]);
 assert.deepEqual(dropSpeakerFromList(["JO", "MATTY"], "STUBALLS"), ["JO", "MATTY"]);
 assert.deepEqual(dropSpeakerFromRecord({ STUBALLS: 1, JO: 2 }, "stuballs"), { JO: 2 });
 
