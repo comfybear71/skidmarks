@@ -1,9 +1,11 @@
 /**
- * Forgotten — who is on the mp3. Stuie marked these 2026-08-24.
- * Jack only on the vocal hits. Horn fades in, actually plays, fades out,
- * then revolves back. Gaps are animation intermissions (concert loop later).
- * There is no saxophone on this mix. Jack's face stays hidden.
- * Do not mint a job from this file. Do not generate the concert loop yet.
+ * Forgotten — Jack sings the vocals on Cloud LTX-2.3 IA2V + Forgotten.mp3.
+ * Trumpet clocks stay on the HORN still, but LTX text will not invent
+ * embouchure or valve timing. Those cuts need a real player clip
+ * (OpenPose / DWPose / Wan Animate Move), face off-camera or in shadow,
+ * silent video, then Resolve sync to our mix. Sax / guitar / drums stay
+ * off. If a people clip fails, he edits it out and drops his Grok video.
+ * Do not mint a job from this file.
  */
 import { isForgottenSongJob } from "./musicVideoGroupPlate";
 import type { PlateTiming } from "./musicVideoTrack";
@@ -17,7 +19,7 @@ import {
 } from "./scratchSongWindow";
 
 export type ForgottenWho = "horn" | "jack";
-export type ForgottenPerformance = "play" | "sway" | "sing";
+export type ForgottenPerformance = "play" | "sway" | "sing" | "walk";
 
 export type ForgottenWhoCue = {
   who: ForgottenWho;
@@ -26,12 +28,12 @@ export type ForgottenWhoCue = {
   performance: ForgottenPerformance;
 };
 
-/** First trumpet broke at ~13s with invented hat text. Split before that. */
-const FIRST_TRUMPET_SPLIT_SEC = 12;
+/** First lead window split — long takes invent. Same 12s cut as the old trumpet. */
+const FIRST_LEAD_SPLIT_SEC = 12;
 
 /**
- * People on the mix. Overlaps are both clips, not a stitch.
- * Jack sway is not a people cut — those windows are intermissions.
+ * People we try. Overlaps are both clips, not a stitch.
+ * Gaps stay empty for his Grok plates if a render fails.
  */
 export const FORGOTTEN_WHO_PLAYS: ForgottenWhoCue[] = [
   { who: "horn", startSec: 1, endSec: 23, performance: "play" },
@@ -49,7 +51,7 @@ export type ForgottenIntermission = { startSec: number; endSec: number; kind: "a
 
 const INTERMISSION_MIN_SEC = 2;
 
-/** Gaps with no Jack vocal and no trumpet — animation inserts later. */
+/** Gaps with no Jack vocal and no trumpet — Grok plate holes if a people clip fails. */
 export function forgottenIntermissions(songSec: number): ForgottenIntermission[] {
   const song = Number.isFinite(songSec) && songSec > 0 ? songSec : 291.48;
   const spans = FORGOTTEN_WHO_PLAYS
@@ -77,6 +79,11 @@ export function forgottenIntermissions(songSec: number): ForgottenIntermission[]
 
 export function isSaxTitle(title: string): boolean {
   return /\bsax/i.test(title || "");
+}
+
+export function isSaxSoloTitle(title: string): boolean {
+  const t = (title || "").trim();
+  return /^saxophone$/i.test(t);
 }
 
 export function isJackSoloTitle(title: string): boolean {
@@ -118,7 +125,7 @@ export function splitWhoPlaysWindow(
   const cuts: { startSec: number; endSec: number }[] = [];
   const extra =
     cue.who === "horn" && cue.startSec <= 1 && cue.endSec >= 23
-      ? FIRST_TRUMPET_SPLIT_SEC
+      ? FIRST_LEAD_SPLIT_SEC
       : null;
   let at = padded.startSec;
   const stop = padded.endSec;
@@ -132,7 +139,7 @@ export function splitWhoPlaysWindow(
   return cuts.map((c) => ({
     ...c,
     who: cue.who,
-    performance: cue.performance,
+    performance: cue.who === "jack" ? "sing" : cue.performance,
   }));
 }
 
@@ -175,7 +182,6 @@ export function pickForgottenWhoPlaysShots(shots: WhoPlaysShot[]): {
   let jack: WhoPlaysShot | null = null;
   let horn: WhoPlaysShot | null = null;
   for (const sh of shots) {
-    if (isSaxTitle(sh.title)) continue;
     if (!jack && isJackSoloTitle(sh.title)) jack = sh;
     if (!horn && isHornSoloTitle(sh.title)) horn = sh;
   }
@@ -189,10 +195,10 @@ export function applyForgottenWhoPlays(opts: {
 }): { cuts: ScratchSongCut[]; plateTimings: PlateTiming[] } | { error: string } {
   const { jack, horn } = pickForgottenWhoPlaysShots(opts.shots);
   if (!jack?.plateFile || jack.plateFile === "__error__") {
-    return { error: "Need the JACK GHOST still. Sax stays off this song." };
+    return { error: "Need the JACK GHOST still." };
   }
   if (!horn?.plateFile || horn.plateFile === "__error__") {
-    return { error: "Need the HORN still. No saxophone on this mix." };
+    return { error: "Need the HORN still. Only Jack and the muted trumpet on this try." };
   }
   const slices = forgottenWhoPlaysSlices(opts.song.durationSec);
   const cuts: ScratchSongCut[] = [];
@@ -225,4 +231,19 @@ export function canApplyForgottenWhoPlays(job: {
   lyrics?: string;
 }): boolean {
   return isForgottenSongJob(job);
+}
+
+/** LTX IA2V cannot invent trumpet valves. Pose-drive only. Jack sing stays. */
+export function forgottenTrumpetLtxBlockReason(opts: {
+  job: { songTitle?: string; prompt?: string; lyrics?: string };
+  title?: string;
+  performance?: string;
+}): string | null {
+  if (!canApplyForgottenWhoPlays(opts.job)) return null;
+  if ((opts.performance || "") !== "play") return null;
+  const title = opts.title || "";
+  if (isHornSoloTitle(title) || isSaxTitle(title)) {
+    return "Trumpet play needs a real player clip (pose-drive). Do not LTX-invent valves or embouchure.";
+  }
+  return null;
 }

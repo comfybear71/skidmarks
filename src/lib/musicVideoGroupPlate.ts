@@ -8,6 +8,13 @@
 
 export const MUSIC_VIDEO_GROUP_MAX = 3;
 
+/**
+ * Forgotten people plates must match the Grok videos he made
+ * (graveyard / wooden house / leafless tree). Same colours. No watermark.
+ */
+export const FORGOTTEN_GROK_GRADE =
+  "Same grade as the Grok plates: deep black and blood crimson only, red mist, two red spotlight beams from the top corners. No teal, no white daylight, no green, no orange lava, no watermark, no Grok logo.";
+
 /** Seedream cel-ifies Jack's graphic card. This lock must be on the send. */
 export const MUSIC_VIDEO_NO_CEL =
   "Live-action photograph. Real human skin, real cloth, real brass and wood. No cel shading, no GTA, no Archer, no comic outlines, no cartoon, no anime, no illustrated character sheet.";
@@ -26,6 +33,40 @@ export const MUSIC_VIDEO_CAMERAS = {
   "wide-three":
     "WIDE three-shot. All three in the place, not a police lineup facing camera. Depth, not a mug-shot row.",
 } as const;
+
+/**
+ * Jack Ghost walk-away cameras — kept for a later cutaway.
+ * Forgotten who-plays now sings Jack and only tries the muted trumpet. Sax stays off. Grok videos fill fails.
+ */
+export const JACK_WALK_CAMERAS = [
+  "WIDE from behind. He walks away from camera into the dark, smaller in frame. Full silhouette — fedora, dark suit. Ominous. Not a portrait. Not facing camera.",
+  "THREE-QUARTER REAR. Walking away, slight angle so the hat and shoulders read, face stays black. Not looking back over the shoulder.",
+] as const;
+
+/** Two short cutaways. Everything else is sing. */
+export const JACK_WALK_START_SEC = [106, 186] as const;
+
+export function isJackWalkStartSec(startSec: number): boolean {
+  const start = Math.round(startSec);
+  return (JACK_WALK_START_SEC as readonly number[]).includes(start);
+}
+
+export function jackWalkCameraForStartSec(startSec: number): string {
+  const start = Math.round(startSec);
+  const i = (JACK_WALK_START_SEC as readonly number[]).indexOf(start);
+  const idx = i >= 0 ? i : Math.abs(start) % JACK_WALK_CAMERAS.length;
+  return JACK_WALK_CAMERAS[idx];
+}
+
+/** Position for a Jack walk plate — camera behind, empty hands, no face. */
+export function forgottenJackWalkStaging(placeName: string, startSec: number): string {
+  const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
+  return defaultMusicVideoGroupStaging(
+    ["JACK GHOST"],
+    place,
+    jackWalkCameraForStartSec(startSec),
+  );
+}
 
 export const FORGOTTEN_LYRICS = `FORGOTTEN.mp3 [Instrumental Intro,  muted trumpet snaking middle eastern melody, dark Arabic scale, heavy 12-string drone, deep dragging slide bass]
 
@@ -256,7 +297,7 @@ export function forgottenSoloCamera(speaker: string, placeName: string): string 
   const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
   const key =
     who === "JACK GHOST"
-      ? "tight-cu"
+      ? "wide"
       : who === "SAXOPHONE"
         ? "mcu"
         : who === "DRUMMER"
@@ -266,7 +307,11 @@ export function forgottenSoloCamera(speaker: string, placeName: string): string 
             : who === "HORN"
               ? "ots"
               : "medium";
-  return defaultMusicVideoGroupStaging([who], place, MUSIC_VIDEO_CAMERAS[key]);
+  return defaultMusicVideoGroupStaging(
+    [who],
+    place,
+    `${MUSIC_VIDEO_CAMERAS[key]} ${FORGOTTEN_GROK_GRADE}`,
+  );
 }
 
 /** Position for an existing Forgotten shot title — cameras from the Crash Lab set. */

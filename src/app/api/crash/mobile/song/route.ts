@@ -36,6 +36,7 @@ import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
 import { orderedDoneCutsForStitch, sliceBoundsForPlate } from "@/lib/musicVideoTrack";
+import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -280,6 +281,14 @@ export async function POST(req: Request) {
       const storyShot = scene?.shots.find((sh) => sh.id === shotId);
       if (!scene || !storyShot) {
         return NextResponse.json({ error: "That plate is not on this episode." }, { status: 400 });
+      }
+      const trumpetBlock = forgottenTrumpetLtxBlockReason({
+        job,
+        title: storyShot.title,
+        performance: cut.performance,
+      });
+      if (trumpetBlock) {
+        return NextResponse.json({ error: trumpetBlock }, { status: 400 });
       }
       const wantBeat = String(body.beatId || "").trim();
       const beatId =

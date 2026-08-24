@@ -54,7 +54,7 @@ Position rules that stay:
 People stills → `/m` LTX-2.3 IA2V with the Saved mp3.  
 **Intermission** (no singer, no trumpet) → insert animation. Concert loop (gold/black, no people) is that insert: holy still first, then muted LTX-2.5 I2V. Look: **Double Talkin' Jive** LED (Bangkok Thunderdome). Study: `docs/CONCERT_LOOP_PLATE.md`. **Hold generate** until he names T4/T5. Clock the gaps now.
 
-**Forgotten mix (2026-08-24, his ear):** no saxophone. Jack only on the vocal hits (face hidden). Horn fades in, **actually plays**, fades out, revolves back. Map: `src/lib/forgottenWhoPlays.ts`.
+**Forgotten mix (2026-08-24, his ear):** no saxophone. Jack only on the vocal hits (face hidden, LTX IA2V + mix). Trumpet clocks stay on HORN, but **do not LTX-invent play**. Drive valves from a real player clip (OpenPose / DWPose / Wan Animate Move). Face off-camera or in shadow. Silent video, sync Forgotten.mp3 in Resolve. Map: `src/lib/forgottenWhoPlays.ts`.
 
 ## Who is playing, then plate
 

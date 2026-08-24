@@ -62,7 +62,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-draft — pre-lock peaks/markers/timings on job.trackDraft
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
- *   set-who-plays — Forgotten Jack + trumpet clocks. Sax stays off the song.
+ *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   remove-plate-timing — clear one plate schedule
  */
 /** Cue rows come off the phone — keep only well-formed, ordered pins. */

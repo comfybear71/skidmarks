@@ -1,4 +1,5 @@
 import { speakerVoiceKey } from "./crashVoicePrompt";
+import { jackWalkCameraForStartSec } from "./musicVideoGroupPlate";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 
 /**
@@ -529,25 +530,42 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
   return clean([LTX_LIP_SYNC_LEAD, motionStyleLock(styleId)].join(" "));
 }
 
-export type SongSlicePerformance = "play" | "sway" | "sing";
+export type SongSlicePerformance = "play" | "sway" | "sing" | "walk";
 
 const JACK_FACE_HIDDEN =
-  "Face stays hidden in the hat shadow. Do not light the eyes or cheeks. Do not reveal a face. Same silhouette as the start image. Empty hands. No saxophone. No trumpet. No instrument.";
+  "Face stays hidden in the hat shadow. Do not light the eyes or cheeks. Do not reveal a face. Same silhouette as the start image. Empty hands. No saxophone. No trumpet. No instrument. No microphone.";
+
+/** Body Jack can actually do when the still shows his arms. Tight CU cannot send this. */
+const JACK_ROCKSTAR_MOVES = [
+  "Both arms in the air, empty hands open, chest out — global rockstar stadium shape.",
+  "One arm high, empty fist, other hand open at his side. Hits the chorus like a headliner.",
+  "Arms wide, empty hands, leaning into the vocal. Weight shifts on the beat.",
+  "Arms up then down with the beat, empty hands, shoulders and chest work the song.",
+] as const;
+
+function jackRockstarMoveForStartSec(startSec: number): string {
+  const n = Number.isFinite(startSec) ? Math.max(0, Math.floor(startSec)) : 0;
+  return JACK_ROCKSTAR_MOVES[n % JACK_ROCKSTAR_MOVES.length]!;
+}
 
 const HORN_ACTUALLY_PLAYS =
   "Fade in. He is actually playing the trumpet: lips sealed on the mouthpiece, cheeks puff and release, fingers work the valves, breath in time with the music. Not posing. Not smiling at the camera. Not holding the horn still. Fade out before the end. Same man when he revolves back — same vest, same trumpet, not a new player.";
+
+const SAX_ACTUALLY_PLAYS =
+  "Fade in. He is actually playing the saxophone: reed in the mouth, fingers work the keys, breath in time with the music. Not posing. Not smiling at the camera. Not holding the sax still. Fade out before the end. Same man when he revolves back — same clothes, same saxophone, not a new player.";
 
 function isJackGhostSpeaker(speaker: string): boolean {
   return /jack ghost/i.test(speaker || "");
 }
 
-/** Scratch / Music video song slice — singing, swaying, or actually playing. */
+/** Scratch / Music video song slice — singing, swaying, walking away, or actually playing. */
 export function buildScratchSongLtxMotion(opts: {
   styleId: ShowStyleId;
   speaker: string;
   lookLock?: string;
   staging?: string;
   performance?: SongSlicePerformance;
+  startSec?: number;
 }): string {
   const name = clean(opts.speaker) || "The performer";
   // Song slices drift hard on later cuts — keep more of the cast look than the 120-char speak trim.
@@ -557,24 +575,35 @@ export function buildScratchSongLtxMotion(opts: {
   const performance =
     opts.performance ||
     (isInstrumentalStaging(opts.staging || "") ? "play" : "sing");
-  const identityLock =
-    "Same face, same hair, same hat, same clothes as the start image — not a different person, not younger, not a new face. Do not invent or change letters on the hat or clothing.";
+  const walk = performance === "walk";
+  const identityLock = walk
+    ? "Same silhouette, same hat, same clothes as the start image — not a different person, not younger. Do not invent a face. Do not invent or change letters on the hat or clothing."
+    : "Same face, same hair, same hat, same clothes as the start image — not a different person, not younger, not a new face. Do not invent or change letters on the hat or clothing.";
+  const walkCamera = jackWalkCameraForStartSec(opts.startSec ?? 0);
   const action =
     performance === "play"
-      ? /horn|trumpet/i.test(`${opts.speaker} ${opts.staging || ""}`)
-        ? `${who} is prominent. ${HORN_ACTUALLY_PLAYS}`
-        : `${who} is prominent, hands and body play the same instrument as the start image, in time with the music. Not posing. Fingers and breath move.`
+      ? /sax/i.test(`${opts.speaker} ${opts.staging || ""}`)
+        ? `${who} is prominent. ${SAX_ACTUALLY_PLAYS}`
+        : /horn|trumpet/i.test(`${opts.speaker} ${opts.staging || ""}`)
+          ? `${who} is prominent. ${HORN_ACTUALLY_PLAYS}`
+          : `${who} is prominent, hands and body play the same instrument as the start image, in time with the music. Not posing. Fingers and breath move.`
       : performance === "sway"
         ? `${who} is prominent, body and shoulders sway to the groove. Cyan mouth line stays still. Not singing. Not lip-sync.`
-        : jack
-          ? `${who} is prominent. Cyan mouth line moves with the vocal. Head and shoulders move with the song. Not a visible face.`
-          : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`;
+        : walk
+          ? `${who} is prominent. ${walkCamera} He walks away from camera, measured, ominous. Full silhouette — fedora, dark suit, empty hands. Face never readable. Does not turn around to show a face. Not singing. Not lip-sync. No cyan glow on a face.`
+          : jack
+            ? `${who} is prominent. Cyan mouth line moves with the vocal. ${jackRockstarMoveForStartSec(opts.startSec ?? 0)} Hits the high notes with the body, not a visible face. Not a statue. Not a talking-head CU.`
+            : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`;
   const closer =
     performance === "play"
       ? `${name} plays this instrumental slice. ${GOLD_CAMERA_HOLDS} Same person, same instrument, same objects as the start image. Not a new player. Not singing unless the start image is already singing.`
       : performance === "sway"
         ? `${name} sways this slice. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image. Not singing.`
-        : `${name} sings this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`;
+        : walk
+          ? `${name} walks away from camera this slice. Camera stays behind him at this angle. Same silhouette and objects as the start image. Not singing.`
+          : jack
+            ? `${name} sings this slice of the track. Rockstar body — arms in the air, empty hands, chest and weight on the vocal, including the high notes. ${GOLD_CAMERA_HOLDS} Face stays hidden. Same person and objects as the start image.`
+            : `${name} sings this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`;
   return clean(
     [
       GOLD_START_FRAME,
@@ -599,7 +628,9 @@ export function skipSongLipSyncLead(opts: {
 }): boolean {
   if (!opts.singing) return false;
   if (isJackGhostSpeaker(opts.speaker)) return true;
-  if (opts.performance === "play" || opts.performance === "sway") return true;
+  if (opts.performance === "play" || opts.performance === "sway" || opts.performance === "walk") {
+    return true;
+  }
   return isInstrumentalStaging(opts.staging || "");
 }
 
