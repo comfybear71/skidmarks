@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   applyForgottenWhoPlays,
+  forgottenTrumpetLtxBlockReason,
   forgottenWhoPlaysSlices,
   forgottenIntermissions,
   isHornSoloTitle,
@@ -176,5 +177,32 @@ assert.match(FORGOTTEN_GROK_GRADE, /Grok plates/);
 
 assert.match(trackRoute, /set-who-plays/);
 assert.match(trackRoute, /applyForgottenWhoPlays/);
+
+const songRoute = readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8");
+assert.match(songRoute, /forgottenTrumpetLtxBlockReason/);
+assert.equal(
+  forgottenTrumpetLtxBlockReason({
+    job: { songTitle: "FORGOTTEN" },
+    title: "HORN",
+    performance: "play",
+  }),
+  "Trumpet play needs a real player clip (pose-drive). Do not LTX-invent valves or embouchure.",
+);
+assert.equal(
+  forgottenTrumpetLtxBlockReason({
+    job: { songTitle: "FORGOTTEN" },
+    title: "JACK GHOST",
+    performance: "sing",
+  }),
+  null,
+);
+assert.equal(
+  forgottenTrumpetLtxBlockReason({
+    job: { songTitle: "MY NEW TOY" },
+    title: "HORN",
+    performance: "play",
+  }),
+  null,
+);
 
 console.log("check-forgotten-who-plays: ok");

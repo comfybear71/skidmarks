@@ -1,8 +1,10 @@
 /**
- * Forgotten — Jack sings the vocals. Only HORN (muted trumpet) is tried
- * on the instrumental clocks, and he must actually play. Sax / guitar /
- * drums stay off. If a people clip fails, he edits it out and drops his
- * Grok video (graveyard / house / tree plates). Jack's face stays hidden.
+ * Forgotten — Jack sings the vocals on Cloud LTX-2.3 IA2V + Forgotten.mp3.
+ * Trumpet clocks stay on the HORN still, but LTX text will not invent
+ * embouchure or valve timing. Those cuts need a real player clip
+ * (OpenPose / DWPose / Wan Animate Move), face off-camera or in shadow,
+ * silent video, then Resolve sync to our mix. Sax / guitar / drums stay
+ * off. If a people clip fails, he edits it out and drops his Grok video.
  * Do not mint a job from this file.
  */
 import { isForgottenSongJob } from "./musicVideoGroupPlate";
@@ -229,4 +231,19 @@ export function canApplyForgottenWhoPlays(job: {
   lyrics?: string;
 }): boolean {
   return isForgottenSongJob(job);
+}
+
+/** LTX IA2V cannot invent trumpet valves. Pose-drive only. Jack sing stays. */
+export function forgottenTrumpetLtxBlockReason(opts: {
+  job: { songTitle?: string; prompt?: string; lyrics?: string };
+  title?: string;
+  performance?: string;
+}): string | null {
+  if (!canApplyForgottenWhoPlays(opts.job)) return null;
+  if ((opts.performance || "") !== "play") return null;
+  const title = opts.title || "";
+  if (isHornSoloTitle(title) || isSaxTitle(title)) {
+    return "Trumpet play needs a real player clip (pose-drive). Do not LTX-invent valves or embouchure.";
+  }
+  return null;
 }
