@@ -314,6 +314,41 @@ export default function MobileHomePage() {
     }
   }, []);
 
+  const newFromCast = useCallback(
+    async (fromJobId: string) => {
+      const id = fromJobId.trim();
+      if (!id) return;
+      setBusy(true);
+      setError("");
+      setResumeError("");
+      try {
+        const { job: created } = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/job", {
+          fromJobId: id,
+          deskId: DEFAULT_DESK_ID,
+        });
+        setJob(created);
+        setDraftingNew(false);
+        setPickerOpen(false);
+        setPrompt(created.prompt || "");
+        if (created.styleId) setStyleId(created.styleId as typeof styleId);
+        if (typeof created.styleRealism === "number") setStyleRealism(created.styleRealism);
+        try {
+          writeResumedJobId(window.localStorage, created.id, jobDeskId(created));
+        } catch {
+          /* private mode */
+        }
+        const url = new URL(window.location.href);
+        url.searchParams.set("job", created.id);
+        window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't start from that cast");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [],
+  );
+
   const beginNewEpisode = useCallback(() => {
     stopPoll();
     setJob(null);
@@ -764,6 +799,7 @@ export default function MobileHomePage() {
             onOpenChange={setPickerOpen}
             onOpen={(id) => void openEpisode(id)}
             onNew={beginNewEpisode}
+            onNewFromCast={(id) => void newFromCast(id)}
             onDeleted={afterEpisodeDeleted}
           />
         </div>
@@ -845,7 +881,7 @@ export default function MobileHomePage() {
                   <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
                     {pickedCrew
                       ? "Start directing puts these people back on CAST with their faces."
-                      : "Tap a saved cast to bring them back. Same as a music video band."}
+                      : "Or tap New from this on an older episode in Your episodes."}
                   </div>
                 </div>
               ) : null}

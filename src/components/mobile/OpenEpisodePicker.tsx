@@ -19,6 +19,7 @@ export function OpenEpisodePicker({
   activeJobId,
   onOpen,
   onNew,
+  onNewFromCast,
   onDeleted,
   open: openProp,
   onOpenChange,
@@ -32,6 +33,8 @@ export function OpenEpisodePicker({
   onOpen: (jobId: string) => void;
   /** Optional — New episode without wiping the old one. */
   onNew?: () => void;
+  /** Skidmarks: mint a new job from this episode's CAST. Old pack stays. */
+  onNewFromCast?: (jobId: string) => void;
   /** Fired after a successful delete (so the desk can clear if it was open). */
   onDeleted?: (jobId: string) => void;
   /** Controlled open (toolbar). Omit for always-visible list. */
@@ -204,18 +207,35 @@ export function OpenEpisodePicker({
                       </button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      className="open-episode-picker-delete"
-                      aria-label={`Delete ${episodeListTitle(job)}`}
-                      disabled={Boolean(deletingId)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmId(job.id);
-                      }}
-                    >
-                      Delete
-                    </button>
+                    <div className="open-episode-picker-row-actions">
+                      {onNewFromCast && job.styleId === "skidmarks" && (job.speakers || []).length ? (
+                        <button
+                          type="button"
+                          className="open-episode-picker-from"
+                          aria-label={`New episode from ${episodeListTitle(job)} cast`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmId(null);
+                            onNewFromCast(job.id);
+                            setOpen(false);
+                          }}
+                        >
+                          New from this
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="open-episode-picker-delete"
+                        aria-label={`Delete ${episodeListTitle(job)}`}
+                        disabled={Boolean(deletingId)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmId(job.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   )}
                 </li>
               );
