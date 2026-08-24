@@ -28,9 +28,8 @@ export const MUSIC_VIDEO_CAMERAS = {
 } as const;
 
 /**
- * Jack Ghost cutaway — a couple of walk-aways only.
- * Most of Forgotten is Jack singing (hidden face, body, hands, high notes).
- * Plates for these come from stills he shares. Do not invent a tree / lean plate.
+ * Jack Ghost walk-away cameras — kept for a later cutaway.
+ * Forgotten who-plays now sings Jack and only tries sax. Grok videos fill fails.
  */
 export const JACK_WALK_CAMERAS = [
   "WIDE from behind. He walks away from camera into the dark, smaller in frame. Full silhouette — fedora, dark suit. Ominous. Not a portrait. Not facing camera.",

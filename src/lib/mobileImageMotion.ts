@@ -538,6 +538,9 @@ const JACK_FACE_HIDDEN =
 const HORN_ACTUALLY_PLAYS =
   "Fade in. He is actually playing the trumpet: lips sealed on the mouthpiece, cheeks puff and release, fingers work the valves, breath in time with the music. Not posing. Not smiling at the camera. Not holding the horn still. Fade out before the end. Same man when he revolves back — same vest, same trumpet, not a new player.";
 
+const SAX_ACTUALLY_PLAYS =
+  "Fade in. He is actually playing the saxophone: reed in the mouth, fingers work the keys, breath in time with the music. Not posing. Not smiling at the camera. Not holding the sax still. Fade out before the end. Same man when he revolves back — same clothes, same saxophone, not a new player.";
+
 function isJackGhostSpeaker(speaker: string): boolean {
   return /jack ghost/i.test(speaker || "");
 }
@@ -566,9 +569,11 @@ export function buildScratchSongLtxMotion(opts: {
   const walkCamera = jackWalkCameraForStartSec(opts.startSec ?? 0);
   const action =
     performance === "play"
-      ? /horn|trumpet/i.test(`${opts.speaker} ${opts.staging || ""}`)
-        ? `${who} is prominent. ${HORN_ACTUALLY_PLAYS}`
-        : `${who} is prominent, hands and body play the same instrument as the start image, in time with the music. Not posing. Fingers and breath move.`
+      ? /sax/i.test(`${opts.speaker} ${opts.staging || ""}`)
+        ? `${who} is prominent. ${SAX_ACTUALLY_PLAYS}`
+        : /horn|trumpet/i.test(`${opts.speaker} ${opts.staging || ""}`)
+          ? `${who} is prominent. ${HORN_ACTUALLY_PLAYS}`
+          : `${who} is prominent, hands and body play the same instrument as the start image, in time with the music. Not posing. Fingers and breath move.`
       : performance === "sway"
         ? `${who} is prominent, body and shoulders sway to the groove. Cyan mouth line stays still. Not singing. Not lip-sync.`
         : walk
