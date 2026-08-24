@@ -21,26 +21,47 @@ import {
   talkNextShotTitle,
   talkSceneBands,
   talkSceneColor,
+  talkSkidmarksActsFrom,
 } from "../src/lib/talkClipTimeline.ts";
-import { skidmarksTemplateFromJob } from "../src/lib/scriptBlueprint.ts";
+import { skidmarksBlankFromJob, skidmarksTemplateFromJob } from "../src/lib/scriptBlueprint.ts";
 import { buildAiWriterBrief } from "../src/lib/cursorAiWriterTemplate.ts";
 
 const filledPlan = skidmarksTemplateFromJob({
   speakers: ["MATTY", "CRAZY BIG HOLE JO TOO"],
   scenes: [{ placeName: "Upstairs lounge" }, { placeName: "Matty bar — night" }],
+  folderName: "CRAZY_BIG_HOLE_JO",
 });
 assert.match(filledPlan, /THE STORY SPINE/);
 assert.match(filledPlan, /GETS SMASHED/);
-assert.match(filledPlan, /CHARACTER: MATTY, CRAZY BIG HOLE JO TOO/);
-assert.match(filledPlan, /LOCATION: Upstairs lounge, Matty bar — night/);
+assert.match(filledPlan, /MASTER EPISODE CONSTRUCTION TEMPLATE/);
+assert.match(filledPlan, /\* \[CAST_MAIN\]: MATTY, CRAZY BIG HOLE JO TOO/);
+assert.match(filledPlan, /\* \[ENV_SETS\]: Upstairs lounge, Matty bar — night/);
+assert.match(filledPlan, /\* \[EP_TITLE\]: CRAZY_BIG_HOLE_JO/);
+assert.match(filledPlan, /\* \[GENRE_STYLE\]: PURE_3D/);
+assert.match(filledPlan, /FORMAT EXAMPLE ONLY — Little Red Riding Hood/);
+assert.match(filledPlan, /The Wolf/);
+assert.match(filledPlan, /Grandmother\? I've brought you some fresh cakes/);
 assert.doesNotMatch(filledPlan, /Shots 1–3: THREE lines/);
+const blankOnly = filledPlan.slice(0, filledPlan.indexOf("FORMAT EXAMPLE ONLY"));
+assert.match(blankOnly, /\* \[CAST_MAIN\]: MATTY, CRAZY BIG HOLE JO TOO/);
+assert.doesNotMatch(blankOnly, /Big Bad Wolf/);
+const filledBlank = skidmarksBlankFromJob({
+  speakers: ["MATTY", "CRAZY BIG HOLE JO TOO"],
+  scenes: [{ placeName: "Upstairs lounge" }, { placeName: "Matty bar — night" }],
+  folderName: "CRAZY_BIG_HOLE_JO",
+});
+assert.match(filledBlank, /MASTER EPISODE CONSTRUCTION TEMPLATE/);
+assert.match(filledBlank, /\* \[CAST_MAIN\]: MATTY, CRAZY BIG HOLE JO TOO/);
+assert.doesNotMatch(filledBlank, /Little Red Riding Hood/);
+assert.doesNotMatch(filledBlank, /SHOW VOICE/);
 
 const skidBrief = buildAiWriterBrief("skidmarks", {
   cast: [{ name: "MATTY", brief: "" }],
   places: ["Upstairs lounge"],
 });
 assert.match(skidBrief, /THE STORY SPINE/);
-assert.match(skidBrief, /CHARACTER: MATTY/);
+assert.match(skidBrief, /\* \[CAST_MAIN\]: MATTY/);
+assert.match(skidBrief, /Little Red Riding Hood/);
 assert.doesNotMatch(skidBrief, /Shot 4: punch/);
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -262,6 +283,18 @@ assert.equal(actScripts[0].roman, "I");
 assert.equal(actScripts[1].roman, "II");
 assert.match(actScripts[0].script, /SHOT 01/);
 assert.match(actScripts[1].script, /SHOT 04|MATTY BAR|bar/i);
+const skidActs = talkSkidmarksActsFrom(desk.cells);
+assert.equal(skidActs.length, 9);
+assert.deepEqual(
+  skidActs.map((a) => a.roman),
+  ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"],
+);
+assert.equal(skidActs[0].title, "He shows up");
+assert.equal(skidActs[8].title, "The end state");
+assert.match(skidActs[0].script, /SHOT 01/);
+assert.match(skidActs[1].script, /SHOT 04|MATTY BAR|bar/i);
+assert.match(skidActs[8].script, /No lines on this stage yet/);
+assert.equal(talkSkidmarksActsFrom([]).length, 9);
 
 const plateOnly = talkClipDeskFrom({
   story,
@@ -289,12 +322,18 @@ assert.match(talkUi, /\+ Add clip/);
 assert.match(talkUi, /Send this/);
 assert.match(talkUi, /Remove slot/);
 assert.match(talkUi, /Act \{act\.roman\}/);
-assert.match(talkUi, /this stretch, not a song/);
+assert.match(talkUi, /talkSkidmarksActsFrom/);
+assert.match(talkUi, /live pack on this stage/);
+assert.match(talkUi, /skidmarksBlankFromJob/);
+assert.match(talkUi, /Copy blank template/);
+assert.match(talkUi, /m-talk-copy-icon/);
 assert.match(talkUi, /styleId === "skidmarks"/);
-assert.match(talkUi, /skidmarksTemplateFromJob/);
-assert.match(talkUi, /Copy template/);
 assert.match(talkCss, /\.m-talk-template-link/);
 assert.match(talkCss, /\.m-talk-act-panel/);
+assert.match(talkCss, /\.m-talk-act-script/);
+assert.match(talkCss, /\.m-talk-copy-icon/);
+assert.match(talkCss, /\.m-talk-act-script\s*\{[^}]*width:\s*100%/s);
+assert.doesNotMatch(talkCss, /minmax\(14rem,\s*1fr\)/);
 assert.match(talkUi, /audioSrc && !clipSrc/);
 assert.doesNotMatch(talkUi, /Drop the mp3|Start the video|WaveformCanvas|m-talk-tools-video|scrollIntoView|revealPlates/);
 assert.match(talkCss, /\.m-talk-desk-scroll\s*\{[^}]*overflow-x:\s*auto/s);
