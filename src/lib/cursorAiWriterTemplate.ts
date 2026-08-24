@@ -232,7 +232,7 @@ function skidBrief(live?: AiWriterLiveData): string {
   return `SKIDMARKS — AI episode writer brief
 ${GOOGLE_INSTRUCTION}
 
-Give this whole document to Google AI / ChatGPT. Paste the SCENE / SHOT / BEAT reply into Lab. Do not paste it into the talking Act box — that box is the live desk, not a new episode.
+Give this whole document to Google AI / ChatGPT. Paste the filled MASTER EPISODE CONSTRUCTION TEMPLATE back and Lock. Do not paste it into a live Act box to overwrite a pack.
 
 WHAT THIS SHOW IS
 Stylised 3D nasty English / Australian comedy. Every episode walks the same nine-stage plan. Only the prick and the place change.
