@@ -519,6 +519,7 @@ function parseConstructionTemplate(
       shotNo += 1;
       let placeName = actPlace;
       let visual = "";
+      let budget = "";
       let sfx = "";
       let music = "";
       let cutaway = "";
@@ -535,6 +536,7 @@ function parseConstructionTemplate(
         if (tag) {
           mode = tag.key;
           if (tag.key === "ENV" && tag.value) placeName = tag.value;
+          if (tag.key === "BUDGET_TIER") budget = tag.value;
           if (tag.key === "VISUAL_ACTION") visual = tag.value;
           if (tag.key === "SFX") sfx = tag.value;
           if (tag.key === "MUSIC") music = tag.value;
@@ -559,6 +561,7 @@ function parseConstructionTemplate(
       const actBit = actName.replace(/^[IVX]+\s*—\s*/i, "").trim() || actName;
       const tags = [
         actName ? `[ACT] ${actName}` : "",
+        budget ? `[BUDGET_TIER] ${budget}` : "",
         visual ? `[VISUAL_ACTION] ${visual}` : "",
         sfx ? `[SFX] ${sfx}` : "",
         music ? `[MUSIC] ${music}` : "",

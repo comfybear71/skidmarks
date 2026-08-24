@@ -92,6 +92,7 @@ const construction = `## MASTER EPISODE CONSTRUCTION TEMPLATE
 * [ACT]: I — He shows up
 * [ENV]: Front of the houses
 ## <SHOT_01>
+* [BUDGET_TIER]: CHEAP_TAKE
 * [VISUAL_ACTION]: Comfy strolls down the gravel.
 * [SFX]: Crunching gravel.
 ## <SHOT_02>
@@ -128,6 +129,7 @@ assert.equal(built.story.scenes[1].shots[0].beats[0].text, "Go dive for 'em, loo
 assert.equal(built.story.scenes[2].shots[0].beats.length, 2);
 assert.equal(built.story.scenes[2].shots[0].beats[0].speaker, "Ladder One");
 assert.equal(built.story.scenes[2].shots[0].beats[1].speaker, "Crazy Big Hole Jo Too");
+assert.match(built.story.scenes[0].shots[0].summary, /\[BUDGET_TIER\] CHEAP_TAKE/);
 assert.match(built.story.scenes[0].shots[1].summary, /\[VISUAL_ACTION\]/);
 assert.match(built.story.scenes[0].shots[1].staging || "", /window/);
 assert.equal(storyHasSpokenLine(built.story), true);

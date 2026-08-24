@@ -42,11 +42,16 @@ assert.match(filledPlan, /\* \[CAST_MAIN\]: MATTY, CRAZY BIG HOLE JO TOO/);
 assert.match(filledPlan, /\* \[ENV_SETS\]: Upstairs lounge, Matty bar — night/);
 assert.match(filledPlan, /\* \[EP_TITLE\]: CRAZY_BIG_HOLE_JO/);
 assert.match(filledPlan, /\* \[GENRE_STYLE\]: PURE_3D/);
-assert.match(filledPlan, /FORMAT EXAMPLE ONLY — Little Red Riding Hood/);
-assert.match(filledPlan, /The Wolf/);
-assert.match(filledPlan, /Grandmother\? I've brought you some fresh cakes/);
+assert.match(filledPlan, /FORMAT EXAMPLE — Skidmarks talking stills/);
+assert.match(filledPlan, /CrackWhore Darryl sits at the bar/);
+assert.doesNotMatch(filledPlan, /Little Red Riding Hood/);
+assert.doesNotMatch(filledPlan, /The Wolf/);
+assert.doesNotMatch(filledPlan, /cartoon eyes widening/);
+assert.doesNotMatch(filledPlan, /LTX simulation triggers/);
+assert.doesNotMatch(filledPlan, /handheld-style shaky cam/);
+assert.doesNotMatch(filledPlan, /Choose: CARTOON/);
 assert.doesNotMatch(filledPlan, /Shots 1–3: THREE lines/);
-const blankOnly = filledPlan.slice(0, filledPlan.indexOf("FORMAT EXAMPLE ONLY"));
+const blankOnly = filledPlan.slice(0, filledPlan.indexOf("FORMAT EXAMPLE —"));
 assert.match(blankOnly, /\* \[CAST_MAIN\]: MATTY, CRAZY BIG HOLE JO TOO/);
 assert.doesNotMatch(blankOnly, /Big Bad Wolf/);
 const filledBlank = skidmarksBlankFromJob({
@@ -72,7 +77,9 @@ const skidBrief = buildAiWriterBrief("skidmarks", {
 });
 assert.match(skidBrief, /THE STORY SPINE/);
 assert.match(skidBrief, /\* \[CAST_MAIN\]: MATTY/);
-assert.match(skidBrief, /Little Red Riding Hood/);
+assert.match(skidBrief, /FORMAT EXAMPLE — Skidmarks talking stills/);
+assert.doesNotMatch(skidBrief, /Little Red Riding Hood/);
+assert.doesNotMatch(skidBrief, /cartoon eyes widening/);
 assert.doesNotMatch(skidBrief, /Shot 4: punch/);
 
 const here = dirname(fileURLToPath(import.meta.url));

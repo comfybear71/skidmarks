@@ -86,7 +86,7 @@ RENDER STYLE — every PLATE follows this, no exceptions.
   bright and warm at the open, draining to overcast and grey through the middle, one
   burst of warm golden light at THE FAKE WIN, then straight to the darkest light of the
   episode the moment it's taken away, ending in night/hard institutional light at THE END.
-- ⛔ These words must NEVER appear in a PLATE: cartoon, comix, comic, ink outlines, black
+- These words must NEVER appear in a PLATE: cartoon, comix, comic, ink outlines, black
   outlines, crosshatching, flat colour, hand-drawn, illustration, cel, speed lines, 2D,
   underground comix, R. Crumb. (Crumb/Viz/Ralph Steadman are attitude and grotesquery
   references only — never a rendering instruction.)
@@ -116,10 +116,10 @@ Every person, spoken line, sound, and music bed is a [ ] tag. Those tags land on
 [DIAL] who speaks and the line — that is the Saved audio.
 [SFX] every sound in the shot (door shut, birds, glass). Leave blank only if the shot is silent.
 [MUSIC] bed under the line, or blank.
-[VISUAL_ACTION] what moves from the still.
+[VISUAL_ACTION] on a CHEAP_TAKE is a sitting talking-head — face and upper chest, facing camera, empty hands. Do not write cartoon, LTX simulation, shaky cam, or a motion pass on a still.
 [CUTAWAY] or blank.
 Do not invent a sound without an [SFX] tag.
-The Little Red Riding Hood block is a format example only — not a Skidmarks episode.`;
+Copy the tag shape from the Skidmarks talking example. Do not copy a fairy tale or a wolf.`;
 
 /** Blank construction script. Pack cast and places get filled in. */
 export const EPISODE_CONSTRUCTION_BLANK = `## MASTER EPISODE CONSTRUCTION TEMPLATE
@@ -127,7 +127,7 @@ export const EPISODE_CONSTRUCTION_BLANK = `## MASTER EPISODE CONSTRUCTION TEMPLA
 
 * [EP_NUM]:
 * [EP_TITLE]:
-* [GENRE_STYLE]: [Choose: CARTOON | PURE_3D | PHOTOREAL_LTX | HYBRID]
+* [GENRE_STYLE]: PURE_3D
 * [TARGET_RUN_TIME]:
 
 ------------------------------
@@ -152,86 +152,60 @@ ${NINE_ACT_BLOCKS}
 * [GRAIN_OVERLAY]: [Film Grain / Cell texture / None]
 * [MASTER_AUDIO_NOTE]:`;
 
-/** Format example only — not a Skidmarks episode. */
-export const EPISODE_CONSTRUCTION_EXAMPLE = `FORMAT EXAMPLE ONLY — Little Red Riding Hood. This is not a Skidmarks episode. Copy the shape, not the wolf story.
+/** Format example — Skidmarks talking stills. Copy the tags, not a new story. */
+export const EPISODE_CONSTRUCTION_EXAMPLE = `FORMAT EXAMPLE — Skidmarks talking stills. Copy the tags. CHEAP_TAKE is a sitting talking-head.
 
 ## MASTER EPISODE CONSTRUCTION TEMPLATE
 ## [EPISODE_METADATA]
 
 * [EP_NUM]: 01
-* [EP_TITLE]: The Wolf’s Feast
-* [GENRE_STYLE]: HYBRID (Cartoon character overlayed onto Photoreal LTX environments)
-* [TARGET_RUN_TIME]: 03:00
+* [EP_TITLE]: The Mansplain Method
+* [GENRE_STYLE]: PURE_3D
+* [TARGET_RUN_TIME]:
 
 ------------------------------
 ## [CAST_AUDIT]
-* [CAST_MAIN]: Red Riding Hood (Cartoon 3D shader model), The Big Bad Wolf (Photoreal LTX fur-render disguised in Grandma's nightgown).
-* [CAST_BACKGROUND]: None.
-* [ENV_SETS]: Grandma’s Cabin Interior (Dark, dusty, volumetric sunbeams through wooden slats).
-* [PROP_LIST]: Wicker basket, porcelain teacup, velvet-quilted bed, Grandma's wire-rimmed glasses.
+* [CAST_MAIN]: CrackWhore Darryl, Sarah, Chloe
+* [CAST_BACKGROUND]:
+* [ENV_SETS]: Dirty Dog Pub
+* [PROP_LIST]:
 
 ------------------------------
 ## [EPISODE_TIMELINE]
-## <SCENE_03>
+## <ACT_I>
 
-* [ACT]: III — The feast (format example — not a Skidmarks stage)
-* [ENV]: Grandma's Bedroom
-* [CAST]: Red Riding Hood, The Big Bad Wolf
-* [TIME_LIGHTING]: Late Afternoon. Low-key, dramatic Chiaroscuro lighting. Deep shadows with bright amber sunbeams hitting the bed.
+* [ACT]: I — He shows up
+* [ACT_NOTE]:
+* [ENV]: Dirty Dog Pub
+* [CAST]: CrackWhore Darryl, Sarah, Chloe
+* [TIME_LIGHTING]:
 
 ## <SHOT_01>
 
 * [BUDGET_TIER]: CHEAP_TAKE
-* [CAST]: Red Riding Hood
-* [VISUAL_ACTION]: Wide establishing shot. Red enters the cabin door, holding her basket. Camera is completely static. Red walks from screen-left to center-frame.
-* [DIAL]: RED: "Grandmother? I've brought you some fresh cakes and warm butter from Mother."
-* [SFX]: Wooden door creaking open, heavy rhythmic footsteps on old floorboards.
-* [MUSIC]: Muted Suspense — Low strings, slow tempo, high-pitched eerie violin note holding in the background.
+* [CAST]: CrackWhore Darryl
+* [VISUAL_ACTION]: CrackWhore Darryl sits at the bar, facing camera, mouth clear, empty hands.
+* [DIAL]: CRACKWHORE DARRYL: "[grunts] Move over princess, Crack whore got to sit."
+* [SFX]: Pub door thud
+* [MUSIC]:
 * [CUTAWAY]:
 
 ## <SHOT_02>
 
 * [BUDGET_TIER]: CHEAP_TAKE
-* [VISUAL_ACTION]: Medium over-the-shoulder shot looking past Red at the bed. The Wolf is sitting up, pulled into the shadows. Only his silhouette and the glint of Grandma's wire glasses are visible.
-* [DIAL]: WOLF: "(Strained, high-pitched rasp) Come closer, my sweet child. Lay your basket by the hearth."
-* [SFX]: Rustling of heavy bed sheets.
-* [MUSIC]: Muted Suspense — The high violin note gets slightly louder.
-* [CUTAWAY]:
-
-## <SHOT_03>
-
-* [BUDGET_TIER]: EXPENSIVE_TAKE
-* [VISUAL_ACTION]: Extreme close-up tracking shot. The camera slowly pans across the Wolf's face as he leans into a sunbeam. LTX simulation triggers: realistic hyper-detailed wolf fur rippling, saliva pooling on a sharp fang, and a sudden digital twitch of his large wolf ear.
-* [DIAL]: RED (O.S.): "Oh... Grandmother. What big ears you have."
-* [WOLF]: "The better to hear you with, my dear..."
-* [SFX]: Deep, wet guttural growl vibrating beneath the high voice.
-* [MUSIC]: Tension Spike — A sudden, sharp cello pluck.
-* [CUTAWAY]:
-
-## <SHOT_04>
-
-* [BUDGET_TIER]: EXPENSIVE_TAKE
-* [VISUAL_ACTION]: Low-angle, handheld-style shaky cam looking up at Red. She takes a dramatic step back, her cartoon eyes widening in terror.
-* [DIAL]: RED: "And Grandmother... what monstrously big teeth you have!"
-* [SFX]: Fabric tearing as the Wolf violently shifts weight in the bed.
-* [MUSIC]: The Drop — Orchestral swell, brass section enters at maximum intensity.
-* [CUTAWAY]: [CUTAWAY_FLASHBACK_01]: Quick 0.5-second flash frame showing the Woodsman swinging his sharp iron axe in the forest, establishing the rescue setup for the next scene.
-
-## <SHOT_05>
-
-* [BUDGET_TIER]: EXPENSIVE_TAKE
-* [VISUAL_ACTION]: Dynamic LTX motion pass. The Wolf leaps directly out of the bed toward the camera, nightgown flying open, claws extended. Red drops her basket in slow motion. Cakes scatter across the floor in a full physics simulation pass. Cut to black just as the Wolf's jaws fill the frame.
-* [DIAL]: WOLF: "The better to EAT YOU WITH!"
-* [SFX]: Loud wood crashing, wicker basket smashing, a piercing, stylized cartoon scream from Red cutting off abruptly into a heavy bass thud.
-* [MUSIC]: Climax Crash — Loud, sudden orchestral hit, instantly transitioning into complete silence on the cut to black.
+* [CAST]: Sarah
+* [VISUAL_ACTION]: Sarah sits at the bar, facing camera, mouth clear, empty hands.
+* [DIAL]: SARAH: "You smell like a dead badger."
+* [SFX]: Glass clink
+* [MUSIC]:
 * [CUTAWAY]:
 
 ------------------------------
 ## [POST_COMP_INSTRUCTIONS]
 
-* [COLOR_LUT]: Grim-Fairytale-Teal-And-Gold (Crushed shadows, vibrant warm highlights on Red's cloak).
-* [GRAIN_OVERLAY]: 35mm Vintage Film Grain (To blend the sharp 3D cartoon edges smoothly into the photorealistic LTX background assets).
-* [MASTER_AUDIO_NOTE]: Apply a heavy digital low-pass filter to the audio during the final cut to black to maximize the shocking silence.`;
+* [COLOR_LUT]:
+* [GRAIN_OVERLAY]:
+* [MASTER_AUDIO_NOTE]:`;
 
 export const EPISODE_TEMPLATE = `${EPISODE_TEMPLATE_RULES}
 
