@@ -55,8 +55,11 @@ assert.ok(!slices.some((s) => s.performance === "sway"));
 const jackSlices = slices.filter((s) => s.who === "jack");
 const jackWalk = jackSlices.filter((s) => s.performance === "walk");
 const jackSing = jackSlices.filter((s) => s.performance === "sing");
-assert.ok(jackWalk.length >= 4, `expected lots of Jack walk slices, got ${jackWalk.length}`);
-assert.ok(jackSing.length >= 4, `expected Jack sing slices for body/hands/high notes, got ${jackSing.length}`);
+assert.equal(jackWalk.length, 2, `expected a couple of Jack cutaways, got ${jackWalk.length}`);
+assert.ok(jackSing.length >= 6, `expected Jack mostly singing, got ${jackSing.length} sing`);
+const jackSingSec = jackSing.reduce((n, s) => n + s.durationSec, 0);
+const jackAllSec = jackSlices.reduce((n, s) => n + s.durationSec, 0);
+assert.ok(jackSingSec / jackAllSec >= 0.85, `expected ~90% Jack sing, got ${jackSingSec}/${jackAllSec}`);
 const firstJack = jackSlices.find((s) => Math.round(s.startSec) === 46);
 assert.equal(firstJack?.performance, "sing");
 assert.ok(
@@ -156,7 +159,7 @@ for (const startSec of JACK_WALK_START_SEC) {
   walkAngles.add(camera);
 }
 assert.equal(walkAngles.size, JACK_WALK_START_SEC.length);
-assert.ok(walkAngles.size >= 4);
+assert.ok(walkAngles.size >= 2);
 assert.equal(
   skipSongLipSyncLead({ speaker: "JACK GHOST", performance: "walk", singing: true }),
   true,

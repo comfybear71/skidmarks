@@ -28,20 +28,17 @@ export const MUSIC_VIDEO_CAMERAS = {
 } as const;
 
 /**
- * Jack Ghost walk-away — camera stays behind the silhouette.
- * Face never readable. Not over-the-shoulder looking back (that lights a face).
- * Rotate these across Forgotten walk slices so the angles change.
+ * Jack Ghost cutaway — a couple of walk-aways only.
+ * Most of Forgotten is Jack singing (hidden face, body, hands, high notes).
+ * Plates for these come from stills he shares. Do not invent a tree / lean plate.
  */
 export const JACK_WALK_CAMERAS = [
   "WIDE from behind. He walks away from camera into the dark, smaller in frame. Full silhouette — fedora, dark suit. Ominous. Not a portrait. Not facing camera.",
-  "LOW ANGLE from behind, looking up as he walks away. Fedora brim and coat. Face stays black. Suspense.",
-  "HIGH ANGLE from behind, looking down as he walks away into darkness. Small in the place. Silhouette only.",
   "THREE-QUARTER REAR. Walking away, slight angle so the hat and shoulders read, face stays black. Not looking back over the shoulder.",
-  "MEDIUM from behind. Fedora and shoulders as he walks away. No eyes. No mouth. No cyan glow on a face.",
 ] as const;
 
-/** Forgotten Jack 30s slice starts that walk away (sing stays on the others). */
-export const JACK_WALK_START_SEC = [106, 126, 186, 251] as const;
+/** Two short cutaways. Everything else is sing. */
+export const JACK_WALK_START_SEC = [106, 186] as const;
 
 export function isJackWalkStartSec(startSec: number): boolean {
   const start = Math.round(startSec);
