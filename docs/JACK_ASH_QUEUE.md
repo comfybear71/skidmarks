@@ -26,6 +26,6 @@ He also wants, later, to mark **who is playing** (singer / horn / sax) on the mp
 
 ## Study first
 
-He said study requirements before we make Jack Ash videos. The new visual floor is **concert loop plates** (gold/black hypnotic art, no band on them) **plus** the people stills. See `docs/CONCERT_LOOP_PLATE.md`.
+He said study requirements before we make Jack Ash videos. The new visual floor is **concert loop plates** (Double Talkin' Jive / Bangkok Thunderdome gold-skull LED loops, no band on them) **plus** the people stills. See `docs/CONCERT_LOOP_PLATE.md`.
 
-Do not treat a Jack Ash video as “five member stills + Generate cuts” only.
+**2026-08-24:** he pasted the full I2V / LTX-2.5 notes and said study now, implement after a few more video test runs. PRs #310 and #311 are done. Do not treat a Jack Ash video as “five member stills + Generate cuts” only.
