@@ -17,6 +17,7 @@ import {
   talkClipClock,
   talkClipDeskFrom,
   talkClipWidthPx,
+  talkNextShotTitle,
   talkSceneBands,
   talkSceneColor,
 } from "../src/lib/talkClipTimeline.ts";
@@ -141,6 +142,33 @@ const fromStoryOnly = talkTimelineFrom({
 });
 assert.equal(fromStoryOnly[0].plateFile, "phone.png", "story still lands when the job row is empty");
 
+const titledEmpty = talkTimelineFrom({
+  story: {
+    ...story,
+    scenes: [
+      {
+        id: "scene_lounge",
+        title: "Upstairs lounge",
+        placeName: "Upstairs lounge",
+        worldThumbKey: "",
+        shots: [
+          {
+            id: "shot_05",
+            title: "SHOT 05 — MATTY",
+            summary: "",
+            plateFile: "",
+            beats: [{ id: "b6", speaker: "MATTY", text: "" }],
+            sfx: [],
+          },
+        ],
+      },
+    ],
+  },
+  plated: [{ shotId: "shot_05", sceneId: "scene_lounge", plateFile: "" }],
+});
+assert.equal(titledEmpty[0]?.shotId, "shot_05", "titled empty slot still sits on the talking desk");
+assert.equal(titledEmpty[0]?.episodeNo, 5);
+
 const desk = talkClipDeskFrom({
   story,
   plated,
@@ -205,6 +233,8 @@ const bands = talkSceneBands(desk.cells);
 assert.equal(bands.length, 2);
 assert.equal(bands[0].widthPx, desk.cells[0].widthPx + desk.cells[1].widthPx);
 assert.equal(talkClipClock(8), "8s");
+assert.equal(talkNextShotTitle(desk.cells, "MATTY"), "SHOT 05 — MATTY");
+assert.equal(talkNextShotTitle([], "TEE"), "SHOT 01 — TEE");
 
 const plateOnly = talkClipDeskFrom({
   story,
@@ -222,13 +252,15 @@ assert.ok(!plateOnly.cells.some((c) => c.shotId === "shot_old_bar"), "untitled l
 const talkCss = css.slice(css.indexOf("/* Talking episode strip"));
 const editor = readFileSync(join(root, "src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 assert.match(talkUi, /Talking timeline/);
-assert.match(talkUi, /Tap a box to play it here/);
+assert.match(talkUi, /Tap a box to play it/);
 assert.match(talkUi, /Change audio/);
 assert.match(talkUi, /Add audio/);
 assert.match(talkUi, /Redo clip/);
 assert.match(talkUi, /Add video/);
 assert.match(talkUi, /Remove video/);
-assert.match(talkUi, /plate-only still plays the line/);
+assert.match(talkUi, /\+ Add clip/);
+assert.match(talkUi, /Send this/);
+assert.match(talkUi, /Remove slot/);
 assert.match(talkUi, /audioSrc && !clipSrc/);
 assert.doesNotMatch(talkUi, /Drop the mp3|Start the video|WaveformCanvas|m-talk-tools-video|scrollIntoView|revealPlates/);
 assert.match(talkCss, /\.m-talk-desk-scroll\s*\{[^}]*overflow-x:\s*auto/s);
