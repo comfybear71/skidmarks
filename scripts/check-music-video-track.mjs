@@ -45,6 +45,26 @@ const bounds = sliceBoundsForPlate({
 assert.equal(bounds.startSec, 60);
 assert.equal(bounds.durationSec, 15);
 
+const cutWinsTrack = sliceBoundsForPlate({
+  song: {
+    fileName: "song.mp3",
+    durationSec: 180,
+    sliceStartSec: 0,
+    sliceDurationSec: 15,
+    plateTimings: [{ plateId: "shot_a", startMs: 60000, endMs: 75000, sortIndex: 0 }],
+  },
+  shotId: "shot_a",
+  cut: {
+    id: "c",
+    plateFile: "a.png",
+    shotId: "shot_a",
+    startSec: 110,
+    durationSec: 9,
+  },
+});
+assert.equal(cutWinsTrack.startSec, 110);
+assert.equal(cutWinsTrack.durationSec, 9);
+
 const stitched = orderedDoneCutsForStitch({
   fileName: "song.mp3",
   durationSec: 180,

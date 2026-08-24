@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { readMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import {
+  applyForgottenWhoPlays,
+  canApplyForgottenWhoPlays,
+} from "@/lib/forgottenWhoPlays";
+import {
   cutFromPlateTiming,
   songFromTrackDraft,
   type LyricCue,
@@ -58,6 +62,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-draft — pre-lock peaks/markers/timings on job.trackDraft
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
+ *   set-who-plays — Forgotten Jack + trumpet clocks. Sax stays off the song.
  *   remove-plate-timing — clear one plate schedule
  */
 /** Cue rows come off the phone — keep only well-formed, ordered pins. */
@@ -199,6 +204,45 @@ export async function POST(req: Request) {
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated, timing });
+    }
+
+    if (action === "set-who-plays") {
+      const song = job.scratchSong;
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
+      }
+      if (!canApplyForgottenWhoPlays(job)) {
+        return NextResponse.json({ error: "Who-plays is Forgotten only." }, { status: 400 });
+      }
+      const story = await readMobileStory(job.styleId, job.folderName);
+      const shots = (story.scenes || []).flatMap((sc) =>
+        (sc.shots || []).map((sh) => ({
+          shotId: sh.id,
+          plateFile: (sh.plateFile || job.shots.find((s) => s.shotId === sh.id)?.plateFile || "").trim(),
+          title: (sh.title || "").trim(),
+        })),
+      );
+      const laid = applyForgottenWhoPlays({
+        song,
+        shots,
+        newCutId: () => newId("cut"),
+      });
+      if ("error" in laid) {
+        return NextResponse.json({ error: laid.error }, { status: 400 });
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: {
+          ...song,
+          plateTimings: laid.plateTimings,
+          cuts: laid.cuts,
+        },
+        error: "",
+      });
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        added: laid.cuts.length,
+      });
     }
 
     if (action === "remove-plate-timing") {

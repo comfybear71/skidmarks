@@ -229,20 +229,21 @@ export function plateTimingForShot(
   return (draft?.plateTimings || []).find((p) => p.plateId === id) || null;
 }
 
-/** LTX slice bounds — plate timing wins over legacy cut row. */
+/** LTX slice bounds — this cut's clock wins. One plate can sit on the
+ * song more than once (Jack sings, then sways, then sings again). */
 export function sliceBoundsForPlate(opts: {
   song: ScratchSong;
   shotId: string;
   cut?: ScratchSongCut;
 }): { startSec: number; durationSec: number } {
+  if (opts.cut) {
+    return clampSongWindow(opts.cut.startSec, opts.cut.durationSec, opts.song.durationSec);
+  }
   const timing = (opts.song.plateTimings || []).find((p) => p.plateId === opts.shotId);
   if (timing && timing.endMs > timing.startMs) {
     const startSec = msToSec(timing.startMs);
     const durationSec = msToSec(timing.endMs - timing.startMs);
     return clampSongWindow(startSec, durationSec, opts.song.durationSec);
-  }
-  if (opts.cut) {
-    return clampSongWindow(opts.cut.startSec, opts.cut.durationSec, opts.song.durationSec);
   }
   return clampSongWindow(0, clampSongSliceDuration(opts.song.sliceDurationSec), opts.song.durationSec);
 }

@@ -17,7 +17,7 @@ import {
   buildScratchSongLtxMotion,
   buildSegmentText,
   buildGlobalPrompt,
-  isInstrumentalStaging,
+  skipSongLipSyncLead,
   ltxSendPrompt,
   stripLtxLipSyncLead,
   looksLikePlatePositionPrompt,
@@ -178,6 +178,10 @@ export async function runScratchLtxClip(opts: {
     !looksLikePlatePositionPrompt(stored);
   // Song slices must rebuild the identity lock every cut — a stored beat
   // prompt from an earlier draw lets later takes invent a new face.
+  const cutRow = opts.cutId
+    ? (song?.cuts || []).find((c) => c.id === opts.cutId)
+    : undefined;
+  const performance = cutRow?.performance;
   const body =
     (singing
       ? buildScratchSongLtxMotion({
@@ -185,6 +189,7 @@ export async function runScratchLtxClip(opts: {
           speaker,
           lookLock,
           staging: storyShot.staging,
+          performance,
         })
       : "") ||
     (storedOk ? stored : "") ||
@@ -195,12 +200,14 @@ export async function runScratchLtxClip(opts: {
       lookLock,
       shotSpeakers: shotCast,
     });
-  // Skip lively lip-sync lead only for instrumental plates (sax etc.).
-  // Lit singers need the lead — same as Scratch yesterday before #259.
-  // Do not skip for guessed "silhouette" staging: that bled into other characters.
   const stagingText = storyShot.staging || "";
   const imageMotion = ltxSendPrompt(body, stagingText, {
-    skipLipSyncLead: singing && isInstrumentalStaging(stagingText),
+    skipLipSyncLead: skipSongLipSyncLead({
+      speaker,
+      staging: stagingText,
+      performance,
+      singing,
+    }),
   });
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
