@@ -142,6 +142,7 @@ console.log("check-music-video-track-lyrics OK");
   assert.match(ui, /set-lyric-cues/, "existing sections get pins without rewriting times");
   assert.match(ui, /Start here/, "pin section start at playhead");
   assert.match(ui, /Clear sections/, "wipe broken section rows");
+  assert.match(ui, /Clear all/, "Marquee can wipe every pin without touching Sections");
   assert.match(ui, /m-track-time-set/, "explicit Set on time boxes");
   assert.match(ui, /sectionPeopleOnPlates/, "who is on the stills in that section");
 
