@@ -4,9 +4,15 @@
  */
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import type { MobileClipUnit, MobileShotUnit } from "./mobileGenJob";
+import { STORY_SPINE_STAGES } from "./storySpine";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { clipFileBasename } from "./mobilePlateClips";
-import { talkShotNumber, talkTimelineFrom, type TalkTimelinePlate } from "./talkTimeline";
+import {
+  talkShotNumber,
+  talkTimelineFrom,
+  type TalkTimelineEvent,
+  type TalkTimelinePlate,
+} from "./talkTimeline";
 
 /** Next SHOT 0N title so a new slot lands on the talking desk, even with no take. */
 export function talkNextShotTitle(
@@ -85,6 +91,7 @@ export type TalkClipCell = {
   startSec: number;
   widthPx: number;
   clipStatus: MobileClipUnit["clipStatus"] | "empty";
+  events: TalkTimelineEvent[];
 };
 
 export type TalkSceneBand = {
@@ -108,6 +115,7 @@ export type TalkActScript = {
   script: string;
   lineCount: number;
   cellKeys: string[];
+  stageNote?: string;
 };
 
 const TALK_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"] as const;
@@ -146,6 +154,39 @@ export function talkActScriptsFrom(cells: TalkClipCell[]): TalkActScript[] {
     });
   }
   return acts.map((act) => ({ ...act, script: act.script.trim() }));
+}
+
+/**
+ * Skidmarks only — always nine chips, one per locked stage.
+ * Live lines from place stretches map onto the first stages.
+ * Extra stretches stay on stage 9 so nothing on the desk is hidden.
+ * Does not rewrite story_json.
+ */
+export function talkSkidmarksActsFrom(cells: TalkClipCell[]): TalkActScript[] {
+  const stretches = talkActScriptsFrom(cells);
+  const acts: TalkActScript[] = STORY_SPINE_STAGES.map((stage, i) => {
+    const stretch = stretches[i];
+    return {
+      id: `stage-${stage.n}`,
+      sceneId: stretch?.sceneId || `stage-${stage.n}`,
+      roman: talkActRoman(stage.n),
+      title: stage.title,
+      stageNote: stage.note,
+      script:
+        stretch?.script ||
+        `${stage.title}\n${stage.note}\n\nNo lines on this stage yet.`,
+      lineCount: stretch?.lineCount || 0,
+      cellKeys: stretch?.cellKeys || [],
+    };
+  });
+  const leftovers = stretches.slice(STORY_SPINE_STAGES.length);
+  const last = acts[acts.length - 1];
+  for (const extra of leftovers) {
+    last.script = `${last.script}\n\n${extra.script}`;
+    last.cellKeys.push(...extra.cellKeys);
+    last.lineCount += extra.lineCount;
+  }
+  return acts;
 }
 
 function uniqueByBeat(clips: MobileClipUnit[]): MobileClipUnit[] {
@@ -260,6 +301,7 @@ function cellFrom(opts: {
     startSec: 0,
     widthPx: talkClipWidthPx(durationSec),
     clipStatus: opts.clip?.clipStatus || "empty",
+    events: opts.plate.events || [],
   };
 }
 

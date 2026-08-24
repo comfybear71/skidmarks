@@ -6,7 +6,7 @@ import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStory
 import type { MobileShotUnit } from "./mobileGenJob";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 
-export type TalkTagKind = "dial" | "sfx" | "music" | "cutaway" | "visual" | "budget";
+export type TalkTagKind = "act" | "cast" | "dial" | "sfx" | "music" | "cutaway" | "visual" | "budget";
 
 export type TalkTimelineEvent = {
   id: string;
@@ -35,6 +35,8 @@ export const TALK_PLATE_MIN_PX = 220;
 export const TALK_BEAT_PX = 80;
 
 const TAG_KIND: { kind: TalkTagKind; tag: string; test: RegExp }[] = [
+  { kind: "act", tag: "ACT", test: /^act$/i },
+  { kind: "cast", tag: "CAST", test: /^cast$/i },
   { kind: "dial", tag: "DIAL", test: /^dial$/i },
   { kind: "sfx", tag: "SFX", test: /^sfx$/i },
   { kind: "music", tag: "MUSIC", test: /^music$/i },

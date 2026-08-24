@@ -120,6 +120,11 @@ export type MobileGenJob = {
   /** Unique speaker names — drives the cast_images approval cursor. */
   speakers: string[];
   /**
+   * Names pulled off CAST on purpose. Story/kit leftover beats must not
+   * put them back. Older jobs omit this.
+   */
+  droppedCast?: string[];
+  /**
    * CAST-assigned library voice per speaker name. Lives on the Neon job so
    * the line editor can still find "Sunny Banks Nan" after Vercel /tmp
    * wipes the crash-voice manifest. Older jobs omit this.

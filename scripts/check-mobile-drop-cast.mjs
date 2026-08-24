@@ -4,16 +4,98 @@ import {
   castNamesMatch,
   dropSpeakerFromList,
   dropSpeakerFromRecord,
+  forgetDroppedCast,
+  rememberDroppedCast,
   scrubSpeakerFromStory,
   shotsAfterDroppedSpeaker,
+  speakerWasDropped,
   stripSpeakerWord,
 } from "../src/lib/mobileDropCast.ts";
+import {
+  castPickerFocus,
+  shouldAutoGenerateCastFace,
+  shouldAutoOpenNextCast,
+} from "../src/lib/mobileJobReady.ts";
 
 assert.equal(castNamesMatch("STUBALLS", "stuballs"), true);
 assert.equal(castNamesMatch("STUBALLS", "CRAZY BIG HOLE JO"), false);
+assert.deepEqual(
+  dropSpeakerFromList(["CRAZY BIG HOLE JO", "CRAZY BIG HOLE JO TOO", "MATTY"], "CRAZY BIG HOLE JO"),
+  ["CRAZY BIG HOLE JO TOO", "MATTY"],
+);
 assert.deepEqual(dropSpeakerFromList(["JO", "STUBALLS", "MATTY"], "STUBALLS"), [
   "JO",
   "MATTY",
+]);
+assert.equal(
+  shouldAutoGenerateCastFace({
+    takeCount: 0,
+    everHadTakes: true,
+    alreadyAsked: false,
+  }),
+  false,
+  "× on the last still must not draw a new face",
+);
+assert.equal(
+  shouldAutoGenerateCastFace({
+    takeCount: 0,
+    everHadTakes: false,
+    alreadyAsked: false,
+  }),
+  true,
+  "first open with no stills may still draw one",
+);
+assert.equal(
+  shouldAutoOpenNextCast({
+    speakerCount: 3,
+    openCast: null,
+    firstOpenCast: "TEE",
+    userJustClosed: true,
+  }),
+  false,
+  "Remove from cast must not jump to the next empty person",
+);
+assert.equal(
+  shouldAutoOpenNextCast({
+    speakerCount: 3,
+    openCast: null,
+    firstOpenCast: "TEE",
+    userJustClosed: false,
+  }),
+  true,
+);
+assert.equal(
+  castPickerFocus({
+    openCast: null,
+    firstOpenCast: "TEE",
+    stayClosed: true,
+  }),
+  null,
+  "Remove from cast must not show the next empty person",
+);
+assert.equal(
+  castPickerFocus({
+    openCast: null,
+    firstOpenCast: "TEE",
+    stayClosed: false,
+  }),
+  "TEE",
+);
+assert.equal(
+  castPickerFocus({
+    openCast: "CRAZY BIG HOLE JO",
+    firstOpenCast: "TEE",
+    stayClosed: true,
+  }),
+  "CRAZY BIG HOLE JO",
+);
+assert.deepEqual(
+  rememberDroppedCast(["STUBALLS"], "CRAZY BIG HOLE JO"),
+  ["STUBALLS", "CRAZY BIG HOLE JO"],
+);
+assert.equal(speakerWasDropped(["CRAZY BIG HOLE JO"], "crazy big hole jo"), true);
+assert.deepEqual(forgetDroppedCast(["CRAZY BIG HOLE JO", "STUBALLS"], "CRAZY BIG HOLE JO"), [
+  "STUBALLS",
 ]);
 assert.deepEqual(dropSpeakerFromList(["JO", "MATTY"], "STUBALLS"), ["JO", "MATTY"]);
 assert.deepEqual(dropSpeakerFromRecord({ STUBALLS: 1, JO: 2 }, "stuballs"), { JO: 2 });

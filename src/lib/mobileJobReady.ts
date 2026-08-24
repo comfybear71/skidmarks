@@ -121,6 +121,46 @@ export function keepCandidateTakes<T extends { id: string; fileName: string }>(
   return out;
 }
 
+/** First open with no stills may draw one face. × on the last take must not. */
+export function shouldAutoGenerateCastFace(opts: {
+  skipAutoGenerate?: boolean;
+  busy?: boolean;
+  takeCount: number;
+  everHadTakes: boolean;
+  alreadyAsked: boolean;
+}): boolean {
+  if (opts.skipAutoGenerate || opts.alreadyAsked || opts.busy) return false;
+  if (opts.takeCount > 0) return false;
+  if (opts.everHadTakes) return false;
+  return true;
+}
+
+/** After Remove from cast, do not jump to the next empty person and draw them. */
+export function shouldAutoOpenNextCast(opts: {
+  speakerCount: number;
+  openCast: string | null;
+  firstOpenCast: string | null;
+  userJustClosed: boolean;
+}): boolean {
+  if (opts.userJustClosed) return false;
+  return Boolean(opts.speakerCount && !opts.openCast && opts.firstOpenCast);
+}
+
+/**
+ * Who the CAST picker shows. Remove from cast must not fall through to
+ * the next person without an approved face — that remounts the picker
+ * and draws a new character.
+ */
+export function castPickerFocus(opts: {
+  openCast: string | null;
+  firstOpenCast: string | null;
+  stayClosed: boolean;
+}): string | null {
+  if (opts.openCast) return opts.openCast;
+  if (opts.stayClosed) return null;
+  return opts.firstOpenCast;
+}
+
 /** Drop one take from the strip. Does not delete the file — More still
  * appends; this is an explicit tap on ×. */
 export function dropCandidateTake<T extends { id: string }>(

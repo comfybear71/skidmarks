@@ -1,13 +1,55 @@
 /**
- * The Skidmarks episode template — house rules + the locked story spine.
- * Paste this into an outside AI (Google AI etc) along with a character,
- * location and the fake-win/loses-it/smashed specifics, and it hands back
- * a scene-by-scene breakdown shaped for Studio.
+ * The Skidmarks episode template — house rules + the locked story spine
+ * + the construction script the outside AI must fill.
  *
- * Source of truth also lives as a doc at Skidmarks/docs/EPISODE_TEMPLATE.md —
- * keep the two in sync if this ever changes.
+ * Copy does not change a live pack. Only the prick and the places change.
+ * Other shows get a different template — this file is Skidmarks only.
  */
-export const EPISODE_TEMPLATE = `You are writing a scene-by-scene breakdown for SKIDMARKS, a stylised 3D animated
+
+import { STORY_SPINE_STAGES } from "./storySpine";
+
+const ACT_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"] as const;
+
+function actShotSlots(): string {
+  return `## <SHOT_01>
+
+* [BUDGET_TIER]:
+* [CAST]:
+* [VISUAL_ACTION]:
+* [DIAL]:
+* [SFX]:
+* [MUSIC]:
+* [CUTAWAY]:
+
+## <SHOT_02>
+
+* [BUDGET_TIER]:
+* [CAST]:
+* [VISUAL_ACTION]:
+* [DIAL]:
+* [SFX]:
+* [MUSIC]:
+* [CUTAWAY]:`;
+}
+
+function actBlock(n: number, title: string, note: string): string {
+  const roman = ACT_ROMAN[n - 1] || String(n);
+  return `## <ACT_${roman}>
+* [ACT]: ${roman} — ${title}
+* [ACT_NOTE]: ${note}
+* [ENV]:
+* [CAST]:
+* [TIME_LIGHTING]:
+
+${actShotSlots()}`;
+}
+
+const NINE_ACT_BLOCKS = STORY_SPINE_STAGES.map((stage) =>
+  actBlock(stage.n, stage.title, stage.note),
+).join("\n\n");
+
+/** House rules. This is not the script. */
+export const EPISODE_TEMPLATE_RULES = `You are writing a scene-by-scene breakdown for SKIDMARKS, a stylised 3D animated
 comedy series. Follow every rule below exactly. Output only the breakdown — no
 commentary, no preamble.
 
@@ -67,46 +109,136 @@ Only the prick and the place change. Do not add stages, skip stages, or reorder 
 NARRATOR — one single line, different every episode, spoken by the narrator. Write it
 for stage 9.
 
----
+The block above is house rules, not the script.
+Write the complete episode through all nine ACTS. Name each act with [ACT] exactly as printed in the blank.
+Every person, spoken line, sound, and music bed is a [ ] tag. Those tags land on the talking timeline.
+[CAST] who is in the picture — names from CAST_MAIN only.
+[DIAL] who speaks and the line — that is the Saved audio.
+[SFX] every sound in the shot (door shut, birds, glass). Leave blank only if the shot is silent.
+[MUSIC] bed under the line, or blank.
+[VISUAL_ACTION] what moves from the still.
+[CUTAWAY] or blank.
+Do not invent a sound without an [SFX] tag.
+The Little Red Riding Hood block is a format example only — not a Skidmarks episode.`;
 
-FILL THIS IN BEFORE YOU GENERATE:
+/** Blank construction script. Pack cast and places get filled in. */
+export const EPISODE_CONSTRUCTION_BLANK = `## MASTER EPISODE CONSTRUCTION TEMPLATE
+## [EPISODE_METADATA]
 
-CHARACTER: [name, who they are, what real person/experience they're drawn from]
-LOCATION: [where this episode happens]
-THE FAKE WIN: [what golden gift arrives in stage 5]
-HOW HE LOSES IT: [stage 7 — how it gets ripped away]
-HOW HE GETS SMASHED: [stage 8 — the actual ending]
+* [EP_NUM]:
+* [EP_TITLE]:
+* [GENRE_STYLE]: [Choose: CARTOON | PURE_3D | PHOTOREAL_LTX | HYBRID]
+* [TARGET_RUN_TIME]:
 
----
+------------------------------
+## [CAST_AUDIT]
+List every asset that must exist before parsing the script.
 
-OUTPUT FORMAT — for every scene, write it exactly like this:
+* [CAST_MAIN]:
+* [CAST_BACKGROUND]:
+* [ENV_SETS]:
+* [PROP_LIST]:
 
-SCENE: [which story-spine stage this covers, e.g. "Stage 3 — keeps proving he's a bastard"]
-LOCATION: [place]
+------------------------------
+## [EPISODE_TIMELINE]
+Every act is locked. Do not rename, skip, or reorder. Add more <SHOT_0N> inside an act if that act needs them. CHEAP_TAKE = static talking-head. EXPENSIVE_TAKE = tracking / heavy motion.
 
-SHOT: [short title]
-GLOBAL NUDGE: [one line, or "(none)" — only fill this in if EVERYONE on screen holds ONE
-  shared reaction through the whole shot, e.g. "held wince at the smell". Most shots don't
-  need one — leave it "(none)".]
-GLOBAL: [always starts, word for word: "perfect lip sync, clear lip movement, citing the
-  dialogue clearly, facial expressions and hand gestures are lively, dication is perfect."
-  Add exactly one more sentence only if GLOBAL NUDGE called for a shared reaction, written
-  as face muscles, e.g. "Whoever is on screen holds <muscles>, never a feeling word, the
-  whole scene." Never mentions render style, camera, lighting, or props — that's PLATE's job.]
+${NINE_ACT_BLOCKS}
 
-BEAT: [character name, or "(silent)" if nobody speaks this beat]
-NUDGE: [one line, face-muscle and body-language only, never a feeling word like "angry"]
-LINE: [exact spoken words, with optional bracket delivery tags, written at natural length —
-  never compressed to fit a time — or "(silent)"]
-ACTION: [what their body and face do while they say it (or while silent) — muscles and
-  movement only, never a feeling word]
-PLATE: [the still image this beat renders from. Every character on screen, their locked
-  physical appearance in full, exact position, what their hands are doing, exact
-  expression at this instant. Nothing exists in the shot unless it is written here —
-  motion only moves what is already in this picture, it never adds anything new]
-IMAGE: [VISUAL]: [what moves from PLATE's starting pose, muscles and small movement only]
-  [SPEECH]: [Name] says: "[the LINE, exact, or omit [SPEECH] entirely if this beat is silent]"
+------------------------------
+## [POST_COMP_INSTRUCTIONS]
 
-(repeat BEAT/NUDGE/LINE/ACTION/PLATE/IMAGE for every beat in that shot, then repeat
-GLOBAL NUDGE/GLOBAL and SHOT for every shot in the scene, then repeat SCENE for every scene
-in the episode)`;
+* [COLOR_LUT]: [Unified color grade profile name]
+* [GRAIN_OVERLAY]: [Film Grain / Cell texture / None]
+* [MASTER_AUDIO_NOTE]:`;
+
+/** Format example only — not a Skidmarks episode. */
+export const EPISODE_CONSTRUCTION_EXAMPLE = `FORMAT EXAMPLE ONLY — Little Red Riding Hood. This is not a Skidmarks episode. Copy the shape, not the wolf story.
+
+## MASTER EPISODE CONSTRUCTION TEMPLATE
+## [EPISODE_METADATA]
+
+* [EP_NUM]: 01
+* [EP_TITLE]: The Wolf’s Feast
+* [GENRE_STYLE]: HYBRID (Cartoon character overlayed onto Photoreal LTX environments)
+* [TARGET_RUN_TIME]: 03:00
+
+------------------------------
+## [CAST_AUDIT]
+* [CAST_MAIN]: Red Riding Hood (Cartoon 3D shader model), The Big Bad Wolf (Photoreal LTX fur-render disguised in Grandma's nightgown).
+* [CAST_BACKGROUND]: None.
+* [ENV_SETS]: Grandma’s Cabin Interior (Dark, dusty, volumetric sunbeams through wooden slats).
+* [PROP_LIST]: Wicker basket, porcelain teacup, velvet-quilted bed, Grandma's wire-rimmed glasses.
+
+------------------------------
+## [EPISODE_TIMELINE]
+## <SCENE_03>
+
+* [ACT]: III — The feast (format example — not a Skidmarks stage)
+* [ENV]: Grandma's Bedroom
+* [CAST]: Red Riding Hood, The Big Bad Wolf
+* [TIME_LIGHTING]: Late Afternoon. Low-key, dramatic Chiaroscuro lighting. Deep shadows with bright amber sunbeams hitting the bed.
+
+## <SHOT_01>
+
+* [BUDGET_TIER]: CHEAP_TAKE
+* [CAST]: Red Riding Hood
+* [VISUAL_ACTION]: Wide establishing shot. Red enters the cabin door, holding her basket. Camera is completely static. Red walks from screen-left to center-frame.
+* [DIAL]: RED: "Grandmother? I've brought you some fresh cakes and warm butter from Mother."
+* [SFX]: Wooden door creaking open, heavy rhythmic footsteps on old floorboards.
+* [MUSIC]: Muted Suspense — Low strings, slow tempo, high-pitched eerie violin note holding in the background.
+* [CUTAWAY]:
+
+## <SHOT_02>
+
+* [BUDGET_TIER]: CHEAP_TAKE
+* [VISUAL_ACTION]: Medium over-the-shoulder shot looking past Red at the bed. The Wolf is sitting up, pulled into the shadows. Only his silhouette and the glint of Grandma's wire glasses are visible.
+* [DIAL]: WOLF: "(Strained, high-pitched rasp) Come closer, my sweet child. Lay your basket by the hearth."
+* [SFX]: Rustling of heavy bed sheets.
+* [MUSIC]: Muted Suspense — The high violin note gets slightly louder.
+* [CUTAWAY]:
+
+## <SHOT_03>
+
+* [BUDGET_TIER]: EXPENSIVE_TAKE
+* [VISUAL_ACTION]: Extreme close-up tracking shot. The camera slowly pans across the Wolf's face as he leans into a sunbeam. LTX simulation triggers: realistic hyper-detailed wolf fur rippling, saliva pooling on a sharp fang, and a sudden digital twitch of his large wolf ear.
+* [DIAL]: RED (O.S.): "Oh... Grandmother. What big ears you have."
+* [WOLF]: "The better to hear you with, my dear..."
+* [SFX]: Deep, wet guttural growl vibrating beneath the high voice.
+* [MUSIC]: Tension Spike — A sudden, sharp cello pluck.
+* [CUTAWAY]:
+
+## <SHOT_04>
+
+* [BUDGET_TIER]: EXPENSIVE_TAKE
+* [VISUAL_ACTION]: Low-angle, handheld-style shaky cam looking up at Red. She takes a dramatic step back, her cartoon eyes widening in terror.
+* [DIAL]: RED: "And Grandmother... what monstrously big teeth you have!"
+* [SFX]: Fabric tearing as the Wolf violently shifts weight in the bed.
+* [MUSIC]: The Drop — Orchestral swell, brass section enters at maximum intensity.
+* [CUTAWAY]: [CUTAWAY_FLASHBACK_01]: Quick 0.5-second flash frame showing the Woodsman swinging his sharp iron axe in the forest, establishing the rescue setup for the next scene.
+
+## <SHOT_05>
+
+* [BUDGET_TIER]: EXPENSIVE_TAKE
+* [VISUAL_ACTION]: Dynamic LTX motion pass. The Wolf leaps directly out of the bed toward the camera, nightgown flying open, claws extended. Red drops her basket in slow motion. Cakes scatter across the floor in a full physics simulation pass. Cut to black just as the Wolf's jaws fill the frame.
+* [DIAL]: WOLF: "The better to EAT YOU WITH!"
+* [SFX]: Loud wood crashing, wicker basket smashing, a piercing, stylized cartoon scream from Red cutting off abruptly into a heavy bass thud.
+* [MUSIC]: Climax Crash — Loud, sudden orchestral hit, instantly transitioning into complete silence on the cut to black.
+* [CUTAWAY]:
+
+------------------------------
+## [POST_COMP_INSTRUCTIONS]
+
+* [COLOR_LUT]: Grim-Fairytale-Teal-And-Gold (Crushed shadows, vibrant warm highlights on Red's cloak).
+* [GRAIN_OVERLAY]: 35mm Vintage Film Grain (To blend the sharp 3D cartoon edges smoothly into the photorealistic LTX background assets).
+* [MASTER_AUDIO_NOTE]: Apply a heavy digital low-pass filter to the audio during the final cut to black to maximize the shocking silence.`;
+
+export const EPISODE_TEMPLATE = `${EPISODE_TEMPLATE_RULES}
+
+------------------------------
+
+${EPISODE_CONSTRUCTION_BLANK}
+
+------------------------------
+
+${EPISODE_CONSTRUCTION_EXAMPLE}`;

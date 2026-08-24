@@ -21,11 +21,31 @@ import {
   talkDeskInnerWidth,
   talkNextShotTitle,
   talkSceneBands,
+  talkSkidmarksActsFrom,
   type TalkClipCell,
 } from "@/lib/talkClipTimeline";
 import { copyTextToClipboard } from "@/lib/copyText";
-import { skidmarksTemplateFromJob } from "@/lib/scriptBlueprint";
+import { skidmarksBlankFromJob } from "@/lib/scriptBlueprint";
+import { EPISODE_CONSTRUCTION_EXAMPLE, EPISODE_TEMPLATE_RULES } from "@/lib/episodeTemplate";
 import { MobilePrimaryButton } from "./MobileUi";
+
+function CopyBlankIcon({ copied }: { copied: boolean }) {
+  return copied ? (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M9.2 16.6 4.8 12.2l1.4-1.4 3 3 8.6-8.6 1.4 1.4z"
+      />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M8 4h9a2 2 0 0 1 2 2v11h-2V6H8V4zm-3 4h9a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2zm0 2v11h9V10H5z"
+      />
+    </svg>
+  );
+}
 
 function stillUrl(job: MobileGenJob, plateFile: string): string {
   const file = (plateFile || "").trim();
@@ -231,6 +251,15 @@ function TalkFilmCell({
       <span className="m-talk-film-play" aria-hidden>
         {canPlay ? (playing ? "❚❚" : "▶") : "+"}
       </span>
+      {cell.events.length ? (
+        <span className="m-talk-film-tags">
+          {cell.events.map((ev) => (
+            <em key={ev.id} className={`m-talk-tag is-${ev.kind}`}>
+              [{ev.tag}]{ev.detail ? ` ${ev.detail}` : ""}
+            </em>
+          ))}
+        </span>
+      ) : null}
       {selected && onRemove ? (
         <button
           type="button"
@@ -501,14 +530,17 @@ export function TalkTimeline({
   const [deskError, setDeskError] = useState("");
   const [openActId, setOpenActId] = useState("");
   const [templateOpen, setTemplateOpen] = useState(false);
-  const [templateCopied, setTemplateCopied] = useState(false);
+  const [blankCopied, setBlankCopied] = useState(false);
   const cells = useMemo(() => talkClipLayout(desk.cells, measured), [desk.cells, measured]);
   const bands = talkSceneBands(cells);
-  const acts = useMemo(() => talkActScriptsFrom(cells), [cells]);
-  const openAct = acts.find((a) => a.id === openActId) || null;
   const isSkidmarks = job.styleId === "skidmarks";
-  const skidTemplate = useMemo(
-    () => (isSkidmarks ? skidmarksTemplateFromJob(job) : ""),
+  const acts = useMemo(
+    () => (isSkidmarks ? talkSkidmarksActsFrom(cells) : talkActScriptsFrom(cells)),
+    [cells, isSkidmarks],
+  );
+  const openAct = acts.find((a) => a.id === openActId) || null;
+  const skidBlank = useMemo(
+    () => (isSkidmarks ? skidmarksBlankFromJob(job) : ""),
     [isSkidmarks, job],
   );
   const innerW = talkDeskInnerWidth(cells);
@@ -711,13 +743,15 @@ export function TalkTimeline({
           {openAct ? (
             <div className="m-talk-act-main">
               <div className="m-mv-lyrics-note">
-                Act {openAct.roman} · {openAct.title} · {openAct.lineCount}{" "}
-                {openAct.lineCount === 1 ? "line" : "lines"} — this stretch, not a song
+                Act {openAct.roman} · {openAct.title}
+                {openAct.stageNote ? ` · ${openAct.stageNote}` : ""} · {openAct.lineCount}{" "}
+                {openAct.lineCount === 1 ? "line" : "lines"} — live pack on this stage, not a
+                new episode
               </div>
               <textarea
-                className="m-mv-lyrics-input"
+                className="m-talk-act-script"
                 value={openAct.script}
-                rows={Math.min(12, Math.max(4, openAct.lineCount * 3))}
+                rows={Math.min(12, Math.max(4, openAct.lineCount * 3 || 4))}
                 spellCheck={false}
                 readOnly
                 aria-label={`Script for Act ${openAct.roman}`}
@@ -726,33 +760,58 @@ export function TalkTimeline({
           ) : null}
           {isSkidmarks && templateOpen ? (
             <div className="m-talk-act-template">
-              <div className="m-talk-template-tools">
-                <div className="m-mv-lyrics-note">
-                  Skidmarks plan · nine stages · this pack&apos;s cast and places. Copy into
-                  an outside AI. Does not change this episode.
-                </div>
-                <MobilePrimaryButton
-                  size="chip"
-                  tone="ghost"
-                  onClick={() => {
-                    void copyTextToClipboard(skidTemplate)
-                      .then(() => {
-                        setTemplateCopied(true);
-                        window.setTimeout(() => setTemplateCopied(false), 2000);
-                      })
-                      .catch(() => setTemplateCopied(false));
-                  }}
-                >
-                  {templateCopied ? "Copied" : "Copy template"}
-                </MobilePrimaryButton>
+              <div className="m-mv-lyrics-note">
+                House rules first. Blank construction is the script — copy that. Little
+                Red is a format example only. Does not change this episode.
               </div>
               <textarea
-                className="m-mv-lyrics-input"
-                value={skidTemplate}
-                rows={14}
+                className="m-talk-act-script"
+                value={EPISODE_TEMPLATE_RULES}
+                rows={8}
                 spellCheck={false}
                 readOnly
-                aria-label="Skidmarks episode template"
+                aria-label="Skidmarks house rules"
+              />
+              <div className="m-talk-blank-head">
+                <div className="m-mv-lyrics-note">
+                  Blank construction · this pack&apos;s cast and places. Copy into an
+                  outside AI.
+                </div>
+                <button
+                  type="button"
+                  className={`m-talk-copy-icon${blankCopied ? " is-copied" : ""}`}
+                  aria-label={blankCopied ? "Blank template copied" : "Copy blank template"}
+                  title={blankCopied ? "Copied" : "Copy blank"}
+                  onClick={() => {
+                    void copyTextToClipboard(skidBlank)
+                      .then(() => {
+                        setBlankCopied(true);
+                        window.setTimeout(() => setBlankCopied(false), 2000);
+                      })
+                      .catch(() => setBlankCopied(false));
+                  }}
+                >
+                  <CopyBlankIcon copied={blankCopied} />
+                </button>
+              </div>
+              <textarea
+                className="m-talk-act-script"
+                value={skidBlank}
+                rows={16}
+                spellCheck={false}
+                readOnly
+                aria-label="Skidmarks blank construction template"
+              />
+              <div className="m-mv-lyrics-note">
+                Format example only — Little Red Riding Hood. Not a Skidmarks episode.
+              </div>
+              <textarea
+                className="m-talk-act-script"
+                value={EPISODE_CONSTRUCTION_EXAMPLE}
+                rows={10}
+                spellCheck={false}
+                readOnly
+                aria-label="Little Red Riding Hood format example"
               />
             </div>
           ) : null}

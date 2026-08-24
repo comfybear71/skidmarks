@@ -27,6 +27,9 @@ import {
   faceCandidateTakes,
   latestCandidate,
   preferredCandidate,
+  shouldAutoGenerateCastFace,
+  shouldAutoOpenNextCast,
+  castPickerFocus,
 } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl, mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
 import {
@@ -616,8 +619,20 @@ function CandidatePicker({
     label,
   );
   const asked = useRef(false);
+  const everHadTakes = useRef(takes.length > 0);
+  if (takes.length) everHadTakes.current = true;
   useEffect(() => {
-    if (skipAutoGenerate || asked.current || busy || takes.length) return;
+    if (
+      !shouldAutoGenerateCastFace({
+        skipAutoGenerate,
+        busy,
+        takeCount: takes.length,
+        everHadTakes: everHadTakes.current,
+        alreadyAsked: asked.current,
+      })
+    ) {
+      return;
+    }
     asked.current = true;
     onGenerate();
   }, [busy, takes.length, onGenerate, skipAutoGenerate]);
@@ -723,6 +738,11 @@ function CandidatePicker({
               {busy ? "Generating…" : "Generate one anyway"}
             </MobilePrimaryButton>
           ) : null}
+        </div>
+      ) : everHadTakes.current && !takes.length ? (
+        <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "16px 0 8px" }}>
+          That still is parked. Remove from cast if this person is off the tree. More only if
+          you want a new face.
         </div>
       ) : busy || !error ? (
         <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "16px 0" }}>
@@ -941,6 +961,7 @@ export function StudioTree({
   const [savingBand, setSavingBand] = useState(false);
   const [bandNameDraft, setBandNameDraft] = useState("");
   const [openCast, setOpenCast] = useState<string | null>(null);
+  const [castStayClosed, setCastStayClosed] = useState(false);
   const [openPlace, setOpenPlace] = useState<string | null>(null);
   const [castOpen, setCastOpen] = useState(true);
   const [locationsOpen, setLocationsOpen] = useState(true);
@@ -1048,13 +1069,17 @@ export function StudioTree({
     episodeHint,
   );
 
-  const firstOpenCast = job.speakers.find((n) => !job.castCandidates[n]?.some((c) => c.approved));
+  const firstOpenCast = job.speakers.find((n) => !approvedCandidateFileName(job.castCandidates, n));
   const firstOpenPlace = job.scenes.find(
     (s) =>
       !s.worldThumbKey?.trim() &&
       !job.locationCandidates[s.id]?.some((c) => c.approved),
   );
-  const castFocus = openCast || firstOpenCast || null;
+  const castFocus = castPickerFocus({
+    openCast,
+    firstOpenCast: firstOpenCast || null,
+    stayClosed: castStayClosed,
+  });
   const placeFocus = openPlace || firstOpenPlace?.id || null;
   const placeScene = job.scenes.find((s) => s.id === placeFocus);
   const placePick =
@@ -1091,8 +1116,18 @@ export function StudioTree({
   }
 
   useEffect(() => {
-    if (job.speakers.length && !openCast && firstOpenCast) setOpenCast(firstOpenCast);
-  }, [job.speakers.length, firstOpenCast, openCast]);
+    if (
+      !shouldAutoOpenNextCast({
+        speakerCount: job.speakers.length,
+        openCast,
+        firstOpenCast: firstOpenCast || null,
+        userJustClosed: castStayClosed,
+      })
+    ) {
+      return;
+    }
+    setOpenCast(firstOpenCast || null);
+  }, [job.speakers.length, firstOpenCast, openCast, castStayClosed]);
   useEffect(() => {
     if (job.scenes.length && !openPlace && firstOpenPlace) setOpenPlace(firstOpenPlace.id);
   }, [job.scenes.length, firstOpenPlace, openPlace]);
@@ -1430,6 +1465,7 @@ export function StudioTree({
                 onClick={() => {
                   setCastOpen(true);
                   setAdding(null);
+                  setCastStayClosed(false);
                   setOpenCast(name);
                 }}
                 onRemove={
@@ -1443,6 +1479,7 @@ export function StudioTree({
                           return;
                         }
                         if (openCast === name) setOpenCast(null);
+                        setCastStayClosed(true);
                         onDropCast(name);
                       }
                 }
@@ -1452,7 +1489,7 @@ export function StudioTree({
           {bands.map((band) => (
             <GlyphTile
               key={band.name}
-              glyph="♪"
+              glyph={isMusicVideoSongJob(job) ? "♪" : "CAST"}
               label={band.name}
               variant="solid"
               disabled={busy}
@@ -1463,20 +1500,29 @@ export function StudioTree({
           {job.speakers.length ? (
             <GlyphTile
               glyph="SAVE"
-              label="Save as band"
+              label={isMusicVideoSongJob(job) ? "Save as band" : "Save this cast"}
               variant="dashed"
               disabled={busy}
               onClick={() => setSavingBand(true)}
             />
           ) : null}
         </div>
+        {castOpen && !isMusicVideoSongJob(job) && bands.length && !savingBand ? (
+          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", padding: "0 2px 8px" }}>
+            Tap a saved cast to bring those faces back. Save this cast stores the names for the next episode.
+          </div>
+        ) : null}
         {castOpen && savingBand ? (
           <div style={{ display: "flex", gap: "8px", padding: "0 2px 8px", alignItems: "center" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <MobileTextInput
                 value={bandNameDraft}
                 onChange={setBandNameDraft}
-                placeholder="Band name, e.g. THE JACK ASH BAND"
+                placeholder={
+                  isMusicVideoSongJob(job)
+                    ? "Band name, e.g. THE JACK ASH BAND"
+                    : "Cast name, e.g. THE DIRTY DOG LOT"
+                }
               />
             </div>
             <button
@@ -1529,6 +1575,7 @@ export function StudioTree({
             onAdd={(name, description, file) => {
               onAddCast(name, description, file);
               setAdding(null);
+              setCastStayClosed(false);
               setOpenCast(name);
             }}
             onCancel={() => setAdding(null)}
@@ -1583,6 +1630,7 @@ export function StudioTree({
                 return;
               }
               setOpenCast(null);
+              setCastStayClosed(true);
               onDropCast(castFocus);
             }}
           />
