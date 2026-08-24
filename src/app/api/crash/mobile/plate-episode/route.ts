@@ -10,7 +10,7 @@ import {
 } from "@/lib/mobilePlateGraph";
 import { compileMattyBarGroupPosition } from "@/lib/mobileCastPlaces";
 import { rebuildShotPlate } from "@/lib/mobilePlateRebuild";
-import { compileScriptedPosition } from "@/lib/mobilePlateScript";
+import { resolvePlateStaging } from "@/lib/mobilePlateScript";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -104,10 +104,16 @@ export async function POST(req: Request) {
       .map((b) => b.speaker.trim())
       .filter(Boolean);
     const stagingIn =
-      (storyShot?.staging || "").trim() ||
+      resolvePlateStaging({
+        existingStaging: storyShot?.staging,
+        summary: storyShot?.summary,
+        speaker,
+        speakers: groupNames,
+        place: placeName,
+      }) ||
       (groupNames.length > 1
         ? compileMattyBarGroupPosition(groupNames, placeName)
-        : compileScriptedPosition({ name: speaker, place: placeName }));
+        : "");
 
     const rebuilt = await rebuildShotPlate({
       job,

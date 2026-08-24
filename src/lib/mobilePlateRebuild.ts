@@ -6,11 +6,11 @@ import { leftoverHydrateBeat, dropLeftoverHydrateBeats } from "./mobilePlateLine
 import {
   PLATE_QA_MAX_ATTEMPTS,
   appendPlateQaFix,
-  compileScriptedPosition,
   judgePlateStill,
   resolvePlateQaIdentity,
   type PlateQaVerdict,
 } from "./mobilePlateQa";
+import { resolvePlateStaging } from "./mobilePlateScript";
 import { uploadMobileMedia } from "./mobileMediaStore";
 import { patchMobileGenJob } from "./mobileGenJob";
 import { writeMobileStory } from "./mobileStoryStore";
@@ -67,13 +67,14 @@ export async function rebuildShotPlate(opts: {
     cleanedBeats.find((b) => b.speaker.trim() && !leftoverHydrateBeat(shotId, b.id))?.speaker ||
     cleanedBeats[0]?.speaker ||
     "";
-  let staging = (opts.stagingIn || "").trim();
-  if (!staging && speaker) {
-    staging = compileScriptedPosition({
-      name: speaker,
-      place: scene.placeName || "this place",
-    });
-  }
+  let staging = resolvePlateStaging({
+    stagingIn: opts.stagingIn,
+    existingStaging: shot.staging,
+    summary: shot.summary,
+    speaker,
+    speakers: cleanedBeats.map((b) => b.speaker),
+    place: scene.placeName || "this place",
+  });
   if (!staging) throw new Error("Say who sits where — not two people stuck in the front.");
   const bibleIds = [
     ...new Set((opts.bibleIdsIn || shot.bibleIds || []).map((id) => id.trim()).filter(Boolean)),
