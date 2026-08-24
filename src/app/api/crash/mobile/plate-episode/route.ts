@@ -109,6 +109,7 @@ export async function POST(req: Request) {
         summary: storyShot?.summary,
         speaker,
         speakers: groupNames,
+        roster: job.speakers,
         place: placeName,
       }) ||
       (groupNames.length > 1

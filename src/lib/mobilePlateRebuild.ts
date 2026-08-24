@@ -7,10 +7,16 @@ import {
   PLATE_QA_MAX_ATTEMPTS,
   appendPlateQaFix,
   judgePlateStill,
+  plateQaFixForFails,
   resolvePlateQaIdentity,
   type PlateQaVerdict,
 } from "./mobilePlateQa";
-import { resolvePlateStaging } from "./mobilePlateScript";
+import {
+  resolvePlateStaging,
+  speakersForConstructionStill,
+  visualActionFromSummary,
+} from "./mobilePlateScript";
+import { voiceNamesMatch } from "./voiceNameMatch";
 import { uploadMobileMedia } from "./mobileMediaStore";
 import { patchMobileGenJob } from "./mobileGenJob";
 import { writeMobileStory } from "./mobileStoryStore";
@@ -67,12 +73,25 @@ export async function rebuildShotPlate(opts: {
     cleanedBeats.find((b) => b.speaker.trim() && !leftoverHydrateBeat(shotId, b.id))?.speaker ||
     cleanedBeats[0]?.speaker ||
     "";
+  const named = speakersForConstructionStill({
+    speaker,
+    speakers: cleanedBeats.map((b) => b.speaker),
+    visual: visualActionFromSummary(shot.summary),
+    roster: job.speakers,
+  });
+  const beatNames = [
+    ...new Set(cleanedBeats.map((b) => b.speaker.trim()).filter(Boolean)),
+  ];
+  const silentCast = named.filter(
+    (n) => !beatNames.some((b) => voiceNamesMatch(b, n) || b.toLowerCase() === n.toLowerCase()),
+  );
   let staging = resolvePlateStaging({
     stagingIn: opts.stagingIn,
     existingStaging: shot.staging,
     summary: shot.summary,
     speaker,
-    speakers: cleanedBeats.map((b) => b.speaker),
+    speakers: named,
+    roster: job.speakers,
     place: scene.placeName || "this place",
   });
   if (!staging) throw new Error("Say who sits where — not two people stuck in the front.");
@@ -88,9 +107,7 @@ export async function rebuildShotPlate(opts: {
   const identity = speaker
     ? await resolvePlateQaIdentity({ styleId: job.styleId, name: speaker, job }).catch(() => null)
     : null;
-  const expectedPeople = [
-    ...new Set(cleanedBeats.map((b) => b.speaker.trim()).filter(Boolean)),
-  ].length;
+  const expectedPeople = named.length;
   const wantQa = opts.qa !== false;
 
   let working: CrashStoryDoc = {
@@ -117,7 +134,7 @@ export async function rebuildShotPlate(opts: {
     shot = { ...scene.shots.find((sh) => sh.id === shotId)!, staging };
 
     const drawn = await compositeShotPlatePreferSiray(job.styleId, scene, shot, {
-      silentCast: [],
+      silentCast,
       styleRealism: job.styleRealism,
       job,
     });
@@ -181,8 +198,16 @@ export async function rebuildShotPlate(opts: {
       await writeMobileStory(working, job.folderName);
       break;
     }
+    const mcuQa = new Set(["alone", "emptyHands", "noPhone", "facingCamera"]);
+    const realFails = (qa.fails || []).filter((id) => !mcuQa.has(id));
+    // Two-person construction stays two-person. Do not append sitting-MCU
+    // "only this person / empty hands in her lap" after a belt-tear fail.
+    if (named.length >= 2 && realFails.length === 0) {
+      break;
+    }
     if (attempt < PLATE_QA_MAX_ATTEMPTS) {
-      staging = appendPlateQaFix(staging, qa.fix);
+      const fix = named.length >= 2 ? plateQaFixForFails(realFails) : qa.fix;
+      if (fix) staging = appendPlateQaFix(staging, fix);
     }
   }
 

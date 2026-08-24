@@ -91,7 +91,7 @@ export function compileConstructionStillPosition(opts: {
       ? speakers[0]
         ? `Only ${speakers[0]} in frame, no one else appears.`
         : ""
-      : `Exactly ${speakers.length} people in frame: ${speakers.join(", ")}. No extras.`;
+      : `Exactly ${speakers.length} people in frame: ${speakers.join(", ")}. ${speakers[0]} nearest camera, others reacting. No extras.`;
   return [visual, `Place: ${place}.`, camera, who].filter(Boolean).join(" ");
 }
 
@@ -111,6 +111,73 @@ export function isBareVisualAction(staging: string, visual: string): boolean {
   return a.startsWith(b) && !hasResearchCameraLine(a);
 }
 
+function escapeNameRe(name: string): string {
+  return name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function visualNameAliases(rosterName: string): string[] {
+  const n = rosterName.trim();
+  const aliases = [n];
+  if (/crazy big hole jo too/i.test(n)) aliases.push("Jo Too", "Jo Too's");
+  if (/ladder one/i.test(n)) aliases.push("Ladder One");
+  if (/land landy/i.test(n)) aliases.push("Land Landy", "LandLady");
+  if (/big sexy/i.test(n)) aliases.push("Big Sexy");
+  return aliases;
+}
+
+/** CAST names written in [VISUAL_ACTION] — two-shot stills use these, not only the line speaker. */
+export function castNamedInVisual(visual: string, roster: string[]): string[] {
+  const text = String(visual || "").replace(/\s+/g, " ").trim();
+  if (!text) return [];
+  const found: string[] = [];
+  const seen = new Set<string>();
+  const names = roster
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  for (const name of names) {
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    const hit = visualNameAliases(name).some((alias) =>
+      new RegExp(`\\b${escapeNameRe(alias)}\\b`, "i").test(text),
+    );
+    if (!hit) continue;
+    seen.add(key);
+    found.push(name);
+  }
+  return found;
+}
+
+/** Speaker first, then other CAST named in the visual. No extras. */
+export function speakersForConstructionStill(opts: {
+  speaker?: string;
+  speakers?: string[];
+  visual?: string;
+  roster?: string[];
+}): string[] {
+  const beat = (opts.speakers || []).map((s) => s.trim()).filter(Boolean);
+  const fromVisual = castNamedInVisual(opts.visual || "", opts.roster || []);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const name of [opts.speaker || "", ...beat, ...fromVisual]) {
+    const n = name.trim();
+    if (!n) continue;
+    const key = n.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
+  }
+  return out;
+}
+
+/** Construction compiled as solo while the visual names more CAST. */
+export function isStaleSoloConstruction(staging: string, names: string[]): boolean {
+  if (names.length < 2) return false;
+  const t = String(staging || "");
+  if (/Exactly \d+ people in frame/i.test(t)) return false;
+  return /Only .+ in frame/i.test(t);
+}
+
 /**
  * Prefer the construction camera / existing Position. Only fall back to the
  * talking MCU default when the shot has no visual and no Position.
@@ -121,28 +188,33 @@ export function resolvePlateStaging(opts: {
   summary?: string;
   speaker: string;
   speakers?: string[];
+  roster?: string[];
   place: string;
 }): string {
   const incoming = (opts.stagingIn || "").trim();
   const existing = (opts.existingStaging || "").trim();
   const visual = visualActionFromSummary(opts.summary);
-  const speakers = (opts.speakers || [])
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const names = speakers.length ? speakers : opts.speaker.trim() ? [opts.speaker.trim()] : [];
+  const names = speakersForConstructionStill({
+    speaker: opts.speaker,
+    speakers: opts.speakers,
+    visual,
+    roster: opts.roster,
+  });
   const place = opts.place.trim() || "this place";
 
   if (
     incoming &&
     !isTalkingMcuDefault(incoming) &&
-    !isBareVisualAction(incoming, visual)
+    !isBareVisualAction(incoming, visual) &&
+    !isStaleSoloConstruction(incoming, names)
   ) {
     return incoming;
   }
   if (
     existing &&
     !isTalkingMcuDefault(existing) &&
-    !isBareVisualAction(existing, visual)
+    !isBareVisualAction(existing, visual) &&
+    !isStaleSoloConstruction(existing, names)
   ) {
     return existing;
   }

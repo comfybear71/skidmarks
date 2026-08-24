@@ -192,7 +192,7 @@ export function stagingNamesHeldProp(staging: string): boolean {
   const text = staging.toLowerCase();
   if (!text.trim()) return false;
   if (directorWantsEmptyHands(text)) return false;
-  if (/\b(racket|pie|phone|mobile)\b/.test(text)) return true;
+  if (/\b(racket|pie|phone|mobile|belt|sunglasses)\b/.test(text)) return true;
   if (/\bholding\b/.test(text)) return true;
   return /\bin (her|his|their) hands?\b/.test(text);
 }

@@ -8,8 +8,10 @@ import {
   buildGlobalPrompt,
   defaultSoloStaging,
   directorWantsEmptyHands,
+  emptyHandsStillLock,
   isJoKeyboardWarrior,
   joPhoneStagingExtra,
+  stagingNamesHeldProp,
   withScratchEmptyHands,
   ensureGoldFrameLocks,
   storedMotionFightsEmptyHands,
@@ -249,5 +251,18 @@ const sentCutaway = ltxSendPrompt(cutaway);
 assert.equal(sentCutaway.startsWith(LTX_LIP_SYNC_LEAD), false);
 assert.equal(isCutawayMotion(sentCutaway), true);
 assert.equal(isCutawayMotion(jo), false);
+
+assert.equal(
+  stagingNamesHeldProp("Big Sexy tears the belt off Jo Too's waist."),
+  true,
+);
+assert.match(
+  emptyHandsStillLock("Big Sexy tears the belt off Jo Too's waist."),
+  /held object/,
+);
+assert.doesNotMatch(
+  emptyHandsStillLock("Big Sexy tears the belt off Jo Too's waist."),
+  /Empty hands\. No phone/,
+);
 
 console.log("check-mobile-image-motion: ok");

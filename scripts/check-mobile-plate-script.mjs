@@ -2,10 +2,13 @@
 import assert from "node:assert/strict";
 import {
   cameraLineFromVisual,
+  castNamedInVisual,
   compileConstructionStillPosition,
   compileScriptedPosition,
+  isStaleSoloConstruction,
   isTalkingMcuDefault,
   resolvePlateStaging,
+  speakersForConstructionStill,
   visualActionFromSummary,
 } from "../src/lib/mobilePlateScript.ts";
 
@@ -92,5 +95,62 @@ assert.equal(
   compiledWalk,
 );
 assert.match(compiledWalk, /Walking toward camera/);
+
+const roster = [
+  "LADDER ONE",
+  "BIG SEXY",
+  "LAND LANDY",
+  "TEE",
+  "BC",
+  "COMFY",
+  "MATTY",
+  "CRAZY BIG HOLE JO TOO",
+];
+assert.deepEqual(
+  castNamedInVisual(
+    "Tee is sunbathing near the edge. Jo Too walks by and knocks Tee’s sunglasses.",
+    roster,
+  ).sort(),
+  ["CRAZY BIG HOLE JO TOO", "TEE"].sort(),
+);
+assert.deepEqual(
+  speakersForConstructionStill({
+    speaker: "Crazy Big Hole Jo Too",
+    speakers: ["Crazy Big Hole Jo Too"],
+    visual: "Tee is sunbathing near the edge. Jo Too walks by.",
+    roster,
+  }),
+  ["Crazy Big Hole Jo Too", "TEE"],
+);
+const soloWalk = compileConstructionStillPosition({
+  visual: "Tee is sunbathing near the edge. Jo Too walks by.",
+  place: "By the pool",
+  speakers: ["Crazy Big Hole Jo Too"],
+});
+assert.match(soloWalk, /Only Crazy Big Hole Jo Too in frame/);
+assert.equal(isStaleSoloConstruction(soloWalk, ["Crazy Big Hole Jo Too", "TEE"]), true);
+assert.equal(
+  resolvePlateStaging({
+    existingStaging: soloWalk,
+    summary: "[VISUAL_ACTION] Tee is sunbathing near the edge. Jo Too walks by.",
+    speaker: "Crazy Big Hole Jo Too",
+    speakers: ["Crazy Big Hole Jo Too"],
+    roster,
+    place: "By the pool",
+  }),
+  compileConstructionStillPosition({
+    visual: "Tee is sunbathing near the edge. Jo Too walks by.",
+    place: "By the pool",
+    speakers: ["Crazy Big Hole Jo Too", "TEE"],
+  }),
+);
+assert.match(
+  compileConstructionStillPosition({
+    visual: "Big Sexy tears the belt off Jo Too's waist.",
+    place: "2nd house",
+    speakers: ["BIG SEXY", "CRAZY BIG HOLE JO TOO"],
+  }),
+  /nearest camera, others reacting/,
+);
 
 console.log("check-mobile-plate-script: ok");

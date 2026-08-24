@@ -71,6 +71,13 @@ export function plateQaChecks(
 }
 
 
+export function plateQaFixForFails(fails: string[]): string {
+  return [...new Set(fails)]
+    .map((id) => CHECK_FIX[id as PlateQaCheckId])
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function appendPlateQaFix(staging: string, fix: string): string {
   const add = fix.trim();
   if (!add) return staging.trim();
