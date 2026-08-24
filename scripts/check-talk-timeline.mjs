@@ -16,7 +16,9 @@ import {
 } from "../src/lib/talkTimeline.ts";
 import {
   TALK_CLIP_PX_PER_SEC,
+  talkActNFromEvents,
   talkActScriptsFrom,
+  talkAssignActNs,
   talkClipClock,
   talkClipDeskFrom,
   talkClipWidthPx,
@@ -123,7 +125,7 @@ const story = {
         {
           id: "shot_04",
           title: "SHOT 04 — bar",
-          summary: "[CUTAWAY] bar flash\n[MUSIC]\n[BUDGET_TIER] CHEAP_TAKE",
+          summary: "[ACT] II — Gets worse\n[CUTAWAY] bar flash\n[MUSIC]\n[BUDGET_TIER] CHEAP_TAKE",
           plateFile: "bar.png",
           beats: [{ id: "b2", speaker: "MATTY", text: "" }],
           sfx: [],
@@ -139,7 +141,7 @@ const story = {
         {
           id: "shot_01",
           title: "SHOT 01 — OTS + phone",
-          summary: "[DIAL] JO TOO\n[VISUAL_ACTION] oversized phone\n[MUSIC]",
+          summary: "[ACT] I — He shows up\n[DIAL] JO TOO\n[VISUAL_ACTION] oversized phone\n[MUSIC]",
           plateFile: "phone.png",
           beats: [
             { id: "b3", speaker: "LAND LANDY", text: "", voiceFile: "land.mp3" },
@@ -150,7 +152,7 @@ const story = {
         {
           id: "shot_02",
           title: "SHOT 02 — two-shot",
-          summary: "[DIAL] JO TOO leaning in\n[VISUAL_ACTION] two-shot",
+          summary: "[ACT] I — He shows up\n[DIAL] JO TOO leaning in\n[VISUAL_ACTION] two-shot",
           plateFile: "two.png",
           beats: [{ id: "b5", speaker: "CRAZY BIG HOLE JO TOO", text: "" }],
           sfx: [],
@@ -326,10 +328,22 @@ assert.deepEqual(
 );
 assert.equal(skidActs[0].title, "He shows up");
 assert.equal(skidActs[8].title, "The end state");
+assert.equal(skidActs[0].lineCount, 2, "Act I is the two [ACT] I clips, not the whole lounge place");
+assert.ok(skidActs[1].lineCount >= 1, "Act II holds the [ACT] II bar clip");
 assert.match(skidActs[0].script, /SHOT 01/);
 assert.match(skidActs[1].script, /SHOT 04|MATTY BAR|bar/i);
-assert.match(skidActs[8].script, /No lines on this stage yet/);
+assert.equal(skidActs[8].lineCount, 0);
 assert.equal(talkSkidmarksActsFrom([]).length, 9);
+assert.deepEqual(
+  talkAssignActNs([
+    { events: [{ id: "a1", kind: "act", tag: "ACT", detail: "I — He shows up" }], title: "SHOT 01" },
+    { events: [{ id: "a2", kind: "act", tag: "ACT", detail: "I — He shows up" }], title: "SHOT 02" },
+    { events: [{ id: "a3", kind: "act", tag: "ACT", detail: "II — Gets worse" }], title: "SHOT 03 — same street" },
+  ]),
+  [1, 1, 2],
+  "same place can be Act I then Act II",
+);
+assert.equal(talkActNFromEvents([{ id: "x", kind: "act", tag: "ACT", detail: "IX — The end state" }]), 9);
 
 const plateOnly = talkClipDeskFrom({
   story,
@@ -358,7 +372,11 @@ assert.match(talkUi, /Send this/);
 assert.match(talkUi, /Remove slot/);
 assert.match(talkUi, /Act \{act\.roman\}/);
 assert.match(talkUi, /talkSkidmarksActsFrom/);
-assert.match(talkUi, /live pack on this stage/);
+assert.match(talkUi, /visibleCells/);
+assert.match(talkUi, /m-talk-act-count/);
+assert.match(talkUi, /only that act is on the strip/);
+assert.doesNotMatch(talkUi, /live pack on this stage/);
+assert.doesNotMatch(talkUi, /m-talk-act-panel/);
 assert.match(talkUi, /skidmarksBlankFromJob/);
 assert.match(talkUi, /Copy blank template/);
 assert.match(talkUi, /m-talk-copy-icon/);
