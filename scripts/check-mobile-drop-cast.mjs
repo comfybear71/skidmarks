@@ -8,13 +8,58 @@ import {
   shotsAfterDroppedSpeaker,
   stripSpeakerWord,
 } from "../src/lib/mobileDropCast.ts";
+import {
+  shouldAutoGenerateCastFace,
+  shouldAutoOpenNextCast,
+} from "../src/lib/mobileJobReady.ts";
 
 assert.equal(castNamesMatch("STUBALLS", "stuballs"), true);
 assert.equal(castNamesMatch("STUBALLS", "CRAZY BIG HOLE JO"), false);
+assert.deepEqual(
+  dropSpeakerFromList(["CRAZY BIG HOLE JO", "CRAZY BIG HOLE JO TOO", "MATTY"], "CRAZY BIG HOLE JO"),
+  ["CRAZY BIG HOLE JO TOO", "MATTY"],
+);
 assert.deepEqual(dropSpeakerFromList(["JO", "STUBALLS", "MATTY"], "STUBALLS"), [
   "JO",
   "MATTY",
 ]);
+assert.equal(
+  shouldAutoGenerateCastFace({
+    takeCount: 0,
+    everHadTakes: true,
+    alreadyAsked: false,
+  }),
+  false,
+  "× on the last still must not draw a new face",
+);
+assert.equal(
+  shouldAutoGenerateCastFace({
+    takeCount: 0,
+    everHadTakes: false,
+    alreadyAsked: false,
+  }),
+  true,
+  "first open with no stills may still draw one",
+);
+assert.equal(
+  shouldAutoOpenNextCast({
+    speakerCount: 3,
+    openCast: null,
+    firstOpenCast: "TEE",
+    userJustClosed: true,
+  }),
+  false,
+  "Remove from cast must not jump to the next empty person",
+);
+assert.equal(
+  shouldAutoOpenNextCast({
+    speakerCount: 3,
+    openCast: null,
+    firstOpenCast: "TEE",
+    userJustClosed: false,
+  }),
+  true,
+);
 assert.deepEqual(dropSpeakerFromList(["JO", "MATTY"], "STUBALLS"), ["JO", "MATTY"]);
 assert.deepEqual(dropSpeakerFromRecord({ STUBALLS: 1, JO: 2 }, "stuballs"), { JO: 2 });
 

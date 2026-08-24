@@ -27,6 +27,8 @@ import {
   faceCandidateTakes,
   latestCandidate,
   preferredCandidate,
+  shouldAutoGenerateCastFace,
+  shouldAutoOpenNextCast,
 } from "@/lib/mobileJobReady";
 import { mobileLocationStillUrl, mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
 import {
@@ -616,8 +618,20 @@ function CandidatePicker({
     label,
   );
   const asked = useRef(false);
+  const everHadTakes = useRef(takes.length > 0);
+  if (takes.length) everHadTakes.current = true;
   useEffect(() => {
-    if (skipAutoGenerate || asked.current || busy || takes.length) return;
+    if (
+      !shouldAutoGenerateCastFace({
+        skipAutoGenerate,
+        busy,
+        takeCount: takes.length,
+        everHadTakes: everHadTakes.current,
+        alreadyAsked: asked.current,
+      })
+    ) {
+      return;
+    }
     asked.current = true;
     onGenerate();
   }, [busy, takes.length, onGenerate, skipAutoGenerate]);
@@ -723,6 +737,11 @@ function CandidatePicker({
               {busy ? "Generating…" : "Generate one anyway"}
             </MobilePrimaryButton>
           ) : null}
+        </div>
+      ) : everHadTakes.current && !takes.length ? (
+        <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "16px 0 8px" }}>
+          That still is parked. Remove from cast if this person is off the tree. More only if
+          you want a new face.
         </div>
       ) : busy || !error ? (
         <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "16px 0" }}>
@@ -941,6 +960,7 @@ export function StudioTree({
   const [savingBand, setSavingBand] = useState(false);
   const [bandNameDraft, setBandNameDraft] = useState("");
   const [openCast, setOpenCast] = useState<string | null>(null);
+  const skipCastAutoOpen = useRef(false);
   const [openPlace, setOpenPlace] = useState<string | null>(null);
   const [castOpen, setCastOpen] = useState(true);
   const [locationsOpen, setLocationsOpen] = useState(true);
@@ -1091,7 +1111,17 @@ export function StudioTree({
   }
 
   useEffect(() => {
-    if (job.speakers.length && !openCast && firstOpenCast) setOpenCast(firstOpenCast);
+    if (
+      !shouldAutoOpenNextCast({
+        speakerCount: job.speakers.length,
+        openCast,
+        firstOpenCast: firstOpenCast || null,
+        userJustClosed: skipCastAutoOpen.current,
+      })
+    ) {
+      return;
+    }
+    setOpenCast(firstOpenCast || null);
   }, [job.speakers.length, firstOpenCast, openCast]);
   useEffect(() => {
     if (job.scenes.length && !openPlace && firstOpenPlace) setOpenPlace(firstOpenPlace.id);
@@ -1430,6 +1460,7 @@ export function StudioTree({
                 onClick={() => {
                   setCastOpen(true);
                   setAdding(null);
+                  skipCastAutoOpen.current = false;
                   setOpenCast(name);
                 }}
                 onRemove={
@@ -1443,6 +1474,7 @@ export function StudioTree({
                           return;
                         }
                         if (openCast === name) setOpenCast(null);
+                        skipCastAutoOpen.current = true;
                         onDropCast(name);
                       }
                 }
@@ -1529,6 +1561,7 @@ export function StudioTree({
             onAdd={(name, description, file) => {
               onAddCast(name, description, file);
               setAdding(null);
+              skipCastAutoOpen.current = false;
               setOpenCast(name);
             }}
             onCancel={() => setAdding(null)}
@@ -1583,6 +1616,7 @@ export function StudioTree({
                 return;
               }
               setOpenCast(null);
+              skipCastAutoOpen.current = true;
               onDropCast(castFocus);
             }}
           />
