@@ -168,6 +168,24 @@ export const PLATE_AUTOMATION_ENTRIES: ArchiveEntry[] = [
     why: "Official subgraph uses two LTXVAddGuide nodes, strength 0.7, CRF 18 preprocess, duration×fps+1 frames, distilled CFG 1. That is first+last still interpolation, not one-plate lip-sync.",
     fix: "If we ever test pose-to-pose on Scratch: two same-aspect stills, start+end prompt lock, no mp3. Do not use the original plate as the last frame of a talking chunk (snaps the mouth back).",
   },
+  {
+    id: "concert-loop-not-speech",
+    surface: "mobile",
+    layer: "speech",
+    verdict: "fails",
+    title: "LTX-2.5 I2V concert loops are not /m speech",
+    why: "Hub video_ltx2_5_i2v is image-only and invents audio. Pointing Generate at it would drop the Jack Ash mp3 and skip lip-sync.",
+    fix: "People clips stay LTX-2.3 IA2V + Saved mp3. Concert loops are a separate muted I2V pass. See docs/CONCERT_LOOP_PLATE.md.",
+  },
+  {
+    id: "concert-loop-art-plate",
+    surface: "both",
+    layer: "still",
+    verdict: "unknown_until_model",
+    title: "Concert loop stills have no band on them",
+    why: "Double Talkin' Jive-style gold/black art is a backdrop, not a member still. Drawing Jack/Horn onto it fights the loop.",
+    fix: "Holy still first, no people, no character sheet. Low-motion LTX-2.5 I2V (~5s, 24fps) only after he names the test. Mute invented audio.",
+  },
 ];
 
 export type SpeechClipAdvice = {

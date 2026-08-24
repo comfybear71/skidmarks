@@ -31,6 +31,8 @@ assert.equal(archiveEntry("ltx-25-flf2v-not-speech")?.surface, "mobile");
 assert.equal(archiveEntry("ltx-25-flf2v-two-guides")?.verdict, "works");
 assert.equal(archiveEntry("speech-clip-chain")?.surface, "mobile");
 assert.match(archiveEntry("speech-clip-chain")?.fix || "", /last frame/);
+assert.equal(archiveEntry("concert-loop-not-speech")?.verdict, "fails");
+assert.equal(archiveEntry("concert-loop-art-plate")?.verdict, "unknown_until_model");
 
 const still = oneCharacterStillPrompt("JO", "the kitchen");
 assert.equal(still, compileScriptedPosition({ name: "JO", place: "the kitchen" }));

@@ -68,6 +68,14 @@ When we slim the UI later (see §1), these fields are candidates to hide or gut 
 
 ---
 
+## 4b. Music video — concert loop plates (Jack Ash)
+
+**Logged 2026-08-24.** He wants looping gold/black concert art (Double Talkin' Jive vibe), **not only band member stills**. Full study: [`CONCERT_LOOP_PLATE.md`](./CONCERT_LOOP_PLATE.md). Queue: [`JACK_ASH_QUEUE.md`](./JACK_ASH_QUEUE.md).
+
+**No generate until he names the test.** Speech stays LTX-2.3 IA2V. Loop motion is LTX-2.5 I2V, muted.
+
+---
+
 ## 5. Shot Desk — KEEP (day-to-day)
 
 **Logged 2026-08-06:** this is what we **want** on the beat after the plate is made elsewhere:
