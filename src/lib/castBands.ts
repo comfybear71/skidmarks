@@ -16,6 +16,8 @@ export type CastBand = {
   members: string[];
 };
 
+export { matchCastBand } from "./castBandMatch";
+
 function localBandsPath(styleId: ShowStyleId): string {
   return path.join(CRASH_DIR, "bands", `${styleId}.json`);
 }

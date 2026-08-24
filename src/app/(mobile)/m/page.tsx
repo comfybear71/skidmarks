@@ -18,6 +18,7 @@ import { MUSIC_VIDEO_SHOW_NAME } from "@/lib/musicVideoSong";
 import { attachTakenPendingSong } from "@/components/mobile/MusicVideoStart";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CastBand } from "@/lib/castBands";
+import { matchCastBand } from "@/lib/castBandMatch";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId, clearResumedJobId } from "@/lib/mobileJobResume";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
@@ -39,6 +40,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 export default function MobileHomePage() {
   const [prompt, setPrompt] = useState("");
   const [artist, setArtist] = useState("");
+  const [pickedCrew, setPickedCrew] = useState("");
   const [songTitle, setSongTitle] = useState("");
   const [styleId, setStyleId] = useState<(typeof SHOW_STYLE_PRESETS)[number]["id"]>("skidmarks");
   const [styleRealism, setStyleRealism] = useState<number>(
@@ -250,11 +252,12 @@ export default function MobileHomePage() {
         artist,
         songTitle,
       });
-      // Cold start should not need a manual tap when the Artist you typed is
-      // already a saved band for this style — apply it immediately.
-      const matchedBand = isMusicVideoStyle
-        ? bands.find((b) => b.name.trim().toLowerCase() === artist.trim().toLowerCase())
-        : undefined;
+      // Cold start should not need a manual tap when the saved group is
+      // already picked — music video Artist, Skidmarks saved-cast chip.
+      const matchedBand = matchCastBand(
+        bands,
+        isMusicVideoStyle ? artist : styleId === "skidmarks" ? pickedCrew : "",
+      );
       let finalJob = created;
       if (matchedBand) {
         try {
@@ -277,7 +280,7 @@ export default function MobileHomePage() {
     } finally {
       setBusy(false);
     }
-  }, [effectivePrompt, styleId, styleRealism, artist, songTitle, isMusicVideoStyle, bands]);
+  }, [effectivePrompt, styleId, styleRealism, artist, pickedCrew, songTitle, isMusicVideoStyle, bands]);
 
   const openEpisode = useCallback(async (jobId: string) => {
     const id = jobId.trim();
@@ -463,6 +466,10 @@ export default function MobileHomePage() {
       cancelled = true;
     };
   }, [bandsStyleId]);
+
+  useEffect(() => {
+    setPickedCrew("");
+  }, [styleId]);
 
   const [bandSyncNote, setBandSyncNote] = useState("");
   const saveCastBand = useCallback(
@@ -798,6 +805,48 @@ export default function MobileHomePage() {
               {vibeAssist.aiError ? (
                 <div style={{ color: "var(--magenta-hot)", fontSize: "12px", marginTop: "6px" }}>
                   {vibeAssist.aiError}
+                </div>
+              ) : null}
+              {styleId === "skidmarks" && bands.length ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px" }}>
+                  <div
+                    style={{
+                      color: "var(--chrome-dim)",
+                      fontSize: "11px",
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Saved cast
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    {bands.map((band) => (
+                      <button
+                        key={band.name}
+                        type="button"
+                        onClick={() =>
+                          setPickedCrew((cur) => (cur === band.name ? "" : band.name))
+                        }
+                        title={band.members.join(", ")}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: "999px",
+                          border: "1px solid var(--acid)",
+                          background: pickedCrew === band.name ? "var(--acid)" : "transparent",
+                          color: pickedCrew === band.name ? "#000" : "var(--acid)",
+                          fontSize: "11px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {band.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
+                    {pickedCrew
+                      ? "Start directing puts these people back on CAST with their faces."
+                      : "Tap a saved cast to bring them back. Same as a music video band."}
+                  </div>
                 </div>
               ) : null}
             </>

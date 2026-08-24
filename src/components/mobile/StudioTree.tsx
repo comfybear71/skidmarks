@@ -1489,7 +1489,7 @@ export function StudioTree({
           {bands.map((band) => (
             <GlyphTile
               key={band.name}
-              glyph="♪"
+              glyph={isMusicVideoSongJob(job) ? "♪" : "CAST"}
               label={band.name}
               variant="solid"
               disabled={busy}
@@ -1500,20 +1500,29 @@ export function StudioTree({
           {job.speakers.length ? (
             <GlyphTile
               glyph="SAVE"
-              label="Save as band"
+              label={isMusicVideoSongJob(job) ? "Save as band" : "Save this cast"}
               variant="dashed"
               disabled={busy}
               onClick={() => setSavingBand(true)}
             />
           ) : null}
         </div>
+        {castOpen && !isMusicVideoSongJob(job) && bands.length && !savingBand ? (
+          <div style={{ color: "var(--chrome-dim)", fontSize: "12px", padding: "0 2px 8px" }}>
+            Tap a saved cast to bring those faces back. Save this cast stores the names for the next episode.
+          </div>
+        ) : null}
         {castOpen && savingBand ? (
           <div style={{ display: "flex", gap: "8px", padding: "0 2px 8px", alignItems: "center" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <MobileTextInput
                 value={bandNameDraft}
                 onChange={setBandNameDraft}
-                placeholder="Band name, e.g. THE JACK ASH BAND"
+                placeholder={
+                  isMusicVideoSongJob(job)
+                    ? "Band name, e.g. THE JACK ASH BAND"
+                    : "Cast name, e.g. THE DIRTY DOG LOT"
+                }
               />
             </div>
             <button
