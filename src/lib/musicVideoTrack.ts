@@ -322,7 +322,7 @@ export function lyricLinesFrom(lyrics: string): LyricLine[] {
   return (lyrics || "")
     .split(/\r?\n/)
     .map((raw, index) => ({ index, text: stripLyricTags(raw) }))
-    .filter((line) => line.text.length > 0);
+    .filter((line) => line.text.length > 0 && !isLyricFilenameLine(line.text));
 }
 
 /** Drop every [...] run and tidy the whitespace it leaves behind. */

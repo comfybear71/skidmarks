@@ -17,6 +17,11 @@ const lines = lyricLinesFrom("one\n\n  two  \n\nthree\n");
 assert.equal(lines.length, 3);
 assert.deepEqual(lines.map((l) => l.text), ["one", "two", "three"]);
 assert.deepEqual(lyricLinesFrom(""), []);
+assert.deepEqual(
+  lyricLinesFrom("FORGOTTEN.mp3\nThe last thing I felt\n").map((l) => l.text),
+  ["The last thing I felt"],
+  "a dropped filename is not a lyric line",
+);
 
 // Pinning is upsert-by-line and stays in clock order.
 let cues = withLyricCue([], 2, 8000);
