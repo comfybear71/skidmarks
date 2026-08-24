@@ -26,7 +26,7 @@ import {
 } from "@/lib/talkClipTimeline";
 import { copyTextToClipboard } from "@/lib/copyText";
 import { skidmarksBlankFromJob } from "@/lib/scriptBlueprint";
-import { EPISODE_CONSTRUCTION_EXAMPLE, EPISODE_TEMPLATE_RULES } from "@/lib/episodeTemplate";
+import { EPISODE_TEMPLATE_RULES } from "@/lib/episodeTemplate";
 import { MobilePrimaryButton } from "./MobileUi";
 
 function CopyBlankIcon({ copied }: { copied: boolean }) {
@@ -529,7 +529,7 @@ export function TalkTimeline({
   const [deskBusy, setDeskBusy] = useState("");
   const [deskError, setDeskError] = useState("");
   const [openActId, setOpenActId] = useState("");
-  const [templateOpen, setTemplateOpen] = useState(false);
+  const [openDoc, setOpenDoc] = useState<"" | "rules" | "blank">("");
   const [blankCopied, setBlankCopied] = useState(false);
   const cells = useMemo(() => talkClipLayout(desk.cells, measured), [desk.cells, measured]);
   const bands = talkSceneBands(cells);
@@ -725,96 +725,90 @@ export function TalkTimeline({
             </button>
           ))}
           {isSkidmarks ? (
-            <button
-              type="button"
-              className={`m-mv-lyr-toggle m-talk-template-link${templateOpen ? " is-open" : ""}`}
-              aria-expanded={templateOpen}
-              onClick={() => setTemplateOpen((v) => !v)}
-            >
-              Template <span className="m-mv-lyr-caret">{templateOpen ? "▾" : "▸"}</span>
-            </button>
+            <div className="m-talk-template-link m-talk-doc-chips">
+              <button
+                type="button"
+                className={`m-mv-lyr-toggle${openDoc === "rules" ? " is-open" : ""}`}
+                aria-expanded={openDoc === "rules"}
+                onClick={() => setOpenDoc((cur) => (cur === "rules" ? "" : "rules"))}
+              >
+                House rules <span className="m-mv-lyr-caret">{openDoc === "rules" ? "▾" : "▸"}</span>
+              </button>
+              <button
+                type="button"
+                className={`m-mv-lyr-toggle${openDoc === "blank" ? " is-open" : ""}`}
+                aria-expanded={openDoc === "blank"}
+                onClick={() => setOpenDoc((cur) => (cur === "blank" ? "" : "blank"))}
+              >
+                Blank <span className="m-mv-lyr-caret">{openDoc === "blank" ? "▾" : "▸"}</span>
+              </button>
+              <button
+                type="button"
+                className={`m-talk-copy-icon${blankCopied ? " is-copied" : ""}`}
+                aria-label={blankCopied ? "Blank template copied" : "Copy blank template"}
+                title={blankCopied ? "Copied" : "Copy blank"}
+                onClick={() => {
+                  void copyTextToClipboard(skidBlank)
+                    .then(() => {
+                      setBlankCopied(true);
+                      window.setTimeout(() => setBlankCopied(false), 2000);
+                    })
+                    .catch(() => setBlankCopied(false));
+                }}
+              >
+                <CopyBlankIcon copied={blankCopied} />
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}
-      {!compact && (openAct || (isSkidmarks && templateOpen)) ? (
-        <div
-          className={`m-talk-act-panel${isSkidmarks && templateOpen ? " is-template-open" : ""}`}
-        >
-          {openAct ? (
-            <div className="m-talk-act-main">
+      {!compact && isSkidmarks && openDoc ? (
+        <div className="m-talk-doc-fold">
+          {openDoc === "rules" ? (
+            <textarea
+              className="m-talk-act-script"
+              value={EPISODE_TEMPLATE_RULES}
+              rows={8}
+              spellCheck={false}
+              readOnly
+              aria-label="Skidmarks house rules"
+            />
+          ) : (
+            <>
               <div className="m-mv-lyrics-note">
-                Act {openAct.roman} · {openAct.title}
-                {openAct.stageNote ? ` · ${openAct.stageNote}` : ""} · {openAct.lineCount}{" "}
-                {openAct.lineCount === 1 ? "line" : "lines"} — live pack on this stage, not a
-                new episode
-              </div>
-              <textarea
-                className="m-talk-act-script"
-                value={openAct.script}
-                rows={Math.min(12, Math.max(4, openAct.lineCount * 3 || 4))}
-                spellCheck={false}
-                readOnly
-                aria-label={`Script for Act ${openAct.roman}`}
-              />
-            </div>
-          ) : null}
-          {isSkidmarks && templateOpen ? (
-            <div className="m-talk-act-template">
-              <div className="m-mv-lyrics-note">
-                House rules first. Blank construction is the script — copy that. Little
-                Red is a format example only. Does not change this episode.
-              </div>
-              <textarea
-                className="m-talk-act-script"
-                value={EPISODE_TEMPLATE_RULES}
-                rows={8}
-                spellCheck={false}
-                readOnly
-                aria-label="Skidmarks house rules"
-              />
-              <div className="m-talk-blank-head">
-                <div className="m-mv-lyrics-note">
-                  Blank construction · this pack&apos;s cast and places. Copy into an
-                  outside AI.
-                </div>
-                <button
-                  type="button"
-                  className={`m-talk-copy-icon${blankCopied ? " is-copied" : ""}`}
-                  aria-label={blankCopied ? "Blank template copied" : "Copy blank template"}
-                  title={blankCopied ? "Copied" : "Copy blank"}
-                  onClick={() => {
-                    void copyTextToClipboard(skidBlank)
-                      .then(() => {
-                        setBlankCopied(true);
-                        window.setTimeout(() => setBlankCopied(false), 2000);
-                      })
-                      .catch(() => setBlankCopied(false));
-                  }}
-                >
-                  <CopyBlankIcon copied={blankCopied} />
-                </button>
+                This pack&apos;s cast and places. Copy into an outside AI. Does not change
+                this episode.
               </div>
               <textarea
                 className="m-talk-act-script"
                 value={skidBlank}
-                rows={16}
+                rows={10}
                 spellCheck={false}
                 readOnly
                 aria-label="Skidmarks blank construction template"
               />
-              <div className="m-mv-lyrics-note">
-                Format example only — Little Red Riding Hood. Not a Skidmarks episode.
-              </div>
-              <textarea
-                className="m-talk-act-script"
-                value={EPISODE_CONSTRUCTION_EXAMPLE}
-                rows={10}
-                spellCheck={false}
-                readOnly
-                aria-label="Little Red Riding Hood format example"
-              />
+            </>
+          )}
+        </div>
+      ) : null}
+      {!compact && openAct ? (
+        <div className="m-talk-act-panel">
+          <div className="m-talk-act-main">
+            <div className="m-mv-lyrics-note">
+              Act {openAct.roman} · {openAct.title}
+              {openAct.stageNote ? ` · ${openAct.stageNote}` : ""} · {openAct.lineCount}{" "}
+              {openAct.lineCount === 1 ? "line" : "lines"} — live pack on this stage, not a
+              new episode
             </div>
-          ) : null}
+            <textarea
+              className="m-talk-act-script"
+              value={openAct.script}
+              rows={Math.min(12, Math.max(4, openAct.lineCount * 3 || 4))}
+              spellCheck={false}
+              readOnly
+              aria-label={`Script for Act ${openAct.roman}`}
+            />
+          </div>
         </div>
       ) : null}
       {cells.length ? (
