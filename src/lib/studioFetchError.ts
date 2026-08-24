@@ -7,6 +7,9 @@ export function studioFetchError(e: unknown, fallback: string): string {
   if (/did not match the expected pattern/i.test(msg)) {
     return "That line is long — the voice request timed out. Keep this episode. Tap Save again.";
   }
+  if (/requested file or directory could not be found/i.test(msg)) {
+    return "That file vanished before Studio could read it. Copy it to Downloads and drop that copy.";
+  }
   return msg.trim() || fallback;
 }
 

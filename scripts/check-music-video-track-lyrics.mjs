@@ -438,12 +438,36 @@ console.log("check-music-video-marquee-word OK");
   assert.match(src, /uploadMobileMedia/, "the mp3 goes to Blob, not just memory");
   assert.match(src, /songFile/, "the job remembers the file name");
   assert.match(src, /export async function GET/, "and it can be streamed back after a refresh");
+  assert.match(src, /action === "prepare"/, "big songs prepare a Blob path");
+  assert.match(src, /action === "attach"/, "then attach the Blob URL");
+  assert.match(src, /registerMobileMediaBlob/, "client Blob drops get a Neon row");
 
   const drop = readFileSync(
     new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url),
     "utf8",
   );
   assert.match(drop, /track\/song/, "dropping an mp3 posts it straight away");
+  assert.match(drop, /dropTrackSongViaBlob/, "songs over the Studio POST limit go to Blob");
+  assert.match(drop, /arrayBuffer/, "the File is copied before the handle can vanish");
+
+  const blob = readFileSync(
+    new URL("../src/lib/scratchSongDrop.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(blob, /export async function dropTrackSongViaBlob/, "track drop has its own Blob pipe");
+  assert.match(blob, /track\/song-blob/, "token route does not need a beat");
+  const errSrc = readFileSync(
+    new URL("../src/lib/studioFetchError.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    errSrc,
+    /requested file or directory could not be found/,
+    "the OneDrive/Chrome vanish error is translated",
+  );
+
+  const token = new URL("../src/app/api/crash/mobile/track/song-blob/route.ts", import.meta.url);
+  assert.ok(existsSync(token), "there is a token route for the track song Blob drop");
 
   const ui = readFileSync(
     new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url),
