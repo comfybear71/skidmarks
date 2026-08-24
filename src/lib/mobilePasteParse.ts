@@ -7,6 +7,7 @@ import type {
   CrashStoryShot,
 } from "./crashStoryTypes";
 import type { ShowStyleId } from "./showStylePresets";
+import { productionShowLabel, styleEpisodeBlank } from "./styleEpisodeProcess";
 
 export const MOBILE_PASTE_SAMPLE = `EPISODE: Crazy Big Hole Jo
 GAG: Jo falls in a hole. Matty has a bar.
@@ -26,18 +27,9 @@ export function episodeTemplateFromJob(job: {
   scenes: { placeName: string }[];
   artist?: string;
   songTitle?: string;
+  styleId?: ShowStyleId;
 }): string {
-  const vibe = job.prompt.trim();
-  const artist = (job.artist || "").trim();
-  const song = (job.songTitle || "").trim();
-  const credit = [artist, song].filter(Boolean).join(" — ");
-  const title =
-    credit || vibe.split(/\n/)[0]?.slice(0, 80) || "Untitled episode";
-  const gag = credit ? [vibe, `Artist: ${artist || "—"}`, `Song: ${song || "—"}`].filter(Boolean).join("\n") : vibe;
-  const shots = job.scenes.map((s, i) =>
-    [`--- SHOT ${i + 1} ---`, `Place: ${s.placeName}`, "Title: ", "Action: ", "Plate: "].join("\n"),
-  );
-  return [`EPISODE: ${title}`, `GAG: ${gag}`, "", ...shots].join("\n\n");
+  return styleEpisodeBlank(job);
 }
 
 export function storyHasSpokenLine(story: CrashStoryDoc): boolean {
@@ -385,19 +377,23 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
   };
 }
 
-function ensureProductionWrapper(text: string, fallbackTitle: string): string {
+function ensureProductionWrapper(
+  text: string,
+  fallbackTitle: string,
+  styleId: ShowStyleId,
+): string {
   let body = text.trim();
   if (!/^ACT\s+[IVX]+/im.test(body)) {
     body = `ACT I\n\n${body}`;
   }
   if (!/Episode\s+\d+:\s*"/i.test(body)) {
-    body = `Skidmarks\nEpisode 1: "${fallbackTitle}"\n\n${body}`;
+    body = `${productionShowLabel(styleId)}\nEpisode 1: "${fallbackTitle}"\n\n${body}`;
   }
   return body;
 }
 
 function parseProductionPaste(text: string, styleId: ShowStyleId, fallbackTitle: string): MobilePasteResult {
-  const wrapped = ensureProductionWrapper(text, fallbackTitle);
+  const wrapped = ensureProductionWrapper(text, fallbackTitle, styleId);
   const parsed = parseProductionScript(wrapped, styleId, fallbackTitle);
   const ep = parsed.parsedEpisodes[0];
   if (!ep?.scenes?.length) {

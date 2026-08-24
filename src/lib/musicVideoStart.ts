@@ -21,6 +21,7 @@ import {
   forgottenResearchDrafts,
   forgottenSoloCamera,
   isForgottenSongJob,
+  musicVideoSoloCamera,
 } from "./musicVideoGroupPlate";
 
 /** Structural — the phone passes a real File, tests pass a stub. */
@@ -159,7 +160,7 @@ export function buildMusicVideoStartStory(job: MobileGenJob): {
           summary: `[BUDGET_TIER] CHEAP_TAKE. ${speaker.trim()} at ${placeName}`,
           staging: isForgottenSongJob(job)
             ? forgottenSoloCamera(speaker, placeName)
-            : defaultMusicVideoBandStaging(speaker, placeName),
+            : musicVideoSoloCamera(speaker, placeName),
           plateFile: "",
           beats: [{ id: newId("beat"), speaker: speaker.trim(), text: "" }],
           sfx: [],

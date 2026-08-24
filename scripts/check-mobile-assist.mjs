@@ -54,6 +54,13 @@ const sunny = assistSystem("sunny_banks", "image_motion");
 assert.match(sunny, /rubbery adult cel cartoon/);
 assert.match(sunny, /Do not write the locked lip-sync lead/);
 
+const sunnyEp = assistSystem("sunny_banks", "episode");
+assert.match(sunnyEp, /exactly four/);
+assert.doesNotMatch(sunnyEp, /nine ACTS/);
+const skidEp = assistSystem("skidmarks", "episode");
+assert.match(skidEp, /MASTER EPISODE CONSTRUCTION/);
+assert.doesNotMatch(skidEp, /exactly four/);
+
 const hint = platePositionAssistHint({
   people: ["Crazy Jo"],
   placeName: "Jo's bedroom (the cell)",

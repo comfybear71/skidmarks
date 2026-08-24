@@ -22,12 +22,12 @@ const DEFAULTS: Record<ShowStyleId, EpisodeRecipe> = {
     shotsPerScene: 4,
   },
   doc: {
-    targetMinutes: 12,
+    targetMinutes: 22,
     sceneCount: 4,
-    shotsPerScene: 3,
+    shotsPerScene: 4,
   },
   music_video: {
-    targetMinutes: 4,
+    targetMinutes: 7,
     sceneCount: 1,
     shotsPerScene: 6,
   },
@@ -37,9 +37,9 @@ const DEFAULTS: Record<ShowStyleId, EpisodeRecipe> = {
     shotsPerScene: 3,
   },
   photoreal: {
-    targetMinutes: 3,
-    sceneCount: 1,
-    shotsPerScene: 4,
+    targetMinutes: 22,
+    sceneCount: 3,
+    shotsPerScene: 5,
   },
 };
 

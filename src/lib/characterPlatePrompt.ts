@@ -58,7 +58,7 @@ export function characterPlateLayout(opts: {
 }): string {
   const name = opts.name.trim() || "this character";
   const who = (opts.look || "").trim();
-  const sunny = opts.styleId === "sunny_banks" || opts.styleRealism <= 35;
+  const sunny = opts.styleId === "sunny_banks";
   const layout = sunny
     ? [
         `CHARACTER PLATE of ${name} only — the same person, never a cousin.`,

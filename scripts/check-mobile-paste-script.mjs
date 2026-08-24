@@ -21,6 +21,8 @@ const job = {
 
 const template = episodeTemplateFromJob(job);
 assert.match(template, /^EPISODE: CRAZY BIG HOLE JO/m);
+const skidBlank = episodeTemplateFromJob({ ...job, styleId: "skidmarks" });
+assert.match(skidBlank, /CAST_MAIN|ACT_/i);
 const mv = episodeTemplateFromJob({
   ...job,
   artist: "Jack Ghost",

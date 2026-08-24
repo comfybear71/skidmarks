@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { CRASH_DIR } from "./paths";
-import { sortableId } from "./types";
+import { newId, sortableId } from "./types";
 import { useCloudStore } from "./cloudEnv";
 import { readMobileJobRow, saveMobileJobRow } from "./neonStore";
 import type { ShowStyleId } from "./showStylePresets";
@@ -12,6 +12,7 @@ import type { ScratchClipTask, ScratchDrawTask, ScratchPlateRef } from "./mobile
 import type { ScratchSong } from "./scratchSongWindow";
 import type { MusicVideoTrackDraft } from "./musicVideoTrack";
 import { DEFAULT_DESK_ID, normalizeDeskId } from "./mobileDesk";
+import { styleStartRoster } from "./styleEpisodeProcess";
 
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
 
@@ -200,6 +201,7 @@ export async function createMobileGenJob(opts: {
   songTitle?: string;
 }): Promise<MobileGenJob> {
   const now = new Date().toISOString();
+  const seed = styleStartRoster(opts.styleId);
   const job: MobileGenJob = {
     id: sortableId("mgen"),
     styleId: opts.styleId,
@@ -215,9 +217,18 @@ export async function createMobileGenJob(opts: {
     secondsPerShot: opts.secondsPerShot,
     styleRealism: opts.styleRealism,
     phase: "cast_build",
-    speakers: [],
-    roster: [],
-    scenes: [],
+    // Names only. Faces stay empty until Generate / approve.
+    speakers: [...seed.speakers],
+    roster: seed.speakers.map((name) => ({
+      name,
+      description: "",
+      appearance: "",
+    })),
+    scenes: seed.placeNames.map((placeName) => ({
+      id: newId("scene"),
+      placeName,
+      worldThumbKey: "",
+    })),
     castCandidates: {},
     locationCandidates: {},
     characterPlates: {},

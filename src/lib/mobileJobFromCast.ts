@@ -1,4 +1,5 @@
 import type { MobileGenJob, MobileSceneRef } from "./mobileGenJob";
+import { canReuseCastForNewEpisode } from "./styleEpisodeProcess";
 
 /** CAST + places from an older episode. Never story, shots, clips, or folder. */
 export type CastSeed = {
@@ -11,7 +12,7 @@ export type CastSeed = {
 };
 
 export function canConjureCastFromStyle(styleId: string | undefined): boolean {
-  return (styleId || "").trim() === "skidmarks";
+  return canReuseCastForNewEpisode(styleId);
 }
 
 export function castSeedFromJob(

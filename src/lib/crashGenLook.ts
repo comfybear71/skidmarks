@@ -20,7 +20,7 @@ const LOOK_PROMPT: Record<ShowStyleId, string> = {
     "photorealistic cinematic still, natural materials, accurate lighting, shallow depth of field, sharp focus",
 };
 
-function lookPromptForSlider(base: string, n: number): string {
+function lookPromptForSlider(base: string, n: number, styleId: ShowStyleId): string {
   let out = base;
   if (n < 50) {
     out = out
@@ -28,7 +28,8 @@ function lookPromptForSlider(base: string, n: number): string {
       .replace(/,?\s*[Nn]ot cartoon\.?/g, "")
       .replace(/,?\s*[Nn]ot a flat cartoon\.?/g, "");
   }
-  if (n <= 35) {
+  // Only Sunny Banks may drop the 3D/photo words — that is the cel lane.
+  if (n <= 35 && styleId === "sunny_banks") {
     out = out
       .replace(/\bhighly detailed\s+/gi, "")
       .replace(/\bstylised 3D animated feature render\b/gi, "")
@@ -59,12 +60,12 @@ function lookPromptForSlider(base: string, n: number): string {
     .trim();
 }
 
-const CEL_2D_LOOK =
-  "rubbery adult cartoon, thick black outlines, flat cel colour, big heads, noodly arms, sun-bleached Aussie palette, dusty ochre, faded teal, washed-out yellow, heat haze, hand-drawn 2D cel animation still, flat colour fills, pure graphic 2D read";
-
-function crashGenRenderBias(n: number): string {
+function crashGenRenderBias(n: number, styleId: ShowStyleId): string {
   const zone = styleRealismLabel(n);
   const head = `RENDER BIAS (slider ${n} — ${zone})`;
+  if (styleId !== "sunny_banks" && n <= 35) {
+    return `${head}: more graphic / less photographic lean inside this show's own look. Do not switch to Sunny Banks cel. Do not switch to another show.`;
+  }
   const not3d =
     "Flat 2D only — hand-drawn cel cartoon like Sunny Banks. NOT stylised 3D, NOT a feature render, NOT sculpted materials, NOT shallow depth of field.";
 
@@ -134,10 +135,12 @@ function crashGenRenderBias(n: number): string {
 /** Crash Lab Image gen — show recipe + cartoon←→photo slider. */
 export function buildCrashGenLook(styleId: ShowStyleId, styleRealism: number): string {
   const n = Math.max(0, Math.min(100, Math.round(Number(styleRealism) || 0)));
-  if (n <= 35) {
-    const celBase = styleId === "sunny_banks" ? LOOK_PROMPT.sunny_banks : CEL_2D_LOOK;
-    return `${lookPromptForSlider(celBase, n)}\n\n${crashGenRenderBias(n)}`;
+  // Cel lock is Sunny Banks only. Other looks keep their own recipe at
+  // every slider — a left drag must not pour park-cartoon onto Skidmarks,
+  // Documentary, Photoreal, or Music video.
+  if (n <= 35 && styleId === "sunny_banks") {
+    return `${lookPromptForSlider(LOOK_PROMPT.sunny_banks, n, styleId)}\n\n${crashGenRenderBias(n, styleId)}`;
   }
-  const base = lookPromptForSlider(LOOK_PROMPT[styleId] || LOOK_PROMPT.skidmarks, n);
-  return `${base}\n\n${crashGenRenderBias(n)}`;
+  const base = lookPromptForSlider(LOOK_PROMPT[styleId] || LOOK_PROMPT.skidmarks, n, styleId);
+  return `${base}\n\n${crashGenRenderBias(n, styleId)}`;
 }

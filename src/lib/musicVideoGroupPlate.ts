@@ -292,25 +292,34 @@ export function forgottenResearchDrafts(
   return out;
 }
 
-export function forgottenSoloCamera(speaker: string, placeName: string): string {
+function musicVideoCameraKey(speaker: string): keyof typeof MUSIC_VIDEO_CAMERAS {
+  const who = speaker.trim();
+  if (who === "JACK GHOST") return "wide";
+  if (who === "SAXOPHONE") return "mcu";
+  if (who === "DRUMMER") return "sitting";
+  if (who === "GUITAR") return "wide";
+  if (who === "HORN") return "ots";
+  return "medium";
+}
+
+/** Learned cameras for every music-video Start. Forgotten grade stays off. */
+export function musicVideoSoloCamera(speaker: string, placeName: string): string {
   const who = speaker.trim();
   const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
-  const key =
-    who === "JACK GHOST"
-      ? "wide"
-      : who === "SAXOPHONE"
-        ? "mcu"
-        : who === "DRUMMER"
-          ? "sitting"
-          : who === "GUITAR"
-            ? "wide"
-            : who === "HORN"
-              ? "ots"
-              : "medium";
   return defaultMusicVideoGroupStaging(
     [who],
     place,
-    `${MUSIC_VIDEO_CAMERAS[key]} ${FORGOTTEN_GROK_GRADE}`,
+    MUSIC_VIDEO_CAMERAS[musicVideoCameraKey(who)],
+  );
+}
+
+export function forgottenSoloCamera(speaker: string, placeName: string): string {
+  const who = speaker.trim();
+  const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
+  return defaultMusicVideoGroupStaging(
+    [who],
+    place,
+    `${MUSIC_VIDEO_CAMERAS[musicVideoCameraKey(who)]} ${FORGOTTEN_GROK_GRADE}`,
   );
 }
 

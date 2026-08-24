@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       if (!source) return NextResponse.json({ error: "That episode was not found" }, { status: 404 });
       if (!canConjureCastFromStyle(source.styleId)) {
         return NextResponse.json(
-          { error: "New from this cast is Skidmarks only. Music video still uses a saved band." },
+          { error: "New from this cast is for talking shows. Music video still uses a saved band." },
           { status: 400 },
         );
       }

@@ -7,6 +7,9 @@ import {
 } from "../src/lib/mobileJobFromCast.ts";
 
 assert.equal(canConjureCastFromStyle("skidmarks"), true);
+assert.equal(canConjureCastFromStyle("sunny_banks"), true);
+assert.equal(canConjureCastFromStyle("doc"), true);
+assert.equal(canConjureCastFromStyle("photoreal"), true);
 assert.equal(canConjureCastFromStyle("music_video"), false);
 assert.equal(canConjureCastFromStyle(""), false);
 
