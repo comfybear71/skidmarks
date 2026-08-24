@@ -555,23 +555,29 @@ export function TalkTimeline({
   const [pickWhere, setPickWhere] = useState("");
   const [deskBusy, setDeskBusy] = useState("");
   const [deskError, setDeskError] = useState("");
-  const [openActId, setOpenActId] = useState("");
+  const isSkidmarks = job.styleId === "skidmarks";
+  const [openActId, setOpenActId] = useState(isSkidmarks ? "stage-1" : "");
   const [openDoc, setOpenDoc] = useState<"" | "rules" | "blank">("");
   const [blankCopied, setBlankCopied] = useState(false);
   const cells = useMemo(() => talkClipLayout(desk.cells, measured), [desk.cells, measured]);
-  const bands = talkSceneBands(cells);
-  const isSkidmarks = job.styleId === "skidmarks";
   const acts = useMemo(
     () => (isSkidmarks ? talkSkidmarksActsFrom(cells) : talkActScriptsFrom(cells)),
     [cells, isSkidmarks],
   );
   const openAct = acts.find((a) => a.id === openActId) || null;
+  const visibleCells = useMemo(() => {
+    if (compact || !openAct) return cells;
+    const keys = new Set(openAct.cellKeys);
+    return cells.filter((c) => keys.has(c.key));
+  }, [cells, compact, openAct]);
+  const bands = talkSceneBands(visibleCells);
   const skidBlank = useMemo(
     () => (isSkidmarks ? skidmarksBlankFromJob(job) : ""),
     [isSkidmarks, job],
   );
-  const innerW = talkDeskInnerWidth(cells);
-  const selected = cells.find((c) => c.key === pickedKey) || cells[0] || null;
+  const innerW = talkDeskInnerWidth(visibleCells);
+  const selected =
+    visibleCells.find((c) => c.key === pickedKey) || visibleCells[0] || null;
 
   async function addSlot() {
     if (!pickWho || !pickWhere || !job.folderName) return;
@@ -731,7 +737,8 @@ export function TalkTimeline({
       <div className="m-talk-head">
         <span className="m-talk-kicker">Talking timeline</span>
         <span className="m-talk-hint">
-          Tap a box to play it. + adds a slot. × parks it — files stay. Send cooks that clip.
+          Tap an act — only that act is on the strip. Tap a box to play it. + adds a
+          slot. × parks it — files stay. Send cooks that clip.
         </span>
       </div>
       {!compact && (acts.length || isSkidmarks) ? (
@@ -741,14 +748,16 @@ export function TalkTimeline({
               type="button"
               key={act.id}
               className={`m-mv-lyr-toggle${openActId === act.id ? " is-open" : ""}`}
-              aria-expanded={openActId === act.id}
+              aria-pressed={openActId === act.id}
               onClick={() => {
-                setOpenActId((cur) => (cur === act.id ? "" : act.id));
+                setOpenActId(act.id);
+                setPlayingKey("");
                 const first = act.cellKeys[0];
-                if (first) setPickedKey(first);
+                setPickedKey(first || "");
               }}
             >
-              Act {act.roman} <span className="m-mv-lyr-caret">{openActId === act.id ? "▾" : "▸"}</span>
+              Act {act.roman}
+              {act.lineCount ? <span className="m-talk-act-count">{act.lineCount}</span> : null}
             </button>
           ))}
           {isSkidmarks ? (
@@ -818,27 +827,8 @@ export function TalkTimeline({
           )}
         </div>
       ) : null}
-      {!compact && openAct ? (
-        <div className="m-talk-act-panel">
-          <div className="m-talk-act-main">
-            <div className="m-mv-lyrics-note">
-              Act {openAct.roman} · {openAct.title}
-              {openAct.stageNote ? ` · ${openAct.stageNote}` : ""} · {openAct.lineCount}{" "}
-              {openAct.lineCount === 1 ? "line" : "lines"} — live pack on this stage, not a
-              new episode
-            </div>
-            <textarea
-              className="m-talk-act-script"
-              value={openAct.script}
-              rows={Math.min(12, Math.max(4, openAct.lineCount * 3 || 4))}
-              spellCheck={false}
-              readOnly
-              aria-label={`Script for Act ${openAct.roman}`}
-            />
-          </div>
-        </div>
-      ) : null}
       {cells.length ? (
+        visibleCells.length ? (
         <div className="m-talk-desk-scroll">
           <div className="m-talk-desk-inner" style={{ width: `${innerW + 56}px` }}>
             <div className="m-talk-scene-lane" aria-hidden>
@@ -852,9 +842,9 @@ export function TalkTimeline({
                 </span>
               ))}
             </div>
-            <TalkSpeechLane job={job} cells={cells} widthPx={innerW} />
+            <TalkSpeechLane job={job} cells={visibleCells} widthPx={innerW} />
             <div className="m-talk-film">
-              {cells.map((cell) => (
+              {visibleCells.map((cell) => (
                 <TalkFilmCell
                   key={cell.key}
                   job={job}
@@ -890,6 +880,13 @@ export function TalkTimeline({
             </div>
           </div>
         </div>
+        ) : (
+          <p className="m-talk-empty">
+            {openAct
+              ? `No clips on Act ${openAct.roman} yet.`
+              : "Tap an act to see its clips."}
+          </p>
+        )
       ) : (
         <p className="m-talk-empty">
           Talking desk — + adds a slot. Plate-only is fine. Send cooks the clip. Not a song.
