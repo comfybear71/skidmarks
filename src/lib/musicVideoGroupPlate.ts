@@ -27,6 +27,44 @@ export const MUSIC_VIDEO_CAMERAS = {
     "WIDE three-shot. All three in the place, not a police lineup facing camera. Depth, not a mug-shot row.",
 } as const;
 
+/**
+ * Jack Ghost walk-away — camera stays behind the silhouette.
+ * Face never readable. Not over-the-shoulder looking back (that lights a face).
+ * Rotate these across Forgotten walk slices so the angles change.
+ */
+export const JACK_WALK_CAMERAS = [
+  "WIDE from behind. He walks away from camera into the dark, smaller in frame. Full silhouette — fedora, dark suit. Ominous. Not a portrait. Not facing camera.",
+  "LOW ANGLE from behind, looking up as he walks away. Fedora brim and coat. Face stays black. Suspense.",
+  "HIGH ANGLE from behind, looking down as he walks away into darkness. Small in the place. Silhouette only.",
+  "THREE-QUARTER REAR. Walking away, slight angle so the hat and shoulders read, face stays black. Not looking back over the shoulder.",
+  "MEDIUM from behind. Fedora and shoulders as he walks away. No eyes. No mouth. No cyan glow on a face.",
+] as const;
+
+/** Forgotten Jack 30s slice starts that walk away (sing stays on the others). */
+export const JACK_WALK_START_SEC = [46, 106, 126, 186, 251] as const;
+
+export function isJackWalkStartSec(startSec: number): boolean {
+  const start = Math.round(startSec);
+  return (JACK_WALK_START_SEC as readonly number[]).includes(start);
+}
+
+export function jackWalkCameraForStartSec(startSec: number): string {
+  const start = Math.round(startSec);
+  const i = (JACK_WALK_START_SEC as readonly number[]).indexOf(start);
+  const idx = i >= 0 ? i : Math.abs(start) % JACK_WALK_CAMERAS.length;
+  return JACK_WALK_CAMERAS[idx];
+}
+
+/** Position for a Jack walk plate — camera behind, empty hands, no face. */
+export function forgottenJackWalkStaging(placeName: string, startSec: number): string {
+  const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
+  return defaultMusicVideoGroupStaging(
+    ["JACK GHOST"],
+    place,
+    jackWalkCameraForStartSec(startSec),
+  );
+}
+
 export const FORGOTTEN_LYRICS = `FORGOTTEN.mp3 [Instrumental Intro,  muted trumpet snaking middle eastern melody, dark Arabic scale, heavy 12-string drone, deep dragging slide bass]
 
 [Verse 1]

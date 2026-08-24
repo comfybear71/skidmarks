@@ -17,6 +17,11 @@ import {
   buildScratchSongLtxMotion,
   skipSongLipSyncLead,
 } from "../src/lib/mobileImageMotion.ts";
+import {
+  JACK_WALK_CAMERAS,
+  JACK_WALK_START_SEC,
+  jackWalkCameraForStartSec,
+} from "../src/lib/musicVideoGroupPlate.ts";
 import { sliceBoundsForPlate } from "../src/lib/musicVideoTrack.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -47,7 +52,19 @@ assert.ok(slices.every((s) => s.who !== "sax"));
 assert.ok(slices.every((s) => s.durationSec >= 4 && s.durationSec <= 30));
 assert.ok(!slices.some((s) => s.who === "jack" && s.performance === "play"));
 assert.ok(!slices.some((s) => s.performance === "sway"));
-assert.ok(slices.every((s) => s.who === "jack" ? s.performance === "sing" : s.performance === "play"));
+const jackSlices = slices.filter((s) => s.who === "jack");
+const jackWalk = jackSlices.filter((s) => s.performance === "walk");
+const jackSing = jackSlices.filter((s) => s.performance === "sing");
+assert.ok(jackWalk.length >= 5, `expected lots of Jack walk slices, got ${jackWalk.length}`);
+assert.ok(jackSing.length >= 3, `expected some Jack sing slices for high notes, got ${jackSing.length}`);
+assert.ok(
+  jackSlices.every((s) => s.performance === "sing" || s.performance === "walk"),
+);
+assert.ok(slices.filter((s) => s.who === "horn").every((s) => s.performance === "play"));
+assert.deepEqual(
+  jackWalk.map((s) => Math.round(s.startSec)),
+  [...JACK_WALK_START_SEC],
+);
 
 const gaps = forgottenIntermissions(291.48);
 assert.ok(gaps.some((g) => g.startSec <= 23 && g.endSec >= 46));
@@ -78,6 +95,7 @@ assert.ok(laid.cuts.every((c) => c.shotId === "jack" || c.shotId === "horn"));
 assert.ok(!laid.cuts.some((c) => c.shotId === "sax" || c.shotId === "trio"));
 assert.ok(!laid.cuts.some((c) => c.performance === "sway"));
 assert.ok(laid.cuts.some((c) => c.performance === "sing"));
+assert.ok(laid.cuts.some((c) => c.performance === "walk"));
 assert.ok(laid.cuts.some((c) => c.performance === "play"));
 
 const cutWins = sliceBoundsForPlate({
@@ -100,16 +118,42 @@ const cutWins = sliceBoundsForPlate({
 assert.equal(cutWins.startSec, 46);
 assert.equal(cutWins.durationSec, 30);
 
-const jackSing = buildScratchSongLtxMotion({
+const jackSingMotion = buildScratchSongLtxMotion({
   styleId: "music_video",
   speaker: "JACK GHOST",
   performance: "sing",
 });
-assert.match(jackSing, /Face stays hidden/);
-assert.match(jackSing, /No saxophone/);
-assert.doesNotMatch(jackSing, /singing, lip-sync/);
+assert.match(jackSingMotion, /Face stays hidden/);
+assert.match(jackSingMotion, /No saxophone/);
+assert.match(jackSingMotion, /Cyan mouth line moves/);
+assert.doesNotMatch(jackSingMotion, /singing, lip-sync/);
+assert.doesNotMatch(jackSingMotion, /walks away from camera/);
 assert.equal(
   skipSongLipSyncLead({ speaker: "JACK GHOST", performance: "sing", singing: true }),
+  true,
+);
+
+const walkAngles = new Set();
+for (const startSec of JACK_WALK_START_SEC) {
+  const jackWalkMotion = buildScratchSongLtxMotion({
+    styleId: "music_video",
+    speaker: "JACK GHOST",
+    performance: "walk",
+    startSec,
+  });
+  assert.match(jackWalkMotion, /walks away from camera/);
+  assert.match(jackWalkMotion, /Face stays hidden/);
+  assert.match(jackWalkMotion, /Face never readable/);
+  assert.match(jackWalkMotion, /Does not turn around/);
+  assert.doesNotMatch(jackWalkMotion, /Cyan mouth line moves/);
+  assert.doesNotMatch(jackWalkMotion, /singing, lip-sync/);
+  const camera = jackWalkCameraForStartSec(startSec);
+  assert.match(jackWalkMotion, new RegExp(camera.slice(0, 18).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  walkAngles.add(camera);
+}
+assert.equal(walkAngles.size, JACK_WALK_CAMERAS.length);
+assert.equal(
+  skipSongLipSyncLead({ speaker: "JACK GHOST", performance: "walk", singing: true }),
   true,
 );
 

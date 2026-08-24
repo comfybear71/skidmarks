@@ -3,9 +3,11 @@
  * Jack only on the vocal hits. Horn fades in, actually plays, fades out,
  * then revolves back. Gaps are animation intermissions (concert loop later).
  * There is no saxophone on this mix. Jack's face stays hidden.
+ * Lots of Jack slices walk away from camera (silhouette). Some stay sing
+ * so body, hands, and high notes still happen.
  * Do not mint a job from this file. Do not generate the concert loop yet.
  */
-import { isForgottenSongJob } from "./musicVideoGroupPlate";
+import { isForgottenSongJob, isJackWalkStartSec } from "./musicVideoGroupPlate";
 import type { PlateTiming } from "./musicVideoTrack";
 import { secToMs } from "./musicVideoTrack";
 import {
@@ -17,7 +19,7 @@ import {
 } from "./scratchSongWindow";
 
 export type ForgottenWho = "horn" | "jack";
-export type ForgottenPerformance = "play" | "sway" | "sing";
+export type ForgottenPerformance = "play" | "sway" | "sing" | "walk";
 
 export type ForgottenWhoCue = {
   who: ForgottenWho;
@@ -132,7 +134,12 @@ export function splitWhoPlaysWindow(
   return cuts.map((c) => ({
     ...c,
     who: cue.who,
-    performance: cue.performance,
+    performance:
+      cue.who === "jack"
+        ? isJackWalkStartSec(c.startSec)
+          ? "walk"
+          : "sing"
+        : cue.performance,
   }));
 }
 

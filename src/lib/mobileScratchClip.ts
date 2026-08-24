@@ -190,6 +190,7 @@ export async function runScratchLtxClip(opts: {
           lookLock,
           staging: storyShot.staging,
           performance,
+          startSec: cutRow?.startSec,
         })
       : "") ||
     (storedOk ? stored : "") ||
