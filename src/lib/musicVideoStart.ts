@@ -17,6 +17,10 @@ import type { MobileGenJob } from "./mobileGenJob";
 import { MUSIC_VIDEO_SHOW_NAME, musicVideoCreditLine } from "./musicVideoSong";
 import type { ScriptCharacterData } from "./types";
 import { newId } from "./types";
+import {
+  forgottenResearchDrafts,
+  isForgottenSongJob,
+} from "./musicVideoGroupPlate";
 
 /** Structural — the phone passes a real File, tests pass a stub. */
 export type PickedSongFile = {
@@ -146,17 +150,36 @@ export function buildMusicVideoStartStory(job: MobileGenJob): {
     title: placeName,
     placeName,
     worldThumbKey: sceneRef.worldThumbKey || "",
-    shots: job.speakers.map(
-      (speaker): CrashStoryShot => ({
-        id: newId("shot"),
-        title: speaker.trim(),
-        summary: `${speaker.trim()} at ${placeName}`,
-        staging: defaultMusicVideoBandStaging(speaker, placeName),
-        plateFile: "",
-        beats: [{ id: newId("beat"), speaker: speaker.trim(), text: "" }],
-        sfx: [],
-      }),
-    ),
+    shots: [
+      ...job.speakers.map(
+        (speaker): CrashStoryShot => ({
+          id: newId("shot"),
+          title: speaker.trim(),
+          summary: `[BUDGET_TIER] CHEAP_TAKE. ${speaker.trim()} at ${placeName}`,
+          staging: defaultMusicVideoBandStaging(speaker, placeName),
+          plateFile: "",
+          beats: [{ id: newId("beat"), speaker: speaker.trim(), text: "" }],
+          sfx: [],
+        }),
+      ),
+      ...(isForgottenSongJob(job)
+        ? forgottenResearchDrafts(job.speakers, placeName).map(
+            (draft): CrashStoryShot => ({
+              id: newId("shot"),
+              title: draft.title,
+              summary: draft.summary,
+              staging: draft.staging,
+              plateFile: "",
+              beats: draft.speakers.map((speaker) => ({
+                id: newId("beat"),
+                speaker,
+                text: "",
+              })),
+              sfx: [],
+            }),
+          )
+        : []),
+    ],
   };
 
   const story: CrashStoryDoc = {
