@@ -41,7 +41,7 @@ export const JACK_WALK_CAMERAS = [
 ] as const;
 
 /** Forgotten Jack 30s slice starts that walk away (sing stays on the others). */
-export const JACK_WALK_START_SEC = [46, 106, 126, 186, 251] as const;
+export const JACK_WALK_START_SEC = [106, 126, 186, 251] as const;
 
 export function isJackWalkStartSec(startSec: number): boolean {
   const start = Math.round(startSec);

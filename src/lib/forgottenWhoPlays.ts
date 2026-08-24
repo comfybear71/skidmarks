@@ -3,8 +3,8 @@
  * Jack only on the vocal hits. Horn fades in, actually plays, fades out,
  * then revolves back. Gaps are animation intermissions (concert loop later).
  * There is no saxophone on this mix. Jack's face stays hidden.
- * Lots of Jack slices walk away from camera (silhouette). Some stay sing
- * so body, hands, and high notes still happen.
+ * Lots of Jack slices walk away from camera (silhouette). The first vocal
+ * window and the other sing slices keep body, hands, and high notes.
  * Do not mint a job from this file. Do not generate the concert loop yet.
  */
 import { isForgottenSongJob, isJackWalkStartSec } from "./musicVideoGroupPlate";

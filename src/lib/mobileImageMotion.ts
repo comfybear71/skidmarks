@@ -574,7 +574,7 @@ export function buildScratchSongLtxMotion(opts: {
         : walk
           ? `${who} is prominent. ${walkCamera} He walks away from camera, measured, ominous. Full silhouette — fedora, dark suit, empty hands. Face never readable. Does not turn around to show a face. Not singing. Not lip-sync. No cyan glow on a face.`
           : jack
-            ? `${who} is prominent. Cyan mouth line moves with the vocal. Head and shoulders move with the song. Not a visible face.`
+            ? `${who} is prominent. Cyan mouth line moves with the vocal. Body and empty hands express the song — shoulders, chest, fingers. Hits the high notes with the body, not a visible face. Not a statue.`
             : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`;
   const closer =
     performance === "play"
@@ -583,7 +583,9 @@ export function buildScratchSongLtxMotion(opts: {
         ? `${name} sways this slice. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image. Not singing.`
         : walk
           ? `${name} walks away from camera this slice. Camera stays behind him at this angle. Same silhouette and objects as the start image. Not singing.`
-          : `${name} sings this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`;
+          : jack
+            ? `${name} sings this slice of the track. Body and empty hands move with the vocal, including the high notes. ${GOLD_CAMERA_HOLDS} Face stays hidden. Same person and objects as the start image.`
+            : `${name} sings this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`;
   return clean(
     [
       GOLD_START_FRAME,
