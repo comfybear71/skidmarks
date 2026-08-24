@@ -10,4 +10,4 @@ Logged **2026-08-24**. Job `mgen_20260824085817084_edp`. Pack `THE JACK ASH BAND
 | **T4** | Concert skull still | Gold skull + cobras, **no people**. Holy still only. | Named. Not generated until T3 stills are in flight. |
 | **T5** | Concert loop I2V | Muted Cloud `video_ltx2_5_i2v` ~5s on the T4 still. Not `/m` speech. | Later. Stills first. |
 
-Marquee lyric pins (line up words to the playhead) stay a separate desk tool — they do not replace T2 section tags.
+Marquee lyric pins (line up words to the playhead) stay a separate desk tool — they do not replace T2 section tags. 42 pins are on this job (sheet-spread inside each Section). Leave this pack as the test. Next songs use `docs/MUSIC_VIDEO_BASE.md`.

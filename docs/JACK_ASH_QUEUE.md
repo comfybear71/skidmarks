@@ -18,6 +18,12 @@ Same band for all five unless he says otherwise: **THE JACK ASH BAND** — JACK 
 
 Already live, do not wipe: **BLOWING UP CLAUDE** (`mgen_20260822085033162_0ud`). Not on this queue.
 
+## Base for the next song
+
+Forgotten is the test bed. The next 5–6 songs use `docs/MUSIC_VIDEO_BASE.md`: Crash Lab cameras (OTS, tight CU, MCU, sit, wide, two-shot, three-shot), named instruments, empty-handed Jack, anti-cel. Do not fall back to the generic “half turned in profile” Start line.
+
+He also wants, later, to mark **who is playing** (singer / horn / sax) on the mp3 *before* plating — or have the mix heard automatically. Thought only. No code until he says go.
+
 ## Study first
 
 He said study requirements before we make Jack Ash videos. The new visual floor is **concert loop plates** (gold/black hypnotic art, no band on them) **plus** the people stills. See `docs/CONCERT_LOOP_PLATE.md`.

@@ -1,6 +1,7 @@
 /**
  * Jack Ash song queue — logged 2026-08-24 from Stuie.
- * Study concert-loop plates before cooking the list.
+ * Next song uses docs/MUSIC_VIDEO_BASE.md (cameras + Position), not a
+ * Forgotten-only special case. Study concert-loop plates before cooking.
  * Do not mint a job from this file.
  */
 

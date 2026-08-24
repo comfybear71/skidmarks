@@ -29,6 +29,13 @@ for (const title of JACK_ASH_QUEUE) {
 }
 assert.match(list, /concert loop/);
 assert.match(list, /Start directing/);
+assert.match(list, /MUSIC_VIDEO_BASE/);
+
+const base = readFileSync(new URL("../docs/MUSIC_VIDEO_BASE.md", import.meta.url), "utf8");
+assert.match(base, /MUSIC_VIDEO_CAMERAS/);
+assert.match(base, /isForgottenSongJob/);
+assert.match(base, /who is playing/);
+assert.match(base, /pull\/311/);
 
 const loop = readFileSync(new URL("../docs/CONCERT_LOOP_PLATE.md", import.meta.url), "utf8");
 assert.match(loop, /video_ltx2_5_i2v/);
