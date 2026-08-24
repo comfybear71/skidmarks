@@ -124,18 +124,86 @@ export function talkActRoman(n: number): string {
   return TALK_ROMAN[Math.max(1, Math.floor(n)) - 1] || String(n);
 }
 
+export function talkRomanToN(raw: string): number | null {
+  const key = String(raw || "").trim().toUpperCase();
+  const i = TALK_ROMAN.indexOf(key as (typeof TALK_ROMAN)[number]);
+  if (i >= 0) return i + 1;
+  const n = Number(key);
+  if (Number.isFinite(n) && n >= 1 && n <= TALK_ROMAN.length) return n;
+  return null;
+}
+
+/** Construction `[ACT] I — He shows up` — not the place the shot is in. */
+export function talkActNFromEvents(events: TalkTimelineEvent[]): number | null {
+  const ev = (events || []).find((e) => e.kind === "act");
+  if (!ev) return null;
+  const head = String(ev.detail || "").trim();
+  const m = head.match(/^([IVXLCDM]+|\d+)\b/i);
+  return m ? talkRomanToN(m[1]) : null;
+}
+
+/**
+ * One act number per clip. Tagged `[ACT]` wins. Same-place shots stay
+ * on their own act — Front of the houses can be Act I then Act II.
+ * Untagged clips keep the last tagged act in film order.
+ */
+export function talkAssignActNs(cells: Array<{ events?: TalkTimelineEvent[]; title?: string; sceneTitle?: string }>): number[] {
+  let last = 0;
+  return (cells || []).map((cell) => {
+    const tagged = talkActNFromEvents(cell.events || []);
+    if (tagged) {
+      last = tagged;
+      return tagged;
+    }
+    const blob = `${cell.title || ""} ${cell.sceneTitle || ""}`.toLowerCase();
+    const titled = STORY_SPINE_STAGES.find((s) => blob.includes(s.title.toLowerCase()));
+    if (titled) {
+      last = titled.n;
+      return titled.n;
+    }
+    return last;
+  });
+}
+
 function talkActCellScript(cell: TalkClipCell): string {
   const bits = [cell.title, cell.speaker, cell.line || "No line yet"].filter(Boolean);
   return `${bits.join("\n")}\n\n`;
 }
 
+function talkActFromCells(n: number, group: TalkClipCell[], id: string): TalkActScript {
+  return {
+    id,
+    sceneId: group[0]?.sceneId || id,
+    roman: talkActRoman(n),
+    title: group[0]?.sceneTitle || "Shot",
+    script: group.map(talkActCellScript).join("").trim(),
+    lineCount: group.length,
+    cellKeys: group.map((c) => c.key),
+  };
+}
+
 /**
- * One script box per stretch on the talking desk — same job as lyrics
- * on a music-video section. Built from the live cells. Does not rewrite story.
+ * Acts from `[ACT]` tags. Place stretches are only a fallback when no
+ * construction act tags exist. Does not rewrite story.
  */
 export function talkActScriptsFrom(cells: TalkClipCell[]): TalkActScript[] {
+  const list = cells || [];
+  const ns = talkAssignActNs(list);
+  if (ns.some((n) => n > 0)) {
+    const byN = new Map<number, TalkClipCell[]>();
+    list.forEach((cell, i) => {
+      const n = ns[i] || 0;
+      if (!n) return;
+      const group = byN.get(n) || [];
+      group.push(cell);
+      byN.set(n, group);
+    });
+    return [...byN.keys()]
+      .sort((a, b) => a - b)
+      .map((n) => talkActFromCells(n, byN.get(n) || [], `act-${n}`));
+  }
   const acts: TalkActScript[] = [];
-  for (const cell of cells) {
+  for (const cell of list) {
     const last = acts[acts.length - 1];
     if (last && last.sceneId === cell.sceneId) {
       last.cellKeys.push(cell.key);
@@ -157,36 +225,26 @@ export function talkActScriptsFrom(cells: TalkClipCell[]): TalkActScript[] {
 }
 
 /**
- * Skidmarks only — always nine chips, one per locked stage.
- * Live lines from place stretches map onto the first stages.
- * Extra stretches stay on stage 9 so nothing on the desk is hidden.
+ * Skidmarks — nine chips, one per locked stage. Clips land on the
+ * `[ACT]` they were written with, not the place they share.
  * Does not rewrite story_json.
  */
 export function talkSkidmarksActsFrom(cells: TalkClipCell[]): TalkActScript[] {
-  const stretches = talkActScriptsFrom(cells);
-  const acts: TalkActScript[] = STORY_SPINE_STAGES.map((stage, i) => {
-    const stretch = stretches[i];
+  const list = cells || [];
+  const ns = talkAssignActNs(list);
+  return STORY_SPINE_STAGES.map((stage) => {
+    const group = list.filter((_, i) => ns[i] === stage.n);
     return {
       id: `stage-${stage.n}`,
-      sceneId: stretch?.sceneId || `stage-${stage.n}`,
+      sceneId: `stage-${stage.n}`,
       roman: talkActRoman(stage.n),
       title: stage.title,
       stageNote: stage.note,
-      script:
-        stretch?.script ||
-        `${stage.title}\n${stage.note}\n\nNo lines on this stage yet.`,
-      lineCount: stretch?.lineCount || 0,
-      cellKeys: stretch?.cellKeys || [],
+      script: group.map(talkActCellScript).join("").trim(),
+      lineCount: group.length,
+      cellKeys: group.map((c) => c.key),
     };
   });
-  const leftovers = stretches.slice(STORY_SPINE_STAGES.length);
-  const last = acts[acts.length - 1];
-  for (const extra of leftovers) {
-    last.script = `${last.script}\n\n${extra.script}`;
-    last.cellKeys.push(...extra.cellKeys);
-    last.lineCount += extra.lineCount;
-  }
-  return acts;
 }
 
 function uniqueByBeat(clips: MobileClipUnit[]): MobileClipUnit[] {
