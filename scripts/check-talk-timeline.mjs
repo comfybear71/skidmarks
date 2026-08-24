@@ -22,6 +22,26 @@ import {
   talkSceneBands,
   talkSceneColor,
 } from "../src/lib/talkClipTimeline.ts";
+import { skidmarksTemplateFromJob } from "../src/lib/scriptBlueprint.ts";
+import { buildAiWriterBrief } from "../src/lib/cursorAiWriterTemplate.ts";
+
+const filledPlan = skidmarksTemplateFromJob({
+  speakers: ["MATTY", "CRAZY BIG HOLE JO TOO"],
+  scenes: [{ placeName: "Upstairs lounge" }, { placeName: "Matty bar — night" }],
+});
+assert.match(filledPlan, /THE STORY SPINE/);
+assert.match(filledPlan, /GETS SMASHED/);
+assert.match(filledPlan, /CHARACTER: MATTY, CRAZY BIG HOLE JO TOO/);
+assert.match(filledPlan, /LOCATION: Upstairs lounge, Matty bar — night/);
+assert.doesNotMatch(filledPlan, /Shots 1–3: THREE lines/);
+
+const skidBrief = buildAiWriterBrief("skidmarks", {
+  cast: [{ name: "MATTY", brief: "" }],
+  places: ["Upstairs lounge"],
+});
+assert.match(skidBrief, /THE STORY SPINE/);
+assert.match(skidBrief, /CHARACTER: MATTY/);
+assert.doesNotMatch(skidBrief, /Shot 4: punch/);
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -270,6 +290,11 @@ assert.match(talkUi, /Send this/);
 assert.match(talkUi, /Remove slot/);
 assert.match(talkUi, /Act \{act\.roman\}/);
 assert.match(talkUi, /this stretch, not a song/);
+assert.match(talkUi, /styleId === "skidmarks"/);
+assert.match(talkUi, /skidmarksTemplateFromJob/);
+assert.match(talkUi, /Copy template/);
+assert.match(talkCss, /\.m-talk-template-link/);
+assert.match(talkCss, /\.m-talk-act-panel/);
 assert.match(talkUi, /audioSrc && !clipSrc/);
 assert.doesNotMatch(talkUi, /Drop the mp3|Start the video|WaveformCanvas|m-talk-tools-video|scrollIntoView|revealPlates/);
 assert.match(talkCss, /\.m-talk-desk-scroll\s*\{[^}]*overflow-x:\s*auto/s);

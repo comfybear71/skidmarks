@@ -1,3 +1,27 @@
+import { EPISODE_TEMPLATE } from "./episodeTemplate";
+
+/** Skidmarks talking-desk template — 9-stage plan, this pack's people and places filled in. */
+export function skidmarksTemplateFromJob(job: {
+  speakers?: string[];
+  scenes?: { placeName?: string }[];
+}): string {
+  return buildEpisodePrompt(EPISODE_TEMPLATE, {
+    character: (job.speakers || []).map((s) => s.trim()).filter(Boolean).join(", "),
+    location: (job.scenes || []).map((s) => (s.placeName || "").trim()).filter(Boolean).join(", "),
+  });
+}
+
+/** Same plan, filled from the show roster (desktop Copy for AI). */
+export function skidmarksTemplateFromRoster(live?: {
+  cast?: { name: string }[];
+  places?: string[];
+}): string {
+  return buildEpisodePrompt(EPISODE_TEMPLATE, {
+    character: (live?.cast || []).map((c) => c.name.trim()).filter(Boolean).join(", "),
+    location: (live?.places || []).map((p) => p.trim()).filter(Boolean).join(", "),
+  });
+}
+
 /** Pull CHARACTER / FAKE WIN / etc. off a script dump for one-click copy. */
 export function parseBlueprint(body: string | null | undefined): { label: string; value: string }[] {
   const text = body ?? "";
