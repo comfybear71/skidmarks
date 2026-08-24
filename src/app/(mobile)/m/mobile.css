@@ -3586,6 +3586,59 @@ span.scratch-history-blob {
   color: #c8ff2e;
 }
 
+.m-talk-film-tags {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  right: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.m-talk-tag {
+  margin: 0;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #eef4ff;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.m-talk-tag.is-act {
+  color: #c8ff2e;
+}
+
+.m-talk-tag.is-cast {
+  color: #9b7bff;
+}
+
+.m-talk-tag.is-dial {
+  color: #35d6d0;
+}
+
+.m-talk-tag.is-sfx {
+  color: #ffd23f;
+}
+
+.m-talk-tag.is-music {
+  color: #ff9f1c;
+}
+
+.m-talk-tag.is-visual {
+  color: #4db8ff;
+}
+
+.m-talk-tag.is-cutaway,
+.m-talk-tag.is-budget {
+  color: #f5f2ff;
+}
+
 .m-talk-film-label {
   position: absolute;
   left: 0;

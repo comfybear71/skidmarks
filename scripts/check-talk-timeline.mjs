@@ -52,6 +52,13 @@ const filledBlank = skidmarksBlankFromJob({
 });
 assert.match(filledBlank, /MASTER EPISODE CONSTRUCTION TEMPLATE/);
 assert.match(filledBlank, /\* \[CAST_MAIN\]: MATTY, CRAZY BIG HOLE JO TOO/);
+assert.match(filledBlank, /\* \[ACT\]: I — He shows up/);
+assert.match(filledBlank, /\* \[ACT\]: IX — The end state/);
+assert.match(filledBlank, /## <ACT_I>/);
+assert.match(filledBlank, /## <ACT_IX>/);
+assert.match(filledBlank, /\* \[SFX\]:/);
+assert.match(filledBlank, /\* \[DIAL\]:/);
+assert.match(filledBlank, /\* \[CAST\]:/);
 assert.doesNotMatch(filledBlank, /Little Red Riding Hood/);
 assert.doesNotMatch(filledBlank, /SHOW VOICE/);
 
@@ -78,6 +85,9 @@ assert.equal(talkShotNumber("LAND LANDY, CRAZY BIG HOLE JO TOO"), null);
 assert.equal(talkTagKind("laughs"), null);
 assert.equal(talkTagKind("DIAL")?.kind, "dial");
 assert.equal(talkTagKind("VISUAL_ACTION")?.kind, "visual");
+assert.equal(talkTagKind("ACT")?.kind, "act");
+assert.equal(talkTagKind("CAST")?.kind, "cast");
+assert.equal(talkTagKind("SFX")?.kind, "sfx");
 
 const tags = templateTagsFrom(
   `[DIAL] JO TOO\n[SFX]\n[VISUAL_ACTION] oversized phone\n[MUSIC]\n[laughs] no\n[BUDGET_TIER] CHEAP_TAKE`,
@@ -258,6 +268,10 @@ assert.deepEqual(
   ["shot_01", "shot_02", "shot_04", "shot_old_bar"],
   "SHOT 01–04 lead; leftover untitled plates only join when they have a take",
 );
+assert.ok(
+  desk.cells[0].events.some((e) => e.kind === "dial" || e.kind === "visual" || e.kind === "music"),
+  "template [ ] tags from the shot land on the talking cell",
+);
 assert.equal(desk.cells[0].plateFile, "phone.png", "each clip keeps its own still");
 assert.equal(desk.cells[1].plateFile, "two.png");
 assert.equal(desk.cells[3].plateFile, "old_bar.png");
@@ -327,6 +341,8 @@ assert.match(talkUi, /live pack on this stage/);
 assert.match(talkUi, /skidmarksBlankFromJob/);
 assert.match(talkUi, /Copy blank template/);
 assert.match(talkUi, /m-talk-copy-icon/);
+assert.match(talkUi, /m-talk-film-tags/);
+assert.match(talkCss, /\.m-talk-tag/);
 assert.match(talkUi, /styleId === "skidmarks"/);
 assert.match(talkCss, /\.m-talk-template-link/);
 assert.match(talkCss, /\.m-talk-act-panel/);

@@ -7,7 +7,12 @@ import type { MobileClipUnit, MobileShotUnit } from "./mobileGenJob";
 import { STORY_SPINE_STAGES } from "./storySpine";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { clipFileBasename } from "./mobilePlateClips";
-import { talkShotNumber, talkTimelineFrom, type TalkTimelinePlate } from "./talkTimeline";
+import {
+  talkShotNumber,
+  talkTimelineFrom,
+  type TalkTimelineEvent,
+  type TalkTimelinePlate,
+} from "./talkTimeline";
 
 /** Next SHOT 0N title so a new slot lands on the talking desk, even with no take. */
 export function talkNextShotTitle(
@@ -86,6 +91,7 @@ export type TalkClipCell = {
   startSec: number;
   widthPx: number;
   clipStatus: MobileClipUnit["clipStatus"] | "empty";
+  events: TalkTimelineEvent[];
 };
 
 export type TalkSceneBand = {
@@ -295,6 +301,7 @@ function cellFrom(opts: {
     startSec: 0,
     widthPx: talkClipWidthPx(durationSec),
     clipStatus: opts.clip?.clipStatus || "empty",
+    events: opts.plate.events || [],
   };
 }
 

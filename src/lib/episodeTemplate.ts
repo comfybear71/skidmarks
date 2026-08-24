@@ -6,6 +6,48 @@
  * Other shows get a different template — this file is Skidmarks only.
  */
 
+import { STORY_SPINE_STAGES } from "./storySpine";
+
+const ACT_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"] as const;
+
+function actShotSlots(): string {
+  return `## <SHOT_01>
+
+* [BUDGET_TIER]:
+* [CAST]:
+* [VISUAL_ACTION]:
+* [DIAL]:
+* [SFX]:
+* [MUSIC]:
+* [CUTAWAY]:
+
+## <SHOT_02>
+
+* [BUDGET_TIER]:
+* [CAST]:
+* [VISUAL_ACTION]:
+* [DIAL]:
+* [SFX]:
+* [MUSIC]:
+* [CUTAWAY]:`;
+}
+
+function actBlock(n: number, title: string, note: string): string {
+  const roman = ACT_ROMAN[n - 1] || String(n);
+  return `## <ACT_${roman}>
+* [ACT]: ${roman} — ${title}
+* [ACT_NOTE]: ${note}
+* [ENV]:
+* [CAST]:
+* [TIME_LIGHTING]:
+
+${actShotSlots()}`;
+}
+
+const NINE_ACT_BLOCKS = STORY_SPINE_STAGES.map((stage) =>
+  actBlock(stage.n, stage.title, stage.note),
+).join("\n\n");
+
 /** House rules. This is not the script. */
 export const EPISODE_TEMPLATE_RULES = `You are writing a scene-by-scene breakdown for SKIDMARKS, a stylised 3D animated
 comedy series. Follow every rule below exactly. Output only the breakdown — no
@@ -68,8 +110,15 @@ NARRATOR — one single line, different every episode, spoken by the narrator. W
 for stage 9.
 
 The block above is house rules, not the script.
-Write the complete episode through all nine stages.
-Use the MASTER EPISODE CONSTRUCTION TEMPLATE below as the script.
+Write the complete episode through all nine ACTS. Name each act with [ACT] exactly as printed in the blank.
+Every person, spoken line, sound, and music bed is a [ ] tag. Those tags land on the talking timeline.
+[CAST] who is in the picture — names from CAST_MAIN only.
+[DIAL] who speaks and the line — that is the Saved audio.
+[SFX] every sound in the shot (door shut, birds, glass). Leave blank only if the shot is silent.
+[MUSIC] bed under the line, or blank.
+[VISUAL_ACTION] what moves from the still.
+[CUTAWAY] or blank.
+Do not invent a sound without an [SFX] tag.
 The Little Red Riding Hood block is a format example only — not a Skidmarks episode.`;
 
 /** Blank construction script. Pack cast and places get filled in. */
@@ -92,32 +141,9 @@ List every asset that must exist before parsing the script.
 
 ------------------------------
 ## [EPISODE_TIMELINE]
-## <SCENE_01>
+Every act is locked. Do not rename, skip, or reorder. Add more <SHOT_0N> inside an act if that act needs them. CHEAP_TAKE = static talking-head. EXPENSIVE_TAKE = tracking / heavy motion.
 
-* [ENV]: [Insert Location/Set Name]
-* [TIME_LIGHTING]: [Insert Day/Night/Studio/Stylized Lighting]
-
-## <SHOT_01>
-
-* [BUDGET_TIER]: [CHEAP_TAKE | EXPENSIVE_TAKE]
-(Note to AI: CHEAP_TAKE uses static cameras, talking-head framing, simple 3D viewport-to-LTX passes, or reused cycles. EXPENSIVE_TAKE flags dynamic tracking shots, heavy fluid/particle simulations, custom character interactions, or multi-angle LTX updates.)
-* [VISUAL_ACTION]:
-* [DIAL]: [CHARACTER_NAME]: "Dialogue line goes here."
-* [SFX]:
-* [MUSIC]: [Track Name / Mood / Intensity Level]
-* [CUTAWAY]: [Insert targeted Cutaway reference if applicable, otherwise LEAVE BLANK]
-
-## <SHOT_02>
-
-* [BUDGET_TIER]:
-* [VISUAL_ACTION]:
-* [DIAL]:
-* [SFX]:
-* [MUSIC]:
-* [CUTAWAY]:
-
-## <SCENE_02>
-(Repeat shot structures as needed. Walk all nine Skidmarks stages. Do not skip or reorder them.)
+${NINE_ACT_BLOCKS}
 
 ------------------------------
 ## [POST_COMP_INSTRUCTIONS]
@@ -148,12 +174,15 @@ export const EPISODE_CONSTRUCTION_EXAMPLE = `FORMAT EXAMPLE ONLY — Little Red 
 ## [EPISODE_TIMELINE]
 ## <SCENE_03>
 
+* [ACT]: III — The feast (format example — not a Skidmarks stage)
 * [ENV]: Grandma's Bedroom
+* [CAST]: Red Riding Hood, The Big Bad Wolf
 * [TIME_LIGHTING]: Late Afternoon. Low-key, dramatic Chiaroscuro lighting. Deep shadows with bright amber sunbeams hitting the bed.
 
 ## <SHOT_01>
 
 * [BUDGET_TIER]: CHEAP_TAKE
+* [CAST]: Red Riding Hood
 * [VISUAL_ACTION]: Wide establishing shot. Red enters the cabin door, holding her basket. Camera is completely static. Red walks from screen-left to center-frame.
 * [DIAL]: RED: "Grandmother? I've brought you some fresh cakes and warm butter from Mother."
 * [SFX]: Wooden door creaking open, heavy rhythmic footsteps on old floorboards.

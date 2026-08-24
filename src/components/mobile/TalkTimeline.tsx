@@ -251,6 +251,15 @@ function TalkFilmCell({
       <span className="m-talk-film-play" aria-hidden>
         {canPlay ? (playing ? "❚❚" : "▶") : "+"}
       </span>
+      {cell.events.length ? (
+        <span className="m-talk-film-tags">
+          {cell.events.map((ev) => (
+            <em key={ev.id} className={`m-talk-tag is-${ev.kind}`}>
+              [{ev.tag}]{ev.detail ? ` ${ev.detail}` : ""}
+            </em>
+          ))}
+        </span>
+      ) : null}
       {selected && onRemove ? (
         <button
           type="button"
