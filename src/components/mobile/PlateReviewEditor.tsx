@@ -835,7 +835,7 @@ export function PlateReviewEditor({
       </div>
       )}
 
-      {!collapsed && plateClipRail.clips.length ? (
+      {!collapsed && isMusicVideoSongJob(job) && plateClipRail.clips.length ? (
         <div className="m-plate-clips-bleed">
           <div className="m-plate-clips-bleed-label">
             Clips
