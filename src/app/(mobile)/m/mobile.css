@@ -3525,6 +3525,23 @@ span.scratch-history-blob {
   margin-left: auto;
 }
 
+.m-talk-doc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.m-talk-doc-fold {
+  margin: 6px 0 4px;
+  width: 100%;
+}
+
+.m-talk-doc-fold .m-talk-act-script {
+  max-height: 220px;
+}
+
 .m-talk-act-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
