@@ -210,7 +210,11 @@ export function talkTimelineFrom(opts: {
         plateFile: (shot.plateFile || "").trim(),
       };
       const file = plateFileOf(unit, shot);
-      if (!file) continue;
+      const episodeNo = talkShotNumber((shot.title || "").trim());
+      const hasSpeaker = (shot.beats || []).some((b) => String(b.speaker || "").trim());
+      // Untitled leftover stills stay off until they have a file.
+      // A titled SHOT 0N with a speaker can sit empty so + Add clip lands.
+      if (!file && (episodeNo == null || !hasSpeaker)) continue;
       shotNo += 1;
       collected.push(
         rowFrom({

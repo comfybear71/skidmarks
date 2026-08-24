@@ -6,7 +6,21 @@ import type { CrashStoryDoc } from "./crashStoryTypes";
 import type { MobileClipUnit, MobileShotUnit } from "./mobileGenJob";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { clipFileBasename } from "./mobilePlateClips";
-import { talkTimelineFrom, type TalkTimelinePlate } from "./talkTimeline";
+import { talkShotNumber, talkTimelineFrom, type TalkTimelinePlate } from "./talkTimeline";
+
+/** Next SHOT 0N title so a new slot lands on the talking desk, even with no take. */
+export function talkNextShotTitle(
+  cells: { episodeNo?: number | null; title?: string }[],
+  speaker = "",
+): string {
+  const max = cells.reduce(
+    (n, cell) => Math.max(n, cell.episodeNo || talkShotNumber(cell.title || "") || 0),
+    0,
+  );
+  const no = String(max + 1).padStart(2, "0");
+  const who = String(speaker || "").trim();
+  return who ? `SHOT ${no} — ${who}` : `SHOT ${no}`;
+}
 
 /** Same scale as the music-video wave — a second is 28px, then the strip scrolls. */
 export const TALK_CLIP_PX_PER_SEC = 28;

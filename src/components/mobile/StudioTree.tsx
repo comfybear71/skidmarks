@@ -1851,6 +1851,21 @@ export function StudioTree({
             plated={songPlates}
             compact={!platesOpen}
             onJobChange={onJobChange}
+            castOptions={job.speakers.map((name) => {
+              const file = approvedCandidateFileName(job.castCandidates, name) || "";
+              return {
+                name,
+                faceUrl: file ? castFaceUrl(job, name, file, characterIds) : "",
+              };
+            })}
+            placeOptions={job.scenes.map((scene) => ({
+              sceneId: scene.id,
+              name: scene.placeName,
+              thumbUrl: mobilePlacePreviewUrl(job, {
+                fileName: approvedCandidateFileName(job.locationCandidates, scene.id) || "",
+                worldThumbKey: scene.worldThumbKey || "",
+              }),
+            }))}
           />
         )}
 

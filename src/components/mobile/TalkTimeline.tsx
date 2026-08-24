@@ -18,6 +18,7 @@ import {
   talkClipDeskFrom,
   talkClipLayout,
   talkDeskInnerWidth,
+  talkNextShotTitle,
   talkSceneBands,
   type TalkClipCell,
 } from "@/lib/talkClipTimeline";
@@ -139,6 +140,7 @@ function TalkFilmCell({
   selected,
   playing,
   onPick,
+  onRemove,
   onMeasured,
 }: {
   job: MobileGenJob;
@@ -146,6 +148,7 @@ function TalkFilmCell({
   selected: boolean;
   playing: boolean;
   onPick: () => void;
+  onRemove?: () => void;
   onMeasured: (sec: number) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -225,6 +228,19 @@ function TalkFilmCell({
       <span className="m-talk-film-play" aria-hidden>
         {canPlay ? (playing ? "❚❚" : "▶") : "+"}
       </span>
+      {selected && onRemove ? (
+        <button
+          type="button"
+          className="m-talk-film-x"
+          aria-label={`Remove ${cell.title} from the talking desk`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+        >
+          ×
+        </button>
+      ) : null}
       <span className="m-talk-film-label">
         {cell.title}
         <em>{talkClipClock(cell.durationSec)}</em>
@@ -435,21 +451,28 @@ function TalkClipTray({
   );
 }
 
+type TalkPickWho = { name: string; faceUrl: string };
+type TalkPickWhere = { sceneId: string; name: string; thumbUrl: string };
+
 /**
  * Skidmarks / talking shows: speech wave + clips on one sideways desk.
- * Tap plays in the cell. Not the music-video song TRACK.
+ * Tap plays in the cell. + / × / Send is the cut — not the music-video song TRACK.
  */
 export function TalkTimeline({
   job,
   story,
   plated,
   compact = false,
+  castOptions = [],
+  placeOptions = [],
   onJobChange,
 }: {
   job: MobileGenJob;
   story: CrashStoryDoc | null;
   plated?: { shotId: string; sceneId: string; plateFile: string }[];
   compact?: boolean;
+  castOptions?: TalkPickWho[];
+  placeOptions?: TalkPickWhere[];
   onOpenPlate?: (shotId: string) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
@@ -468,66 +491,237 @@ export function TalkTimeline({
   const [pickedKey, setPickedKey] = useState("");
   const [playingKey, setPlayingKey] = useState("");
   const [measured, setMeasured] = useState<Record<string, number>>({});
+  const [pickOpen, setPickOpen] = useState(false);
+  const [pickWho, setPickWho] = useState("");
+  const [pickWhere, setPickWhere] = useState("");
+  const [deskBusy, setDeskBusy] = useState("");
+  const [deskError, setDeskError] = useState("");
   const cells = useMemo(() => talkClipLayout(desk.cells, measured), [desk.cells, measured]);
   const bands = talkSceneBands(cells);
   const innerW = talkDeskInnerWidth(cells);
   const selected = cells.find((c) => c.key === pickedKey) || cells[0] || null;
 
-  if (!cells.length) {
-    return (
-      <div className="m-talk">
-        <p className="m-talk-empty">
-          Talking desk — clips sit here by length, speech and picture the same
-          width. Tap a box to play it. Not a song.
-        </p>
-      </div>
-    );
+  async function addSlot() {
+    if (!pickWho || !pickWhere || !job.folderName) return;
+    setDeskBusy("add");
+    setDeskError("");
+    try {
+      const title = talkNextShotTitle(cells, pickWho);
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: job.id,
+          action: "add",
+          sceneId: pickWhere,
+          speaker: pickWho,
+          title,
+        }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onJobChange?.(data.job);
+      setPickOpen(false);
+      setPickWho("");
+      setPickWhere("");
+    } catch (e) {
+      setDeskError(studioFetchError(e, "Couldn't add that slot"));
+    } finally {
+      setDeskBusy("");
+    }
   }
+
+  async function removeSlot(cell: TalkClipCell) {
+    if (!cell.shotId) return;
+    setDeskBusy("remove-slot");
+    setDeskError("");
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, action: "remove", shotId: cell.shotId }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onJobChange?.(data.job);
+      setPickedKey("");
+      setPlayingKey("");
+    } catch (e) {
+      setDeskError(studioFetchError(e, "Couldn't park that slot"));
+    } finally {
+      setDeskBusy("");
+    }
+  }
+
+  async function sendSlot(cell: TalkClipCell) {
+    if (!cell.beatId || !cell.voiceFile) {
+      setDeskError("Add the mp3 on this slot first, then Send.");
+      return;
+    }
+    setDeskBusy("send");
+    setDeskError("");
+    try {
+      const res = await fetch("/api/crash/mobile/step", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, approveReview: true, beatId: cell.beatId }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onJobChange?.(data.job);
+    } catch (e) {
+      setDeskError(studioFetchError(e, "Couldn't send that clip"));
+    } finally {
+      setDeskBusy("");
+    }
+  }
+
+  const picker = !compact && pickOpen ? (
+    <div className="m-plate-pick">
+      <div className="m-plate-pick-row">
+        {castOptions.map((who) => (
+          <button
+            type="button"
+            key={who.name}
+            className={`m-plate-pick-cell${pickWho === who.name ? " is-on" : ""}`}
+            onClick={() => setPickWho(who.name)}
+          >
+            {who.faceUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={who.faceUrl} alt="" />
+            ) : (
+              <span className="m-plate-pick-blank" />
+            )}
+            <span className="m-plate-pick-name">{who.name}</span>
+          </button>
+        ))}
+      </div>
+      <div className="m-plate-pick-row">
+        {placeOptions.map((place) => (
+          <button
+            type="button"
+            key={place.sceneId}
+            className={`m-plate-pick-cell${pickWhere === place.sceneId ? " is-on" : ""}`}
+            onClick={() => setPickWhere(place.sceneId)}
+          >
+            {place.thumbUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={place.thumbUrl} alt="" />
+            ) : (
+              <span className="m-plate-pick-blank" />
+            )}
+            <span className="m-plate-pick-name">{place.name}</span>
+          </button>
+        ))}
+      </div>
+      <div className="m-plate-pick-actions">
+        <MobilePrimaryButton
+          size="chip"
+          disabled={Boolean(deskBusy) || !pickWho || !pickWhere || !job.folderName}
+          onClick={() => void addSlot()}
+        >
+          {deskBusy === "add" ? "…" : `Add ${pickWho || "clip"}`}
+        </MobilePrimaryButton>
+        <button type="button" className="m-track-btn" onClick={() => setPickOpen(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  const actions = !compact ? (
+    <div className="m-talk-desk-actions">
+      <MobilePrimaryButton
+        size="chip"
+        tone="ghost"
+        disabled={Boolean(deskBusy) || !job.folderName}
+        onClick={() => setPickOpen((v) => !v)}
+      >
+        {pickOpen ? "Hide add" : "+ Add clip"}
+      </MobilePrimaryButton>
+      <MobilePrimaryButton
+        size="chip"
+        disabled={Boolean(deskBusy) || !selected?.beatId || !selected?.voiceFile}
+        onClick={() => selected && void sendSlot(selected)}
+      >
+        {deskBusy === "send" ? "…" : "Send this"}
+      </MobilePrimaryButton>
+      <MobilePrimaryButton
+        size="chip"
+        tone="ghost"
+        disabled={Boolean(deskBusy) || !selected?.shotId}
+        onClick={() => selected && void removeSlot(selected)}
+      >
+        {deskBusy === "remove-slot" ? "…" : "Remove slot"}
+      </MobilePrimaryButton>
+    </div>
+  ) : null;
 
   return (
     <div className="m-talk">
       <div className="m-talk-head">
         <span className="m-talk-kicker">Talking timeline</span>
-        <span className="m-talk-hint">Tap a box to play it here — plate-only still plays the line. Swipe sideways.</span>
+        <span className="m-talk-hint">
+          Tap a box to play it. + adds a slot. × parks it — files stay. Send cooks that clip.
+        </span>
       </div>
-      <div className="m-talk-desk-scroll">
-        <div className="m-talk-desk-inner" style={{ width: `${innerW}px` }}>
-          <div className="m-talk-scene-lane" aria-hidden>
-            {bands.map((band, i) => (
-              <span
-                key={`${band.sceneId}-${i}`}
-                className="m-talk-scene-band"
-                style={{ width: `${band.widthPx}px`, color: band.color, borderColor: band.color }}
-              >
-                {band.title}
-              </span>
-            ))}
-          </div>
-          <TalkSpeechLane job={job} cells={cells} widthPx={innerW} />
-          <div className="m-talk-film">
-            {cells.map((cell) => (
-              <TalkFilmCell
-                key={cell.key}
-                job={job}
-                cell={cell}
-                selected={selected?.key === cell.key}
-                playing={playingKey === cell.key}
-                onPick={() => {
-                  setPickedKey(cell.key);
-                  if (!cell.clipFile && !cell.voiceFile) {
-                    setPlayingKey("");
-                    return;
-                  }
-                  setPlayingKey((cur) => (cur === cell.key ? "" : cell.key));
-                }}
-                onMeasured={(sec) => {
-                  setMeasured((cur) => (cur[cell.key] === sec ? cur : { ...cur, [cell.key]: sec }));
-                }}
-              />
-            ))}
+      {cells.length ? (
+        <div className="m-talk-desk-scroll">
+          <div className="m-talk-desk-inner" style={{ width: `${innerW + 56}px` }}>
+            <div className="m-talk-scene-lane" aria-hidden>
+              {bands.map((band, i) => (
+                <span
+                  key={`${band.sceneId}-${i}`}
+                  className="m-talk-scene-band"
+                  style={{ width: `${band.widthPx}px`, color: band.color, borderColor: band.color }}
+                >
+                  {band.title}
+                </span>
+              ))}
+            </div>
+            <TalkSpeechLane job={job} cells={cells} widthPx={innerW} />
+            <div className="m-talk-film">
+              {cells.map((cell) => (
+                <TalkFilmCell
+                  key={cell.key}
+                  job={job}
+                  cell={cell}
+                  selected={selected?.key === cell.key}
+                  playing={playingKey === cell.key}
+                  onPick={() => {
+                    setPickedKey(cell.key);
+                    if (!cell.clipFile && !cell.voiceFile) {
+                      setPlayingKey("");
+                      return;
+                    }
+                    setPlayingKey((cur) => (cur === cell.key ? "" : cell.key));
+                  }}
+                  onRemove={!compact ? () => void removeSlot(cell) : undefined}
+                  onMeasured={(sec) => {
+                    setMeasured((cur) => (cur[cell.key] === sec ? cur : { ...cur, [cell.key]: sec }));
+                  }}
+                />
+              ))}
+              {!compact ? (
+                <button
+                  type="button"
+                  className={`m-talk-film-add${pickOpen ? " is-open" : ""}`}
+                  aria-label="Add a talking clip"
+                  aria-expanded={pickOpen}
+                  disabled={Boolean(deskBusy) || !job.folderName}
+                  onClick={() => setPickOpen((v) => !v)}
+                >
+                  +
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <p className="m-talk-empty">
+          Talking desk — + adds a slot. Plate-only is fine. Send cooks the clip. Not a song.
+        </p>
+      )}
+      {actions}
+      {picker}
+      {deskError ? <p className="m-talk-tools-error">{deskError}</p> : null}
       {!compact && selected ? (
         <TalkClipTray job={job} cell={selected} onJobChange={onJobChange} />
       ) : null}
