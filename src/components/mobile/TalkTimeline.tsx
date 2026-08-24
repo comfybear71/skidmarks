@@ -149,17 +149,27 @@ function TalkFilmCell({
   onMeasured: (sec: number) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const poster = stillUrl(job, cell.plateFile);
   const clipSrc = cell.clipFile ? mobileClipSrc(job, cell.clipFile) : "";
+  const audioSrc = beatAudioUrl(job, cell.beatId, cell.voiceFile);
+  const canPlay = Boolean(clipSrc || audioSrc);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    const audio = audioRef.current;
     if (playing) {
-      void video.play().catch(() => undefined);
+      if (video) void video.play().catch(() => undefined);
+      // Plate-only still plays the line. A take plays its own picture —
+      // do not stack the mp3 on top of a cooked clip.
+      if (audio && !clipSrc) void audio.play().catch(() => undefined);
       return;
     }
-    video.pause();
+    video?.pause();
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
   }, [playing, clipSrc]);
 
   return (
@@ -198,8 +208,22 @@ function TalkFilmCell({
       ) : (
         <span className="m-talk-film-empty" />
       )}
+      {audioSrc && !clipSrc ? (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <audio
+          ref={audioRef}
+          className="m-talk-film-audio"
+          src={audioSrc}
+          preload="metadata"
+          onLoadedMetadata={(e) => {
+            const sec = e.currentTarget.duration;
+            if (!Number.isFinite(sec) || sec <= 0) return;
+            onMeasured(sec);
+          }}
+        />
+      ) : null}
       <span className="m-talk-film-play" aria-hidden>
-        {clipSrc ? (playing ? "❚❚" : "▶") : "+"}
+        {canPlay ? (playing ? "❚❚" : "▶") : "+"}
       </span>
       <span className="m-talk-film-label">
         {cell.title}
@@ -345,7 +369,9 @@ function TalkClipTray({
             // eslint-disable-next-line jsx-a11y/media-has-caption
             <audio className="m-talk-tools-audio" src={audioSrc} controls preload="metadata" />
           ) : (
-            <p className="m-talk-tools-hint">Add video here, or change the mp3 then Redo.</p>
+            <p className="m-talk-tools-hint">
+              Plate-only is fine. Add the mp3 here — or drop a video on this slot.
+            </p>
           )}
           <input
             ref={audioRef}
@@ -392,7 +418,7 @@ function TalkClipTray({
               disabled={Boolean(busy) || !cell.beatId}
               onClick={() => audioRef.current?.click()}
             >
-              {busy === "audio" ? "…" : "Change audio"}
+              {busy === "audio" ? "…" : cell.voiceFile ? "Change audio" : "Add audio"}
             </MobilePrimaryButton>
             <MobilePrimaryButton
               size="chip"
@@ -462,7 +488,7 @@ export function TalkTimeline({
     <div className="m-talk">
       <div className="m-talk-head">
         <span className="m-talk-kicker">Talking timeline</span>
-        <span className="m-talk-hint">Tap a clip to play it here. Swipe sideways.</span>
+        <span className="m-talk-hint">Tap a box to play it here — plate-only still plays the line. Swipe sideways.</span>
       </div>
       <div className="m-talk-desk-scroll">
         <div className="m-talk-desk-inner" style={{ width: `${innerW}px` }}>
@@ -488,7 +514,7 @@ export function TalkTimeline({
                 playing={playingKey === cell.key}
                 onPick={() => {
                   setPickedKey(cell.key);
-                  if (!cell.clipFile) {
+                  if (!cell.clipFile && !cell.voiceFile) {
                     setPlayingKey("");
                     return;
                   }

@@ -3355,6 +3355,14 @@ span.scratch-history-blob {
   background: #0b0d12;
 }
 
+.m-talk-film-audio {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .m-talk-film-empty {
   background: repeating-linear-gradient(
     45deg,
