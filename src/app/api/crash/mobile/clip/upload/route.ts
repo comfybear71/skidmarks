@@ -1,9 +1,10 @@
 import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { readMobileGenJob, patchMobileGenJob } from "@/lib/mobileGenJob";
+import { readMobileGenJob, patchMobileGenJob, type MobileClipUnit } from "@/lib/mobileGenJob";
 import { rememberClipTake } from "@/lib/mobilePlateClips";
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
+import { readMobileStory } from "@/lib/mobileStoryStore";
 import { sortableId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
 
@@ -31,8 +32,38 @@ export async function POST(req: Request) {
 
     const job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-    if (!job.clips.some((c) => c.beatId === beatId)) {
-      return NextResponse.json({ error: "No such clip on this job" }, { status: 404 });
+    let clips = job.clips || [];
+    if (!clips.some((c) => c.beatId === beatId)) {
+      const story = job.folderName ? await readMobileStory(job.styleId, job.folderName) : null;
+      let home: { shotId: string; sceneId: string; speaker: string; line: string } | null = null;
+      for (const scene of story?.scenes || []) {
+        for (const shot of scene.shots) {
+          const beat = shot.beats.find((b) => b.id === beatId);
+          if (!beat) continue;
+          home = {
+            shotId: shot.id,
+            sceneId: scene.id,
+            speaker: beat.speaker,
+            line: beat.text,
+          };
+          break;
+        }
+        if (home) break;
+      }
+      if (!home) {
+        return NextResponse.json({ error: "No such clip on this job" }, { status: 404 });
+      }
+      const fresh: MobileClipUnit = {
+        beatId,
+        shotId: home.shotId,
+        sceneId: home.sceneId,
+        clipFile: "",
+        clipStatus: "pending",
+        error: "",
+        speaker: home.speaker,
+        line: home.line,
+      };
+      clips = [...clips, fresh];
     }
 
     const dir = path.join(CRASH_DIR, "ltx");
@@ -52,12 +83,12 @@ export async function POST(req: Request) {
       /* best effort — clip still usable this request; stitch falls back to local disk */
     }
 
-    const clips = job.clips.map((c) =>
+    const next = clips.map((c) =>
       c.beatId === beatId
         ? { ...c, ...rememberClipTake(c, localPath), clipStatus: "done" as const, error: "" }
         : c,
     );
-    const updated = await patchMobileGenJob(jobId, { clips });
+    const updated = await patchMobileGenJob(jobId, { clips: next });
     return NextResponse.json({ ok: true, job: updated });
   } catch (e) {
     return NextResponse.json(

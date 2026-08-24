@@ -133,7 +133,83 @@ function TalkSpeechLane({
   );
 }
 
-function TalkClipTools({
+function TalkFilmCell({
+  job,
+  cell,
+  selected,
+  playing,
+  onPick,
+  onMeasured,
+}: {
+  job: MobileGenJob;
+  cell: TalkClipCell;
+  selected: boolean;
+  playing: boolean;
+  onPick: () => void;
+  onMeasured: (sec: number) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const poster = stillUrl(job, cell.plateFile);
+  const clipSrc = cell.clipFile ? mobileClipSrc(job, cell.clipFile) : "";
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (playing) {
+      void video.play().catch(() => undefined);
+      return;
+    }
+    video.pause();
+  }, [playing, clipSrc]);
+
+  return (
+    <div
+      className={`m-talk-film-cell${selected ? " is-on" : ""}${playing ? " is-play" : ""}`}
+      style={{ width: `${cell.widthPx}px`, borderColor: cell.sceneColor }}
+      role="button"
+      tabIndex={0}
+      title={cell.title}
+      onClick={onPick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onPick();
+        }
+      }}
+    >
+      {clipSrc ? (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <video
+          ref={videoRef}
+          className="m-talk-film-video"
+          src={clipSrc}
+          poster={poster || undefined}
+          playsInline
+          preload="metadata"
+          onLoadedMetadata={(e) => {
+            const sec = e.currentTarget.duration;
+            if (!Number.isFinite(sec) || sec <= 0) return;
+            onMeasured(sec);
+          }}
+        />
+      ) : poster ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={poster} alt="" className="m-talk-film-still" />
+      ) : (
+        <span className="m-talk-film-empty" />
+      )}
+      <span className="m-talk-film-play" aria-hidden>
+        {clipSrc ? (playing ? "❚❚" : "▶") : "+"}
+      </span>
+      <span className="m-talk-film-label">
+        {cell.title}
+        <em>{talkClipClock(cell.durationSec)}</em>
+      </span>
+    </div>
+  );
+}
+
+function TalkClipTray({
   job,
   cell,
   onJobChange,
@@ -142,12 +218,12 @@ function TalkClipTools({
   cell: TalkClipCell;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const audioRef = useRef<HTMLInputElement | null>(null);
+  const videoRef = useRef<HTMLInputElement | null>(null);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const poster = stillUrl(job, cell.plateFile);
   const audioSrc = beatAudioUrl(job, cell.beatId, cell.voiceFile);
-  const clipSrc = cell.clipFile ? mobileClipSrc(job, cell.clipFile) : "";
 
   async function onPickAudio(file: File) {
     if (!cell.beatId) {
@@ -182,6 +258,52 @@ function TalkClipTools({
     }
   }
 
+  async function onPickVideo(file: File) {
+    if (!cell.beatId) {
+      setError("This slot has no line yet — wait for the plate beat.");
+      return;
+    }
+    setBusy("add");
+    setError("");
+    try {
+      const form = new FormData();
+      form.set("jobId", job.id);
+      form.set("beatId", cell.beatId);
+      form.set("file", file);
+      const res = await fetch("/api/crash/mobile/clip/upload", { method: "POST", body: form });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onJobChange?.(data.job);
+    } catch (e) {
+      setError(studioFetchError(e, "Couldn't add that video"));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function removeClip() {
+    if (!cell.beatId || !cell.clipFile) return;
+    setBusy("remove");
+    setError("");
+    try {
+      const res = await fetch("/api/crash/mobile/clip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: job.id,
+          action: "remove-clip",
+          beatId: cell.beatId,
+          fileName: cell.clipFile,
+        }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onJobChange?.(data.job);
+    } catch (e) {
+      setError(studioFetchError(e, "Couldn't park that clip"));
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function redoClip() {
     if (!cell.beatId) return;
     setBusy("redo");
@@ -202,74 +324,100 @@ function TalkClipTools({
   }
 
   return (
-    <div className="m-talk-tools">
-      <div className="m-talk-tools-who">
-        <span className="m-talk-tools-title">{cell.title}</span>
-        <span className="m-talk-tools-speaker">{cell.speaker || "No speaker"}</span>
-        <span className="m-talk-tools-clock">{talkClipClock(cell.durationSec)}</span>
-      </div>
-      <p className="m-talk-tools-line">{cell.line || "No line yet"}</p>
-      {clipSrc ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
-        <video
-          className="m-talk-tools-video"
-          src={clipSrc}
-          poster={poster || undefined}
-          controls
-          playsInline
-          preload="metadata"
-        />
+    <div className="m-talk-tray">
+      <button
+        type="button"
+        className="m-talk-tray-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="m-talk-tray-kicker">{open ? "Hide clip" : "Clip"}</span>
+        <span className="m-talk-tray-title">{cell.title}</span>
+        <span className="m-talk-tray-clock">{talkClipClock(cell.durationSec)}</span>
+      </button>
+      {open ? (
+        <div className="m-talk-tray-body">
+          <p className="m-talk-tools-line">
+            {cell.speaker ? `${cell.speaker} — ` : ""}
+            {cell.line || "No line yet"}
+          </p>
+          {audioSrc ? (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <audio className="m-talk-tools-audio" src={audioSrc} controls preload="metadata" />
+          ) : (
+            <p className="m-talk-tools-hint">Add video here, or change the mp3 then Redo.</p>
+          )}
+          <input
+            ref={audioRef}
+            type="file"
+            accept="audio/mpeg,.mp3"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void onPickAudio(file);
+            }}
+          />
+          <input
+            ref={videoRef}
+            type="file"
+            accept="video/mp4,.mp4"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void onPickVideo(file);
+            }}
+          />
+          <div className="m-talk-tools-row">
+            <MobilePrimaryButton
+              size="chip"
+              tone="ghost"
+              disabled={Boolean(busy) || !cell.beatId}
+              onClick={() => videoRef.current?.click()}
+            >
+              {busy === "add" ? "…" : cell.clipFile ? "Replace video" : "Add video"}
+            </MobilePrimaryButton>
+            <MobilePrimaryButton
+              size="chip"
+              tone="ghost"
+              disabled={Boolean(busy) || !cell.clipFile}
+              onClick={() => void removeClip()}
+            >
+              {busy === "remove" ? "…" : "Remove video"}
+            </MobilePrimaryButton>
+            <MobilePrimaryButton
+              size="chip"
+              tone="ghost"
+              disabled={Boolean(busy) || !cell.beatId}
+              onClick={() => audioRef.current?.click()}
+            >
+              {busy === "audio" ? "…" : "Change audio"}
+            </MobilePrimaryButton>
+            <MobilePrimaryButton
+              size="chip"
+              disabled={Boolean(busy) || !cell.beatId || !cell.voiceFile}
+              onClick={() => void redoClip()}
+            >
+              {busy === "redo" ? "…" : "Redo clip"}
+            </MobilePrimaryButton>
+          </div>
+          {error ? <p className="m-talk-tools-error">{error}</p> : null}
+        </div>
       ) : null}
-      {audioSrc ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
-        <audio className="m-talk-tools-audio" src={audioSrc} controls preload="metadata" />
-      ) : (
-        <p className="m-talk-tools-hint">Change audio on this clip, then Redo — not a song drop.</p>
-      )}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="audio/mpeg,.mp3"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = "";
-          if (file) void onPickAudio(file);
-        }}
-      />
-      <div className="m-talk-tools-row">
-        <MobilePrimaryButton
-          size="chip"
-          tone="ghost"
-          disabled={Boolean(busy) || !cell.beatId}
-          onClick={() => fileRef.current?.click()}
-        >
-          {busy === "audio" ? "…" : "Change audio"}
-        </MobilePrimaryButton>
-        <MobilePrimaryButton
-          size="chip"
-          disabled={Boolean(busy) || !cell.beatId || !cell.voiceFile}
-          onClick={() => void redoClip()}
-        >
-          {busy === "redo" ? "…" : "Redo clip"}
-        </MobilePrimaryButton>
-      </div>
-      {error ? <p className="m-talk-tools-error">{error}</p> : null}
     </div>
   );
 }
 
 /**
  * Skidmarks / talking shows: speech wave + clips on one sideways desk.
- * Not the music-video song TRACK. Plates / faces / places are built off
- * this strip — this is the cut.
+ * Tap plays in the cell. Not the music-video song TRACK.
  */
 export function TalkTimeline({
   job,
   story,
   plated,
   compact = false,
-  onOpenPlate,
   onJobChange,
 }: {
   job: MobileGenJob;
@@ -292,6 +440,7 @@ export function TalkTimeline({
     [job, story, plated],
   );
   const [pickedKey, setPickedKey] = useState("");
+  const [playingKey, setPlayingKey] = useState("");
   const [measured, setMeasured] = useState<Record<string, number>>({});
   const cells = useMemo(() => talkClipLayout(desk.cells, measured), [desk.cells, measured]);
   const bands = talkSceneBands(cells);
@@ -303,7 +452,7 @@ export function TalkTimeline({
       <div className="m-talk">
         <p className="m-talk-empty">
           Talking desk — clips sit here by length, speech and picture the same
-          width. Not a song. Plates land when they are ready.
+          width. Tap a box to play it. Not a song.
         </p>
       </div>
     );
@@ -313,7 +462,7 @@ export function TalkTimeline({
     <div className="m-talk">
       <div className="m-talk-head">
         <span className="m-talk-kicker">Talking timeline</span>
-        <span className="m-talk-hint">Swipe sideways — speech and picture, same width.</span>
+        <span className="m-talk-hint">Tap a clip to play it here. Swipe sideways.</span>
       </div>
       <div className="m-talk-desk-scroll">
         <div className="m-talk-desk-inner" style={{ width: `${innerW}px` }}>
@@ -330,56 +479,31 @@ export function TalkTimeline({
           </div>
           <TalkSpeechLane job={job} cells={cells} widthPx={innerW} />
           <div className="m-talk-film">
-            {cells.map((cell) => {
-              const src = stillUrl(job, cell.plateFile);
-              const on = selected?.key === cell.key;
-              return (
-                <button
-                  type="button"
-                  key={cell.key}
-                  className={`m-talk-film-cell${on ? " is-on" : ""}`}
-                  style={{ width: `${cell.widthPx}px`, borderColor: cell.sceneColor }}
-                  onClick={() => {
-                    setPickedKey(cell.key);
-                    onOpenPlate?.(cell.shotId);
-                  }}
-                  title={cell.title}
-                >
-                  {src ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={src} alt="" className="m-talk-film-still" />
-                  ) : (
-                    <span className="m-talk-film-empty" />
-                  )}
-                  {cell.clipFile ? (
-                    // eslint-disable-next-line jsx-a11y/media-has-caption
-                    <video
-                      className="m-talk-film-probe"
-                      src={mobileClipSrc(job, cell.clipFile)}
-                      preload="metadata"
-                      muted
-                      playsInline
-                      onLoadedMetadata={(e) => {
-                        const sec = e.currentTarget.duration;
-                        if (!Number.isFinite(sec) || sec <= 0) return;
-                        setMeasured((cur) =>
-                          cur[cell.key] === sec ? cur : { ...cur, [cell.key]: sec },
-                        );
-                      }}
-                    />
-                  ) : null}
-                  <span className="m-talk-film-label">
-                    {cell.title}
-                    <em>{talkClipClock(cell.durationSec)}</em>
-                  </span>
-                </button>
-              );
-            })}
+            {cells.map((cell) => (
+              <TalkFilmCell
+                key={cell.key}
+                job={job}
+                cell={cell}
+                selected={selected?.key === cell.key}
+                playing={playingKey === cell.key}
+                onPick={() => {
+                  setPickedKey(cell.key);
+                  if (!cell.clipFile) {
+                    setPlayingKey("");
+                    return;
+                  }
+                  setPlayingKey((cur) => (cur === cell.key ? "" : cell.key));
+                }}
+                onMeasured={(sec) => {
+                  setMeasured((cur) => (cur[cell.key] === sec ? cur : { ...cur, [cell.key]: sec }));
+                }}
+              />
+            ))}
           </div>
         </div>
       </div>
       {!compact && selected ? (
-        <TalkClipTools job={job} cell={selected} onJobChange={onJobChange} />
+        <TalkClipTray job={job} cell={selected} onJobChange={onJobChange} />
       ) : null}
     </div>
   );

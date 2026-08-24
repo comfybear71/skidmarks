@@ -3331,7 +3331,7 @@ span.scratch-history-blob {
 .m-talk-film-cell {
   position: relative;
   flex: 0 0 auto;
-  height: 92px;
+  height: 120px;
   padding: 0;
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.2);
@@ -3345,7 +3345,8 @@ span.scratch-history-blob {
 }
 
 .m-talk-film-still,
-.m-talk-film-empty {
+.m-talk-film-empty,
+.m-talk-film-video {
   display: block;
   width: 100%;
   height: 100%;
@@ -3364,12 +3365,25 @@ span.scratch-history-blob {
   );
 }
 
-.m-talk-film-probe {
+.m-talk-film-play {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #eef4ff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 28px;
+  text-align: center;
   pointer-events: none;
+}
+
+.m-talk-film-cell.is-play .m-talk-film-play {
+  opacity: 0.35;
 }
 
 .m-talk-film-label {
@@ -3439,12 +3453,66 @@ span.scratch-history-blob {
   color: var(--chrome-dim);
 }
 
-.m-talk-tools-video {
-  width: 100%;
-  max-height: 220px;
+.m-talk-tray {
+  margin-top: 8px;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: #000;
-  object-fit: contain;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.m-talk-tray-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--chrome);
+  text-align: left;
+  cursor: pointer;
+}
+
+.m-talk-tray-kicker {
+  color: var(--chrome-dim);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.m-talk-tray-title {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.m-talk-tray-clock {
+  color: var(--acid);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.m-talk-tray-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+.m-talk-stills {
+  margin-top: 8px;
+}
+
+.m-talk-stills-toggle {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .m-talk-tools-audio {

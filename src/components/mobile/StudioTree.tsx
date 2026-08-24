@@ -945,6 +945,7 @@ export function StudioTree({
   const [castOpen, setCastOpen] = useState(true);
   const [locationsOpen, setLocationsOpen] = useState(true);
   const [platesOpen, setPlatesOpen] = useState(true);
+  const [stillsOpen, setStillsOpen] = useState(false);
   const [addingPlateFor, setAddingPlateFor] = useState<string | null>(null);
   const [addPlateError, setAddPlateError] = useState("");
   const [addPlateDoneFor, setAddPlateDoneFor] = useState<string | null>(null);
@@ -1849,7 +1850,6 @@ export function StudioTree({
             story={deskStory}
             plated={songPlates}
             compact={!platesOpen}
-            onOpenPlate={(shotId) => revealPlates(shotId)}
             onJobChange={onJobChange}
           />
         )}
@@ -1909,7 +1909,7 @@ export function StudioTree({
         ) : null}
 
         <div id="m-plates-strip">
-          {job.folderName ? (
+          {job.folderName && isMusicVideoSongJob(job) ? (
             <PlateReviewEditor
               job={job}
               onJobChange={onJobChange}
@@ -1918,6 +1918,27 @@ export function StudioTree({
               defaultPlaceId={placeFocus || undefined}
               focusShotId={focusPlateShotId}
             />
+          ) : job.folderName ? (
+            <div className="m-talk-stills">
+              <button
+                type="button"
+                className="m-talk-stills-toggle"
+                aria-expanded={stillsOpen}
+                onClick={() => setStillsOpen((v) => !v)}
+              >
+                {stillsOpen ? "Hide stills" : "Stills"}
+              </button>
+              {stillsOpen ? (
+                <PlateReviewEditor
+                  job={job}
+                  onJobChange={onJobChange}
+                  collapsed={false}
+                  onExpand={() => setStillsOpen(true)}
+                  defaultPlaceId={placeFocus || undefined}
+                  focusShotId={focusPlateShotId}
+                />
+              ) : null}
+            </div>
           ) : null}
         </div>
 
