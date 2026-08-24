@@ -297,7 +297,7 @@ export function forgottenSoloCamera(speaker: string, placeName: string): string 
   const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
   const key =
     who === "JACK GHOST"
-      ? "tight-cu"
+      ? "wide"
       : who === "SAXOPHONE"
         ? "mcu"
         : who === "DRUMMER"

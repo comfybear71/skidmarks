@@ -136,10 +136,13 @@ const jackSingMotion = buildScratchSongLtxMotion({
 assert.match(jackSingMotion, /Face stays hidden/);
 assert.match(jackSingMotion, /No saxophone/);
 assert.match(jackSingMotion, /Cyan mouth line moves/);
-assert.match(jackSingMotion, /Body and empty hands express the song/);
+assert.match(jackSingMotion, /arms in the air|arm high|Arms wide|Arms up/i);
+assert.match(jackSingMotion, /global rockstar|headliner|Rockstar body/);
 assert.match(jackSingMotion, /high notes/);
+assert.match(jackSingMotion, /No microphone/);
 assert.doesNotMatch(jackSingMotion, /singing, lip-sync/);
 assert.doesNotMatch(jackSingMotion, /walks away from camera/);
+assert.match(forgottenSoloCamera("JACK GHOST", "graveyard"), /WIDE full-body/);
 assert.equal(
   skipSongLipSyncLead({ speaker: "JACK GHOST", performance: "sing", singing: true }),
   true,

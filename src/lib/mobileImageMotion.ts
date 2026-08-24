@@ -533,7 +533,20 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
 export type SongSlicePerformance = "play" | "sway" | "sing" | "walk";
 
 const JACK_FACE_HIDDEN =
-  "Face stays hidden in the hat shadow. Do not light the eyes or cheeks. Do not reveal a face. Same silhouette as the start image. Empty hands. No saxophone. No trumpet. No instrument.";
+  "Face stays hidden in the hat shadow. Do not light the eyes or cheeks. Do not reveal a face. Same silhouette as the start image. Empty hands. No saxophone. No trumpet. No instrument. No microphone.";
+
+/** Body Jack can actually do when the still shows his arms. Tight CU cannot send this. */
+const JACK_ROCKSTAR_MOVES = [
+  "Both arms in the air, empty hands open, chest out — global rockstar stadium shape.",
+  "One arm high, empty fist, other hand open at his side. Hits the chorus like a headliner.",
+  "Arms wide, empty hands, leaning into the vocal. Weight shifts on the beat.",
+  "Arms up then down with the beat, empty hands, shoulders and chest work the song.",
+] as const;
+
+function jackRockstarMoveForStartSec(startSec: number): string {
+  const n = Number.isFinite(startSec) ? Math.max(0, Math.floor(startSec)) : 0;
+  return JACK_ROCKSTAR_MOVES[n % JACK_ROCKSTAR_MOVES.length]!;
+}
 
 const HORN_ACTUALLY_PLAYS =
   "Fade in. He is actually playing the trumpet: lips sealed on the mouthpiece, cheeks puff and release, fingers work the valves, breath in time with the music. Not posing. Not smiling at the camera. Not holding the horn still. Fade out before the end. Same man when he revolves back — same vest, same trumpet, not a new player.";
@@ -579,7 +592,7 @@ export function buildScratchSongLtxMotion(opts: {
         : walk
           ? `${who} is prominent. ${walkCamera} He walks away from camera, measured, ominous. Full silhouette — fedora, dark suit, empty hands. Face never readable. Does not turn around to show a face. Not singing. Not lip-sync. No cyan glow on a face.`
           : jack
-            ? `${who} is prominent. Cyan mouth line moves with the vocal. Body and empty hands express the song — shoulders, chest, fingers. Hits the high notes with the body, not a visible face. Not a statue.`
+            ? `${who} is prominent. Cyan mouth line moves with the vocal. ${jackRockstarMoveForStartSec(opts.startSec ?? 0)} Hits the high notes with the body, not a visible face. Not a statue. Not a talking-head CU.`
             : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`;
   const closer =
     performance === "play"
@@ -589,7 +602,7 @@ export function buildScratchSongLtxMotion(opts: {
         : walk
           ? `${name} walks away from camera this slice. Camera stays behind him at this angle. Same silhouette and objects as the start image. Not singing.`
           : jack
-            ? `${name} sings this slice of the track. Body and empty hands move with the vocal, including the high notes. ${GOLD_CAMERA_HOLDS} Face stays hidden. Same person and objects as the start image.`
+            ? `${name} sings this slice of the track. Rockstar body — arms in the air, empty hands, chest and weight on the vocal, including the high notes. ${GOLD_CAMERA_HOLDS} Face stays hidden. Same person and objects as the start image.`
             : `${name} sings this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`;
   return clean(
     [
