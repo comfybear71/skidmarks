@@ -52,7 +52,7 @@ Position rules that stay:
 ## Two floors (unchanged)
 
 People stills → `/m` LTX-2.3 IA2V with the Saved mp3.  
-Concert loop (gold/black, no people) → holy still first, then muted LTX-2.5 I2V. See `docs/CONCERT_LOOP_PLATE.md`.
+Concert loop (gold/black, no people) → holy still first, then muted LTX-2.5 I2V. The look is the **Double Talkin' Jive** LED backdrop (Bangkok Thunderdome): gold skulls, metallic snakes, hypnotic creep. Study: `docs/CONCERT_LOOP_PLATE.md`. **Hold — a few more video tests, then implement. Not now.**
 
 ## Eventual goal — who is playing, then plate (no code yet)
 

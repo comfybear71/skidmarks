@@ -1,22 +1,41 @@
 # Concert loop plates — Jack Ash
 
-Logged **2026-08-24** from Stuie’s “Double Talkin' Jive” / gold-skull research. He wants this feature: **looping art plates**, not only band members.
+Logged **2026-08-24** from Stuie. He pasted the full Double Talkin' Jive / Bangkok study and said: **read, study, add to the research note. After a few more video test runs we implement. Not now.**
 
-Knowledge only. Do **not** generate onto a live pack. Do **not** swap `/m` speech off Cloud LTX-2.3 IA2V. Comfy = ComfyUI Cloud only. Ask before a generate — GPU time is real money.
+PRs **#310** (construction cameras) and **#311** (Forgotten desk) are **done**. This file is the next visual floor — research only.
+
+Knowledge only. Do **not** generate onto a live pack. Do **not** swap `/m` speech off Cloud LTX-2.3 IA2V. Comfy = ComfyUI Cloud only. Ask before a generate — GPU time is real money. Do **not** write a node-by-node Comfy graph until he says the video tests are enough.
 
 Hub ids already catalogued: `docs/COMFY_WORKFLOWS.md` (`video_ltx2_5_i2v` / `api_ltx2_5_i2v`). Speech lock: `docs/COMFY_MCP.md`, `docs/LTX_25_FLF2V_RESEARCH.md`.
 
 ---
 
-## What he asked for (plain)
+## Source (what the loop is copying)
 
-A dark, hypnotic, **gold-and-black** looping backdrop — concert visual, not a person.
+The “freaky” gold-skull / slithering-snake animation is the **custom LED backdrop** for **Double Talkin' Jive** (not a Jack Ash song — the *look* we want).
 
-Example still: polished gold skull, gold cobras from the sockets, obsidian void, spotlight, no human skin.
+World Tour stop he named: **Bangkok, Thunderdome Stadium**. Giant LED screens, highly stylized unsettling loops behind the band.
 
-Example motion: snakes slither slowly, metal reflections, slow zoom, seamless loop, 4–6 seconds.
+| Piece | What he said |
+|---|---|
+| Imagery | Gleaming **golden skulls**, metallic gold snakes wrapping objects, breathing fire, or slithering through the eye sockets |
+| Atmosphere | Dark, heavy, hypnotic loops — grit of the track, driven by long guitar solos |
+| Job on our desk | Same gold-and-black hypnotic plate under a **Jack Ash** song. Art backdrop. No people. |
 
 This is a **place / art plate**. Nobody from the band is on it. Instruments are not on it unless he names them later.
+
+---
+
+## Hold — implement after more video tests
+
+**2026-08-24, his words:** study now. A few more test runs with video. Then we move onto implementing this.
+
+Until then:
+
+- Do not fire Cloud `video_ltx2_5_i2v` for this look.
+- Do not map a node-by-node LTX 2.5 I2V sampler graph.
+- Do not do mask-math for a static skull yet (second test, after a whole-plate creep works).
+- T4 (gold-skull still) / T5 (muted I2V) on Forgotten stay **named, not generated**.
 
 ---
 
@@ -30,6 +49,17 @@ This is a **place / art plate**. Nobody from the band is on it. Instruments are 
 Do not feed `plate_{slug}` turnaround sheets into either floor.
 
 ---
+
+## Core workflow he wants (study, not built)
+
+Still first because LTX-2.5 keeps motion but melts metal from text alone. Flux / SDXL / Seedream holy still → then I2V.
+
+1. **Load Image** — the gold skull / snake still.
+2. **Native LTX size** — `LTXVideoImageToVideoLatent`, **768×512** or **512×512**. Do not send a 4K still raw (VRAM + warp).
+3. **Sampler** — LTX-Video block. `frame_count` a multiple that fits a 4–6s loop at 24fps. LTX length is **8n+1**. **65** and **97** both fit.
+4. **Low motion** — `motion_bucket_id` **30–50**. High motion turns gold into skin or liquid.
+5. **Mute LTX audio** — the Jack Ash mp3 stays the song.
+6. **Later:** mask the skull so only snakes move. **Later:** fade last ~10 frames into the first ~10 (native LTX does not force a loop). Hub already has `utility_video_frame_interpolation`.
 
 ## His Comfy notes, mapped to this studio
 
@@ -72,6 +102,8 @@ Slow hypnotic motion, the golden snakes are slithering and writhing slowly aroun
 6. Loop clip is **picture only**. Never replace the track mp3 with LTX-invented audio.
 7. Do not Start directing again on Forgotten. Do not mint jobs for MY NEW TOY / BURNING BRIGHT / EAST / GIVE ME SOMETHING until he says go.
 
-## First test (when he says go)
+## First test (only after more video runs, and he says go)
 
 One still (gold skull, no people) → Cloud `video_ltx2_5_i2v` ~5s @ 24fps, low motion → mute audio → check metal holds → then talk loop fade. Not on the live Forgotten people plates. Park the result as art, not a member still.
+
+He asked if we want a node-by-node LTX 2.5 I2V guide or the mask math for a static skull. **Neither yet.** That is the implement step.
