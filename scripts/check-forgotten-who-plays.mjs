@@ -18,6 +18,7 @@ import {
   buildScratchSongLtxMotion,
   skipSongLipSyncLead,
 } from "../src/lib/mobileImageMotion.ts";
+import { forgottenSoloCamera, FORGOTTEN_GROK_GRADE } from "../src/lib/musicVideoGroupPlate.ts";
 import { sliceBoundsForPlate } from "../src/lib/musicVideoTrack.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -157,6 +158,10 @@ assert.equal(
   skipSongLipSyncLead({ speaker: "SAXOPHONE", performance: "play", singing: true }),
   true,
 );
+
+assert.match(forgottenSoloCamera("JACK GHOST", "graveyard"), /blood crimson/);
+assert.match(forgottenSoloCamera("SAXOPHONE", "eerie house"), /Grok logo/);
+assert.match(FORGOTTEN_GROK_GRADE, /Grok plates/);
 
 assert.match(trackRoute, /set-who-plays/);
 assert.match(trackRoute, /applyForgottenWhoPlays/);

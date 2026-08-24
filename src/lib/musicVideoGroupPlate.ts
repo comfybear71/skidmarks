@@ -8,6 +8,13 @@
 
 export const MUSIC_VIDEO_GROUP_MAX = 3;
 
+/**
+ * Forgotten people plates must match the Grok videos he made
+ * (graveyard / wooden house / leafless tree). Same colours. No watermark.
+ */
+export const FORGOTTEN_GROK_GRADE =
+  "Same grade as the Grok plates: deep black and blood crimson only, red mist, two red spotlight beams from the top corners. No teal, no white daylight, no green, no orange lava, no watermark, no Grok logo.";
+
 /** Seedream cel-ifies Jack's graphic card. This lock must be on the send. */
 export const MUSIC_VIDEO_NO_CEL =
   "Live-action photograph. Real human skin, real cloth, real brass and wood. No cel shading, no GTA, no Archer, no comic outlines, no cartoon, no anime, no illustrated character sheet.";
@@ -300,7 +307,11 @@ export function forgottenSoloCamera(speaker: string, placeName: string): string 
             : who === "HORN"
               ? "ots"
               : "medium";
-  return defaultMusicVideoGroupStaging([who], place, MUSIC_VIDEO_CAMERAS[key]);
+  return defaultMusicVideoGroupStaging(
+    [who],
+    place,
+    `${MUSIC_VIDEO_CAMERAS[key]} ${FORGOTTEN_GROK_GRADE}`,
+  );
 }
 
 /** Position for an existing Forgotten shot title — cameras from the Crash Lab set. */
