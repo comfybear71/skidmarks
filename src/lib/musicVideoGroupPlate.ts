@@ -36,7 +36,7 @@ export const MUSIC_VIDEO_CAMERAS = {
 
 /**
  * Jack Ghost walk-away cameras — kept for a later cutaway.
- * Forgotten who-plays now sings Jack and only tries sax. Grok videos fill fails.
+ * Forgotten who-plays now sings Jack and only tries the muted trumpet. Sax stays off. Grok videos fill fails.
  */
 export const JACK_WALK_CAMERAS = [
   "WIDE from behind. He walks away from camera into the dark, smaller in frame. Full silhouette — fedora, dark suit. Ominous. Not a portrait. Not facing camera.",

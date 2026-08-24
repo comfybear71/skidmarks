@@ -1,8 +1,8 @@
 /**
- * Forgotten — Jack sings the vocals. Only SAXOPHONE is tried on the
- * instrumental clocks, and he must actually play. Horn / guitar / drums stay
- * off. If a people clip fails, he edits it out and drops his Grok video
- * (graveyard / house / tree plates). Jack's face stays hidden.
+ * Forgotten — Jack sings the vocals. Only HORN (muted trumpet) is tried
+ * on the instrumental clocks, and he must actually play. Sax / guitar /
+ * drums stay off. If a people clip fails, he edits it out and drops his
+ * Grok video (graveyard / house / tree plates). Jack's face stays hidden.
  * Do not mint a job from this file.
  */
 import { isForgottenSongJob } from "./musicVideoGroupPlate";
@@ -16,7 +16,7 @@ import {
   type ScratchSongCut,
 } from "./scratchSongWindow";
 
-export type ForgottenWho = "sax" | "jack";
+export type ForgottenWho = "horn" | "jack";
 export type ForgottenPerformance = "play" | "sway" | "sing" | "walk";
 
 export type ForgottenWhoCue = {
@@ -34,22 +34,22 @@ const FIRST_LEAD_SPLIT_SEC = 12;
  * Gaps stay empty for his Grok plates if a render fails.
  */
 export const FORGOTTEN_WHO_PLAYS: ForgottenWhoCue[] = [
-  { who: "sax", startSec: 1, endSec: 23, performance: "play" },
+  { who: "horn", startSec: 1, endSec: 23, performance: "play" },
   { who: "jack", startSec: 46, endSec: 117, performance: "sing" },
-  { who: "sax", startSec: 110, endSec: 119, performance: "play" },
+  { who: "horn", startSec: 110, endSec: 119, performance: "play" },
   { who: "jack", startSec: 126, endSec: 195, performance: "sing" },
-  { who: "sax", startSec: 189, endSec: 195, performance: "play" },
-  { who: "sax", startSec: 206, endSec: 221, performance: "play" },
+  { who: "horn", startSec: 189, endSec: 195, performance: "play" },
+  { who: "horn", startSec: 206, endSec: 221, performance: "play" },
   { who: "jack", startSec: 221, endSec: 270, performance: "sing" },
-  { who: "sax", startSec: 268, endSec: 270, performance: "play" },
-  { who: "sax", startSec: 285, endSec: 291, performance: "play" },
+  { who: "horn", startSec: 268, endSec: 270, performance: "play" },
+  { who: "horn", startSec: 285, endSec: 291, performance: "play" },
 ];
 
 export type ForgottenIntermission = { startSec: number; endSec: number; kind: "anim" };
 
 const INTERMISSION_MIN_SEC = 2;
 
-/** Gaps with no Jack vocal and no sax — Grok plate holes if a people clip fails. */
+/** Gaps with no Jack vocal and no trumpet — Grok plate holes if a people clip fails. */
 export function forgottenIntermissions(songSec: number): ForgottenIntermission[] {
   const song = Number.isFinite(songSec) && songSec > 0 ? songSec : 291.48;
   const spans = FORGOTTEN_WHO_PLAYS
@@ -122,7 +122,7 @@ export function splitWhoPlaysWindow(
   const padded = padWhoPlaysWindow(cue.startSec, cue.endSec, songSec);
   const cuts: { startSec: number; endSec: number }[] = [];
   const extra =
-    cue.who === "sax" && cue.startSec <= 1 && cue.endSec >= 23
+    cue.who === "horn" && cue.startSec <= 1 && cue.endSec >= 23
       ? FIRST_LEAD_SPLIT_SEC
       : null;
   let at = padded.startSec;
@@ -175,15 +175,15 @@ export type WhoPlaysShot = { shotId: string; plateFile: string; title: string };
 
 export function pickForgottenWhoPlaysShots(shots: WhoPlaysShot[]): {
   jack: WhoPlaysShot | null;
-  sax: WhoPlaysShot | null;
+  horn: WhoPlaysShot | null;
 } {
   let jack: WhoPlaysShot | null = null;
-  let sax: WhoPlaysShot | null = null;
+  let horn: WhoPlaysShot | null = null;
   for (const sh of shots) {
     if (!jack && isJackSoloTitle(sh.title)) jack = sh;
-    if (!sax && isSaxSoloTitle(sh.title)) sax = sh;
+    if (!horn && isHornSoloTitle(sh.title)) horn = sh;
   }
-  return { jack, sax };
+  return { jack, horn };
 }
 
 export function applyForgottenWhoPlays(opts: {
@@ -191,18 +191,18 @@ export function applyForgottenWhoPlays(opts: {
   shots: WhoPlaysShot[];
   newCutId: () => string;
 }): { cuts: ScratchSongCut[]; plateTimings: PlateTiming[] } | { error: string } {
-  const { jack, sax } = pickForgottenWhoPlaysShots(opts.shots);
+  const { jack, horn } = pickForgottenWhoPlaysShots(opts.shots);
   if (!jack?.plateFile || jack.plateFile === "__error__") {
     return { error: "Need the JACK GHOST still." };
   }
-  if (!sax?.plateFile || sax.plateFile === "__error__") {
-    return { error: "Need the SAXOPHONE still. Only Jack and sax on this try." };
+  if (!horn?.plateFile || horn.plateFile === "__error__") {
+    return { error: "Need the HORN still. Only Jack and the muted trumpet on this try." };
   }
   const slices = forgottenWhoPlaysSlices(opts.song.durationSec);
   const cuts: ScratchSongCut[] = [];
   const plateTimings: PlateTiming[] = [];
   slices.forEach((slice, i) => {
-    const shot = slice.who === "jack" ? jack : sax;
+    const shot = slice.who === "jack" ? jack : horn;
     cuts.push({
       id: opts.newCutId(),
       plateFile: shot.plateFile,

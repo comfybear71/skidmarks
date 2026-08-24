@@ -33,21 +33,22 @@ assert.equal(isJackSoloTitle("JACK GHOST + HORN"), false);
 assert.equal(isHornSoloTitle("HORN"), true);
 assert.equal(isHornSoloTitle("HORN + SAXOPHONE"), false);
 
-const firstSax = splitWhoPlaysWindow(
-  { who: "sax", startSec: 1, endSec: 23, performance: "play" },
+const firstHorn = splitWhoPlaysWindow(
+  { who: "horn", startSec: 1, endSec: 23, performance: "play" },
   291.48,
 );
-assert.equal(firstSax.length, 2);
-assert.equal(firstSax[0].endSec, 12);
-assert.equal(firstSax[1].startSec, 12);
-assert.equal(firstSax[1].endSec, 23);
+assert.equal(firstHorn.length, 2);
+assert.equal(firstHorn[0].endSec, 12);
+assert.equal(firstHorn[1].startSec, 12);
+assert.equal(firstHorn[1].endSec, 23);
 
 const lastLead = padWhoPlaysWindow(268, 270, 291.48);
 assert.ok(lastLead.endSec - lastLead.startSec >= 4);
 
 const slices = forgottenWhoPlaysSlices(291.48);
-assert.ok(slices.some((s) => s.who === "sax" && s.startSec >= 285 && s.endSec <= 291.5));
-assert.ok(slices.every((s) => s.who === "jack" || s.who === "sax"));
+assert.ok(slices.some((s) => s.who === "horn" && s.startSec >= 285 && s.endSec <= 291.5));
+assert.ok(slices.every((s) => s.who === "jack" || s.who === "horn"));
+assert.ok(!slices.some((s) => s.who === "sax"));
 assert.ok(slices.every((s) => s.durationSec >= 4 && s.durationSec <= 30));
 assert.ok(!slices.some((s) => s.who === "jack" && s.performance === "play"));
 assert.ok(!slices.some((s) => s.performance === "sway"));
@@ -55,7 +56,7 @@ assert.ok(!slices.some((s) => s.performance === "walk"));
 const jackSlices = slices.filter((s) => s.who === "jack");
 assert.ok(jackSlices.length >= 6);
 assert.ok(jackSlices.every((s) => s.performance === "sing"));
-assert.ok(slices.filter((s) => s.who === "sax").every((s) => s.performance === "play"));
+assert.ok(slices.filter((s) => s.who === "horn").every((s) => s.performance === "play"));
 
 const gaps = forgottenIntermissions(291.48);
 assert.ok(gaps.some((g) => g.startSec <= 23 && g.endSec >= 46));
@@ -82,14 +83,14 @@ const laid = applyForgottenWhoPlays({
   })(),
 });
 if ("error" in laid) throw new Error(laid.error);
-assert.ok(laid.cuts.every((c) => c.shotId === "jack" || c.shotId === "sax"));
-assert.ok(!laid.cuts.some((c) => c.shotId === "horn" || c.shotId === "trio"));
+assert.ok(laid.cuts.every((c) => c.shotId === "jack" || c.shotId === "horn"));
+assert.ok(!laid.cuts.some((c) => c.shotId === "sax" || c.shotId === "trio"));
 assert.ok(!laid.cuts.some((c) => c.performance === "sway"));
 assert.ok(!laid.cuts.some((c) => c.performance === "walk"));
 assert.ok(laid.cuts.some((c) => c.performance === "sing"));
 assert.ok(laid.cuts.some((c) => c.performance === "play"));
 
-const noSax = applyForgottenWhoPlays({
+const noHorn = applyForgottenWhoPlays({
   song: {
     fileName: "FORGOTTEN.mp3",
     durationSec: 291.48,
@@ -98,12 +99,13 @@ const noSax = applyForgottenWhoPlays({
   },
   shots: [
     { shotId: "jack", plateFile: "jack.png", title: "JACK GHOST" },
-    { shotId: "horn", plateFile: "horn.png", title: "HORN" },
+    { shotId: "sax", plateFile: "sax.png", title: "SAXOPHONE" },
   ],
   newCutId: () => "cut",
 });
-assert.ok("error" in noSax);
-assert.match(noSax.error, /SAXOPHONE/);
+assert.ok("error" in noHorn);
+assert.match(noHorn.error, /HORN|trumpet/);
+assert.doesNotMatch(noHorn.error, /SAXOPHONE still/);
 
 const cutWins = sliceBoundsForPlate({
   song: {
@@ -142,22 +144,31 @@ assert.equal(
   true,
 );
 
-const saxPlay = buildScratchSongLtxMotion({
+const hornPlay = buildScratchSongLtxMotion({
+  styleId: "music_video",
+  speaker: "HORN",
+  performance: "play",
+  staging: "HORN holds the muted trumpet at the lips",
+});
+assert.match(hornPlay, /actually playing the trumpet/);
+assert.match(hornPlay, /Fade in/);
+assert.match(hornPlay, /Fade out/);
+assert.match(hornPlay, /revolves back/);
+assert.match(hornPlay, /Not posing/);
+assert.doesNotMatch(hornPlay, /actually playing the saxophone/);
+assert.equal(
+  skipSongLipSyncLead({ speaker: "HORN", performance: "play", singing: true }),
+  true,
+);
+
+const saxPlayOtherSong = buildScratchSongLtxMotion({
   styleId: "music_video",
   speaker: "SAXOPHONE",
   performance: "play",
   staging: "SAXOPHONE holds the sax at the lips",
 });
-assert.match(saxPlay, /actually playing the saxophone/);
-assert.match(saxPlay, /Fade in/);
-assert.match(saxPlay, /Fade out/);
-assert.match(saxPlay, /revolves back/);
-assert.match(saxPlay, /Not posing/);
-assert.doesNotMatch(saxPlay, /actually playing the trumpet/);
-assert.equal(
-  skipSongLipSyncLead({ speaker: "SAXOPHONE", performance: "play", singing: true }),
-  true,
-);
+assert.match(saxPlayOtherSong, /actually playing the saxophone/);
+assert.doesNotMatch(saxPlayOtherSong, /actually playing the trumpet/);
 
 assert.match(forgottenSoloCamera("JACK GHOST", "graveyard"), /blood crimson/);
 assert.match(forgottenSoloCamera("SAXOPHONE", "eerie house"), /Grok logo/);
