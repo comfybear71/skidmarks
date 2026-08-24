@@ -253,6 +253,13 @@ export async function POST(req: Request) {
           sceneId: sceneIdIn,
           speaker: speakerIn,
         });
+        const deskTitle = titleIn?.trim();
+        if (deskTitle) {
+          minted = {
+            ...minted,
+            story: patchShotFields(minted.story, minted.shotId, { title: deskTitle }),
+          };
+        }
       } catch (e) {
         const message = e instanceof Error ? e.message : "That location doesn't exist";
         const missing = /not on this episode/i.test(message);

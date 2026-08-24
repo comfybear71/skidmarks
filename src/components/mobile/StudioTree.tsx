@@ -945,7 +945,6 @@ export function StudioTree({
   const [castOpen, setCastOpen] = useState(true);
   const [locationsOpen, setLocationsOpen] = useState(true);
   const [platesOpen, setPlatesOpen] = useState(true);
-  const [stillsOpen, setStillsOpen] = useState(false);
   const [addingPlateFor, setAddingPlateFor] = useState<string | null>(null);
   const [addPlateError, setAddPlateError] = useState("");
   const [addPlateDoneFor, setAddPlateDoneFor] = useState<string | null>(null);
@@ -1851,6 +1850,21 @@ export function StudioTree({
             plated={songPlates}
             compact={!platesOpen}
             onJobChange={onJobChange}
+            castOptions={job.speakers.map((name) => {
+              const file = approvedCandidateFileName(job.castCandidates, name) || "";
+              return {
+                name,
+                faceUrl: file ? castFaceUrl(job, name, file, characterIds) : "",
+              };
+            })}
+            placeOptions={job.scenes.map((scene) => ({
+              sceneId: scene.id,
+              name: scene.placeName,
+              thumbUrl: mobilePlacePreviewUrl(job, {
+                fileName: approvedCandidateFileName(job.locationCandidates, scene.id) || "",
+                worldThumbKey: scene.worldThumbKey || "",
+              }),
+            }))}
           />
         )}
 
@@ -1909,7 +1923,7 @@ export function StudioTree({
         ) : null}
 
         <div id="m-plates-strip">
-          {job.folderName && isMusicVideoSongJob(job) ? (
+          {job.folderName ? (
             <PlateReviewEditor
               job={job}
               onJobChange={onJobChange}
@@ -1918,27 +1932,6 @@ export function StudioTree({
               defaultPlaceId={placeFocus || undefined}
               focusShotId={focusPlateShotId}
             />
-          ) : job.folderName ? (
-            <div className="m-talk-stills">
-              <button
-                type="button"
-                className="m-talk-stills-toggle"
-                aria-expanded={stillsOpen}
-                onClick={() => setStillsOpen((v) => !v)}
-              >
-                {stillsOpen ? "Hide stills" : "Stills"}
-              </button>
-              {stillsOpen ? (
-                <PlateReviewEditor
-                  job={job}
-                  onJobChange={onJobChange}
-                  collapsed={false}
-                  onExpand={() => setStillsOpen(true)}
-                  defaultPlaceId={placeFocus || undefined}
-                  focusShotId={focusPlateShotId}
-                />
-              ) : null}
-            </div>
           ) : null}
         </div>
 

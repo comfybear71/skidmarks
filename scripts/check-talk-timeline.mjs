@@ -14,9 +14,11 @@ import {
 } from "../src/lib/talkTimeline.ts";
 import {
   TALK_CLIP_PX_PER_SEC,
+  talkActScriptsFrom,
   talkClipClock,
   talkClipDeskFrom,
   talkClipWidthPx,
+  talkNextShotTitle,
   talkSceneBands,
   talkSceneColor,
 } from "../src/lib/talkClipTimeline.ts";
@@ -141,6 +143,33 @@ const fromStoryOnly = talkTimelineFrom({
 });
 assert.equal(fromStoryOnly[0].plateFile, "phone.png", "story still lands when the job row is empty");
 
+const titledEmpty = talkTimelineFrom({
+  story: {
+    ...story,
+    scenes: [
+      {
+        id: "scene_lounge",
+        title: "Upstairs lounge",
+        placeName: "Upstairs lounge",
+        worldThumbKey: "",
+        shots: [
+          {
+            id: "shot_05",
+            title: "SHOT 05 — MATTY",
+            summary: "",
+            plateFile: "",
+            beats: [{ id: "b6", speaker: "MATTY", text: "" }],
+            sfx: [],
+          },
+        ],
+      },
+    ],
+  },
+  plated: [{ shotId: "shot_05", sceneId: "scene_lounge", plateFile: "" }],
+});
+assert.equal(titledEmpty[0]?.shotId, "shot_05", "titled empty slot still sits on the talking desk");
+assert.equal(titledEmpty[0]?.episodeNo, 5);
+
 const desk = talkClipDeskFrom({
   story,
   plated,
@@ -205,6 +234,14 @@ const bands = talkSceneBands(desk.cells);
 assert.equal(bands.length, 2);
 assert.equal(bands[0].widthPx, desk.cells[0].widthPx + desk.cells[1].widthPx);
 assert.equal(talkClipClock(8), "8s");
+assert.equal(talkNextShotTitle(desk.cells, "MATTY"), "SHOT 05 — MATTY");
+assert.equal(talkNextShotTitle([], "TEE"), "SHOT 01 — TEE");
+const actScripts = talkActScriptsFrom(desk.cells);
+assert.equal(actScripts.length, 2);
+assert.equal(actScripts[0].roman, "I");
+assert.equal(actScripts[1].roman, "II");
+assert.match(actScripts[0].script, /SHOT 01/);
+assert.match(actScripts[1].script, /SHOT 04|MATTY BAR|bar/i);
 
 const plateOnly = talkClipDeskFrom({
   story,
@@ -222,13 +259,17 @@ assert.ok(!plateOnly.cells.some((c) => c.shotId === "shot_old_bar"), "untitled l
 const talkCss = css.slice(css.indexOf("/* Talking episode strip"));
 const editor = readFileSync(join(root, "src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 assert.match(talkUi, /Talking timeline/);
-assert.match(talkUi, /Tap a box to play it here/);
+assert.match(talkUi, /Tap a box to play it/);
 assert.match(talkUi, /Change audio/);
 assert.match(talkUi, /Add audio/);
 assert.match(talkUi, /Redo clip/);
 assert.match(talkUi, /Add video/);
 assert.match(talkUi, /Remove video/);
-assert.match(talkUi, /plate-only still plays the line/);
+assert.match(talkUi, /\+ Add clip/);
+assert.match(talkUi, /Send this/);
+assert.match(talkUi, /Remove slot/);
+assert.match(talkUi, /Act \{act\.roman\}/);
+assert.match(talkUi, /this stretch, not a song/);
 assert.match(talkUi, /audioSrc && !clipSrc/);
 assert.doesNotMatch(talkUi, /Drop the mp3|Start the video|WaveformCanvas|m-talk-tools-video|scrollIntoView|revealPlates/);
 assert.match(talkCss, /\.m-talk-desk-scroll\s*\{[^}]*overflow-x:\s*auto/s);
@@ -241,8 +282,10 @@ assert.match(tree, /<TalkTimeline/);
 assert.match(tree, /onJobChange=\{onJobChange\}/);
 assert.match(tree, /<TalkTimeline[\s\S]*?onJobChange=\{onJobChange\}\s*\/>/);
 assert.doesNotMatch(tree, /<TalkTimeline[\s\S]*?onOpenPlate=/);
-assert.match(tree, /Hide stills/);
+assert.doesNotMatch(tree, /Hide stills|m-talk-stills-toggle/);
 assert.match(tree, /<MusicVideoTrack/);
+assert.match(editor, /label="Stills"/);
+assert.match(editor, /stillsStripOpen/);
 assert.match(editor, /isMusicVideoSongJob\(job\) && plateClipRail\.clips\.length/);
 assert.doesNotMatch(song, /jobShowsMusicTrack/);
 assert.match(trackRoute, /Music video only/);

@@ -945,9 +945,16 @@ body {
 
 .m-track-section-top {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
+  width: 100%;
   min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .m-track-section-cast {
@@ -1092,6 +1099,54 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--chrome-dim);
+}
+
+.m-desk-fold {
+  margin-top: 8px;
+}
+
+.m-desk-fold-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--chrome);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.m-desk-fold-btn.is-open {
+  color: var(--acid);
+}
+
+.m-desk-fold-n {
+  color: var(--chrome-dim);
+  font-weight: 700;
+}
+
+.m-desk-fold-caret {
+  margin-left: auto;
+  color: var(--chrome-dim);
+  font-size: 11px;
+}
+
+.m-desk-fold-body {
+  margin-top: 4px;
+}
+
+.m-track-section-clock {
+  margin-left: auto;
+  color: var(--acid);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .m-track-plate-row {
@@ -3392,6 +3447,53 @@ span.scratch-history-blob {
 
 .m-talk-film-cell.is-play .m-talk-film-play {
   opacity: 0.35;
+}
+
+.m-talk-film-x {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 16px;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.m-talk-film-add {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 120px;
+  border: 1px dashed rgba(200, 255, 46, 0.5);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--acid);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.m-talk-film-add.is-open {
+  border-color: var(--acid);
+}
+
+.m-talk-desk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.m-talk-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
 }
 
 .m-talk-film-label {

@@ -6,7 +6,21 @@ import type { CrashStoryDoc } from "./crashStoryTypes";
 import type { MobileClipUnit, MobileShotUnit } from "./mobileGenJob";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { clipFileBasename } from "./mobilePlateClips";
-import { talkTimelineFrom, type TalkTimelinePlate } from "./talkTimeline";
+import { talkShotNumber, talkTimelineFrom, type TalkTimelinePlate } from "./talkTimeline";
+
+/** Next SHOT 0N title so a new slot lands on the talking desk, even with no take. */
+export function talkNextShotTitle(
+  cells: { episodeNo?: number | null; title?: string }[],
+  speaker = "",
+): string {
+  const max = cells.reduce(
+    (n, cell) => Math.max(n, cell.episodeNo || talkShotNumber(cell.title || "") || 0),
+    0,
+  );
+  const no = String(max + 1).padStart(2, "0");
+  const who = String(speaker || "").trim();
+  return who ? `SHOT ${no} — ${who}` : `SHOT ${no}`;
+}
 
 /** Same scale as the music-video wave — a second is 28px, then the strip scrolls. */
 export const TALK_CLIP_PX_PER_SEC = 28;
@@ -85,6 +99,54 @@ export type TalkClipDesk = {
   totalSec: number;
   innerWidthPx: number;
 };
+
+export type TalkActScript = {
+  id: string;
+  sceneId: string;
+  roman: string;
+  title: string;
+  script: string;
+  lineCount: number;
+  cellKeys: string[];
+};
+
+const TALK_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"] as const;
+
+export function talkActRoman(n: number): string {
+  return TALK_ROMAN[Math.max(1, Math.floor(n)) - 1] || String(n);
+}
+
+function talkActCellScript(cell: TalkClipCell): string {
+  const bits = [cell.title, cell.speaker, cell.line || "No line yet"].filter(Boolean);
+  return `${bits.join("\n")}\n\n`;
+}
+
+/**
+ * One script box per stretch on the talking desk — same job as lyrics
+ * on a music-video section. Built from the live cells. Does not rewrite story.
+ */
+export function talkActScriptsFrom(cells: TalkClipCell[]): TalkActScript[] {
+  const acts: TalkActScript[] = [];
+  for (const cell of cells) {
+    const last = acts[acts.length - 1];
+    if (last && last.sceneId === cell.sceneId) {
+      last.cellKeys.push(cell.key);
+      last.script += talkActCellScript(cell);
+      last.lineCount += 1;
+      continue;
+    }
+    acts.push({
+      id: `${cell.sceneId}:${acts.length}`,
+      sceneId: cell.sceneId,
+      roman: talkActRoman(acts.length + 1),
+      title: cell.sceneTitle || "Shot",
+      script: talkActCellScript(cell),
+      lineCount: 1,
+      cellKeys: [cell.key],
+    });
+  }
+  return acts.map((act) => ({ ...act, script: act.script.trim() }));
+}
 
 function uniqueByBeat(clips: MobileClipUnit[]): MobileClipUnit[] {
   const seen = new Set<string>();

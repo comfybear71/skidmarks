@@ -452,3 +452,34 @@ export function MobileAudioPlayer({
     </div>
   );
 }
+
+/** Shared fold for long desk lists — Sections, song cuts, stills, talking extras. */
+export function DeskFold({
+  label,
+  count,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string;
+  count?: number | string;
+  open: boolean;
+  onToggle: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="m-desk-fold">
+      <button
+        type="button"
+        className={`m-desk-fold-btn${open ? " is-open" : ""}`}
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        {label}
+        {count != null && count !== "" ? <span className="m-desk-fold-n">{count}</span> : null}
+        <span className="m-desk-fold-caret">{open ? "▾" : "▸"}</span>
+      </button>
+      {open ? <div className="m-desk-fold-body">{children}</div> : null}
+    </div>
+  );
+}

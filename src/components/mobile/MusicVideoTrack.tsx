@@ -49,7 +49,7 @@ import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { readApiJson } from "@/lib/studioFetchError";
-import { MobilePrimaryButton } from "./MobileUi";
+import { DeskFold, MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
@@ -665,7 +665,9 @@ export function MusicVideoTrack({
   const [markerLabel, setMarkerLabel] = useState<TrackSectionLabel>("verse");
   const [lyricsOpen, setLyricsOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
   const [marqueeOpen, setMarqueeOpen] = useState(false);
-  const [sectionsOpen, setSectionsOpen] = useState(true);
+  const [sectionsOpen, setSectionsOpen] = useState(false);
+  const [platesOnTrackOpen, setPlatesOnTrackOpen] = useState(false);
+  const [openSectionId, setOpenSectionId] = useState("");
   const [playing, setPlaying] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [pickWho, setPickWho] = useState("");
@@ -1139,216 +1141,284 @@ export function MusicVideoTrack({
           ) : null}
 
           {/* Once the markers are set this is just a record — fold it away. */}
+          {!compact && !markers.length ? (
+            <>
+              <p className="m-track-lyric-hint">
+                <strong>Play the song</strong>, then tap the green <strong>Start here</strong> on each
+                section as it begins. Typing times is optional — tap <strong>Set</strong> after a time
+                if you do.
+              </p>
+              <div className="m-track-marker-row">
+                <button
+                  type="button"
+                  className="m-track-btn"
+                  disabled={Boolean(busy) || !lyricTagsReady}
+                  onClick={() => {
+                    const dur = effectiveDurationMs || 130_000;
+                    const next = importSectionMarkersFromLyrics({
+                      lyrics: job.lyrics || "",
+                      durationMs: dur,
+                    });
+                    if (!next.length) {
+                      setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");
+                      return;
+                    }
+                    setNote("");
+                    void saveMarkers(next);
+                  }}
+                >
+                  Import from lyrics
+                </button>
+                <select
+                  className="m-track-select"
+                  value={markerLabel}
+                  style={{
+                    borderColor: sectionTint(markerLabel, 0.6),
+                    color: sectionColor(markerLabel),
+                  }}
+                  onChange={(e) => setMarkerLabel(e.target.value as TrackSectionLabel)}
+                >
+                  {TRACK_SECTION_LABELS.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="m-track-btn"
+                  disabled={Boolean(busy) || rangeEndMs <= rangeStartMs}
+                  onClick={() => {
+                    const startMs = nextSectionStartMs(markers);
+                    const endMs = Math.max(startMs + 1000, effectiveDurationMs || startMs + 1000);
+                    void saveMarkers([
+                      ...markers,
+                      { id: `marker_${Date.now()}`, label: markerLabel, startMs, endMs },
+                    ]);
+                  }}
+                >
+                  Add section
+                </button>
+              </div>
+            </>
+          ) : null}
+
           {!compact && markers.length ? (
-            <button
-              type="button"
-              className={`m-track-fold${sectionsOpen ? " is-open" : ""}`}
-              aria-expanded={sectionsOpen}
-              onClick={() => setSectionsOpen((v) => !v)}
+            <DeskFold
+              label="Sections"
+              count={markers.length}
+              open={sectionsOpen}
+              onToggle={() => setSectionsOpen((v) => !v)}
             >
-              Sections <span className="m-track-fold-n">{markers.length}</span>
-              <span className="m-track-fold-caret">{sectionsOpen ? "▾" : "▸"}</span>
-            </button>
-          ) : null}
-
-          {!compact && (sectionsOpen || !markers.length) ? (
-          <>
-          <p className="m-track-lyric-hint">
-            <strong>Play the song</strong>, then tap the green <strong>Start here</strong> on each
-            section as it begins. Typing times is optional — tap <strong>Set</strong> after a time
-            if you do.
-          </p>
-          {nextPinSection ? (
-            <div className="m-track-next-pin">
-              <span>
-                Next: <strong>{sectionTitle(nextPinSection.label)}</strong> at{" "}
-                {formatTrackClock(playheadMs)}
-              </span>
-              <button
-                type="button"
-                className="m-track-here-btn is-waiting"
-                disabled={Boolean(busy)}
-                onClick={() =>
-                  void saveMarkers(
-                    withSectionStartAt(sortedMarkers, nextPinSection.id, playheadMs, effectiveDurationMs),
-                  )
-                }
-              >
-                Start {sectionTitle(nextPinSection.label)} here
-              </button>
-            </div>
-          ) : null}
-          <div className="m-track-marker-row">
-            <button
-              type="button"
-              className="m-track-btn"
-              disabled={Boolean(busy) || !lyricTagsReady}
-              onClick={() => {
-                const dur = effectiveDurationMs || 130_000;
-                const next = importSectionMarkersFromLyrics({
-                  lyrics: job.lyrics || "",
-                  durationMs: dur,
-                });
-                if (!next.length) {
-                  setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");
-                  return;
-                }
-                setNote(
-                  markers.length
-                    ? "Replaced sections from lyrics — play and tap Start here on each row."
-                    : "",
-                );
-                void saveMarkers(next);
-              }}
-            >
-              Import from lyrics
-            </button>
-            {markers.length ? (
-              <button
-                type="button"
-                className="m-track-btn"
-                disabled={Boolean(busy)}
-                onClick={() => void saveMarkers([])}
-              >
-                Clear sections
-              </button>
-            ) : null}
-            <select
-              className="m-track-select"
-              value={markerLabel}
-              style={{
-                borderColor: sectionTint(markerLabel, 0.6),
-                color: sectionColor(markerLabel),
-              }}
-              onChange={(e) => setMarkerLabel(e.target.value as TrackSectionLabel)}
-            >
-              {TRACK_SECTION_LABELS.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="m-track-btn"
-              disabled={Boolean(busy) || rangeEndMs <= rangeStartMs}
-              onClick={() => {
-                const startMs = nextSectionStartMs(markers);
-                const endMs = Math.max(startMs + 1000, effectiveDurationMs || startMs + 1000);
-                void saveMarkers([
-                  ...markers,
-                  { id: `marker_${Date.now()}`, label: markerLabel, startMs, endMs },
-                ]);
-              }}
-            >
-              Add section
-            </button>
-          </div>
-          </>
-          ) : null}
-
-          {!compact && sectionsOpen && sortedMarkers.length ? (
-            <ul className="m-track-marker-list">
-              {sortedMarkers.map((m) => {
-                const waiting = effectiveDurationMs > 0 && sectionNeedsStartHere(m, effectiveDurationMs);
-                const cast = sectionPeopleOnPlates(m, plateBlocks);
-                return (
-                <li key={m.id} style={{ borderLeftColor: sectionColor(m.label) }}>
-                  <div className="m-track-section-top">
-                    <span className="m-track-marker-name">
-                      <i className="m-track-swatch" style={{ background: sectionColor(m.label) }} />
-                      {sectionTitle(m.label)}
-                    </span>
-                    <span className="m-track-section-cast">{cast}</span>
-                  </div>
-                  <div className="m-track-section-row">
-                    <button
-                      type="button"
-                      className={`m-track-here-btn${waiting ? " is-waiting" : ""}`}
-                      disabled={Boolean(busy)}
-                      onClick={() =>
-                        void saveMarkers(
-                          withSectionStartAt(sortedMarkers, m.id, playheadMs, effectiveDurationMs),
-                        )
-                      }
-                    >
-                      {waiting ? "Start here ▶" : "Start here"}
-                    </button>
-                    <TimeField
-                      value={m.startMs}
-                      label={`${sectionTitle(m.label)} start`}
-                      onBadTime={(msg) => setNote(msg)}
-                      onCommit={(ms) =>
-                        void saveMarkers(
-                          withSectionTime(sortedMarkers, m.id, "start", ms, effectiveDurationMs),
-                        )
-                      }
-                    />
-                    <span className="m-track-dash">–</span>
-                    <TimeField
-                      value={m.endMs}
-                      label={`${sectionTitle(m.label)} end`}
-                      onBadTime={(msg) => setNote(msg)}
-                      onCommit={(ms) =>
-                        void saveMarkers(
-                          withSectionTime(sortedMarkers, m.id, "end", ms, effectiveDurationMs),
-                        )
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="m-track-x"
-                      aria-label={`Remove ${sectionTitle(m.label)}`}
-                      onClick={() => void saveMarkers(sortedMarkers.filter((x) => x.id !== m.id))}
-                    >
-                      ×
-                    </button>
-                  </div>
-                </li>
-              );
-              })}
-            </ul>
+              <p className="m-track-lyric-hint">
+                <strong>Play the song</strong>, then tap the green <strong>Start here</strong> on each
+                section as it begins. Typing times is optional — tap <strong>Set</strong> after a time
+                if you do.
+              </p>
+              {nextPinSection ? (
+                <div className="m-track-next-pin">
+                  <span>
+                    Next: <strong>{sectionTitle(nextPinSection.label)}</strong> at{" "}
+                    {formatTrackClock(playheadMs)}
+                  </span>
+                  <button
+                    type="button"
+                    className="m-track-here-btn is-waiting"
+                    disabled={Boolean(busy)}
+                    onClick={() =>
+                      void saveMarkers(
+                        withSectionStartAt(sortedMarkers, nextPinSection.id, playheadMs, effectiveDurationMs),
+                      )
+                    }
+                  >
+                    Start {sectionTitle(nextPinSection.label)} here
+                  </button>
+                </div>
+              ) : null}
+              <div className="m-track-marker-row">
+                <button
+                  type="button"
+                  className="m-track-btn"
+                  disabled={Boolean(busy) || !lyricTagsReady}
+                  onClick={() => {
+                    const dur = effectiveDurationMs || 130_000;
+                    const next = importSectionMarkersFromLyrics({
+                      lyrics: job.lyrics || "",
+                      durationMs: dur,
+                    });
+                    if (!next.length) {
+                      setNote("Add [Intro] / [Verse] / [Chorus] tags in Lyrics first.");
+                      return;
+                    }
+                    setNote(
+                      markers.length
+                        ? "Replaced sections from lyrics — play and tap Start here on each row."
+                        : "",
+                    );
+                    void saveMarkers(next);
+                  }}
+                >
+                  Import from lyrics
+                </button>
+                <button
+                  type="button"
+                  className="m-track-btn"
+                  disabled={Boolean(busy)}
+                  onClick={() => void saveMarkers([])}
+                >
+                  Clear sections
+                </button>
+                <select
+                  className="m-track-select"
+                  value={markerLabel}
+                  style={{
+                    borderColor: sectionTint(markerLabel, 0.6),
+                    color: sectionColor(markerLabel),
+                  }}
+                  onChange={(e) => setMarkerLabel(e.target.value as TrackSectionLabel)}
+                >
+                  {TRACK_SECTION_LABELS.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="m-track-btn"
+                  disabled={Boolean(busy) || rangeEndMs <= rangeStartMs}
+                  onClick={() => {
+                    const startMs = nextSectionStartMs(markers);
+                    const endMs = Math.max(startMs + 1000, effectiveDurationMs || startMs + 1000);
+                    void saveMarkers([
+                      ...markers,
+                      { id: `marker_${Date.now()}`, label: markerLabel, startMs, endMs },
+                    ]);
+                  }}
+                >
+                  Add section
+                </button>
+              </div>
+              <ul className="m-track-marker-list">
+                {sortedMarkers.map((m) => {
+                  const waiting = effectiveDurationMs > 0 && sectionNeedsStartHere(m, effectiveDurationMs);
+                  const cast = sectionPeopleOnPlates(m, plateBlocks);
+                  const rowOpen = openSectionId === m.id;
+                  return (
+                    <li key={m.id} style={{ borderLeftColor: sectionColor(m.label) }}>
+                      <button
+                        type="button"
+                        className="m-track-section-top"
+                        aria-expanded={rowOpen}
+                        onClick={() => setOpenSectionId((cur) => (cur === m.id ? "" : m.id))}
+                      >
+                        <span className="m-track-marker-name">
+                          <i className="m-track-swatch" style={{ background: sectionColor(m.label) }} />
+                          {sectionTitle(m.label)}
+                        </span>
+                        <span className="m-track-section-cast">{cast}</span>
+                        <span className="m-track-section-clock">
+                          {formatTrackClock(m.startMs)} – {formatTrackClock(m.endMs)}
+                        </span>
+                        <span className="m-desk-fold-caret">{rowOpen ? "▾" : "▸"}</span>
+                      </button>
+                      {rowOpen ? (
+                        <div className="m-track-section-row">
+                          <button
+                            type="button"
+                            className={`m-track-here-btn${waiting ? " is-waiting" : ""}`}
+                            disabled={Boolean(busy)}
+                            onClick={() =>
+                              void saveMarkers(
+                                withSectionStartAt(sortedMarkers, m.id, playheadMs, effectiveDurationMs),
+                              )
+                            }
+                          >
+                            {waiting ? "Start here ▶" : "Start here"}
+                          </button>
+                          <TimeField
+                            value={m.startMs}
+                            label={`${sectionTitle(m.label)} start`}
+                            onBadTime={(msg) => setNote(msg)}
+                            onCommit={(ms) =>
+                              void saveMarkers(
+                                withSectionTime(sortedMarkers, m.id, "start", ms, effectiveDurationMs),
+                              )
+                            }
+                          />
+                          <span className="m-track-dash">–</span>
+                          <TimeField
+                            value={m.endMs}
+                            label={`${sectionTitle(m.label)} end`}
+                            onBadTime={(msg) => setNote(msg)}
+                            onCommit={(ms) =>
+                              void saveMarkers(
+                                withSectionTime(sortedMarkers, m.id, "end", ms, effectiveDurationMs),
+                              )
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="m-track-x"
+                            aria-label={`Remove ${sectionTitle(m.label)}`}
+                            onClick={() => void saveMarkers(sortedMarkers.filter((x) => x.id !== m.id))}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </DeskFold>
           ) : null}
 
           {compact ? null : job.folderName && plateRows.length ? (
-            <div className="m-track-plates">
-              <div className="m-track-plates-head">Plates on the track</div>
-              {plateRows.map((row, i) => (
-                <div key={row.shotId} className="m-track-plate-row">
-                  {row.plateFile ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={mobileLocationStillUrl(job, row.plateFile)}
-                      alt=""
-                      className="m-track-plate-thumb"
-                    />
-                  ) : (
-                    <span className="m-track-plate-thumb m-track-plate-thumb--empty" />
-                  )}
-                  <div className="m-track-plate-meta">
-                    <div className="m-track-plate-title">{row.title}</div>
-                    {row.timing ? (
-                      <div className="m-track-plate-time">
-                        {formatTrackClockPrecise(row.timing.startMs)} –{" "}
-                        {formatTrackClockPrecise(row.timing.endMs)}
-                      </div>
+            <DeskFold
+              label="Plates on the track"
+              count={plateRows.length}
+              open={platesOnTrackOpen}
+              onToggle={() => setPlatesOnTrackOpen((v) => !v)}
+            >
+              <div className="m-track-plates">
+                {plateRows.map((row, i) => (
+                  <div key={row.shotId} className="m-track-plate-row">
+                    {row.plateFile ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={mobileLocationStillUrl(job, row.plateFile)}
+                        alt=""
+                        className="m-track-plate-thumb"
+                      />
                     ) : (
-                      <div className="m-track-plate-time m-track-plate-time--open">Unscheduled</div>
+                      <span className="m-track-plate-thumb m-track-plate-thumb--empty" />
                     )}
+                    <div className="m-track-plate-meta">
+                      <div className="m-track-plate-title">{row.title}</div>
+                      {row.timing ? (
+                        <div className="m-track-plate-time">
+                          {formatTrackClockPrecise(row.timing.startMs)} –{" "}
+                          {formatTrackClockPrecise(row.timing.endMs)}
+                        </div>
+                      ) : (
+                        <div className="m-track-plate-time m-track-plate-time--open">Unscheduled</div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="m-track-btn"
+                      disabled={Boolean(busy) || !row.plateFile}
+                      onClick={() =>
+                        void schedulePlate(row.shotId, rangeStartMs, rangeEndMs, i)
+                      }
+                    >
+                      {busy === `time-${row.shotId}` ? "…" : "Use range"}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="m-track-btn"
-                    disabled={Boolean(busy) || !row.plateFile}
-                    onClick={() =>
-                      void schedulePlate(row.shotId, rangeStartMs, rangeEndMs, i)
-                    }
-                  >
-                    {busy === `time-${row.shotId}` ? "…" : "Use range"}
-                  </button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </DeskFold>
           ) : null}
 
           {/* Same UI before and after Start: this is a button in it, not a
