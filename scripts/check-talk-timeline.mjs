@@ -46,6 +46,7 @@ assert.match(filledPlan, /FORMAT EXAMPLE — Skidmarks talking stills/);
 assert.match(filledPlan, /CrackWhore Darryl sits at the bar/);
 assert.doesNotMatch(filledPlan, /Little Red Riding Hood/);
 assert.doesNotMatch(filledPlan, /The Wolf/);
+assert.doesNotMatch(filledPlan, /fairy tale/);
 assert.doesNotMatch(filledPlan, /cartoon eyes widening/);
 assert.doesNotMatch(filledPlan, /LTX simulation triggers/);
 assert.doesNotMatch(filledPlan, /handheld-style shaky cam/);

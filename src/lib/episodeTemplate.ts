@@ -119,7 +119,7 @@ Every person, spoken line, sound, and music bed is a [ ] tag. Those tags land on
 [VISUAL_ACTION] on a CHEAP_TAKE is a sitting talking-head — face and upper chest, facing camera, empty hands. Do not write cartoon, LTX simulation, shaky cam, or a motion pass on a still.
 [CUTAWAY] or blank.
 Do not invent a sound without an [SFX] tag.
-Copy the tag shape from the Skidmarks talking example. Do not copy a fairy tale or a wolf.`;
+Copy the tag shape from the Skidmarks talking example.`;
 
 /** Blank construction script. Pack cast and places get filled in. */
 export const EPISODE_CONSTRUCTION_BLANK = `## MASTER EPISODE CONSTRUCTION TEMPLATE

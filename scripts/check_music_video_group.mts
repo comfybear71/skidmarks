@@ -8,6 +8,7 @@ import {
   forgottenResearchDrafts,
   forgottenSoloCamera,
   isForgottenSongJob,
+  FORGOTTEN_PROMPT,
   MUSIC_VIDEO_GROUP_MAX,
   MUSIC_VIDEO_NO_CEL,
   namedInstrumentFor,
@@ -95,5 +96,7 @@ const mvSend = buildScratchStillSend({
 assert(/Live-action photograph/.test(mvSend.prompt), "anti-cel on music video send");
 assert(/No cel shading/.test(mvSend.prompt), "no cel on send");
 assert(/No cel shading/.test(MUSIC_VIDEO_NO_CEL), "lock text");
+assert(!/Little Red/.test(FORGOTTEN_PROMPT), "forgotten prompt does not name Little Red");
+assert(!/HYBRID/.test(FORGOTTEN_PROMPT), "forgotten prompt does not name HYBRID");
 
 console.log("check_music_video_group: ok");

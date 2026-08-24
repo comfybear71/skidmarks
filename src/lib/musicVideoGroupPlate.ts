@@ -136,7 +136,7 @@ Forgot the name
 [End, sudden silence]`;
 
 export const FORGOTTEN_PROMPT =
-  "THE JACK ASH BAND — FORGOTTEN. Waking up in hell, then slowly forgetting your name. Muted trumpet, dark Arabic scale, 12-string drone. Jack Ghost empty-handed. Horn plays the muted trumpet. Not a talking episode. Not Little Red. Not HYBRID cartoon-on-photoreal.";
+  "THE JACK ASH BAND — FORGOTTEN. Waking up in hell, then slowly forgetting your name. Muted trumpet, dark Arabic scale, 12-string drone. Jack Ghost empty-handed. Horn plays the muted trumpet.";
 
 export type MusicVideoBudgetTier = "CHEAP_TAKE" | "EXPENSIVE_TAKE";
 
