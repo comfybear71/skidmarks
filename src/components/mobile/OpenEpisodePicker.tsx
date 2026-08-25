@@ -208,7 +208,10 @@ export function OpenEpisodePicker({
                     </div>
                   ) : (
                     <div className="open-episode-picker-row-actions">
-                      {onNewFromCast && job.styleId === "skidmarks" && (job.speakers || []).length ? (
+                      {onNewFromCast &&
+                      job.styleId !== "music_video" &&
+                      job.styleId !== "deepfake" &&
+                      (job.speakers || []).length ? (
                         <button
                           type="button"
                           className="open-episode-picker-from"

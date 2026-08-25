@@ -1,6 +1,7 @@
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 import { ASSIST_CONSENT_LOCK } from "./mobileAssistConsent";
 import { isJoKeyboardWarrior, LTX_LIP_SYNC_LEAD } from "./mobileImageMotion";
+import { styleEpisodeAssistRules } from "./styleEpisodeProcess";
 
 export const ASSIST_KINDS = [
   "vibe",
@@ -34,7 +35,7 @@ export const ASSIST_CRITERIA_LOCK = [
   "Spoken line = voice engine only. ElevenLabs tags in square brackets are allowed: [grunts] [smugly] [laughs]. No stage directions, no NAME prefix, no LTX, no plate staging.",
   "Plate staging = who sits, leans, walks, presents, uses THIS room's furniture, matching light. Willing bodies. Never a lineup of faces in the foreground. Never pinning or holding someone down. Not LTX. Not the spoken line.",
   "Shot action = what we see. Bodies, the place, the held prop. Not spoken dialogue. Not a camera list.",
-  "Episode = the paste layout only (EPISODE / GAG / --- SHOT n --- / Place: / Title: / Action: / Plate: / NAME / line). Place: must match a locked place, spelled exactly. Use only locked cast names. Plate: on every shot. Refine a draft — do not throw a working draft away unless it is an empty template.",
+  "Episode = this show's paste layout only (Skidmarks = nine-act construction; Sunny Banks = 4-shot gag; Documentary = hook/witness/turn/sting; others = EPISODE / GAG / --- SHOT n ---). Place: must match a locked place, spelled exactly. Use only locked cast names. Plate: on every shot. Refine a draft — do not throw a working draft away unless it is an empty template. Never pour one show's spine onto another.",
   "LTX Image motion = ONE continuous paragraph. Cloud IA2V gets plate still + mp3 + this one string. No [VISUAL]. No [SPEECH]. Do not write the locked lip-sync lead — it is prepended on send. The lead is: " +
     JSON.stringify(LTX_LIP_SYNC_LEAD),
   "Image motion shape: Use the provided start image as the first frame. NAME, look lock is prominent, empty hands unless Position already named a held prop, mouth and head move naturally while speaking. Props and background stay exactly as the start image, nothing new enters frame. NAME says: \"the spoken line\". Camera holds. Same person and objects as the start image.",
@@ -82,27 +83,12 @@ const FIELD: Record<AssistKind, string> = {
 - Stay in character. No stage directions, no character name prefix, no phone action, no LTX.`,
 
   episode: `WRITE: the whole episode document — story, shots, and beats.
-- Output ONLY the episode in this exact layout. No markdown. No commentary.
-- First lines: EPISODE: title  then  GAG: one sentence
-- Then one or more blocks:
---- SHOT 1 ---
-Place: (must match a locked place, spelled exactly)
-Title: (shot title)
-Action: (what we see — held props, bodies, the room)
-Plate: (who sits, leans, walks, presents, uses the furniture)
-NAME
-Spoken line.
-NAME
-Spoken line.
-- Use a blank line before each --- SHOT ---.
-- Character cues are ALL CAPS on their own line, then the spoken line.
-- You may add more shots at the same Place. This is a full episode, not a 4-shot gag.
+- Output ONLY the episode. No markdown. No commentary.
+- Use this show's layout (see the style rules). Do not pour a 4-shot gag onto Skidmarks or a 9-act spine onto Sunny Banks.
 - Use ONLY the locked cast names. Do not invent people.
 - Every Place: must be one of the locked places, spelled exactly.
-- Include a Plate: line on every shot — who sits, leans, walks, presents, uses the furniture. Willing bodies. Never a lineup in the foreground. Never pinning or holding someone down.
 - Held props only if the draft already names them. Default empty hands, no phone, for everyone including CRAZY BIG HOLE JO.
-- If the box already has a draft, refine it — keep what works, fix what is weak. Do not throw the whole thing away unless it is an empty template.
-- ElevenLabs tags in square brackets are allowed on lines: [grunts] [smugly].
+- If the box already has a draft, refine it. Do not throw the whole thing away unless it is an empty template.
 - No [VISUAL]. No [SPEECH]. No lip-sync lead.`,
 
   plate: `WRITE: how people sit in this still — one or two sentences for the plate compositor.
@@ -134,7 +120,9 @@ const REPLY_ONE_BOX =
   "Reply with the contents of the one box. No preamble, no headings, no markdown, no quote marks around the whole reply.";
 
 export function assistSystem(styleId: ShowStyleId, kind: AssistKind): string {
-  return `${house(styleId)}\n\n${FIELD[kind]}\n\n${REPLY_ONE_BOX}`;
+  const field =
+    kind === "episode" ? styleEpisodeAssistRules(styleId) : FIELD[kind];
+  return `${house(styleId)}\n\n${field}\n\n${REPLY_ONE_BOX}`;
 }
 
 export function assistMaxTokens(kind: AssistKind): number {

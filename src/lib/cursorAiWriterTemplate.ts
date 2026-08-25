@@ -156,9 +156,74 @@ function formatPlaceList(live?: AiWriterLiveData, fallback?: string[]): string {
   return names.map((n) => `- ${n}`).join("\n");
 }
 
+export const CURSOR_PROMPT_EXAMPLE_SCRIPT_DOC = `EPISODE: The file that walked
+GAG: A witness remembers the folder. The folder remembers him.
+
+--- SHOT 1 ---
+Title: Hook
+Place: Interview room
+Cast: Presenter
+Plate: Medium close-up. Interview room. Soft window light. Presenter facing camera, empty hands. Only Presenter in frame.
+Presenter: We were told the tape never left the building.
+
+--- SHOT 2 ---
+Title: Witness
+Place: Interview room
+Cast: Presenter
+Plate: Same chair. Same window. Mouth clear. No lineup.
+Presenter: Then a cleaner found it on the bus.
+
+--- SHOT 3 ---
+Title: Turn
+Place: Interview room
+Cast: Presenter
+Plate: Lean in. Same room. Hands still empty.
+Presenter: The cleaner had been dead for a year.
+
+--- SHOT 4 ---
+Title: Sting
+Place: Interview room
+Cast: Presenter
+Plate: Hold the MCU. Camera still.
+Presenter: So who brought the tape home?
+`;
+
+export const CURSOR_PROMPT_EXAMPLE_SCRIPT_PHOTOREAL = `EPISODE: Kitchen light
+GAG: Two people finish a conversation they started yesterday.
+
+--- SHOT 1 ---
+Title: Sit
+Place: Location
+Cast: Cast
+Plate: Medium close-up. Natural kitchen light. Cast sitting, weight grounded, empty hands. Only Cast in frame.
+Cast: You left the tap running again.
+
+--- SHOT 2 ---
+Title: Answer
+Place: Location
+Cast: Cast
+Plate: Same chair. Same window. Photoreal skin and cloth. No cartoon.
+Cast: I was listening to the pipes.
+`;
+
+export const CURSOR_PROMPT_EXAMPLE_SCRIPT_MUSIC_VIDEO = `EPISODE: SKIDS_MUSIC_TV
+GAG: Artist — Song. Performance cuts. No crowd.
+
+--- SHOT 1 ---
+Title: Artist
+Place: Performance set
+Cast: Artist
+Plate: Medium close-up. Artist performing at Performance set. Empty hands unless a mic is the lock. No crowd. No cel.
+Artist: (no spoken line — the mp3 is the track)
+`;
+
 export function cursorPromptExampleForStyle(styleId: ShowStyleId): string {
   if (styleId === "skidmarks") return CURSOR_PROMPT_EXAMPLE_SCRIPT_SKIDMARKS;
-  return CURSOR_PROMPT_EXAMPLE_SCRIPT;
+  if (styleId === "sunny_banks") return CURSOR_PROMPT_EXAMPLE_SCRIPT;
+  if (styleId === "doc") return CURSOR_PROMPT_EXAMPLE_SCRIPT_DOC;
+  if (styleId === "photoreal") return CURSOR_PROMPT_EXAMPLE_SCRIPT_PHOTOREAL;
+  if (styleId === "music_video") return CURSOR_PROMPT_EXAMPLE_SCRIPT_MUSIC_VIDEO;
+  return CURSOR_PROMPT_EXAMPLE_SCRIPT_PHOTOREAL;
 }
 
 function outputFormat(styleId: ShowStyleId): string {
@@ -315,6 +380,10 @@ export function buildAiWriterBrief(
       return skidBrief(live);
     case "doc":
       return docBrief(live);
+    case "photoreal":
+      return genericBrief(styleId, live);
+    case "music_video":
+      return genericBrief(styleId, live);
     default:
       return genericBrief(styleId, live);
   }

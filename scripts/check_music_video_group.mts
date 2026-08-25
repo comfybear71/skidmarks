@@ -7,6 +7,7 @@ import {
   forgottenPlateStaging,
   forgottenResearchDrafts,
   forgottenSoloCamera,
+  musicVideoSoloCamera,
   isForgottenSongJob,
   FORGOTTEN_PROMPT,
   MUSIC_VIDEO_GROUP_MAX,
@@ -68,7 +69,12 @@ const after = stagingAfterAddCast({
 assert(/HORN/.test(after) && /JACK GHOST/.test(after), "add-cast rewrites solo lock");
 assert(!/JACK GHOST alone/.test(after), "old alone line must go");
 
-assert(/TIGHT CLOSE-UP/.test(forgottenSoloCamera("JACK GHOST", "Sulfur stream")), "jack is tight CU");
+assert(/WIDE full-body/.test(forgottenSoloCamera("JACK GHOST", "Sulfur stream")), "jack is wide — face stays hidden");
+assert(/blood crimson/.test(forgottenSoloCamera("JACK GHOST", "Sulfur stream")), "forgotten keeps the grade");
+assert(
+  !/blood crimson/.test(musicVideoSoloCamera("JACK GHOST", "Sulfur stream")),
+  "next song does not get Forgotten grade",
+);
 assert(/over the shoulder/i.test(forgottenSoloCamera("HORN", "Sulfur stream")), "horn is OTS");
 assert(/Sitting/.test(forgottenSoloCamera("DRUMMER", "Sulfur stream")), "drummer sits");
 assert(
