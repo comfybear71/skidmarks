@@ -6,7 +6,7 @@ import type { MobileClipUnit } from "@/lib/mobileGenJob";
 import { mobileClipSrc, stackedClipFiles, stableClipTakeLabel } from "@/lib/mobilePlateClips";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 
-export { clipsUnderPlate, mobileClipSrc, stackedClipFiles } from "@/lib/mobilePlateClips";
+export { clipsForStillsDesk, clipsUnderPlate, mobileClipSrc, stackedClipFiles } from "@/lib/mobilePlateClips";
 /** Match the still and the mp4 — this width on a phone. */
 export const PLATE_TILE_PX = 160;
 
