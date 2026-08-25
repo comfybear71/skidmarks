@@ -2,6 +2,8 @@
 
 Logged **2026-08-24** from Stuie. Forgotten stays a test. Five more songs tonight. Do **not** mint a job from this file. Do **not** Start directing. Do **not** generate until he says go.
 
+**Mute cinema** (no lip-sync) is a different floor from speaking clips. Lessons: [`MUTE_CINEMATIC_ARCHIVE.md`](./MUTE_CINEMATIC_ARCHIVE.md). Do not feed the song mp3 into IA2V / H3 / FLF2V.
+
 **Blank canvas:** The next song is its own job. It does not inherit another job's grade, camera-by-name table, roster, or props. Who is named on this Start is who is drawn. Empty hands unless **this** job's Position names a held thing. A new solo Start uses two off-axis cameras from the menu (three-quarter + over-shoulder) — not a straight-on mug shot. Plate clocks (`plateTimings`) are the song split across those plates — not leftover 15s rows. Finish is ordered unstitched mp4s with human names (`01_Babe_three_quarter_Spit_Roast.mp4`).
 
 PR for the Forgotten desk work: https://github.com/comfybear71/skidmarks/pull/311  

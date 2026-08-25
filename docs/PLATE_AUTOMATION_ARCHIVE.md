@@ -2,6 +2,8 @@
 
 Logged **2026-08-19**. Living list of what we can know before send. Append when Scratch or `/m` proves a new Pass or Fail.
 
+**Two floors:** this file is **lip-sync / speaking plates**. Mute cinema (picture to music, mouths shut) lives in [`MUTE_CINEMATIC_ARCHIVE.md`](./MUTE_CINEMATIC_ARCHIVE.md). Do not mix the send paths.
+
 ## Owner intent — Scratch first, then `/m` (2026-08-19)
 
 Stuie's goal: **lessons from Scratch testing** should feed a **simple-prompt path on `/m`**, not the other way around.
@@ -95,6 +97,7 @@ The still turning cartoon or “a real human” is a **Scratch Draw** failure (s
 1. Scratch Draw → score Pass / Fail / Style slip → CSV.
 2. `/m` Save line → Generate on Cloud IA2V → note short / ok / rant-split (last frame chains).
 3. Append a row here (and in `src/lib/plateAutomationArchive.ts`) only when a result is proven. Do not rewrite a live pack's `story_json`.
+4. Mute cinema Pass / Fail goes in [`MUTE_CINEMATIC_ARCHIVE.md`](./MUTE_CINEMATIC_ARCHIVE.md) (`layer: "mute"`), not here.
 
 LTX-2.5 FLF2V research (knowledge, no send-path change): `docs/LTX_25_FLF2V_RESEARCH.md`.
 
