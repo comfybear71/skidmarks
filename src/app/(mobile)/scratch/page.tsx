@@ -1835,6 +1835,13 @@ export default function ScratchPage() {
                     >
                       {busy === "clip-remove" ? "Removing…" : "Clear clips"}
                     </button>
+                    <a
+                      href={`/api/crash/mobile/clips/zip?jobId=${encodeURIComponent(job.id)}`}
+                      download
+                      style={{ ...ghostBtn, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                    >
+                      Download clips zip
+                    </a>
                   </>
                 ) : null}
                 {i2vCooking || clipPhase === "cook" || clipPhase === "sending" ? (

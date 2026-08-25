@@ -70,8 +70,6 @@ export function PlateClipThumbs({
         <ClipPlayer
           key={row.key}
           src={mobileClipSrc(job, row.file)}
-          poster={poster}
-          preload={row.preload}
           takeLabel={row.takeLabel}
           onRemove={
             onRemoveTake
@@ -98,8 +96,6 @@ const frame: CSSProperties = {
 
 function ClipPlayer({
   src,
-  poster,
-  preload,
   takeLabel,
   onRemove,
   removeDisabled,
@@ -168,10 +164,9 @@ function ClipPlayer({
       <div style={frame}>
         <video
           src={src}
-          poster={poster || undefined}
           playsInline
           muted
-          preload={preload ? "metadata" : "none"}
+          preload="metadata"
           onClick={() => setOpen(true)}
           style={{
             width: "100%",

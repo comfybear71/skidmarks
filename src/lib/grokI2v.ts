@@ -12,15 +12,15 @@ export const GROK_I2V_MODEL = "grok-imagine-video-1.5";
 export const GROK_I2V_LABEL = "Grok Imagine video";
 export const GROK_I2V_SHORT_LABEL = "Grok";
 export const GROK_I2V_HINT =
-  "Cheap 2–5s from the still. Invented sound is stripped. Keep Siray for uncensored stills.";
+  "1–15s from the still (official max 15). Desk chips 2 / 3 / 5 / 8 / 15. Invented sound is stripped. Keep Siray for uncensored stills.";
 
 /** Official Imagine video range. */
 export const GROK_I2V_MIN_SEC = 1;
 export const GROK_I2V_MAX_SEC = 15;
 /** Default music-video cut. */
 export const GROK_I2V_DEFAULT_SEC = 5;
-/** Desk chips — how a music video is cut. */
-export const GROK_I2V_SHORT_SECS = [2, 3, 5] as const;
+/** Desk chips — short keeps plus the official 8s / 15s ceiling. Not 30s. */
+export const GROK_I2V_SHORT_SECS = [2, 3, 5, 8, 15] as const;
 export type GrokI2vShortSec = (typeof GROK_I2V_SHORT_SECS)[number];
 
 export const GROK_I2V_RESOLUTION = "720p" as const;
