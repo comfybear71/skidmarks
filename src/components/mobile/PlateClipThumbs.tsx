@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { MobileClipUnit } from "@/lib/mobileGenJob";
 import { mobileClipSrc, stackedClipFiles, stableClipTakeLabel } from "@/lib/mobilePlateClips";
+import { ClipFrameThumb } from "./ClipFrameThumb";
 
 export { clipsUnderPlate, mobileClipSrc, stackedClipFiles } from "@/lib/mobilePlateClips";
 /** Match the still and the mp4 — this width on a phone. */
@@ -70,6 +71,7 @@ export function PlateClipThumbs({
         <ClipPlayer
           key={row.key}
           src={mobileClipSrc(job, row.file)}
+          poster={poster}
           takeLabel={row.takeLabel}
           onRemove={
             onRemoveTake
@@ -96,6 +98,7 @@ const frame: CSSProperties = {
 
 function ClipPlayer({
   src,
+  poster,
   takeLabel,
   onRemove,
   removeDisabled,
@@ -162,21 +165,22 @@ function ClipPlayer({
   return (
     <>
       <div style={frame}>
-        <video
-          src={src}
-          playsInline
-          muted
-          preload="metadata"
+        <button
+          type="button"
           onClick={() => setOpen(true)}
+          aria-label="Play clip"
           style={{
+            display: "block",
             width: "100%",
             height: "100%",
-            objectFit: "contain",
-            display: "block",
-            background: "#000",
+            padding: 0,
+            border: 0,
+            background: "transparent",
             cursor: "zoom-in",
           }}
-        />
+        >
+          <ClipFrameThumb clipSrc={src} stillSrc={poster} />
+        </button>
         <button type="button" className="scratch-clip-play" aria-label="Play clip" onClick={() => setOpen(true)}>
           ▶
         </button>

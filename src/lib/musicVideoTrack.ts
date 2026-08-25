@@ -646,6 +646,29 @@ export function importSectionMarkersFromLyrics(opts: {
   });
 }
 
+/**
+ * Empty TRACK, or one row stretched across the whole song, is not a real
+ * import. Build Intro / Verse / Chorus from the [tags] on the sheet.
+ */
+export function shouldImportLyricSections(opts: {
+  lyrics: string;
+  markers: TrackSectionMarker[] | null | undefined;
+  durationMs: number;
+}): boolean {
+  const tags = meaningfulLyricTags(opts.lyrics);
+  if (tags.length < 2) return false;
+  const songMs = Math.max(0, Math.round(opts.durationMs || 0));
+  if (songMs < 2000) return false;
+  const markers = opts.markers || [];
+  if (!markers.length) return true;
+  if (markers.length === 1) {
+    const m = markers[0]!;
+    const span = Math.max(0, m.endMs - m.startMs);
+    return span >= songMs * 0.85;
+  }
+  return false;
+}
+
 /** A dropped filename is not a sung line — keep it off the marquee. */
 export function isLyricFilenameLine(text: string): boolean {
   return /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(String(text || "").trim());
