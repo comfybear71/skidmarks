@@ -22,6 +22,7 @@ import {
   importSectionMarkersFromLyrics,
   lyricCuesFromSectionSheet,
   meaningfulLyricTags,
+  shouldImportLyricSections,
   nextSectionNeedingStart,
   nextSectionStartMs,
   parseTrackClock,
@@ -53,6 +54,7 @@ import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
 import { readApiJson } from "@/lib/studioFetchError";
+import { ClipFrameThumb } from "./ClipFrameThumb";
 import { DeskFold, MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 
@@ -721,6 +723,7 @@ export function MusicVideoTrack({
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobRef = useRef("");
+  const lyricImportTried = useRef(false);
 
   // Plain arithmetic — memoising it only confused the compiler about which
   // song field it depends on.
@@ -942,6 +945,22 @@ export function MusicVideoTrack({
     }
   }
 
+  useEffect(() => {
+    if (lyricImportTried.current) return;
+    if (busy) return;
+    if (
+      !shouldImportLyricSections({
+        lyrics: job.lyrics || "",
+        markers,
+        durationMs: effectiveDurationMs,
+      })
+    ) {
+      return;
+    }
+    lyricImportTried.current = true;
+    void importFromLyrics(true);
+  }, [busy, effectiveDurationMs, job.lyrics, markers]);
+
   async function schedulePlate(shotId: string, startMs: number, endMs: number, sortIndex: number) {
     if (!song?.fileName) {
       setNote("Start the video and attach the song before timing plates.");
@@ -1153,17 +1172,17 @@ export function MusicVideoTrack({
                     onClick={() => onOpenPlate?.(cell.shotId)}
                     title={cell.title}
                   >
-                    {hungClipFileForPlate(job, cell.shotId) ? (
-                      <video
-                        src={mobileClipSrc(job, hungClipFileForPlate(job, cell.shotId))}
-                        muted
-                        playsInline
-                        preload="metadata"
-                        aria-hidden
+                    {hungClipFileForPlate(job, cell.shotId) || cell.plateFile ? (
+                      <ClipFrameThumb
+                        clipSrc={
+                          hungClipFileForPlate(job, cell.shotId)
+                            ? mobileClipSrc(job, hungClipFileForPlate(job, cell.shotId))
+                            : ""
+                        }
+                        stillSrc={
+                          cell.plateFile ? mobileLocationStillUrl(job, cell.plateFile) : ""
+                        }
                       />
-                    ) : cell.plateFile ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={mobileLocationStillUrl(job, cell.plateFile)} alt="" />
                     ) : (
                       <span className="m-track-rail-empty" />
                     )}
@@ -1468,21 +1487,17 @@ export function MusicVideoTrack({
               <div className="m-track-plates">
                 {plateRows.map((row, i) => (
                   <div key={row.shotId} className="m-track-plate-row">
-                    {hungClipFileForPlate(job, row.shotId) ? (
-                      <video
-                        src={mobileClipSrc(job, hungClipFileForPlate(job, row.shotId))}
-                        muted
-                        playsInline
-                        preload="metadata"
+                    {hungClipFileForPlate(job, row.shotId) || row.plateFile ? (
+                      <ClipFrameThumb
                         className="m-track-plate-thumb"
-                        aria-hidden
-                      />
-                    ) : row.plateFile ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={mobileLocationStillUrl(job, row.plateFile)}
-                        alt=""
-                        className="m-track-plate-thumb"
+                        clipSrc={
+                          hungClipFileForPlate(job, row.shotId)
+                            ? mobileClipSrc(job, hungClipFileForPlate(job, row.shotId))
+                            : ""
+                        }
+                        stillSrc={
+                          row.plateFile ? mobileLocationStillUrl(job, row.plateFile) : ""
+                        }
                       />
                     ) : (
                       <span className="m-track-plate-thumb m-track-plate-thumb--empty" />

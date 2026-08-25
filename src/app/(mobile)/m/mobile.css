@@ -3147,12 +3147,49 @@ span.scratch-history-blob {
   cursor: pointer;
 }
 
-.m-track-rail-cell img {
+.m-track-rail-cell img,
+.m-track-rail-cell video,
+.m-track-rail-cell .clip-frame-thumb {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
   opacity: 0.85;
+}
+
+.m-track-rail-cell .clip-frame-thumb {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  opacity: 1;
+}
+
+.clip-frame-thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+.clip-frame-thumb img,
+.clip-frame-thumb video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.clip-frame-thumb video {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.clip-frame-thumb video.is-ready {
+  opacity: 1;
 }
 
 .m-track-rail-cell.is-timed {
