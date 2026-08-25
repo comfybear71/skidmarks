@@ -301,6 +301,49 @@ export function cutFromPlateTiming(
   return [...rest, next];
 }
 
+/**
+ * One TRACK write: plate clock + cut row with the mp4 already on disk/Blob.
+ * A clip is not on the timeline until both exist.
+ */
+export function hangClipOnTrack(
+  song: ScratchSong,
+  opts: {
+    plateId: string;
+    plateFile: string;
+    clipFile: string;
+    startMs: number;
+    endMs: number;
+    sortIndex: number;
+    newCutId: () => string;
+  },
+): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } {
+  const startMs = Math.max(0, Math.round(opts.startMs));
+  const endMs = Math.max(startMs + 100, Math.round(opts.endMs));
+  const clipFile = (opts.clipFile || "").trim();
+  const timing: PlateTiming = {
+    plateId: opts.plateId,
+    startMs,
+    endMs,
+    sortIndex: Math.round(opts.sortIndex),
+  };
+  const plateTimings = [
+    ...(song.plateTimings || []).filter((p) => p.plateId !== opts.plateId),
+    timing,
+  ];
+  let cuts = cutFromPlateTiming(song.cuts || [], timing, opts.plateFile, opts.newCutId);
+  cuts = cuts.map((c) =>
+    c.shotId === opts.plateId
+      ? {
+          ...c,
+          clipFile: clipFile || c.clipFile,
+          status: clipFile ? ("done" as const) : c.status || "pending",
+          error: clipFile ? "" : c.error || "",
+        }
+      : c,
+  );
+  return { plateTimings, cuts };
+}
+
 export function orderedDoneCutsForStitch(
   song: ScratchSong,
 ): ScratchSongCut[] {
