@@ -85,7 +85,7 @@ export default function MobileHomePage() {
   // Drive the automatic phases (plates/animate) by polling /step
   // repeatedly — each call does one bounded unit of work. "review" is
   // deliberately not here — it waits on Generate video, not a timer.
-  // Stitch is parked (MOBILE_STITCH_MOVIES); LTX still runs.
+  // Stitch is out. Finish is ordered unstitched mp4s. LTX still runs.
   useEffect(() => {
     const autoPhases = ["plates", "animate"];
     const url =

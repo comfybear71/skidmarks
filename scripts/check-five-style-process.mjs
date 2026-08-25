@@ -15,6 +15,7 @@ import {
   styleEpisodeAssistRules,
   styleStartRoster,
   styleUsesSongTrack,
+  STYLE_FINISH_UNSTITCHED,
 } from "../src/lib/styleEpisodeProcess.ts";
 
 assert.deepEqual([...FIVE_SHIP_STYLE_IDS], [
@@ -25,6 +26,7 @@ assert.deepEqual([...FIVE_SHIP_STYLE_IDS], [
   "photoreal",
 ]);
 
+assert.equal(STYLE_FINISH_UNSTITCHED, true);
 assert.equal(styleUsesSongTrack("music_video"), true);
 assert.equal(styleUsesSongTrack("skidmarks"), false);
 assert.equal(canReuseCastForNewEpisode("sunny_banks"), true);

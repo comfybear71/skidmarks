@@ -2,6 +2,8 @@
  * One start-to-finish process for the five ship looks.
  * Deep fake is out. Music video shares the same CAST → places → lock →
  * plates → Generate spine; TRACK / lyrics replace the talking script box.
+ * Finish is ordered unstitched mp4s (shot/beat order, or song-clock order).
+ * Stitch is out — it is unreliable and is not a step in any ship look.
  *
  * Style differences live here so Sunny does not get a 9-act spine,
  * Skidmarks does not get a 4-shot gag, and Photoreal does not get cel.
@@ -34,6 +36,9 @@ export function isFiveShipStyle(id: string): id is FiveShipStyleId {
 export function styleUsesSongTrack(styleId: ShowStyleId): boolean {
   return styleId === "music_video";
 }
+
+/** Every ship look stops here. Do not concat. Play the mp4s in order. */
+export const STYLE_FINISH_UNSTITCHED = true;
 
 /** New-from-this-cast. Music video still uses a saved band. */
 export function canReuseCastForNewEpisode(styleId: string | undefined): boolean {

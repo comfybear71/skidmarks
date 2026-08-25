@@ -1,6 +1,6 @@
 /**
- * Mobile Auto Studio still stops before concatenating clips into a movie.
- * Generate video / LTX still runs. Flip this when stitch is ready.
+ * Stitch is out. Every look finishes on ordered unstitched mp4s.
+ * Generate video / LTX still runs. Do not flip this back on.
  */
 export const MOBILE_STITCH_MOVIES = false;
 
