@@ -12,8 +12,14 @@ import {
   isGrokScratchClipTask,
   submitScratchGrokClip,
 } from "@/lib/grokScratchClip";
+import {
+  finishScratchMinimaxClip,
+  isMinimaxScratchClipTask,
+  submitScratchMinimaxClip,
+} from "@/lib/minimaxScratchClip";
 import { sirayConfigured } from "@/lib/sirayClient";
 import { grokVideoConfigured } from "@/lib/grokVideo";
+import { minimaxVideoConfigured } from "@/lib/minimaxVideo";
 import {
   GROK_I2V_DEFAULT_SEC,
   GROK_I2V_ID,
@@ -24,6 +30,16 @@ import {
   GROK_I2V_SHORT_SECS,
   snapGrokI2vDurationSec,
 } from "@/lib/grokI2v";
+import {
+  MINIMAX_H3_DEFAULT_SEC,
+  MINIMAX_H3_ID,
+  MINIMAX_H3_LABEL,
+  MINIMAX_H3_MAX_SEC,
+  MINIMAX_H3_MIN_SEC,
+  MINIMAX_H3_MODEL,
+  MINIMAX_H3_SHORT_SECS,
+  snapMinimaxH3DurationSec,
+} from "@/lib/minimaxH3";
 import {
   parseScratchClipEngine,
   SIRAY_I2V_DEFAULT,
@@ -359,6 +375,7 @@ async function restoreScratchPlate(opts: {
  * POST { action: "clip", jobId, beatId?, clipEngine?, durationSec? }
  *   — LTX waits on this request. Grok / Siray i2v submit and return `{ pending: true }`.
  *     Grok duration is 1–15s (desk chips 2 / 3 / 5) and does not follow the mp3.
+ *     H3 duration is 4–15s (desk chips 5 / 8 / 15). Optional endPlateFile is the last still.
  *     Scratch song window (if set) is sliced before LTX. Live episode Generate
  *     is a different route and is unchanged.
  * POST { action: "song-window", jobId, sliceStartSec, sliceDurationSec }
@@ -378,7 +395,7 @@ async function restoreScratchPlate(opts: {
  *   — drop one bad take from the strip. Local mp4 parks in _cleared/; Blob stays.
  * POST { action: "remove-all-clips", jobId }
  *   — clear every Scratch pad clip row. Same park rules.
- * GET — whether SIRAY_API_KEY / XAI_API_KEY are on this process (no secrets).
+ * GET — whether SIRAY_API_KEY / XAI_API_KEY / MINIMAX_API_KEY are on this process (no secrets).
  */
 export async function GET() {
   const cheap = sirayI2vSpec(SIRAY_I2V_DEFAULT);
@@ -386,6 +403,7 @@ export async function GET() {
     ok: true,
     siray: sirayConfigured(),
     grok: grokVideoConfigured(),
+    minimax: minimaxVideoConfigured(),
     stillModel: "bytedance/seedream-4.5-ref2i-spicy",
     clipModel: cheap.model,
     grokClipModel: GROK_I2V_MODEL,
@@ -394,6 +412,12 @@ export async function GET() {
     grokClipMinSec: GROK_I2V_MIN_SEC,
     grokClipMaxSec: GROK_I2V_MAX_SEC,
     grokClipDefaultSec: GROK_I2V_DEFAULT_SEC,
+    h3ClipModel: MINIMAX_H3_MODEL,
+    h3ClipLabel: MINIMAX_H3_LABEL,
+    h3ClipSecs: [...MINIMAX_H3_SHORT_SECS],
+    h3ClipMinSec: MINIMAX_H3_MIN_SEC,
+    h3ClipMaxSec: MINIMAX_H3_MAX_SEC,
+    h3ClipDefaultSec: MINIMAX_H3_DEFAULT_SEC,
     clipModels: SIRAY_I2V_MODELS.map((row) => ({
       id: row.id,
       model: row.model,
@@ -1012,6 +1036,7 @@ export async function POST(req: Request) {
               durationSec,
               siray: sirayConfigured(),
               grok: true,
+              minimax: minimaxVideoConfigured(),
             });
           }
           const drawn = await submitScratchGrokClip({
@@ -1033,6 +1058,48 @@ export async function POST(req: Request) {
             durationSec: drawn.durationSec,
             siray: sirayConfigured(),
             grok: grokVideoConfigured(),
+            minimax: minimaxVideoConfigured(),
+          });
+        }
+        if (clipPick === MINIMAX_H3_ID) {
+          const durationSec = snapMinimaxH3DurationSec(Number(body.durationSec ?? MINIMAX_H3_DEFAULT_SEC));
+          const want = { shotId, beatId, i2v: MINIMAX_H3_ID, durationSec };
+          if (scratchClipStillInFlight(job.scratchClip, want)) {
+            return NextResponse.json({
+              ok: true,
+              pending: true,
+              job,
+              backend: "minimax-h3",
+              clipModel: job.scratchClip?.model,
+              clipLabel: job.scratchClip?.label,
+              i2v: MINIMAX_H3_ID,
+              durationSec,
+              siray: sirayConfigured(),
+              grok: grokVideoConfigured(),
+              minimax: true,
+            });
+          }
+          const drawn = await submitScratchMinimaxClip({
+            job,
+            story,
+            shotId,
+            sceneId: scene.id,
+            beatId,
+            durationSec,
+            endPlateFile: body.endPlateFile,
+          });
+          return NextResponse.json({
+            ok: true,
+            pending: true,
+            job: drawn.job,
+            backend: "minimax-h3",
+            clipModel: drawn.model,
+            clipLabel: drawn.label,
+            i2v: MINIMAX_H3_ID,
+            durationSec: drawn.durationSec,
+            siray: sirayConfigured(),
+            grok: grokVideoConfigured(),
+            minimax: minimaxVideoConfigured(),
           });
         }
         const want = { shotId, beatId, i2v: clipPick };
@@ -1118,6 +1185,23 @@ export async function POST(req: Request) {
             durationSec: task.durationSec,
             siray: sirayConfigured(),
             grok: true,
+            minimax: minimaxVideoConfigured(),
+          });
+        }
+        if (isMinimaxScratchClipTask(task)) {
+          const tick = await finishScratchMinimaxClip({ job, task });
+          return NextResponse.json({
+            ok: true,
+            pending: tick.pending,
+            job: tick.job,
+            backend: "minimax-h3",
+            clipModel: task.model,
+            clipLabel: task.label,
+            i2v: task.i2v,
+            durationSec: task.durationSec,
+            siray: sirayConfigured(),
+            grok: grokVideoConfigured(),
+            minimax: true,
           });
         }
         const tick = await finishScratchSirayClip({ job, task });

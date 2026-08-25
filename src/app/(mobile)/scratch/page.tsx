@@ -94,14 +94,23 @@ import {
   GROK_I2V_LABEL,
   GROK_I2V_SHORT_SECS,
   type GrokI2vId,
-  type GrokI2vShortSec,
 } from "@/lib/grokI2v";
+import {
+  MINIMAX_H3_DEFAULT_SEC,
+  MINIMAX_H3_HINT,
+  MINIMAX_H3_ID,
+  MINIMAX_H3_LABEL,
+  MINIMAX_H3_SHORT_SECS,
+  type MinimaxH3Id,
+  type MinimaxH3ShortSec,
+} from "@/lib/minimaxH3";
 
-type ScratchClipPick = "ltx" | GrokI2vId | SirayI2vId;
+type ScratchClipPick = "ltx" | GrokI2vId | MinimaxH3Id | SirayI2vId;
 
 function clipEngineLabel(engine: ScratchClipPick, durationSec: number): string {
   if (engine === "ltx") return "LTX (mp3)";
   if (engine === GROK_I2V_ID) return `${GROK_I2V_LABEL} · ${durationSec}s`;
+  if (engine === MINIMAX_H3_ID) return `${MINIMAX_H3_LABEL} · ${durationSec}s`;
   return sirayI2vSpec(engine).label;
 }
 
@@ -313,13 +322,15 @@ export default function ScratchPage() {
   const [savedTake, setSavedTake] = useState<{ beatId: string; voiceFile: string } | null>(null);
   const [ltxOpen, setLtxOpen] = useState(true);
   const [clipEngine, setClipEngine] = useState<ScratchClipPick>("ltx");
-  const [clipDurationSec, setClipDurationSec] = useState<GrokI2vShortSec>(GROK_I2V_DEFAULT_SEC);
+  const [clipDurationSec, setClipDurationSec] = useState<number>(GROK_I2V_DEFAULT_SEC);
+  const [endPlateFile, setEndPlateFile] = useState("");
   const [stillBackend, setStillBackend] = useState<ScratchBackendId>("unknown");
   const [clipStamp, setClipStamp] = useState("");
   const [clipPhase, setClipPhase] = useState<"" | "sending" | "cook">("");
   const [joPhone, setJoPhone] = useState(false);
   const [sirayReady, setSirayReady] = useState(false);
   const [grokReady, setGrokReady] = useState(false);
+  const [h3Ready, setH3Ready] = useState(false);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   /** Which beat the draft belongs to — ignore draft after mouth / beat switch. */
   const motionEditBeatId = useRef<string | null>(null);
@@ -469,10 +480,11 @@ export default function ScratchPage() {
     let cancelled = false;
     fetch("/api/crash/mobile/scratch")
       .then((r) => r.json())
-      .then((d: { siray?: boolean; grok?: boolean }) => {
+      .then((d: { siray?: boolean; grok?: boolean; minimax?: boolean }) => {
         if (cancelled) return;
         if (typeof d.siray === "boolean") setSirayReady(d.siray);
         if (typeof d.grok === "boolean") setGrokReady(d.grok);
+        if (typeof d.minimax === "boolean") setH3Ready(d.minimax);
       })
       .catch(() => {
         /* Draw still works — chip stays off until a preset round-trip */
@@ -1271,7 +1283,8 @@ export default function ScratchPage() {
       i2v?: ScratchClipPick;
       pending?: boolean;
     };
-    const shop = clipEngine === GROK_I2V_ID ? "Grok" : "Siray";
+    const shop =
+      clipEngine === GROK_I2V_ID ? "Grok" : clipEngine === MINIMAX_H3_ID ? "H3" : "Siray";
     let data: ClipPollResult = { pending: true };
     const started = Date.now();
     while (data.pending) {
@@ -1293,9 +1306,10 @@ export default function ScratchPage() {
     return data;
   }
 
-  function applyClipFlags(data: { siray?: boolean; grok?: boolean }) {
+  function applyClipFlags(data: { siray?: boolean; grok?: boolean; minimax?: boolean }) {
     if (typeof data.siray === "boolean") setSirayReady(data.siray);
     if (typeof data.grok === "boolean") setGrokReady(data.grok);
+    if (typeof data.minimax === "boolean") setH3Ready(data.minimax);
   }
 
   function logClipBenchRun(data: {
@@ -1315,7 +1329,13 @@ export default function ScratchPage() {
         kind: "clip",
         backend:
           data.backend ||
-          (clipEngine === "ltx" ? "ltx" : clipEngine === GROK_I2V_ID ? "grok-i2v" : "siray-i2v"),
+          (clipEngine === "ltx"
+            ? "ltx"
+            : clipEngine === GROK_I2V_ID
+              ? "grok-i2v"
+              : clipEngine === MINIMAX_H3_ID
+                ? "minimax-h3"
+                : "siray-i2v"),
         chaosId: prev.chaosId,
         positionPrompt: staging || undefined,
         plateUrl: plateSrc || undefined,
@@ -1345,7 +1365,13 @@ export default function ScratchPage() {
       }
       if (clipEngine !== "ltx") {
         setClipPhase("sending");
-        setClipStamp(clipEngine === GROK_I2V_ID ? "Sending to Grok…" : "Sending to Siray…");
+        setClipStamp(
+          clipEngine === GROK_I2V_ID
+            ? "Sending to Grok…"
+            : clipEngine === MINIMAX_H3_ID
+              ? "Sending to H3…"
+              : "Sending to Siray…",
+        );
       }
       let data = await postJson<{
         job?: MobileGenJob;
@@ -1360,7 +1386,9 @@ export default function ScratchPage() {
         jobId: job.id,
         beatId: beat.id,
         clipEngine,
-        durationSec: clipEngine === GROK_I2V_ID ? clipDurationSec : undefined,
+        durationSec:
+          clipEngine === GROK_I2V_ID || clipEngine === MINIMAX_H3_ID ? clipDurationSec : undefined,
+        endPlateFile: clipEngine === MINIMAX_H3_ID && endPlateFile.trim() ? endPlateFile.trim() : undefined,
       });
       applyClipFlags(data);
       if (data.job) setJob(data.job);
@@ -1369,14 +1397,18 @@ export default function ScratchPage() {
           throw new Error(
             clipEngine === GROK_I2V_ID
               ? "Grok did not confirm the clip — wait a moment, then tap Generate once."
-              : "Siray did not confirm the clip — wait a moment, then tap Generate once.",
+              : clipEngine === MINIMAX_H3_ID
+                ? "H3 did not confirm the clip — wait a moment, then tap Generate once."
+                : "Siray did not confirm the clip — wait a moment, then tap Generate once.",
           );
         }
         setClipPhase("cook");
         setClipStamp(
           clipEngine === GROK_I2V_ID
             ? `Grok confirmed — cooking ${clipDurationSec}s. Don't tap Generate again.`
-            : "Siray confirmed — cooking (~3 min). Don't tap Generate again.",
+            : clipEngine === MINIMAX_H3_ID
+              ? `H3 confirmed — cooking ${clipDurationSec}s. Don't tap Generate again.`
+              : "Siray confirmed — cooking (~3 min). Don't tap Generate again.",
         );
         data = await pollI2vClipUntilDone(job.id, beat.id, setJob);
       }
@@ -1432,11 +1464,14 @@ export default function ScratchPage() {
     if (clipPhase || busy) return;
     const seq = ++clipPollSeq.current;
     const grokCook = job.scratchClip.i2v === GROK_I2V_ID;
+    const h3Cook = job.scratchClip.i2v === MINIMAX_H3_ID;
     setClipPhase("cook");
     setClipStamp(
       grokCook
         ? `Grok cooking ${job.scratchClip.durationSec || clipDurationSec}s. Don't tap Generate again.`
-        : "Siray cooking — ~3 min. Don't tap Generate again.",
+        : h3Cook
+          ? `H3 cooking ${job.scratchClip.durationSec || clipDurationSec}s. Don't tap Generate again.`
+          : "Siray cooking — ~3 min. Don't tap Generate again.",
     );
     setBusy("clip");
     setError("");
@@ -1471,7 +1506,8 @@ export default function ScratchPage() {
   const canGenerate = playable || clipPlayable;
   const canI2vGenerate = Boolean(plateSrc && beat && job);
   const grokClip = clipEngine === GROK_I2V_ID;
-  const sirayClip = clipEngine !== "ltx" && clipEngine !== GROK_I2V_ID;
+  const h3Clip = clipEngine === MINIMAX_H3_ID;
+  const sirayClip = clipEngine !== "ltx" && clipEngine !== GROK_I2V_ID && clipEngine !== MINIMAX_H3_ID;
   const i2vCooking = Boolean(clipEngine !== "ltx" && job?.scratchClip?.taskId);
   const generateLocked =
     Boolean(busy) || clipPhase !== "" || i2vCooking;
@@ -1480,10 +1516,16 @@ export default function ScratchPage() {
       ? canGenerate
       : grokClip
         ? canI2vGenerate && grokReady
-        : canI2vGenerate && sirayReady) && !generateLocked;
+        : h3Clip
+          ? canI2vGenerate && h3Ready
+          : canI2vGenerate && sirayReady) && !generateLocked;
   const selectedSiray = sirayClip ? sirayI2vSpec(clipEngine) : sirayI2vSpec(SIRAY_I2V_DEFAULT);
   const cookingShop =
-    job?.scratchClip?.i2v === GROK_I2V_ID || grokClip ? "Grok" : "Siray";
+    job?.scratchClip?.i2v === MINIMAX_H3_ID || h3Clip
+      ? "H3"
+      : job?.scratchClip?.i2v === GROK_I2V_ID || grokClip
+        ? "Grok"
+        : "Siray";
 
   useScratchPadHotkeys({
     enabled: Boolean(job) && !resuming,
@@ -2133,6 +2175,7 @@ export default function ScratchPage() {
                 title={GROK_I2V_HINT}
                 onClick={() => {
                   setClipEngine(GROK_I2V_ID);
+                  setClipDurationSec(GROK_I2V_DEFAULT_SEC);
                   setClipStamp("");
                 }}
                 style={{
@@ -2151,6 +2194,42 @@ export default function ScratchPage() {
                       disabled={Boolean(busy)}
                       onClick={() => setClipDurationSec(sec)}
                       title={`${sec} second music-video cut`}
+                      style={{
+                        ...ghostBtn,
+                        border: clipDurationSec === sec ? "1px solid var(--acid)" : ghostBtn.border,
+                        color: clipDurationSec === sec ? "var(--acid)" : "var(--chrome)",
+                        fontSize: "11px",
+                      }}
+                    >
+                      {sec}s
+                    </button>
+                  ))
+                : null}
+              <button
+                type="button"
+                disabled={Boolean(busy) || !h3Ready}
+                title={MINIMAX_H3_HINT}
+                onClick={() => {
+                  setClipEngine(MINIMAX_H3_ID);
+                  setClipDurationSec(MINIMAX_H3_DEFAULT_SEC);
+                  setClipStamp("");
+                }}
+                style={{
+                  ...ghostBtn,
+                  border: h3Clip ? "1px solid var(--acid)" : ghostBtn.border,
+                  color: h3Clip ? "var(--acid)" : "var(--chrome)",
+                }}
+              >
+                H3
+              </button>
+              {h3Clip
+                ? MINIMAX_H3_SHORT_SECS.map((sec: MinimaxH3ShortSec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      disabled={Boolean(busy)}
+                      onClick={() => setClipDurationSec(sec)}
+                      title={`${sec} second H3 cut`}
                       style={{
                         ...ghostBtn,
                         border: clipDurationSec === sec ? "1px solid var(--acid)" : ghostBtn.border,
@@ -2205,24 +2284,48 @@ export default function ScratchPage() {
               Clip:{" "}
               <span
                 style={{
-                  color: grokClip || sirayClip || clipStamp ? "var(--acid)" : "var(--chrome)",
+                  color: grokClip || h3Clip || sirayClip || clipStamp ? "var(--acid)" : "var(--chrome)",
                 }}
               >
                 {clipStamp ||
                   (grokClip
                     ? `${GROK_I2V_LABEL} · ${clipDurationSec}s`
-                    : sirayClip
-                      ? selectedSiray.label
-                      : grokReady
-                        ? "LTX — lip-sync on the Saved mp3"
-                        : "LTX — Grok chip needs XAI_API_KEY")}
+                    : h3Clip
+                      ? `${MINIMAX_H3_LABEL} · ${clipDurationSec}s`
+                      : sirayClip
+                        ? selectedSiray.label
+                        : grokReady
+                          ? "LTX — lip-sync on the Saved mp3"
+                          : "LTX — Grok chip needs XAI_API_KEY")}
               </span>
               {grokClip
                 ? " — cheap short from the still. Invented sound is stripped. Keep LTX when they speak."
-                : sirayClip
-                  ? " — motion from the still. Keep LTX when they speak. Siray is the uncensored still shop."
-                  : ""}
+                : h3Clip
+                  ? " — first still, optional last still. Invented sound is stripped. Not the 2s shop."
+                  : sirayClip
+                    ? " — motion from the still. Keep LTX when they speak. Siray is the uncensored still shop."
+                    : ""}
             </div>
+            {h3Clip ? (
+              <label style={{ display: "block", color: "var(--chrome-dim)", fontSize: "11px" }}>
+                Last still (optional)
+                <input
+                  value={endPlateFile}
+                  onChange={(e) => setEndPlateFile(e.target.value)}
+                  placeholder="history file name — leave blank for first-frame only"
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    marginTop: 4,
+                    background: "transparent",
+                    border: "1px solid var(--line)",
+                    color: "var(--chrome)",
+                    padding: "6px 8px",
+                    fontSize: "12px",
+                  }}
+                />
+              </label>
+            ) : null}
 
             <div className="scratch-ltx-motion">
               <button
