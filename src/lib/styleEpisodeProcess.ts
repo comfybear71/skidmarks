@@ -8,6 +8,9 @@
  * Style differences live here so Sunny does not get a 9-act spine,
  * Skidmarks does not get a 4-shot gag, and Photoreal does not get cel.
  *
+ * A new episode, person, place, or song is a blank canvas. Another job's
+ * roster, cameras, grade, or props do not apply unless this job named them.
+ *
  * Does not mint jobs. Does not rewrite a live pack. Seeding is names only.
  */
 

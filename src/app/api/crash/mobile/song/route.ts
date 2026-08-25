@@ -28,7 +28,7 @@ import { parkMobileClipFile } from "@/lib/mobileClipPark";
 import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
-import { sliceBoundsForPlate } from "@/lib/musicVideoTrack";
+import { cutFromPlateTiming, sliceBoundsForPlate } from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 
 export const runtime = "nodejs";
@@ -253,9 +253,19 @@ export async function POST(req: Request) {
     }
 
     if (action === "run") {
-      const song = job.scratchSong;
+      let song = job.scratchSong;
       if (!song?.fileName) {
         return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
+      }
+      if (!(song.cuts || []).length && (song.plateTimings || []).length) {
+        let hydrated = song.cuts || [];
+        for (const timing of song.plateTimings || []) {
+          const plateFile =
+            (job.shots.find((s) => s.shotId === timing.plateId)?.plateFile || "").trim();
+          hydrated = cutFromPlateTiming(hydrated, timing, plateFile, () => newId("cut"));
+        }
+        song = { ...song, cuts: hydrated };
+        job = (await patchMobileGenJob(jobId, { scratchSong: song, error: "" }))!;
       }
       const wantId = String(body.cutId || "").trim();
       const cut =
@@ -263,7 +273,7 @@ export async function POST(req: Request) {
         (song.cuts || []).find((c) => c.status !== "done") ||
         (song.cuts || [])[0];
       if (!cut) {
-        return NextResponse.json({ error: "Park 15s slices on a plate first." }, { status: 400 });
+        return NextResponse.json({ error: "Need plate clocks on the song first." }, { status: 400 });
       }
       const shotId =
         (cut.shotId || "").trim() ||

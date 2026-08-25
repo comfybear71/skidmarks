@@ -4,6 +4,7 @@
  * Times are milliseconds on the full MP3.
  */
 import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
+import { LTX_MAX_DURATION_SEC } from "./ltxDuration";
 import {
   clampSongSliceDuration,
   clampSongWindow,
@@ -99,6 +100,27 @@ export function msToSec(ms: number): number {
 
 export function secToMs(sec: number): number {
   return Math.round(sec * 1000);
+}
+
+/** Split this song evenly across these plates. Do not invent 15s rows. */
+export function evenPlateTimings(
+  durationSec: number,
+  plateIds: string[],
+): PlateTiming[] {
+  const ids = plateIds.map((id) => (id || "").trim()).filter(Boolean);
+  if (!ids.length) return [];
+  const totalMs = secToMs(durationSec);
+  if (!(totalMs > 0)) return [];
+  return ids.map((plateId, i) => {
+    const startMs = Math.round((totalMs * i) / ids.length);
+    const endMs = Math.round((totalMs * (i + 1)) / ids.length);
+    return {
+      plateId,
+      startMs,
+      endMs: Math.max(endMs, startMs + 100),
+      sortIndex: i,
+    };
+  });
 }
 
 export function formatTrackClock(ms: number): string {
@@ -229,21 +251,28 @@ export function plateTimingForShot(
   return (draft?.plateTimings || []).find((p) => p.plateId === id) || null;
 }
 
-/** LTX slice bounds — this cut's clock wins. One plate can sit on the
- * song more than once (Jack sings, then sways, then sings again). */
+/** LTX slice bounds — this cut's clock wins. Plate timings follow the song
+ * up to the LTX safety ceiling. The old 15s rows still cap at 30s. */
 export function sliceBoundsForPlate(opts: {
   song: ScratchSong;
   shotId: string;
   cut?: ScratchSongCut;
 }): { startSec: number; durationSec: number } {
+  const timed = (opts.song.plateTimings || []).length > 0;
+  const maxSec = timed ? LTX_MAX_DURATION_SEC : undefined;
   if (opts.cut) {
-    return clampSongWindow(opts.cut.startSec, opts.cut.durationSec, opts.song.durationSec);
+    return clampSongWindow(
+      opts.cut.startSec,
+      opts.cut.durationSec,
+      opts.song.durationSec,
+      maxSec,
+    );
   }
   const timing = (opts.song.plateTimings || []).find((p) => p.plateId === opts.shotId);
   if (timing && timing.endMs > timing.startMs) {
     const startSec = msToSec(timing.startMs);
     const durationSec = msToSec(timing.endMs - timing.startMs);
-    return clampSongWindow(startSec, durationSec, opts.song.durationSec);
+    return clampSongWindow(startSec, durationSec, opts.song.durationSec, LTX_MAX_DURATION_SEC);
   }
   return clampSongWindow(0, clampSongSliceDuration(opts.song.sliceDurationSec), opts.song.durationSec);
 }

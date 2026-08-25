@@ -11,9 +11,9 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 /**
- * POST { jobId, lyrics? } — music video has no script. Build one shot per
- * band member at the first place, lock the pack, return a carrier beat for
- * the parked mp3.
+ * POST { jobId, lyrics? } — music video has no script. Build plates at the
+ * first place (solo = two off-axis cameras; band = one per named person),
+ * lock the pack, return a carrier beat for the parked mp3.
  */
 export async function POST(req: Request) {
   try {

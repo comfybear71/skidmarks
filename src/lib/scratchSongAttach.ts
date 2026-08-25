@@ -15,7 +15,9 @@ import {
   clampSongWindow,
   SCRATCH_SONG_SLICE_DEFAULT_SEC,
 } from "./scratchSongWindow";
+import { cutFromPlateTiming, evenPlateTimings } from "./musicVideoTrack";
 import type { CrashStoryDoc } from "./crashStoryTypes";
+import { newId } from "./types";
 
 export function findDroppedBeat(story: CrashStoryDoc, beatId: string): {
   speaker: string;
@@ -109,6 +111,22 @@ export async function attachDroppedBeatMp3(opts: {
       : 0
     : 0;
   const window = clampSongWindow(0, SCRATCH_SONG_SLICE_DEFAULT_SEC, durationSec);
+  const existingTimings = opts.job.trackDraft?.plateTimings || [];
+  const shotIds = (opts.job.shots || []).map((s) => s.shotId).filter(Boolean);
+  const plateTimings =
+    existingTimings.length > 0
+      ? existingTimings
+      : opts.job.styleId === "music_video"
+        ? evenPlateTimings(durationSec, shotIds)
+        : [];
+  let cuts = opts.job.scratchSong?.cuts || [];
+  if (!cuts.length && plateTimings.length) {
+    for (const timing of plateTimings) {
+      const plateFile =
+        (opts.job.shots.find((s) => s.shotId === timing.plateId)?.plateFile || "").trim();
+      cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
+    }
+  }
   const patched = await patchMobileGenJob(opts.jobId, {
     clips,
     error: "",
@@ -121,7 +139,7 @@ export async function attachDroppedBeatMp3(opts: {
             durationSec,
             sliceStartSec: window.startSec,
             sliceDurationSec: window.durationSec,
-            cuts: opts.job.scratchSong?.cuts || [],
+            cuts,
             ...(opts.job.trackDraft?.waveformPeaks
               ? { waveformPeaks: opts.job.trackDraft.waveformPeaks }
               : {}),
@@ -131,9 +149,7 @@ export async function attachDroppedBeatMp3(opts: {
             ...(opts.job.trackDraft?.lyricCues
               ? { lyricCues: opts.job.trackDraft.lyricCues }
               : {}),
-            ...(opts.job.trackDraft?.plateTimings
-              ? { plateTimings: opts.job.trackDraft.plateTimings }
-              : {}),
+            ...(plateTimings.length ? { plateTimings } : {}),
           },
           trackDraft: null,
         }

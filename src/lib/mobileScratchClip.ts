@@ -1,8 +1,9 @@
+import fs from "fs";
 import path from "path";
 import { resolveGenOrPackPlate } from "./crashActivePack";
 import { resolveMobileBeatAudio } from "./resolveMobileBeatAudio";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
-import { rememberClipTake } from "./mobilePlateClips";
+import { humanOrderedClipName, rememberClipTake } from "./mobilePlateClips";
 import { runLtxSmoke } from "./ltxSmoke";
 import { resolveComfyUrl, probeComfyUrl } from "./comfyClient";
 import { candidateLookPrompt } from "./mobileJobReady";
@@ -261,22 +262,34 @@ export async function runScratchLtxClip(opts: {
       styleId: job.styleId,
       beatId: beat.id,
     });
+    const doneCuts = (job.scratchSong?.cuts || []).filter((c) => (c.clipFile || "").trim()).length;
+    const humanName = humanOrderedClipName({
+      index: doneCuts + 1,
+      speaker: (storyShot?.title || speaker).trim() || speaker,
+      title: job.songTitle || job.artist || "",
+    });
+    let localMp4 = result.localMp4;
+    const humanPath = path.join(path.dirname(result.localMp4), humanName);
+    if (humanPath !== result.localMp4) {
+      fs.copyFileSync(result.localMp4, humanPath);
+      localMp4 = humanPath;
+    }
     try {
       await uploadMobileMedia({
         styleId: job.styleId,
         folderName: mediaFolder,
         kind: "mp4",
-        localPath: result.localMp4,
+        localPath: localMp4,
       });
     } catch {
       /* clip still usable this request */
     }
     const next = job.clips.map((c) =>
       c.beatId === beatId
-        ? { ...c, ...rememberClipTake(c, result.localMp4), clipStatus: "done" as const }
+        ? { ...c, ...rememberClipTake(c, localMp4), clipStatus: "done" as const }
         : c,
     );
-    const clipName = path.basename(result.localMp4);
+    const clipName = path.basename(localMp4);
     job = (await patchMobileGenJob(jobId, {
       clips: next,
       scratchSong: patchScratchSongCut(job.scratchSong, opts.cutId, {

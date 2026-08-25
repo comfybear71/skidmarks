@@ -6,7 +6,12 @@ import { assistSystem } from "../src/lib/mobileAssist.ts";
 import { episodeTemplateFromJob } from "../src/lib/mobilePasteParse.ts";
 import { cursorPromptExampleForStyle } from "../src/lib/cursorAiWriterTemplate.ts";
 import { defaultEpisodeRecipe } from "../src/lib/episodeRecipe.ts";
-import { forgottenSoloCamera, musicVideoSoloCamera } from "../src/lib/musicVideoGroupPlate.ts";
+import {
+  forgottenSoloCamera,
+  musicVideoSoloCamera,
+  musicVideoSoloCameraAt,
+} from "../src/lib/musicVideoGroupPlate.ts";
+import { humanOrderedClipName } from "../src/lib/mobilePlateClips.ts";
 import { canConjureCastFromStyle } from "../src/lib/mobileJobFromCast.ts";
 import {
   canReuseCastForNewEpisode,
@@ -27,6 +32,14 @@ assert.deepEqual([...FIVE_SHIP_STYLE_IDS], [
 ]);
 
 assert.equal(STYLE_FINISH_UNSTITCHED, true);
+assert.equal(
+  humanOrderedClipName({ index: 1, speaker: "Babe three-quarter", title: "Spit Roast" }),
+  "01_Babe_three_quarter_Spit_Roast.mp4",
+);
+assert.equal(
+  humanOrderedClipName({ index: 2, speaker: "Babe over shoulder", title: "Spit Roast" }),
+  "02_Babe_over_shoulder_Spit_Roast.mp4",
+);
 assert.equal(styleUsesSongTrack("music_video"), true);
 assert.equal(styleUsesSongTrack("skidmarks"), false);
 assert.equal(canReuseCastForNewEpisode("sunny_banks"), true);
@@ -128,9 +141,15 @@ assert.equal(defaultEpisodeRecipe("doc").targetMinutes, 22);
 assert.equal(defaultEpisodeRecipe("photoreal").targetMinutes, 22);
 assert.equal(defaultEpisodeRecipe("music_video").targetMinutes, 7);
 
-const cam = musicVideoSoloCamera("JACK GHOST", "the stage");
-assert.match(cam, /WIDE full-body|wide/i);
+const cam = musicVideoSoloCamera("Babe", "Late bar corner");
+assert.match(cam, /MEDIUM SHOT, full upper body/);
+assert.match(cam, /Babe empty hands/);
 assert.doesNotMatch(cam, /blood crimson/);
+assert.doesNotMatch(cam, /muted trumpet/);
+const ots = musicVideoSoloCameraAt("Babe", "Late bar corner", "ots");
+assert.match(ots, /over the shoulder/i);
+assert.match(ots, /Babe empty hands/);
+assert.doesNotMatch(ots, /blood crimson/);
 assert.match(forgottenSoloCamera("JACK GHOST", "the stage"), /blood crimson/);
 
 console.log("check-five-style-process: ok");

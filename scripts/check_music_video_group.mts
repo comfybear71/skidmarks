@@ -55,9 +55,17 @@ assert(
 
 const group = defaultMusicVideoGroupStaging(["JACK GHOST", "HORN"], "Sulfur stream", "static two-shot");
 assert(/Only JACK GHOST and HORN in frame/.test(group), group);
-assert(/muted trumpet/.test(group), "horn instrument named");
-assert(/JACK GHOST empty hands/.test(group), "jack empty hands");
+assert(/HORN empty hands/.test(group), "default staging does not invent a horn");
+assert(/JACK GHOST empty hands/.test(group), "empty hands");
+assert(!/muted trumpet/.test(group), "instruments stay off unless this job named them");
 assert(!/phone at/.test(group), "no invented phone");
+const named = defaultMusicVideoGroupStaging(
+  ["JACK GHOST", "HORN"],
+  "Sulfur stream",
+  "static two-shot",
+  { nameInstruments: true },
+);
+assert(/muted trumpet/.test(named), "this job can still name the muted trumpet");
 
 const after = stagingAfterAddCast({
   styleId: "music_video",
@@ -74,6 +82,14 @@ assert(/blood crimson/.test(forgottenSoloCamera("JACK GHOST", "Sulfur stream")),
 assert(
   !/blood crimson/.test(musicVideoSoloCamera("JACK GHOST", "Sulfur stream")),
   "next song does not get Forgotten grade",
+);
+assert(
+  /MEDIUM SHOT/.test(musicVideoSoloCamera("Babe", "studio")),
+  "a new singer is medium — not a leftover camera",
+);
+assert(
+  /Babe empty hands/.test(musicVideoSoloCamera("Babe", "studio")),
+  "a new singer has empty hands",
 );
 assert(/over the shoulder/i.test(forgottenSoloCamera("HORN", "Sulfur stream")), "horn is OTS");
 assert(/Sitting/.test(forgottenSoloCamera("DRUMMER", "Sulfur stream")), "drummer sits");

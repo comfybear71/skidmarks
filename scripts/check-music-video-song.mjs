@@ -146,7 +146,8 @@ assert.match(songUi, /m-song-plate-x-inline/);
 assert.match(songUi, /m-song-plate-line/);
 assert.match(songUi, /m-song-line-meta/);
 assert.match(songRoute, /remove-stitch/);
-assert.match(songUi, /Drop stitch/);
+assert.doesNotMatch(songUi, /Drop stitch/);
+assert.doesNotMatch(songUi, /Stitch song/);
 assert.doesNotMatch(songUi, /Drop parked/);
 assert.doesNotMatch(songUi, /"PARKED"/);
 assert.match(songUi, /SwipeDropRow/);
@@ -197,7 +198,7 @@ assert.match(clip, /Song slices must rebuild the identity lock/);
 assert.match(clip, /who is actually on this plate/);
 assert.match(clip, /skipSongLipSyncLead/);
 assert.doesNotMatch(clip, /isSilhouetteStaging/);
-assert.match(songRoute, /orderSongCutsTimeline/);
+assert.match(songRoute, /sliceBoundsForPlate/);
 {
   const shuffled = [
     { id: "b", startSec: 30, clipFile: "b.mp4", status: "done" },
@@ -215,7 +216,7 @@ assert.match(scratchPage, /cookPendingSongCuts/);
 assert.match(scratchPage, /visibilitychange/);
 assert.match(scratchRoute, /song-cut-unstick/);
 assert.match(songRoute, /action === "assign"/);
-assert.match(songRoute, /Does not write job.finalVideoFile/);
+assert.match(songRoute, /Finish is ordered unstitched mp4s/);
 assert.doesNotMatch(songUi, /You pick/);
 assert.doesNotMatch(songUi, /Set 1 × 15s or 4 × 15s/);
 assert.match(songUi, /songOrdinal/);

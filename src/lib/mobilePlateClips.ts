@@ -16,6 +16,28 @@ export function mobileClipSrc(
   );
 }
 
+/** Pack-style stem: letters and numbers only, underscores between words. */
+export function humanMediaSlug(text: string): string {
+  return (text || "")
+    .trim()
+    .replace(/['’]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+}
+
+/** Human clip name — `01_Babe_Spit_Roast.mp4`. Order first, then who, then song. */
+export function humanOrderedClipName(opts: {
+  index: number;
+  speaker: string;
+  title?: string;
+}): string {
+  const n = String(Math.max(1, Math.floor(Number(opts.index) || 1))).padStart(2, "0");
+  const who = humanMediaSlug(opts.speaker) || "clip";
+  const title = humanMediaSlug(opts.title || "");
+  return title ? `${n}_${who}_${title}.mp4` : `${n}_${who}.mp4`;
+}
+
 /** Always the mp4 basename — never a /tmp absolute path (those die across Vercel invokes). */
 export function clipFileBasename(clipFile: string): string {
   const raw = (clipFile || "").trim();

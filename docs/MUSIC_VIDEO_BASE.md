@@ -2,6 +2,8 @@
 
 Logged **2026-08-24** from Stuie. Forgotten stays a test. Five more songs tonight. Do **not** mint a job from this file. Do **not** Start directing. Do **not** generate until he says go.
 
+**Blank canvas:** The next song is its own job. It does not inherit another job's grade, camera-by-name table, roster, or props. Who is named on this Start is who is drawn. Empty hands unless **this** job's Position names a held thing. A new solo Start uses two off-axis cameras from the menu (three-quarter + over-shoulder) — not a straight-on mug shot. Plate clocks (`plateTimings`) are the song split across those plates — not leftover 15s rows. Finish is ordered unstitched mp4s with human names (`01_Babe_three_quarter_Spit_Roast.mp4`).
+
 PR for the Forgotten desk work: https://github.com/comfybear71/skidmarks/pull/311  
 Live `aiglitch.app` JS only changes when that merges to `master`. Neon job data (song, Sections, Marquee pins) is already live.
 
@@ -27,7 +29,7 @@ Live drop of a song bigger than ~4.5MB fails on production until PR 311 merges (
 
 ## Camera + Position pack — this is the base
 
-`MUSIC_VIDEO_CAMERAS` + named instruments + empty-handed Jack. Next song must use these on **every** music-video Start, not only when the title is Forgotten.
+Camera words stay available as a menu. A new **solo** Start uses two off-axis keys (`medium` three-quarter + `ots` over-shoulder), empty hands. A band Start is one plate per named person. Named instruments apply only when **this** job's Position names them.
 
 | Key | Camera words |
 |---|---|
@@ -42,12 +44,12 @@ Live drop of a song bigger than ~4.5MB fails on production until PR 311 merges (
 
 Position rules that stay:
 
-- Who is named is who is drawn. 2–3 people max. Never the whole band on one still.
-- Instruments only if Position names them (Horn = muted trumpet, Sax, Guitar, Drummer kit). Jack empty hands. No invented mug / phone.
+- Who is named on **this** job is who is drawn. 2–3 people max. Never a crowd on one still.
+- Empty hands unless **this** job's Position names a held thing. No invented mug / phone. Do not copy another person's prop.
 - Anti-cel lock on music_video Draw. Fresh still — do not refine a cartoon take.
 - Do not feed `plate_{slug}` turnaround sheets into Draw.
 
-**Gap to fix on the next song (not Forgotten):** `buildMusicVideoStartStory` only applies this pack when `isForgottenSongJob`. Other titles still get the old generic “half turned away in profile” line. Lift the camera pack to all `music_video` before the next Start.
+A new Start uses the camera menu for **this** job only. Forgotten-only extras (`forgottenSoloCamera`, research drafts, crimson grade) stay behind `isForgottenSongJob`. Do not lift those onto the next song.
 
 ## Two floors + intermission
 

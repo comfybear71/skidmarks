@@ -21,7 +21,7 @@ assert.match(ASSIST_CRITERIA_LOCK, /into it/i);
 assert.match(ASSIST_CRITERIA_LOCK, /rape/i);
 assert.match(ASSIST_CRITERIA_LOCK, /\[VISUAL\]/);
 assert.match(ASSIST_CRITERIA_LOCK, /\[SPEECH\]/);
-assert.match(ASSIST_CRITERIA_LOCK, /keyboard warrior/i);
+assert.match(ASSIST_CRITERIA_LOCK, /do not name anyone who is not in this job/i);
 assert.match(ASSIST_CRITERIA_LOCK, /empty hands/i);
 assert.match(ASSIST_CRITERIA_LOCK, /no invented/i);
 assert.match(ASSIST_CRITERIA_LOCK, /tennis racket/i);
@@ -40,7 +40,7 @@ for (const kind of ASSIST_KINDS) {
   assert.match(sys, /rape/i);
   assert.match(sys, /pinning/i);
   assert.match(sys, /holding someone down/i);
-  assert.match(sys, /keyboard warrior/i);
+  assert.match(sys, /do not name anyone who is not in this job/i);
   assert.match(sys, /empty hands/i);
   assert.match(sys, /\[VISUAL\]/);
   assert.match(sys, /\[SPEECH\]/);

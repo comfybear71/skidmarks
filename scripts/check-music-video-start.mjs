@@ -75,6 +75,36 @@ assert.equal(built.story.scenes[0].id, "scene_x");
 assert.equal(built.story.scenes[0].shots[0].beats[0].text, "");
 assert.match(built.title, /Jack Ghost/);
 
+const solo = buildMusicVideoStartStory({
+  id: "mgen_babe_test",
+  styleId: "music_video",
+  folderName: "",
+  prompt: "Spit Roast",
+  artist: "Babe",
+  songTitle: "Spit Roast",
+  targetDurationSec: 0,
+  secondsPerShot: 15,
+  phase: "location_images",
+  speakers: ["Babe"],
+  roster: [],
+  scenes: [{ id: "scene_babe", placeName: "Late bar corner" }],
+  castCandidates: {},
+  locationCandidates: {},
+  shots: [],
+  clips: [],
+  finalVideoFile: "",
+  error: "",
+  createdAt: "",
+  updatedAt: "",
+});
+assert.equal(solo.story.scenes[0].shots.length, 2);
+assert.match(solo.story.scenes[0].shots[0].title, /three-quarter/i);
+assert.match(solo.story.scenes[0].shots[1].title, /over shoulder/i);
+assert.match(solo.story.scenes[0].shots[0].staging, /Three-quarter/);
+assert.match(solo.story.scenes[0].shots[1].staging, /over the shoulder/i);
+assert.doesNotMatch(solo.story.scenes[0].shots[0].staging, /blood crimson/);
+assert.doesNotMatch(solo.story.scenes[0].shots[1].staging, /muted trumpet/);
+
 assert.match(startRoute, /buildMusicVideoStartStory/);
 assert.match(startRoute, /carrierBeatId/);
 assert.match(songRoute, /action === "set-lyrics"/);

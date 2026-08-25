@@ -10,7 +10,7 @@
  */
 
 export const SCRATCH_FLOOR_LAWS = [
-  "Who is on the pad is the person. Generic chips never name Jo.",
+  "Who is on the pad is the person. Do not name anyone who is not on the pad.",
   "The full Draw stack is visible and stored with the run.",
   "A new test is a new sealed run. Nothing copies unless pinned.",
   "Scratch does not rewrite a live episode shot. Only the Scratch shot.",
