@@ -6,6 +6,8 @@
  *     No speech / mp3 / lip-sync tests here yet.
  *   `/m` — speech, Saved mp3, Cloud LTX IA2V. That is where short/long line
  *     failures are logged.
+ *   Mute cinema — picture to music, mouths shut. Human list:
+ *     docs/MUTE_CINEMATIC_ARCHIVE.md. Do not mix with speech send.
  *
  * Promote a still prompt only after Scratch Pass. Do not write wording onto
  * a live pack unless Stuie says go. First Fleet IMAGE MOTION gold stays in
@@ -37,7 +39,7 @@ export const SPEECH_QUALITY_MAX_WORDS = LTX_RANT_MAX_WORDS;
 export const SPEECH_WORDS_PER_SEC = LTX_RANT_WORDS_PER_SEC;
 
 export type ArchiveSurface = "scratch" | "mobile" | "both";
-export type ArchiveLayer = "pre_send" | "still" | "speech";
+export type ArchiveLayer = "pre_send" | "still" | "speech" | "mute";
 export type ArchiveVerdict = "works" | "fails" | "unknown_until_model";
 
 export type ArchiveEntry = {
@@ -185,6 +187,60 @@ export const PLATE_AUTOMATION_ENTRIES: ArchiveEntry[] = [
     title: "Concert loop stills have no band on them",
     why: "Double Talkin' Jive-style gold/black art is a backdrop, not a member still. Drawing Jack/Horn onto it fights the loop.",
     fix: "Holy still first, no people, no character sheet. Low-motion LTX-2.5 I2V (~5s, 24fps) only after he names the test. Mute invented audio.",
+  },
+  {
+    id: "mute-not-speech",
+    surface: "mobile",
+    layer: "mute",
+    verdict: "fails",
+    title: "Song mp3 is not mute-clip audio",
+    why: "Feeding the song mix into IA2V or H3 makes mouths follow the track. That is lip-sync of the wrong file.",
+    fix: "Mute I2V / FLF2V / H3: duration as a number. Hang on TRACK. Strip invented audio. Speech mp3 stays on the lip-sync floor. See docs/MUTE_CINEMATIC_ARCHIVE.md.",
+  },
+  {
+    id: "mute-one-engine-film",
+    surface: "mobile",
+    layer: "mute",
+    verdict: "fails",
+    title: "Do not send every mute shot to Grok video",
+    why: "An earlier Bright cook put every mute clip on Grok Imagine video. Comfy, H3, and first-last were never tried. Gaps appeared when the clock was shrunk to save money.",
+    fix: "Stills first. Then pick the tool per shot. Full song picture, or stop and ask. Do not invent a cheaper film.",
+  },
+  {
+    id: "mute-empty-draw-needs-character",
+    surface: "mobile",
+    layer: "mute",
+    verdict: "fails",
+    title: "Empty-stage /m Draw needs a character",
+    why: "draw-start returns Need a character on this plate before Draw. Siray ref2i also wants a face card.",
+    fix: "Nobody on the card: Siray Seedream 4.5 T2I (no face ref), 16:9 2560x1440. Do not name a person who is not on the pad.",
+  },
+  {
+    id: "mute-coastal-reads-beach",
+    surface: "both",
+    layer: "mute",
+    verdict: "fails",
+    title: "Coastal waters stills come back as beach",
+    why: "Act I 1.3 takes 1–2 (2026-08-25, Siray T2I) drew black-sand shore + sea when the prompt said coastal waters / two waters meeting.",
+    fix: "WATER FILLS THE ENTIRE FRAME. Two currents meeting. No beach, no sand, no land, no shoreline.",
+  },
+  {
+    id: "mute-act1-invents-path-fire",
+    surface: "both",
+    layer: "mute",
+    verdict: "fails",
+    title: "Act I hill invents a white path and fire",
+    why: "Act I 1.4 take 1 (2026-08-25, Siray T2I) added painted-looking path bands and orange embers. Fire belongs at the end of this song, not the open.",
+    fix: "Forbid path / trail / white stripe / fire / sparks / orange. Silhouettes only — do not name the faces.",
+  },
+  {
+    id: "mute-siray-t2i-empty-stage",
+    surface: "mobile",
+    layer: "mute",
+    verdict: "works",
+    title: "Siray T2I for empty mute stills",
+    why: "Act I 1.1 seed and 1.2 ground (2026-08-25) passed first take on bytedance/seedream-4.5-t2i-spicy at 2560x1440. Cold photo look, no people.",
+    fix: "Fresh T2I, not location More (More edits the last place still). Siray has no balance API — say so before a batch. Test, not gold.",
   },
 ];
 
