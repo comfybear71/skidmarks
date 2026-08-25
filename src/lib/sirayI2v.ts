@@ -5,6 +5,7 @@
  */
 
 import { speakerWantedSex } from "./crashVoicePrompt";
+import { GROK_I2V_ID, isGrokClipEngineToken, type GrokI2vId } from "./grokI2v";
 
 export type SirayI2vId = "seedance-20" | "seedance-25" | "wan-27" | "wan-30";
 
@@ -77,10 +78,13 @@ export function sirayI2vSpec(id: string | undefined): SirayI2vSpec {
   return SIRAY_I2V_MODELS.find((row) => row.id === id) || SIRAY_I2V_MODELS[0];
 }
 
-/** `siray` / `siray-spicy` stay the cheap 2.0 first pass. */
-export function parseScratchClipEngine(raw: string | undefined): "ltx" | SirayI2vId {
+/** `siray` / `siray-spicy` stay the cheap 2.0 first pass. Grok is the cheap I2V. */
+export function parseScratchClipEngine(
+  raw: string | undefined,
+): "ltx" | GrokI2vId | SirayI2vId {
   const value = (raw || "ltx").trim().toLowerCase();
   if (!value || value === "ltx") return "ltx";
+  if (isGrokClipEngineToken(value)) return GROK_I2V_ID;
   if (value === "siray" || value === "siray-spicy" || value === "siray-i2v") return SIRAY_I2V_DEFAULT;
   if (isSirayI2vId(value)) return value;
   throw new Error(`Unknown clip engine: ${raw}`);
