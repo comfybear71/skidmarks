@@ -530,46 +530,7 @@ export function MusicVideoSongCuts({
             {busy === "unstick" ? "Stopping…" : "Stop"}
           </MobilePrimaryButton>
         ) : null}
-        <MobilePrimaryButton
-          size="chip"
-          tone="ghost"
-          disabled={Boolean(busy) || done < 2}
-          onClick={() => {
-            setBusy("stitch");
-            setNote("");
-            void songAction("stitch")
-              .catch((e) => setNote(e instanceof Error ? e.message : "Couldn't stitch"))
-              .finally(() => setBusy(""));
-          }}
-        >
-          {busy === "stitch" ? "Stitching…" : "Stitch song"}
-        </MobilePrimaryButton>
       </div>
-      {song?.stitchedFile ? (
-        <div>
-          <p className="scratch-song-done">Stitched: {song.stitchedFile}</p>
-          <div className="scratch-song-actions">
-            <button type="button" onClick={() => setPlaying(mobileClipSrc(job, song.stitchedFile || ""))}>
-              Play stitch
-            </button>
-            <MobilePrimaryButton
-              size="chip"
-              tone="ghost"
-              busy={busy === "drop-stitch"}
-              onClick={() => {
-                setBusy("drop-stitch");
-                setNote("");
-                void songAction("remove-stitch")
-                  .then(() => setNote("Stitch parked. Song and plates are still there."))
-                  .catch((e) => setNote(e instanceof Error ? e.message : "Couldn't drop the stitch"))
-                  .finally(() => setBusy(""));
-              }}
-            >
-              {busy === "drop-stitch" ? "Dropping…" : "Drop stitch"}
-            </MobilePrimaryButton>
-          </div>
-        </div>
-      ) : null}
       {playing ? (
         <video
           key={playing}

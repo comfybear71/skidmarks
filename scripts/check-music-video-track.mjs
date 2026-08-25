@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  evenPlateTimings,
   formatTrackClock,
   formatTrackClockPrecise,
   msToSec,
@@ -44,6 +45,25 @@ const bounds = sliceBoundsForPlate({
 });
 assert.equal(bounds.startSec, 60);
 assert.equal(bounds.durationSec, 15);
+
+const spit = evenPlateTimings(63.168, ["shot_a", "shot_b"]);
+assert.equal(spit.length, 2);
+assert.equal(spit[0].startMs, 0);
+assert.equal(spit[0].endMs, 31584);
+assert.equal(spit[1].startMs, 31584);
+assert.equal(spit[1].endMs, 63168);
+const half = sliceBoundsForPlate({
+  song: {
+    fileName: "spit_roast.mp3",
+    durationSec: 63.168,
+    sliceStartSec: 0,
+    sliceDurationSec: 15,
+    plateTimings: spit,
+  },
+  shotId: "shot_a",
+});
+assert.equal(half.startSec, 0);
+assert.equal(half.durationSec, 31.6);
 
 const cutWinsTrack = sliceBoundsForPlate({
   song: {
@@ -97,8 +117,9 @@ assert.match(trackUi, /Add section/);
 assert.match(trackUi, /Use range/);
 assert.match(trackRoute, /set-plate-timing/);
 assert.match(songRoute, /sliceBoundsForPlate/);
-assert.match(songRoute, /orderedDoneCutsForStitch/);
+assert.match(songRoute, /cutFromPlateTiming/);
 assert.match(attach, /trackDraft/);
+assert.match(attach, /evenPlateTimings/);
 assert.match(mobileCss, /\.m-track-wave/);
 
 // Drag-to-stretch on the coloured bars is gone. Time a still with Use range.

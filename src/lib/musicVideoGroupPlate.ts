@@ -1,9 +1,9 @@
 /**
- * Music-video group plates — last-night lock, reused on FORGOTTEN.
+ * Music-video group plates.
  *
- * 2–3 people on a still. Never the whole band. Who is named is who is drawn.
- * Instruments only when Position names them (HORN / SAX / GUITAR / DRUMMER).
- * Jack Ghost keeps empty hands. No extras. No character-plate sheets.
+ * Who is named on this job is who is drawn. A new song does not inherit
+ * another job's cameras, grade, instruments, or roster. Instruments only
+ * when THIS job's Position names them. No extras. No character-plate sheets.
  */
 
 export const MUSIC_VIDEO_GROUP_MAX = 3;
@@ -33,6 +33,29 @@ export const MUSIC_VIDEO_CAMERAS = {
   "wide-three":
     "WIDE three-shot. All three in the place, not a police lineup facing camera. Depth, not a mug-shot row.",
 } as const;
+
+export type MusicVideoCameraKey = keyof typeof MUSIC_VIDEO_CAMERAS;
+
+/**
+ * Two cameras that are not a straight-on mug shot.
+ * A new solo Start uses both so the song is two angles, not one stare.
+ */
+export const MUSIC_VIDEO_OFF_AXIS_CAMERAS: readonly MusicVideoCameraKey[] = [
+  "medium",
+  "ots",
+];
+
+export function musicVideoCameraLabel(key: MusicVideoCameraKey): string {
+  if (key === "medium") return "three-quarter";
+  if (key === "ots") return "over shoulder";
+  if (key === "ots-two") return "over shoulder two-shot";
+  if (key === "wide-three") return "wide three-shot";
+  if (key === "tight-cu") return "tight close-up";
+  if (key === "mcu") return "medium close-up";
+  if (key === "sitting") return "sitting";
+  if (key === "wide") return "wide";
+  return key;
+}
 
 /**
  * Jack Ghost walk-away cameras — kept for a later cutaway.
@@ -198,13 +221,15 @@ export function defaultMusicVideoGroupStaging(
   speakers: string[],
   placeName: string,
   visual = "",
+  opts?: { nameInstruments?: boolean },
 ): string {
   const names = clampMusicVideoGroup(speakers);
   const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
   const who = rollCall(names);
+  const allowHeld = opts?.nameInstruments === true;
   const props = names
     .map((n) => {
-      const held = namedInstrumentFor(n);
+      const held = allowHeld ? namedInstrumentFor(n) : "";
       return held ? `${n} holds ${held}` : `${n} empty hands, no phone`;
     })
     .join(". ");
@@ -246,7 +271,9 @@ export function forgottenResearchDrafts(
       budget: "CHEAP_TAKE",
       visual,
       summary: `[BUDGET_TIER] CHEAP_TAKE. [VISUAL_ACTION] ${visual}`,
-      staging: defaultMusicVideoGroupStaging(speakers2, place, visual),
+      staging: defaultMusicVideoGroupStaging(speakers2, place, visual, {
+        nameInstruments: true,
+      }),
     });
   }
 
@@ -259,7 +286,9 @@ export function forgottenResearchDrafts(
       budget: "CHEAP_TAKE",
       visual,
       summary: `[BUDGET_TIER] CHEAP_TAKE. [VISUAL_ACTION] ${visual}`,
-      staging: defaultMusicVideoGroupStaging(speakers2, place, visual),
+      staging: defaultMusicVideoGroupStaging(speakers2, place, visual, {
+        nameInstruments: true,
+      }),
     });
   }
 
@@ -272,7 +301,9 @@ export function forgottenResearchDrafts(
       budget: "CHEAP_TAKE",
       visual,
       summary: `[BUDGET_TIER] CHEAP_TAKE. [VISUAL_ACTION] ${visual}`,
-      staging: defaultMusicVideoGroupStaging(speakers2, place, visual),
+      staging: defaultMusicVideoGroupStaging(speakers2, place, visual, {
+        nameInstruments: true,
+      }),
     });
   }
 
@@ -285,14 +316,23 @@ export function forgottenResearchDrafts(
       budget: "EXPENSIVE_TAKE",
       visual,
       summary: `[BUDGET_TIER] EXPENSIVE_TAKE. [VISUAL_ACTION] ${visual}`,
-      staging: defaultMusicVideoGroupStaging(speakers3, place, visual),
+      staging: defaultMusicVideoGroupStaging(speakers3, place, visual, {
+        nameInstruments: true,
+      }),
     });
   }
 
   return out;
 }
 
-function musicVideoCameraKey(speaker: string): keyof typeof MUSIC_VIDEO_CAMERAS {
+/** This job only. Do not pick a camera from another song's roster. */
+function musicVideoCameraKey(_speaker: string): keyof typeof MUSIC_VIDEO_CAMERAS {
+  void _speaker;
+  return "medium";
+}
+
+/** Forgotten pack only — those names are this job's roster, not a house default. */
+function forgottenCameraKey(speaker: string): keyof typeof MUSIC_VIDEO_CAMERAS {
   const who = speaker.trim();
   if (who === "JACK GHOST") return "wide";
   if (who === "SAXOPHONE") return "mcu";
@@ -302,15 +342,26 @@ function musicVideoCameraKey(speaker: string): keyof typeof MUSIC_VIDEO_CAMERAS 
   return "medium";
 }
 
-/** Learned cameras for every music-video Start. Forgotten grade stays off. */
-export function musicVideoSoloCamera(speaker: string, placeName: string): string {
+/** New music-video Start — this job's camera menu key. Empty hands. */
+export function musicVideoSoloCameraAt(
+  speaker: string,
+  placeName: string,
+  cameraKey: MusicVideoCameraKey = "medium",
+): string {
   const who = speaker.trim();
   const place = (placeName.trim() || "the stage").replace(/[.]+$/, "");
+  const key = cameraKey in MUSIC_VIDEO_CAMERAS ? cameraKey : "medium";
   return defaultMusicVideoGroupStaging(
     [who],
     place,
-    MUSIC_VIDEO_CAMERAS[musicVideoCameraKey(who)],
+    MUSIC_VIDEO_CAMERAS[key],
+    { nameInstruments: false },
   );
+}
+
+/** New music-video Start default — medium, empty hands. No other song's camera table. */
+export function musicVideoSoloCamera(speaker: string, placeName: string): string {
+  return musicVideoSoloCameraAt(speaker, placeName, musicVideoCameraKey(speaker));
 }
 
 export function forgottenSoloCamera(speaker: string, placeName: string): string {
@@ -319,7 +370,8 @@ export function forgottenSoloCamera(speaker: string, placeName: string): string 
   return defaultMusicVideoGroupStaging(
     [who],
     place,
-    `${MUSIC_VIDEO_CAMERAS[musicVideoCameraKey(who)]} ${FORGOTTEN_GROK_GRADE}`,
+    `${MUSIC_VIDEO_CAMERAS[forgottenCameraKey(who)]} ${FORGOTTEN_GROK_GRADE}`,
+    { nameInstruments: true },
   );
 }
 
@@ -338,6 +390,7 @@ export function forgottenPlateStaging(
       names,
       place,
       `${MUSIC_VIDEO_CAMERAS["wide-three"]} JACK GHOST centre, empty hands. HORN and SAXOPHONE either side.`,
+      { nameInstruments: true },
     );
   }
   if (/\bJACK\b/.test(t) && /\bHORN\b/.test(t)) {
@@ -345,6 +398,7 @@ export function forgottenPlateStaging(
       names,
       place,
       `${MUSIC_VIDEO_CAMERAS["ots-two"]} Look past JACK GHOST at HORN and the muted trumpet.`,
+      { nameInstruments: true },
     );
   }
   if (/\bJACK\b/.test(t) && /\bSAX/.test(t)) {
@@ -352,6 +406,7 @@ export function forgottenPlateStaging(
       names,
       place,
       `${MUSIC_VIDEO_CAMERAS.medium} JACK GHOST half turned. SAXOPHONE holds the sax.`,
+      { nameInstruments: true },
     );
   }
   if (/\bHORN\b/.test(t) && /\bSAX/.test(t)) {
@@ -359,9 +414,12 @@ export function forgottenPlateStaging(
       names,
       place,
       `${MUSIC_VIDEO_CAMERAS["ots-two"]} Look past HORN at SAXOPHONE. Horn section only.`,
+      { nameInstruments: true },
     );
   }
-  return defaultMusicVideoGroupStaging(names, place, MUSIC_VIDEO_CAMERAS.medium);
+  return defaultMusicVideoGroupStaging(names, place, MUSIC_VIDEO_CAMERAS.medium, {
+    nameInstruments: true,
+  });
 }
 
 /** Rewrite Position after Add cast so the still names everyone on the card. */

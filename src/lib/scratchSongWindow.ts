@@ -50,11 +50,15 @@ export type ScratchSong = {
   lyricCues?: LyricCue[];
 };
 
-export function clampSongSliceDuration(sec: number): number {
+export function clampSongSliceDuration(
+  sec: number,
+  maxSec = SCRATCH_SONG_SLICE_MAX_SEC,
+): number {
   if (!Number.isFinite(sec) || sec <= 0) return SCRATCH_SONG_SLICE_DEFAULT_SEC;
+  const cap = Number.isFinite(maxSec) && maxSec > 0 ? maxSec : SCRATCH_SONG_SLICE_MAX_SEC;
   return Math.max(
     SCRATCH_SONG_SLICE_MIN_SEC,
-    Math.min(SCRATCH_SONG_SLICE_MAX_SEC, Math.round(sec * 10) / 10),
+    Math.min(cap, Math.round(sec * 10) / 10),
   );
 }
 
@@ -68,13 +72,14 @@ export function clampSongWindow(
   startSec: number,
   durationSec: number,
   songSec: number,
+  maxSec = SCRATCH_SONG_SLICE_MAX_SEC,
 ): { startSec: number; durationSec: number } {
   const start = clampSongSliceStart(startSec, songSec);
-  let duration = clampSongSliceDuration(durationSec);
+  let duration = clampSongSliceDuration(durationSec, maxSec);
   if (Number.isFinite(songSec) && songSec > 0) {
     const left = Math.max(SCRATCH_SONG_SLICE_MIN_SEC, songSec - start);
     duration = Math.min(duration, left);
-    duration = clampSongSliceDuration(duration);
+    duration = clampSongSliceDuration(duration, maxSec);
   }
   return { startSec: start, durationSec: duration };
 }

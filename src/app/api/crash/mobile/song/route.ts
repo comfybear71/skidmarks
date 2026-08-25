@@ -1,19 +1,12 @@
-import fs from "fs";
-import path from "path";
 import { NextResponse } from "next/server";
-import { resolveMobileMedia, uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { readMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { failScratchSongCutRun, runScratchLtxClip } from "@/lib/mobileScratchClip";
-import { mobileFinalVideoPath, stitchClips } from "@/lib/mobileStitch";
-import { mobileMediaFolder } from "@/lib/mobileJobFolder";
-import { CRASH_DIR } from "@/lib/paths";
 import { newId } from "@/lib/types";
 import { nextCutAfter, songWindowLabel, type ScratchSongCut } from "@/lib/scratchSongSlice";
 import {
   findSongCarrierBeatId,
   isMusicVideoSongJob,
-  orderSongCutsTimeline,
   plateSliceWindows,
   clearStuckSongCooks,
   rebuildSongCutsFromDesk,
@@ -35,7 +28,7 @@ import { parkMobileClipFile } from "@/lib/mobileClipPark";
 import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
-import { orderedDoneCutsForStitch, sliceBoundsForPlate } from "@/lib/musicVideoTrack";
+import { cutFromPlateTiming, sliceBoundsForPlate } from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 
 export const runtime = "nodejs";
@@ -50,8 +43,8 @@ export const maxDuration = 900;
  *   unstick — running with no clip → pending (left the screen too long).
  *   unstick-all — clear stuck cooks and sync cuts to the desk list (kills ghost 0/16).
  *   run — one LTX slice. Client polls the job if the phone drops.
- *   stitch — concat done cuts. Does not write job.finalVideoFile.
- *   remove-stitch — park the joined mp4. Song, plates, and cuts stay.
+ *   stitch — rejected. Finish is ordered unstitched mp4s.
+ *   remove-stitch — park a leftover joined mp4 if one exists.
  *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row).
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
@@ -260,9 +253,19 @@ export async function POST(req: Request) {
     }
 
     if (action === "run") {
-      const song = job.scratchSong;
+      let song = job.scratchSong;
       if (!song?.fileName) {
         return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
+      }
+      if (!(song.cuts || []).length && (song.plateTimings || []).length) {
+        let hydrated = song.cuts || [];
+        for (const timing of song.plateTimings || []) {
+          const plateFile =
+            (job.shots.find((s) => s.shotId === timing.plateId)?.plateFile || "").trim();
+          hydrated = cutFromPlateTiming(hydrated, timing, plateFile, () => newId("cut"));
+        }
+        song = { ...song, cuts: hydrated };
+        job = (await patchMobileGenJob(jobId, { scratchSong: song, error: "" }))!;
       }
       const wantId = String(body.cutId || "").trim();
       const cut =
@@ -270,7 +273,7 @@ export async function POST(req: Request) {
         (song.cuts || []).find((c) => c.status !== "done") ||
         (song.cuts || [])[0];
       if (!cut) {
-        return NextResponse.json({ error: "Park 15s slices on a plate first." }, { status: 400 });
+        return NextResponse.json({ error: "Need plate clocks on the song first." }, { status: 400 });
       }
       const shotId =
         (cut.shotId || "").trim() ||
@@ -350,59 +353,13 @@ export async function POST(req: Request) {
     }
 
     if (action === "stitch") {
-      const song = job.scratchSong;
-      const cuts = song?.plateTimings?.length
-        ? orderedDoneCutsForStitch(song!)
-        : orderSongCutsTimeline(
-            (song?.cuts || []).filter((c) => c.clipFile && c.status === "done"),
-          );
-      if (cuts.length < 2) {
-        return NextResponse.json(
-          { error: "Need two finished clips to stitch." },
-          { status: 400 },
-        );
-      }
-      const mediaFolder = mobileMediaFolder(job);
-      const paths: string[] = [];
-      for (const cut of cuts) {
-        const name = path.basename(cut.clipFile || "");
-        const localPath = path.join(CRASH_DIR, "ltx", name);
-        const genPath = path.join(CRASH_DIR, "gen", name);
-        const found =
-          (fs.existsSync(localPath) && localPath) ||
-          (fs.existsSync(genPath) && genPath) ||
-          (await resolveMobileMedia({
-            styleId: job.styleId,
-            folderName: mediaFolder,
-            kind: "mp4",
-            fileName: name,
-            destPath: localPath,
-          }));
-        if (!found) {
-          return NextResponse.json(
-            { error: `Clip ${name} is missing — generate that slice again.` },
-            { status: 404 },
-          );
-        }
-        paths.push(found);
-      }
-      const stitchedFile = stitchClips(paths);
-      const stitchedPath = mobileFinalVideoPath(stitchedFile);
-      try {
-        await uploadMobileMedia({
-          styleId: job.styleId,
-          folderName: mediaFolder,
-          kind: "mp4",
-          localPath: stitchedPath,
-        });
-      } catch {
-        /* local stitch still plays this request */
-      }
-      const updated = await patchMobileGenJob(jobId, {
-        scratchSong: { ...song!, stitchedFile },
-        error: "",
-      });
-      return NextResponse.json({ ok: true, job: updated, stitchedFile });
+      return NextResponse.json(
+        {
+          error:
+            "Stitch is out. Play the finished mp4s in song-clock order. Do not concat.",
+        },
+        { status: 410 },
+      );
     }
 
     if (action === "add-plate") {

@@ -72,7 +72,7 @@ async function ensureComfyReady(): Promise<string> {
 /**
  * POST { jobId, approveReview?, beatId? } — advances the AUTOMATIC phases one
  * bounded unit at a time (plates -> voices -> [review, human-gated] ->
- * animate -> stitch -> done). Stitch is parked (MOBILE_STITCH_MOVIES) —
+ * animate -> review). Stitch is out. Finish is ordered unstitched mp4s.
  * Generate video still sends clips to LTX; animate then returns to review.
  * cast_images/location_images are human-gated via /candidates and only
  * checked here for whether they're complete enough to move on. Never does

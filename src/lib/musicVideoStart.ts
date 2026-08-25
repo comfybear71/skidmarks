@@ -21,7 +21,10 @@ import {
   forgottenResearchDrafts,
   forgottenSoloCamera,
   isForgottenSongJob,
+  MUSIC_VIDEO_OFF_AXIS_CAMERAS,
+  musicVideoCameraLabel,
   musicVideoSoloCamera,
+  musicVideoSoloCameraAt,
 } from "./musicVideoGroupPlate";
 
 /** Structural — the phone passes a real File, tests pass a stub. */
@@ -131,7 +134,37 @@ export function defaultMusicVideoBandStaging(speaker: string, placeName: string)
   return `${who} alone. Only ${who} in frame, no one else appears. At ${place}, half turned away in profile. NO SINGING MOUTH NOT MOVE. No phone. No extra objects.`;
 }
 
-/** One shot per band member at the first locked place — no script paste. */
+function newSongShots(
+  speakers: string[],
+  placeName: string,
+): CrashStoryShot[] {
+  const names = speakers.map((s) => s.trim()).filter(Boolean);
+  if (names.length === 1) {
+    const who = names[0]!;
+    return MUSIC_VIDEO_OFF_AXIS_CAMERAS.map((key) => ({
+      id: newId("shot"),
+      title: `${who} ${musicVideoCameraLabel(key)}`,
+      summary: `[BUDGET_TIER] CHEAP_TAKE. ${who} at ${placeName}`,
+      staging: musicVideoSoloCameraAt(who, placeName, key),
+      plateFile: "",
+      beats: [{ id: newId("beat"), speaker: who, text: "" }],
+      sfx: [],
+    }));
+  }
+  return names.map(
+    (speaker): CrashStoryShot => ({
+      id: newId("shot"),
+      title: speaker,
+      summary: `[BUDGET_TIER] CHEAP_TAKE. ${speaker} at ${placeName}`,
+      staging: musicVideoSoloCamera(speaker, placeName),
+      plateFile: "",
+      beats: [{ id: newId("beat"), speaker, text: "" }],
+      sfx: [],
+    }),
+  );
+}
+
+/** One shot per named person — or two off-axis cameras when this job is a solo. */
 export function buildMusicVideoStartStory(job: MobileGenJob): {
   title: string;
   logline: string;
@@ -152,22 +185,20 @@ export function buildMusicVideoStartStory(job: MobileGenJob): {
     title: placeName,
     placeName,
     worldThumbKey: sceneRef.worldThumbKey || "",
-    shots: [
-      ...job.speakers.map(
-        (speaker): CrashStoryShot => ({
-          id: newId("shot"),
-          title: speaker.trim(),
-          summary: `[BUDGET_TIER] CHEAP_TAKE. ${speaker.trim()} at ${placeName}`,
-          staging: isForgottenSongJob(job)
-            ? forgottenSoloCamera(speaker, placeName)
-            : musicVideoSoloCamera(speaker, placeName),
-          plateFile: "",
-          beats: [{ id: newId("beat"), speaker: speaker.trim(), text: "" }],
-          sfx: [],
-        }),
-      ),
-      ...(isForgottenSongJob(job)
-        ? forgottenResearchDrafts(job.speakers, placeName).map(
+    shots: isForgottenSongJob(job)
+      ? [
+          ...job.speakers.map(
+            (speaker): CrashStoryShot => ({
+              id: newId("shot"),
+              title: speaker.trim(),
+              summary: `[BUDGET_TIER] CHEAP_TAKE. ${speaker.trim()} at ${placeName}`,
+              staging: forgottenSoloCamera(speaker, placeName),
+              plateFile: "",
+              beats: [{ id: newId("beat"), speaker: speaker.trim(), text: "" }],
+              sfx: [],
+            }),
+          ),
+          ...forgottenResearchDrafts(job.speakers, placeName).map(
             (draft): CrashStoryShot => ({
               id: newId("shot"),
               title: draft.title,
@@ -181,9 +212,9 @@ export function buildMusicVideoStartStory(job: MobileGenJob): {
               })),
               sfx: [],
             }),
-          )
-        : []),
-    ],
+          ),
+        ]
+      : newSongShots(job.speakers, placeName),
   };
 
   const story: CrashStoryDoc = {
