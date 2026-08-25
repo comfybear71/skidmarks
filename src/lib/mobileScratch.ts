@@ -1,6 +1,7 @@
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileClipUnit, MobileGenJob, MobileShotUnit } from "./mobileGenJob";
 import type { GrokI2vId } from "./grokI2v";
+import type { MinimaxH3Id } from "./minimaxH3";
 import type { SirayI2vId } from "./sirayI2v";
 import { isCampaignShotId, campaignStagingForId } from "./mobilePlateLtxCampaign";
 import { newId } from "./types";
@@ -39,7 +40,7 @@ export type ScratchDrawTask = {
 /** Reuse the same Siray task if Draw dropped after submit (do not mint a new episode). */
 export const SCRATCH_DRAW_RESUME_MS = 240_000;
 
-export type ScratchClipBackend = "siray-i2v" | "grok-i2v";
+export type ScratchClipBackend = "siray-i2v" | "grok-i2v" | "minimax-h3";
 
 /** In-flight I2V clip — browser polls so Vercel does not drop an 8-minute POST. */
 export type ScratchClipTask = {
@@ -47,7 +48,7 @@ export type ScratchClipTask = {
   shotId: string;
   sceneId: string;
   beatId: string;
-  i2v: SirayI2vId | GrokI2vId;
+  i2v: SirayI2vId | GrokI2vId | MinimaxH3Id;
   backend?: ScratchClipBackend;
   model: string;
   label: string;
@@ -59,7 +60,7 @@ export const SCRATCH_CLIP_RESUME_MS = 720_000;
 
 export function scratchClipStillInFlight(
   task: ScratchClipTask | null | undefined,
-  want: { shotId: string; beatId: string; i2v: SirayI2vId | GrokI2vId; durationSec?: number },
+  want: { shotId: string; beatId: string; i2v: SirayI2vId | GrokI2vId | MinimaxH3Id; durationSec?: number },
   nowMs = Date.now(),
 ): boolean {
   if (!task?.taskId) return false;
