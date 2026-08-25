@@ -50,6 +50,8 @@ import { findSongCarrierBeatId, isMusicVideoSongJob, musicVideoCreditLine } from
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
+import { mobileClipSrc } from "@/lib/mobilePlateClips";
+import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
 import { readApiJson } from "@/lib/studioFetchError";
 import { DeskFold, MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
@@ -793,6 +795,10 @@ export function MusicVideoTrack({
     return { ...t, label: row?.title || t.plateId };
   });
   const plateBlocks = savedPlateBlocks;
+  const zipClips = useMemo(() => orderedJobClips(job), [job]);
+  const zipHref = zipClips.length
+    ? `/api/crash/mobile/clips/zip?jobId=${encodeURIComponent(job.id)}`
+    : "";
 
   const audioSrc = useMemo(() => {
     if (song?.fileName && job.folderName) {
@@ -1069,6 +1075,11 @@ export function MusicVideoTrack({
             ) : (
               <SongDropRow jobId={job.id} onSaved={onJobChange} />
             )}
+            {zipHref ? (
+              <a className="m-track-btn" href={zipHref} download>
+                Download clips zip
+              </a>
+            ) : null}
           </div>
 
           <TrackScroll
@@ -1101,8 +1112,9 @@ export function MusicVideoTrack({
             </div>
           )}
 
-          {/* Same order and widths as the coloured bars on the wave. */}
-          {!compact ? (
+          {/* Same order and widths as the coloured bars on the wave.
+              Compact still shows the rail so hung clips keep their own thumbs. */}
+          {(plateBlocks.length || !compact) ? (
             <div className="m-track-rail">
               <div
                 className={`m-track-rail-scroll${plateBlocks.length ? " m-track-rail-align" : ""}`}
@@ -1141,7 +1153,15 @@ export function MusicVideoTrack({
                     onClick={() => onOpenPlate?.(cell.shotId)}
                     title={cell.title}
                   >
-                    {cell.plateFile ? (
+                    {hungClipFileForPlate(job, cell.shotId) ? (
+                      <video
+                        src={mobileClipSrc(job, hungClipFileForPlate(job, cell.shotId))}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        aria-hidden
+                      />
+                    ) : cell.plateFile ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={mobileLocationStillUrl(job, cell.plateFile)} alt="" />
                     ) : (
@@ -1448,7 +1468,16 @@ export function MusicVideoTrack({
               <div className="m-track-plates">
                 {plateRows.map((row, i) => (
                   <div key={row.shotId} className="m-track-plate-row">
-                    {row.plateFile ? (
+                    {hungClipFileForPlate(job, row.shotId) ? (
+                      <video
+                        src={mobileClipSrc(job, hungClipFileForPlate(job, row.shotId))}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="m-track-plate-thumb"
+                        aria-hidden
+                      />
+                    ) : row.plateFile ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={mobileLocationStillUrl(job, row.plateFile)}

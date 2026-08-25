@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     ? localPath
     : fs.existsSync(clearedPath)
       ? clearedPath
-      : fileName.startsWith("sclip_") && fs.existsSync(genPath)
+      : /^(sclip_|gclip_|hclip_)/.test(fileName) && fs.existsSync(genPath)
         ? genPath
         : null;
   if (!filePath) {
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
       folderName,
       kind: "mp4",
       fileName,
-      destPath: fileName.startsWith("sclip_") ? genPath : localPath,
+      destPath: /^(sclip_|gclip_|hclip_)/.test(fileName) ? genPath : localPath,
     });
   }
   if (filePath && fs.existsSync(filePath)) {
