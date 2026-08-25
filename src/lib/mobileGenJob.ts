@@ -168,7 +168,7 @@ export type MobileGenJob = {
   scratchDraw?: ScratchDrawTask | null;
   /** Episode plate Draw in flight — same Siray wait as scratch, not the Scratch shot. */
   plateDraw?: ScratchDrawTask | null;
-  /** Siray i2v clip in flight. Cleared when the mp4 lands. */
+  /** Scratch I2V clip in flight (Siray or Grok). Cleared when the mp4 lands. */
   scratchClip?: ScratchClipTask | null;
   /** Scratch-only full song + cut list. Never an episode stitch. */
   scratchSong?: ScratchSong | null;

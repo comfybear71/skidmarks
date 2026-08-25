@@ -7,7 +7,23 @@ import {
   submitSirayScratchPlate,
 } from "@/lib/sirayScratchPlate";
 import { finishScratchSirayClip, submitScratchSirayClip } from "@/lib/sirayScratchClip";
+import {
+  finishScratchGrokClip,
+  isGrokScratchClipTask,
+  submitScratchGrokClip,
+} from "@/lib/grokScratchClip";
 import { sirayConfigured } from "@/lib/sirayClient";
+import { grokVideoConfigured } from "@/lib/grokVideo";
+import {
+  GROK_I2V_DEFAULT_SEC,
+  GROK_I2V_ID,
+  GROK_I2V_LABEL,
+  GROK_I2V_MAX_SEC,
+  GROK_I2V_MIN_SEC,
+  GROK_I2V_MODEL,
+  GROK_I2V_SHORT_SECS,
+  snapGrokI2vDurationSec,
+} from "@/lib/grokI2v";
 import {
   parseScratchClipEngine,
   SIRAY_I2V_DEFAULT,
@@ -340,8 +356,9 @@ async function restoreScratchPlate(opts: {
  *   — hide the still and empty the scratch cast on the job. Story stays.
  * POST { action: "select-place", jobId, sceneId }
  *   — park a place on the pad. Hides the last composite. Faces stay.
- * POST { action: "clip", jobId, beatId?, clipEngine? }
- *   — LTX waits on this request. Siray i2v submits and returns `{ pending: true }`.
+ * POST { action: "clip", jobId, beatId?, clipEngine?, durationSec? }
+ *   — LTX waits on this request. Grok / Siray i2v submit and return `{ pending: true }`.
+ *     Grok duration is 1–15s (desk chips 2 / 3 / 5) and does not follow the mp3.
  *     Scratch song window (if set) is sliced before LTX. Live episode Generate
  *     is a different route and is unchanged.
  * POST { action: "song-window", jobId, sliceStartSec, sliceDurationSec }
@@ -356,20 +373,27 @@ async function restoreScratchPlate(opts: {
  * POST { action: "song-stitch", jobId }
  *   — concat done Scratch cuts. Does not write job.finalVideoFile.
  * POST { action: "clip-poll", jobId }
- *   — one Siray video tick. `{ pending: true }` until the mp4 lands. Same episode.
+ *   — one Grok / Siray video tick. `{ pending: true }` until the mp4 lands. Same episode.
  * POST { action: "remove-clip", jobId, beatId, fileName }
  *   — drop one bad take from the strip. Local mp4 parks in _cleared/; Blob stays.
  * POST { action: "remove-all-clips", jobId }
  *   — clear every Scratch pad clip row. Same park rules.
- * GET — whether SIRAY_API_KEY is on this process (no secrets).
+ * GET — whether SIRAY_API_KEY / XAI_API_KEY are on this process (no secrets).
  */
 export async function GET() {
   const cheap = sirayI2vSpec(SIRAY_I2V_DEFAULT);
   return NextResponse.json({
     ok: true,
     siray: sirayConfigured(),
+    grok: grokVideoConfigured(),
     stillModel: "bytedance/seedream-4.5-ref2i-spicy",
     clipModel: cheap.model,
+    grokClipModel: GROK_I2V_MODEL,
+    grokClipLabel: GROK_I2V_LABEL,
+    grokClipSecs: [...GROK_I2V_SHORT_SECS],
+    grokClipMinSec: GROK_I2V_MIN_SEC,
+    grokClipMaxSec: GROK_I2V_MAX_SEC,
+    grokClipDefaultSec: GROK_I2V_DEFAULT_SEC,
     clipModels: SIRAY_I2V_MODELS.map((row) => ({
       id: row.id,
       model: row.model,
@@ -970,6 +994,45 @@ export async function POST(req: Request) {
             backend: "ltx",
             clipLabel: "LTX (mp3)",
             siray: sirayConfigured(),
+            grok: grokVideoConfigured(),
+          });
+        }
+        if (clipPick === GROK_I2V_ID) {
+          const durationSec = snapGrokI2vDurationSec(Number(body.durationSec ?? GROK_I2V_DEFAULT_SEC));
+          const want = { shotId, beatId, i2v: GROK_I2V_ID, durationSec };
+          if (scratchClipStillInFlight(job.scratchClip, want)) {
+            return NextResponse.json({
+              ok: true,
+              pending: true,
+              job,
+              backend: "grok-i2v",
+              clipModel: job.scratchClip?.model,
+              clipLabel: job.scratchClip?.label,
+              i2v: GROK_I2V_ID,
+              durationSec,
+              siray: sirayConfigured(),
+              grok: true,
+            });
+          }
+          const drawn = await submitScratchGrokClip({
+            job,
+            story,
+            shotId,
+            sceneId: scene.id,
+            beatId,
+            durationSec,
+          });
+          return NextResponse.json({
+            ok: true,
+            pending: true,
+            job: drawn.job,
+            backend: "grok-i2v",
+            clipModel: drawn.model,
+            clipLabel: drawn.label,
+            i2v: GROK_I2V_ID,
+            durationSec: drawn.durationSec,
+            siray: sirayConfigured(),
+            grok: grokVideoConfigured(),
           });
         }
         const want = { shotId, beatId, i2v: clipPick };
@@ -983,6 +1046,7 @@ export async function POST(req: Request) {
             clipLabel: job.scratchClip?.label,
             i2v: clipPick,
             siray: true,
+            grok: grokVideoConfigured(),
           });
         }
         const drawn = await submitScratchSirayClip({
@@ -1002,6 +1066,7 @@ export async function POST(req: Request) {
           clipLabel: drawn.label,
           i2v: drawn.i2v,
           siray: sirayConfigured(),
+          grok: grokVideoConfigured(),
         });
       } catch (e) {
         const latest = await readMobileGenJob(jobId);
@@ -1031,6 +1096,7 @@ export async function POST(req: Request) {
             backend: "siray-i2v",
             clipLabel: sirayI2vSpec(SIRAY_I2V_DEFAULT).label,
             siray: true,
+            grok: grokVideoConfigured(),
           });
         }
         return NextResponse.json(
@@ -1039,6 +1105,21 @@ export async function POST(req: Request) {
         );
       }
       try {
+        if (isGrokScratchClipTask(task)) {
+          const tick = await finishScratchGrokClip({ job, task });
+          return NextResponse.json({
+            ok: true,
+            pending: tick.pending,
+            job: tick.job,
+            backend: "grok-i2v",
+            clipModel: task.model,
+            clipLabel: task.label,
+            i2v: task.i2v,
+            durationSec: task.durationSec,
+            siray: sirayConfigured(),
+            grok: true,
+          });
+        }
         const tick = await finishScratchSirayClip({ job, task });
         return NextResponse.json({
           ok: true,
@@ -1049,6 +1130,7 @@ export async function POST(req: Request) {
           clipLabel: task.label,
           i2v: task.i2v,
           siray: true,
+          grok: grokVideoConfigured(),
         });
       } catch (e) {
         const latest = await readMobileGenJob(jobId);

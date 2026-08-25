@@ -87,8 +87,23 @@ import {
   sirayI2vSpec,
   type SirayI2vId,
 } from "@/lib/sirayI2v";
+import {
+  GROK_I2V_DEFAULT_SEC,
+  GROK_I2V_HINT,
+  GROK_I2V_ID,
+  GROK_I2V_LABEL,
+  GROK_I2V_SHORT_SECS,
+  type GrokI2vId,
+  type GrokI2vShortSec,
+} from "@/lib/grokI2v";
 
-type ScratchClipPick = "ltx" | SirayI2vId;
+type ScratchClipPick = "ltx" | GrokI2vId | SirayI2vId;
+
+function clipEngineLabel(engine: ScratchClipPick, durationSec: number): string {
+  if (engine === "ltx") return "LTX (mp3)";
+  if (engine === GROK_I2V_ID) return `${GROK_I2V_LABEL} · ${durationSec}s`;
+  return sirayI2vSpec(engine).label;
+}
 
 function plateFileFromHistoryRun(run: ScratchBenchRun): string {
   const direct = (run.plateFile || "").trim();
@@ -298,11 +313,13 @@ export default function ScratchPage() {
   const [savedTake, setSavedTake] = useState<{ beatId: string; voiceFile: string } | null>(null);
   const [ltxOpen, setLtxOpen] = useState(true);
   const [clipEngine, setClipEngine] = useState<ScratchClipPick>("ltx");
+  const [clipDurationSec, setClipDurationSec] = useState<GrokI2vShortSec>(GROK_I2V_DEFAULT_SEC);
   const [stillBackend, setStillBackend] = useState<ScratchBackendId>("unknown");
   const [clipStamp, setClipStamp] = useState("");
-  const [clipPhase, setClipPhase] = useState<"" | "sending" | "siray">("");
+  const [clipPhase, setClipPhase] = useState<"" | "sending" | "cook">("");
   const [joPhone, setJoPhone] = useState(false);
   const [sirayReady, setSirayReady] = useState(false);
+  const [grokReady, setGrokReady] = useState(false);
   const [motionDraft, setMotionDraft] = useState<string | null>(null);
   /** Which beat the draft belongs to — ignore draft after mouth / beat switch. */
   const motionEditBeatId = useRef<string | null>(null);
@@ -452,8 +469,10 @@ export default function ScratchPage() {
     let cancelled = false;
     fetch("/api/crash/mobile/scratch")
       .then((r) => r.json())
-      .then((d: { siray?: boolean }) => {
-        if (!cancelled && typeof d.siray === "boolean") setSirayReady(d.siray);
+      .then((d: { siray?: boolean; grok?: boolean }) => {
+        if (cancelled) return;
+        if (typeof d.siray === "boolean") setSirayReady(d.siray);
+        if (typeof d.grok === "boolean") setGrokReady(d.grok);
       })
       .catch(() => {
         /* Draw still works — chip stays off until a preset round-trip */
@@ -1238,7 +1257,7 @@ export default function ScratchPage() {
     void runSongCuts();
   };
 
-  async function pollSirayClipUntilDone(
+  async function pollI2vClipUntilDone(
     jobId: string,
     beatId: string,
     onTick?: (next: MobileGenJob) => void,
@@ -1247,16 +1266,18 @@ export default function ScratchPage() {
       job?: MobileGenJob;
       backend?: ScratchBackendId;
       siray?: boolean;
+      grok?: boolean;
       clipLabel?: string;
-      i2v?: SirayI2vId;
+      i2v?: ScratchClipPick;
       pending?: boolean;
     };
+    const shop = clipEngine === GROK_I2V_ID ? "Grok" : "Siray";
     let data: ClipPollResult = { pending: true };
     const started = Date.now();
     while (data.pending) {
       if (Date.now() - started > 720_000) {
         throw new Error(
-          "Siray is still making the clip. The episode is still there — tap Generate again. Don't start a new episode.",
+          `${shop} is still making the clip. The episode is still there — tap Generate again. Don't start a new episode.`,
         );
       }
       await new Promise((r) => setTimeout(r, 5000));
@@ -1272,15 +1293,18 @@ export default function ScratchPage() {
     return data;
   }
 
+  function applyClipFlags(data: { siray?: boolean; grok?: boolean }) {
+    if (typeof data.siray === "boolean") setSirayReady(data.siray);
+    if (typeof data.grok === "boolean") setGrokReady(data.grok);
+  }
+
   function logClipBenchRun(data: {
     job?: MobileGenJob;
     backend?: ScratchBackendId;
     clipLabel?: string;
   }) {
     if (!job || !beat) return;
-    const ranLabel =
-      data.clipLabel ||
-      (clipEngine === "ltx" ? "LTX (mp3)" : sirayI2vSpec(clipEngine).label);
+    const ranLabel = data.clipLabel || clipEngineLabel(clipEngine, clipDurationSec);
     setClipStamp(ranLabel);
     const clipFile =
       data.job?.clips?.filter((c) => c.beatId === beat.id && c.clipFile).at(-1)?.clipFile || "";
@@ -1289,7 +1313,9 @@ export default function ScratchPage() {
     setBench((prev) => {
       const next = appendBenchRun(prev, {
         kind: "clip",
-        backend: data.backend || (clipEngine === "ltx" ? "ltx" : "siray-i2v"),
+        backend:
+          data.backend ||
+          (clipEngine === "ltx" ? "ltx" : clipEngine === GROK_I2V_ID ? "grok-i2v" : "siray-i2v"),
         chaosId: prev.chaosId,
         positionPrompt: staging || undefined,
         plateUrl: plateSrc || undefined,
@@ -1319,32 +1345,42 @@ export default function ScratchPage() {
       }
       if (clipEngine !== "ltx") {
         setClipPhase("sending");
-        setClipStamp("Sending to Siray…");
+        setClipStamp(clipEngine === GROK_I2V_ID ? "Sending to Grok…" : "Sending to Siray…");
       }
       let data = await postJson<{
         job?: MobileGenJob;
         backend?: ScratchBackendId;
         siray?: boolean;
+        grok?: boolean;
         clipLabel?: string;
-        i2v?: SirayI2vId;
+        i2v?: ScratchClipPick;
         pending?: boolean;
       }>("/api/crash/mobile/scratch", {
         action: "clip",
         jobId: job.id,
         beatId: beat.id,
         clipEngine,
+        durationSec: clipEngine === GROK_I2V_ID ? clipDurationSec : undefined,
       });
-      if (typeof data.siray === "boolean") setSirayReady(data.siray);
+      applyClipFlags(data);
       if (data.job) setJob(data.job);
       if (clipEngine !== "ltx" && data.pending) {
         if (!data.job?.scratchClip?.taskId) {
-          throw new Error("Siray did not confirm the clip — wait a moment, then tap Generate once.");
+          throw new Error(
+            clipEngine === GROK_I2V_ID
+              ? "Grok did not confirm the clip — wait a moment, then tap Generate once."
+              : "Siray did not confirm the clip — wait a moment, then tap Generate once.",
+          );
         }
-        setClipPhase("siray");
-        setClipStamp("Siray confirmed — cooking (~3 min). Don't tap Generate again.");
-        data = await pollSirayClipUntilDone(job.id, beat.id, setJob);
+        setClipPhase("cook");
+        setClipStamp(
+          clipEngine === GROK_I2V_ID
+            ? `Grok confirmed — cooking ${clipDurationSec}s. Don't tap Generate again.`
+            : "Siray confirmed — cooking (~3 min). Don't tap Generate again.",
+        );
+        data = await pollI2vClipUntilDone(job.id, beat.id, setJob);
       }
-      if (typeof data.siray === "boolean") setSirayReady(data.siray);
+      applyClipFlags(data);
       if (data.job) setJob(data.job);
       logClipBenchRun(data);
     } catch (e) {
@@ -1395,17 +1431,22 @@ export default function ScratchPage() {
     if (!job?.scratchClip?.taskId || !beat || clipEngine === "ltx") return;
     if (clipPhase || busy) return;
     const seq = ++clipPollSeq.current;
-    setClipPhase("siray");
-    setClipStamp("Siray cooking — ~3 min. Don't tap Generate again.");
+    const grokCook = job.scratchClip.i2v === GROK_I2V_ID;
+    setClipPhase("cook");
+    setClipStamp(
+      grokCook
+        ? `Grok cooking ${job.scratchClip.durationSec || clipDurationSec}s. Don't tap Generate again.`
+        : "Siray cooking — ~3 min. Don't tap Generate again.",
+    );
     setBusy("clip");
     setError("");
-    void pollSirayClipUntilDone(job.id, beat.id, (next) => {
+    void pollI2vClipUntilDone(job.id, beat.id, (next) => {
       if (seq !== clipPollSeq.current) return;
       setJob(next);
     })
       .then((data) => {
         if (seq !== clipPollSeq.current) return;
-        if (typeof data.siray === "boolean") setSirayReady(data.siray);
+        applyClipFlags(data);
         if (data.job) setJob(data.job);
         logClipBenchRun(data);
       })
@@ -1428,14 +1469,21 @@ export default function ScratchPage() {
       ),
   );
   const canGenerate = playable || clipPlayable;
-  const canSirayGenerate = Boolean(plateSrc && beat && job);
-  const sirayClip = clipEngine !== "ltx";
-  const sirayCooking = Boolean(sirayClip && job?.scratchClip?.taskId);
+  const canI2vGenerate = Boolean(plateSrc && beat && job);
+  const grokClip = clipEngine === GROK_I2V_ID;
+  const sirayClip = clipEngine !== "ltx" && clipEngine !== GROK_I2V_ID;
+  const i2vCooking = Boolean(clipEngine !== "ltx" && job?.scratchClip?.taskId);
   const generateLocked =
-    Boolean(busy) || clipPhase !== "" || sirayCooking;
+    Boolean(busy) || clipPhase !== "" || i2vCooking;
   const generateReady =
-    (clipEngine === "ltx" ? canGenerate : canSirayGenerate && sirayReady) && !generateLocked;
+    (clipEngine === "ltx"
+      ? canGenerate
+      : grokClip
+        ? canI2vGenerate && grokReady
+        : canI2vGenerate && sirayReady) && !generateLocked;
   const selectedSiray = sirayClip ? sirayI2vSpec(clipEngine) : sirayI2vSpec(SIRAY_I2V_DEFAULT);
+  const cookingShop =
+    job?.scratchClip?.i2v === GROK_I2V_ID || grokClip ? "Grok" : "Siray";
 
   useScratchPadHotkeys({
     enabled: Boolean(job) && !resuming,
@@ -1723,7 +1771,7 @@ export default function ScratchPage() {
               </div>
             </div>
 
-            {stackClips.length || sirayCooking ? (
+            {stackClips.length || i2vCooking ? (
               <div className="scratch-clip-rail">
                 {stackClips.length ? (
                   <>
@@ -1747,9 +1795,9 @@ export default function ScratchPage() {
                     </button>
                   </>
                 ) : null}
-                {sirayCooking || clipPhase === "siray" ? (
+                {i2vCooking || clipPhase === "cook" || clipPhase === "sending" ? (
                   <div className="scratch-clip-cooking" aria-live="polite">
-                    <span className="scratch-clip-cooking-label">Siray</span>
+                    <span className="scratch-clip-cooking-label">{cookingShop}</span>
                     <span className="scratch-clip-cooking-hint">Cooking…</span>
                   </div>
                 ) : null}
@@ -2055,8 +2103,8 @@ export default function ScratchPage() {
                 >
                   {clipPhase === "sending"
                     ? "Sending…"
-                    : clipPhase === "siray" || sirayCooking
-                      ? "Siray cooking…"
+                    : clipPhase === "cook" || i2vCooking
+                      ? `${cookingShop} cooking…`
                       : busy === "clip"
                         ? "Working…"
                         : "Generate"}
@@ -2081,9 +2129,44 @@ export default function ScratchPage() {
               </button>
               <button
                 type="button"
+                disabled={Boolean(busy) || !grokReady}
+                title={GROK_I2V_HINT}
+                onClick={() => {
+                  setClipEngine(GROK_I2V_ID);
+                  setClipStamp("");
+                }}
+                style={{
+                  ...ghostBtn,
+                  border: grokClip ? "1px solid var(--acid)" : ghostBtn.border,
+                  color: grokClip ? "var(--acid)" : "var(--chrome)",
+                }}
+              >
+                Grok i2v
+              </button>
+              {grokClip
+                ? GROK_I2V_SHORT_SECS.map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      disabled={Boolean(busy)}
+                      onClick={() => setClipDurationSec(sec)}
+                      title={`${sec} second music-video cut`}
+                      style={{
+                        ...ghostBtn,
+                        border: clipDurationSec === sec ? "1px solid var(--acid)" : ghostBtn.border,
+                        color: clipDurationSec === sec ? "var(--acid)" : "var(--chrome)",
+                        fontSize: "11px",
+                      }}
+                    >
+                      {sec}s
+                    </button>
+                  ))
+                : null}
+              <button
+                type="button"
                 disabled={Boolean(busy) || !sirayReady}
                 onClick={() => {
-                  if (clipEngine === "ltx") {
+                  if (!sirayClip) {
                     setClipEngine(SIRAY_I2V_DEFAULT);
                     setClipStamp("");
                   }
@@ -2120,15 +2203,25 @@ export default function ScratchPage() {
             </div>
             <div style={{ color: "var(--chrome-dim)", fontSize: "11px" }}>
               Clip:{" "}
-              <span style={{ color: sirayClip || clipStamp ? "var(--acid)" : "var(--chrome)" }}>
+              <span
+                style={{
+                  color: grokClip || sirayClip || clipStamp ? "var(--acid)" : "var(--chrome)",
+                }}
+              >
                 {clipStamp ||
-                  (sirayClip
-                    ? selectedSiray.label
-                    : sirayReady
-                      ? "LTX — lip-sync on the Saved mp3"
-                      : "LTX — Siray chip needs SIRAY_API_KEY")}
+                  (grokClip
+                    ? `${GROK_I2V_LABEL} · ${clipDurationSec}s`
+                    : sirayClip
+                      ? selectedSiray.label
+                      : grokReady
+                        ? "LTX — lip-sync on the Saved mp3"
+                        : "LTX — Grok chip needs XAI_API_KEY")}
               </span>
-              {sirayClip ? " — motion from the still. Keep LTX when she has to speak." : ""}
+              {grokClip
+                ? " — cheap short from the still. Invented sound is stripped. Keep LTX when they speak."
+                : sirayClip
+                  ? " — motion from the still. Keep LTX when they speak. Siray is the uncensored still shop."
+                  : ""}
             </div>
 
             <div className="scratch-ltx-motion">
