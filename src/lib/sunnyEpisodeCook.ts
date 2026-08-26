@@ -185,7 +185,7 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
 
   const fresh = await readMobileStory(job.styleId, job.folderName);
   const clips = mergeClipsFromStory(job, fresh, { requeueSaved: false });
-  const pending = clips.filter((c) => c.clipStatus === "pending" && c.voiceFile.trim());
+  const pending = clips.filter((c) => c.clipStatus === "pending" && c.voiceFile?.trim());
   if (!pending.length) {
     return (
       (await patchMobileGenJob(job.id, {
