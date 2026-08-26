@@ -9,6 +9,8 @@ import {
   musicVideoCreditLine,
   MUSIC_VIDEO_SLICE_DEFAULT,
   plateSliceWindows,
+  songCookAlert,
+  songCookNote,
   songCutTallyLine,
   tallySongCuts,
   withoutPlateParkedCuts,
@@ -74,6 +76,48 @@ assert.match(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1, error:
 assert.match(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1, error: 0 }), /working/);
 assert.match(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1, error: 0 }), /waiting/);
 assert.doesNotMatch(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1, error: 0 }), /cooking|parked/);
+
+{
+  const sixOfEight = [
+    { id: "1", status: "done", error: "", clipFile: "a.mp4" },
+    { id: "2", status: "done", error: "", clipFile: "b.mp4" },
+    { id: "3", status: "done", error: "", clipFile: "c.mp4" },
+    { id: "4", status: "done", error: "", clipFile: "d.mp4" },
+    { id: "5", status: "done", error: "", clipFile: "e.mp4" },
+    { id: "6", status: "done", error: "", clipFile: "f.mp4" },
+    { id: "7", status: "error", error: "Cloud job timed out after 1200s", clipFile: "" },
+    { id: "8", status: "running", error: "", clipFile: "" },
+  ];
+  const whileOthersCook = songCookAlert(sixOfEight, { cooking: true });
+  assert.equal(whileOthersCook.kind, "failed");
+  assert.match(whileOthersCook.title, /Clip 7 failed/);
+  assert.match(whileOthersCook.title, /others still going/);
+  assert.match(whileOthersCook.detail, /timed out after 1200s/);
+  assert.match(whileOthersCook.short, /1 fail/);
+  assert.doesNotMatch(songCookNote(whileOthersCook), /it keeps going/i);
+  const afterCook = songCookAlert(
+    sixOfEight.map((c) => (c.id === "8" ? { ...c, status: "done", clipFile: "h.mp4" } : c)),
+    { cooking: false },
+  );
+  assert.equal(afterCook.kind, "failed");
+  assert.match(afterCook.title, /cook stopped/);
+  assert.doesNotMatch(songCookNote(afterCook), /it keeps going/i);
+  const happyCook = songCookAlert(
+    [
+      { id: "1", status: "done", error: "", clipFile: "a.mp4" },
+      { id: "2", status: "running", error: "", clipFile: "" },
+    ],
+    { cooking: true },
+  );
+  assert.equal(happyCook.kind, "cooking");
+  assert.match(songCookNote(happyCook), /it keeps going/);
+  const orphan = songCookAlert(
+    [{ id: "2", status: "running", error: "", clipFile: "" }],
+    { cooking: false },
+  );
+  assert.equal(orphan.kind, "stuck");
+  assert.doesNotMatch(songCookNote(orphan), /it keeps going/i);
+}
 
 const kept = withoutPlateParkedCuts(
   [
@@ -235,8 +279,21 @@ assert.match(songUi, /--row-progress/);
 assert.doesNotMatch(songUi, /Cooking/);
 assert.doesNotMatch(songUi, /cooking \$\{/);
 assert.match(songUi, /Working…/);
+assert.match(songUi, /SongCookAlertBanner/);
+assert.match(songUi, /askSongCookNotifyPermission/);
+assert.match(songUi, /is-error/);
 assert.match(songUi, /unstick-all/);
 assert.match(songUi, /stopStuckCook/);
+const trackUi = readFileSync(join(here, "../src/components/mobile/MusicVideoTrack.tsx"), "utf8");
+const alertUi = readFileSync(join(here, "../src/components/mobile/SongCookAlertBanner.tsx"), "utf8");
+const cookLib = readFileSync(join(here, "../src/lib/songCutCook.ts"), "utf8");
+assert.match(trackUi, /SongCookAlertBanner/);
+assert.match(alertUi, /role="alert"/);
+assert.match(alertUi, /m-song-cook-alert/);
+assert.match(songCss, /\.m-song-cook-alert/);
+assert.match(cookLib, /notifySongCookProblem/);
+assert.match(cookLib, /pushCookStatus/);
+assert.doesNotMatch(cookLib, /You can leave — it keeps going\./);
 assert.match(songRoute, /unstick-all/);
 assert.match(songRoute, /clearStuckSongCooks/);
 assert.match(songRoute, /failScratchSongCutRun/);

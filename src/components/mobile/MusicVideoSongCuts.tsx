@@ -30,14 +30,17 @@ import {
   songDeskPlateIds,
   songDeskRowSlices,
   songOrdinal,
+  songCutTallyLine,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
 import {
+  askSongCookNotifyPermission,
   cookPendingSongCuts,
   pendingSongCuts,
   setSongCookFlag,
   songCookFlagOn,
 } from "@/lib/songCutCook";
+import { SongCookAlertBanner } from "./SongCookAlertBanner";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
 import { mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
 import { attachParkedSongToBeat } from "./MusicVideoStart";
@@ -229,6 +232,7 @@ export function MusicVideoSongCuts({
     }
     cookLock.current = true;
     cookCancel.current = false;
+    askSongCookNotifyPermission();
     setBusy("cook");
     setNote("");
     try {
@@ -363,13 +367,13 @@ export function MusicVideoSongCuts({
     .filter((row): row is { unit: MobileShotUnit; listIndex: number; shotId: string } => Boolean(row));
   const tally = tallySongCuts(cuts);
   const runningCut = cuts.find((c) => c.status === "running");
-  const done = cuts.filter((c) => c.status === "done" && c.clipFile).length;
   const label = song?.fileName
     ? songWindowLabel(song.durationSec, cuts)
     : "Drop the song, then Add plates. − / + sets the length.";
   const progress =
-    song?.fileName && cuts.length ? `${tally.done}/${tally.total}` : "";
+    song?.fileName && cuts.length ? songCutTallyLine(tally) : "";
   const progressPct = cuts.length ? Math.round((tally.done / cuts.length) * 100) : 0;
+  const phoneDriving = workingNow || songCookFlagOn(job.id);
 
   return (
     <div className="scratch-song">
@@ -393,6 +397,7 @@ export function MusicVideoSongCuts({
         )
       ) : null}
       {progress ? <p className="scratch-song-parked">{progress}</p> : null}
+      <SongCookAlertBanner cuts={cuts} cooking={phoneDriving} showGoing={phoneDriving} />
       {note ? <p className="scratch-song-parked">{note}</p> : null}
       {cuts.length ? (
         <div
@@ -438,6 +443,7 @@ export function MusicVideoSongCuts({
             const span = spanObj ? formatSongSpan(spanObj.startSec, spanObj.endSec) : "";
             const rowDone = deskRowAllDone(mine);
             const rowRun = mine.some((c) => c.status === "running");
+            const rowFail = mine.find((c) => c.status === "error");
             const rowDoneN = mine.filter((c) => c.status === "done" && c.clipFile).length;
             const rowPct = mine.length ? Math.round((rowDoneN / mine.length) * 100) : 0;
             const placeScene = job.scenes.find((sc) => sc.id === s.sceneId);
@@ -460,7 +466,7 @@ export function MusicVideoSongCuts({
                   <div
                     className={`scratch-song-cut m-song-plate-row m-song-plate-line${
                       rowDone ? " is-done" : ""
-                    }${rowRun ? " is-run" : ""}`}
+                    }${rowRun ? " is-run" : ""}${rowFail ? " is-error" : ""}`}
                     style={{ ["--row-progress" as string]: `${rowPct}%` }}
                   >
                     {thumb ? (
@@ -473,6 +479,13 @@ export function MusicVideoSongCuts({
                       {songOrdinal(i + 1)} · {n} × 15s
                       {span ? <> · {span}</> : null}
                       <> · {name}</>
+                      {rowFail ? (
+                        <>
+                          {" "}
+                          · fail
+                          {rowFail.error?.trim() ? ` — ${rowFail.error.trim()}` : ""}
+                        </>
+                      ) : null}
                     </span>
                     <div className="m-song-plate-tools m-song-line-tools">
                       <button
