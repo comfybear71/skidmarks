@@ -136,6 +136,38 @@ assert.match(built.story.scenes[0].shots[1].summary, /\[VISUAL_ACTION\]/);
 assert.match(built.story.scenes[0].shots[1].staging || "", /window/);
 assert.equal(storyHasSpokenLine(built.story), true);
 
+const namedCue = parseMobilePaste(
+  `EPISODE: Drop Bear
+GAG: Turkeys nest in the cart.
+
+--- SHOT 1 ---
+Title: The Warning
+Place: Caravan park
+Cast: Ranger Dan
+Camera: wide
+Plate: Weathered timber deck. Ranger Bazza holds a megaphone.
+Name: Ranger Dan
+[Megaphone static screech] "Attention, residents! The Mega-Drop Bear!"
+
+--- SHOT 2 ---
+Title: Sign
+Place: Ranger office
+Cast: None
+Camera: tight close-up
+Plate: Fresh lettering on a wooden board.
+Name: None
+[A single, distant, aggressive turkey gobble]
+`,
+  "sunny_banks",
+);
+assert.equal(namedCue.story.scenes.length, 2);
+assert.equal(namedCue.story.scenes[0].shots[0].beats[0].speaker, "Ranger Bazza");
+assert.match(namedCue.story.scenes[0].shots[0].beats[0].text, /Mega-Drop Bear/);
+assert.match(namedCue.story.scenes[0].shots[0].staging || "", /Camera: wide/);
+assert.equal(namedCue.story.scenes[0].shots[0].sfx?.[0]?.label, "Megaphone static screech");
+assert.equal(namedCue.story.scenes[1].shots[0].beats[0].speaker, "");
+assert.equal(namedCue.story.scenes[1].shots[0].sfx?.[0]?.label, "A single, distant, aggressive turkey gobble");
+
 assert.equal(normalizePlaceKey("INT. MATTY BAR - DAY"), "matty bar");
 assert.equal(normalizePlaceKey("Matty bar"), "matty bar");
 

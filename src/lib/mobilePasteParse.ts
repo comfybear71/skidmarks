@@ -8,6 +8,7 @@ import type {
 } from "./crashStoryTypes";
 import type { ShowStyleId } from "./showStylePresets";
 import { productionShowLabel, styleEpisodeBlank } from "./styleEpisodeProcess";
+import { canonicalSunnyName } from "./sunnyEpisodeSpec";
 
 export const MOBILE_PASTE_SAMPLE = `EPISODE: Crazy Big Hole Jo
 GAG: Jo falls in a hole. Matty has a bar.
@@ -68,6 +69,12 @@ function titleCaseName(raw: string): string {
 
 /** Place match happens on lock from the job's picked stills — not the world shelf. */
 
+function canonSpeaker(styleId: ShowStyleId, name: string): string {
+  const raw = name.trim();
+  if (!raw) return "";
+  return styleId === "sunny_banks" ? canonicalSunnyName(raw) : raw;
+}
+
 function holdOrSpoken(
   lines: { speaker: string; text: string }[],
 ): CrashStoryBeat[] {
@@ -92,8 +99,29 @@ type LooseShot = {
   title: string;
   summary: string;
   staging: string;
+  camera?: string;
+  castNames?: string[];
+  cues?: string[];
   lines: { speaker: string; text: string }[];
 };
+
+function cuesFromSfxLine(raw: string): string[] {
+  return raw
+    .split("|")
+    .map((bit) => bit.replace(/^\[|\]$/g, "").trim())
+    .filter(Boolean);
+}
+
+function cuesFromBracketLine(raw: string): string[] {
+  const out: string[] = [];
+  const re = /\[([^\[\]]+)\]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw))) {
+    const bit = (m[1] || "").trim();
+    if (bit) out.push(bit);
+  }
+  return out;
+}
 
 function shotsToStory(
   styleId: ShowStyleId,
@@ -122,16 +150,29 @@ function shotsToStory(
     }
     const beats = holdOrSpoken(shot.lines);
     const cast = Array.from(
-      new Set(beats.map((b) => b.speaker).filter(Boolean)),
+      new Set(
+        [...(shot.castNames || []), ...beats.map((b) => b.speaker)].filter(Boolean),
+      ),
     );
+    const camera = (shot.camera || "").trim();
+    const stagingBits = [
+      camera ? `Camera: ${camera}.` : "",
+      shot.staging,
+    ].filter(Boolean);
     const next: CrashStoryShot = {
       id: newId("shot"),
       title: shot.title || placeName,
       summary: shot.summary,
-      staging: shot.staging || (cast.length ? `${cast.join(", ")} · ${placeName}` : placeName),
+      staging:
+        stagingBits.join(" ") ||
+        (cast.length ? `${cast.join(", ")} · ${placeName}` : placeName),
       plateFile: "",
       beats,
-      sfx: [],
+      sfx: (shot.cues || []).map((label) => ({
+        id: newId("sfx"),
+        label,
+        notes: "",
+      })),
     };
     scene.shots.push(next);
   }
@@ -319,6 +360,10 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
     let titleLine = `Shot ${i + 1}`;
     let summary = "";
     let staging = "";
+    let camera = "";
+    let namedSpeaker = "";
+    const castNames: string[] = [];
+    const cues: string[] = [];
     const spoken: { speaker: string; text: string }[] = [];
     for (let n = 0; n < lines.length; n++) {
       const line = lines[n];
@@ -343,17 +388,61 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
         summary = action[1].trim();
         continue;
       }
-      if (/^(Cast|SFX|GAG|EPISODE):/i.test(line)) continue;
+      const cam = line.match(/^Camera:\s*(.+)$/i);
+      if (cam) {
+        camera = cam[1].trim();
+        continue;
+      }
+      const cast = line.match(/^Cast:\s*(.+)$/i);
+      if (cast) {
+        for (const name of cast[1].split(/,|&|\band\b/i)) {
+          const bit = canonSpeaker(styleId, name.trim());
+          if (bit && !/^none$/i.test(bit)) castNames.push(bit);
+        }
+        continue;
+      }
+      const named = line.match(/^Name:\s*(.+)$/i);
+      if (named) {
+        const bit = canonSpeaker(styleId, named[1].trim());
+        if (bit && !/^none$/i.test(bit)) namedSpeaker = bit;
+        continue;
+      }
+      const sfx = line.match(/^SFX:\s*(.+)$/i);
+      if (sfx) {
+        cues.push(...cuesFromSfxLine(sfx[1]));
+        continue;
+      }
+      if (/^(GAG|EPISODE):/i.test(line)) continue;
+      if (/^\[[^\]]+\]/.test(line)) {
+        cues.push(...cuesFromBracketLine(line));
+        const after = line.replace(/^\[[^\]]+\]\s*/, "").trim();
+        const text = stripWrapQuotes(after);
+        if (text && namedSpeaker) {
+          spoken.push({ speaker: namedSpeaker, text });
+        }
+        continue;
+      }
+      const quotedOnly = line.match(/^[“"'](.+)[”"']\s*$/);
+      if (quotedOnly && namedSpeaker) {
+        spoken.push({ speaker: namedSpeaker, text: quotedOnly[1].trim() });
+        continue;
+      }
       const cue = line.match(/^([A-Z][A-Z0-9_\s\-']{1,40})$/);
       const next = lines[n + 1] || "";
-      if (cue && next && !/^(Place|Title|Action|Plate|Cast|SFX):/i.test(next)) {
-        spoken.push({ speaker: cue[1].trim(), text: next });
+      if (cue && next && !/^(Place|Title|Action|Plate|Cast|SFX|Camera|Name):/i.test(next)) {
+        spoken.push({ speaker: canonSpeaker(styleId, cue[1].trim()), text: next });
         n += 1;
         continue;
       }
       const inline = line.match(/^([^:]{1,40}):\s+(.+)$/);
-      if (inline && !/^(place|title|action|plate|cast|sfx|gag|episode)$/i.test(inline[1])) {
-        spoken.push({ speaker: inline[1].trim(), text: inline[2].trim() });
+      if (
+        inline &&
+        !/^(place|title|action|plate|cast|sfx|gag|episode|camera|name)$/i.test(inline[1])
+      ) {
+        spoken.push({
+          speaker: canonSpeaker(styleId, inline[1].trim()),
+          text: inline[2].trim(),
+        });
       }
     }
     if (!placeName) {
@@ -364,6 +453,9 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
       title: titleLine,
       summary,
       staging,
+      camera,
+      castNames,
+      cues,
       lines: spoken,
     });
   }
