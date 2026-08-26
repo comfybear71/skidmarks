@@ -233,6 +233,14 @@ export function crashDeskStoryFetchUrl(styleId: ShowStyleId): string | null {
   return `/api/crash/story?styleId=${encodeURIComponent(q.styleId)}&folderName=${encodeURIComponent(q.folderName)}`;
 }
 
+/** PUT body for the open pack. Never omit folderName on cloud. */
+export function crashDeskStoryPutBody(story: {
+  styleId: ShowStyleId;
+}): { story: typeof story; folderName?: string } {
+  const q = crashDeskOpenQuery(story.styleId);
+  return q ? { story, folderName: q.folderName } : { story };
+}
+
 /** Scene kit GET url for the open pack (Reload places). */
 export function crashDeskSceneKitFetchUrl(styleId: ShowStyleId): string | null {
   const q = crashDeskOpenQuery(styleId);

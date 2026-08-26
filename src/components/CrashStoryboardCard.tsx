@@ -13,7 +13,7 @@ export function CrashStoryboardCard() {
   return (
     <CrashLabFloatingPanel
       title="Storyboard"
-      subtitle="Cartoon sheet"
+      subtitle="Cartoon sheet · Hero / Support"
       titleClassName="text-[#ffe066]"
       layoutVerKey={LAYOUT_VER_KEY}
       panelId="storyboard"

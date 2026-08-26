@@ -29,6 +29,7 @@ import { emptyStory } from "@/lib/crashStory";
 import {
   CRASH_ACTIVE_EPISODE_EVENT,
   crashDeskStoryFetchUrl,
+  crashDeskStoryPutBody,
   preferPackedStory,
   readOpenStoryCache,
 } from "@/lib/crashActiveEpisode";
@@ -1530,7 +1531,7 @@ export function StyleStoryPanel({ styleId }: Props) {
           const res = await fetch("/api/crash/story", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ story: next }),
+            body: JSON.stringify(crashDeskStoryPutBody(next)),
           });
           if (res.ok) {
             setSaveState("saved");

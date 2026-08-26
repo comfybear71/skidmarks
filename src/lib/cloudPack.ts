@@ -282,17 +282,22 @@ export async function readCloudStory(
   return story;
 }
 
-export async function writeCloudStory(story: CrashStoryDoc): Promise<boolean> {
+export async function writeCloudStory(
+  story: CrashStoryDoc,
+  folderNameHint?: string,
+): Promise<boolean> {
   if (!useCloudStore()) return false;
-  const opened = await getLatestOpenedEpisode(story.styleId);
-  const folderName =
-    opened?.folder_name ||
-    story.campaignLabel?.trim() ||
-    "Untitled episode";
-  const label = story.campaignLabel?.trim() || folderName;
+  const hinted = (folderNameHint || "").trim();
+  if (!hinted) {
+    throw new Error(
+      "Need folderName to save this pack. A story PUT without it writes the last opened episode.",
+    );
+  }
+  const opened = await getNeonEpisode(story.styleId, hinted);
+  const label = story.campaignLabel?.trim() || opened?.name || hinted;
   await saveCloudEpisodeMeta({
     styleId: story.styleId,
-    folderName,
+    folderName: hinted,
     label,
     story,
     sceneKit: opened?.scene_kit_json ?? null,

@@ -21,6 +21,7 @@ import {
   CRASH_ACTIVE_EPISODE_EVENT,
   crashDeskLtxFetchUrl,
   crashDeskStoryFetchUrl,
+  crashDeskStoryPutBody,
   preferPackedStory,
   readOpenLtxCache,
   readOpenStoryCache,
@@ -1692,7 +1693,7 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
         const res = await fetch("/api/crash/story", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ story: doc }),
+          body: JSON.stringify(crashDeskStoryPutBody(doc)),
         });
         const data = (await res.json()) as {
           error?: string;
