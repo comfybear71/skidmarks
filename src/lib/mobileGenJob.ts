@@ -13,6 +13,7 @@ import type { ScratchSong } from "./scratchSongWindow";
 import type { MusicVideoTrackDraft } from "./musicVideoTrack";
 import { DEFAULT_DESK_ID, normalizeDeskId } from "./mobileDesk";
 import { styleStartRoster } from "./styleEpisodeProcess";
+import type { StockLook } from "./stockLook";
 
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
 
@@ -172,6 +173,11 @@ export type MobileGenJob = {
   scratchClip?: ScratchClipTask | null;
   /** Scratch-only full song + cut list. Never an episode stitch. */
   scratchSong?: ScratchSong | null;
+  /**
+   * Free-film look for Support stock. Theme / colour / type ride every
+   * search on this job. Older jobs omit it — searches stay per-shot.
+   */
+  stockLook?: StockLook | null;
   /** Hide the last still on /scratch. Plate file stays — refresh must not put it back. */
   scratchPadCleared?: boolean;
   finalVideoFile: string;

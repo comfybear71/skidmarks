@@ -8,6 +8,7 @@ import {
   stockSearchLinks,
   stockSearchQuery,
 } from "@/lib/stockFootage";
+import { composeStockSearchQuery, stockLookIsOn, type StockLook } from "@/lib/stockLook";
 import { ARSENAL_EFFECTS, type ArsenalEffectId } from "@/lib/arsenalEffectsCatalog";
 
 type Props = {
@@ -15,6 +16,8 @@ type Props = {
   variant?: "desk" | "phone";
   attachBusy?: boolean;
   attachError?: string;
+  /** Job-wide free-film lock — nature, space, war, anything Free. */
+  look?: StockLook | null;
   onRoleChange: (role: ShotFootageRole) => void;
   onQueryChange: (query: string) => void;
   onAttachFile: (file: File) => void;
@@ -96,6 +99,7 @@ export function StockFootagePanel({
   variant = "desk",
   attachBusy,
   attachError,
+  look,
   onRoleChange,
   onQueryChange,
   onAttachFile,
@@ -105,7 +109,8 @@ export function StockFootagePanel({
   const [pathNote, setPathNote] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const role = shotFootageRole(shot);
-  const query = stockSearchQuery(shot);
+  const shotQuery = stockSearchQuery(shot);
+  const query = composeStockSearchQuery(look, shotQuery);
   const links = stockSearchLinks(query);
   const compact = variant === "phone";
 
@@ -149,8 +154,16 @@ export function StockFootagePanel({
             className={compact ? undefined : "text-[10px] leading-snug text-[var(--chrome-dim)]"}
             style={compact ? { fontSize: "12px", lineHeight: 1.35, color: "var(--chrome-dim)", margin: 0 } : undefined}
           >
-            Free licensed video first. Do not cook. YouTube watch pages are not free stock unless the page says Creative Commons.
+            Free licensed video first — nature, space, war, any topic the library still has. Do not cook. YouTube watch pages are not free stock unless the page says Creative Commons.
           </p>
+          {stockLookIsOn(look) ? (
+            <p
+              className={compact ? undefined : "text-[10px] leading-snug text-[var(--acid)]"}
+              style={compact ? { fontSize: "12px", lineHeight: 1.35, color: "var(--acid)", margin: 0 } : undefined}
+            >
+              Searching: {query || "—"}
+            </p>
+          ) : null}
           <input
             value={shot.stockQuery || ""}
             onChange={(e) => {
@@ -158,7 +171,7 @@ export function StockFootagePanel({
               setPathNote(looksLikeLocalFilePath(v) ? "Drop the file. A path on your PC cannot reach the site." : "");
               onQueryChange(v);
             }}
-            placeholder={query || "frost seed ice river…"}
+            placeholder={shotQuery || "this shot only — river close, trench wide…"}
             className={
               compact
                 ? undefined

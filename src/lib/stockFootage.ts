@@ -3,7 +3,7 @@ import type { CrashStoryDoc, CrashStoryShot, ShotFootageRole } from "./crashStor
 export type { ShotFootageRole };
 
 export type StockSearchLink = {
-  id: "pexels" | "pixabay" | "coverr" | "commons";
+  id: "pexels" | "pixabay" | "coverr" | "commons" | "mixkit";
   label: string;
   href: string;
   note: string;
@@ -58,7 +58,18 @@ export function stockSearchQuery(
 export function stockSearchLinks(query: string): StockSearchLink[] {
   const q = (query || "").trim() || "cinematic b-roll";
   const enc = encodeURIComponent(q);
+  const slug = q
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64) || "cinematic-b-roll";
   return [
+    {
+      id: "mixkit",
+      label: "Mixkit",
+      href: `https://mixkit.co/free-stock-video/${slug}/`,
+      note: "Free License only. Skip Restricted.",
+    },
     {
       id: "pexels",
       label: "Pexels",

@@ -14,6 +14,7 @@ import {
   type TrackSectionMarker,
 } from "@/lib/musicVideoTrack";
 import { isMusicVideoSongJob } from "@/lib/musicVideoSong";
+import { parseStockLook, stockLookIsOn } from "@/lib/stockLook";
 import { newId } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -63,6 +64,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
+ *   set-stock-look — free-film theme / colour / type for Support searches
  *   remove-plate-timing — clear one plate schedule
  */
 /** Cue rows come off the phone — keep only well-formed, ordered pins. */
@@ -93,6 +95,7 @@ export async function POST(req: Request) {
     endMs?: number;
     sortIndex?: number;
     lyricCues?: LyricCue[];
+    stockLook?: unknown;
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -243,6 +246,15 @@ export async function POST(req: Request) {
         job: updated,
         added: laid.cuts.length,
       });
+    }
+
+    if (action === "set-stock-look") {
+      const look = parseStockLook(body.stockLook);
+      const updated = await patchMobileGenJob(jobId, {
+        stockLook: stockLookIsOn(look) ? look : null,
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated, stockLook: look });
     }
 
     if (action === "remove-plate-timing") {

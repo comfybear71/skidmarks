@@ -36,6 +36,7 @@ import type { MobileClipUnit, MobileGenJob } from "@/lib/mobileGenJob";
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake, ShotFootageRole } from "@/lib/crashStoryTypes";
 import { StockFootagePanel } from "@/components/StockFootagePanel";
 import { isSupportShot } from "@/lib/stockFootage";
+import type { StockLook } from "@/lib/stockLook";
 import {
   leftoverHydrateBeat,
   plateLineBeats,
@@ -962,6 +963,7 @@ export function PlateReviewEditor({
           styleId={job.styleId}
           folderName={job.folderName}
           jobId={job.id}
+          stockLook={job.stockLook}
           jobSpeakers={job.speakers}
           jobVoices={job.speakerVoices}
           lookForSpeaker={(name) =>
@@ -2004,6 +2006,7 @@ function ShotStockPanel({
   shot,
   clips,
   trackClipFile,
+  stockLook,
   onShotMeta,
   onJobChange,
 }: {
@@ -2012,6 +2015,7 @@ function ShotStockPanel({
   shot: CrashStoryShot;
   clips?: MobileClipUnit[];
   trackClipFile?: string;
+  stockLook?: StockLook | null;
   onShotMeta?: (patch: { footageRole?: ShotFootageRole; stockQuery?: string }) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
@@ -2107,6 +2111,7 @@ function ShotStockPanel({
       variant="phone"
       attachBusy={busy}
       attachError={error}
+      look={stockLook}
       arsenal={
         showArsenal
           ? {
@@ -2133,6 +2138,7 @@ function ShotLineEditor({
   styleId,
   folderName,
   jobId,
+  stockLook,
   jobSpeakers,
   jobVoices,
   lookForSpeaker,
@@ -2159,6 +2165,7 @@ function ShotLineEditor({
   styleId: string;
   folderName: string;
   jobId: string;
+  stockLook?: StockLook | null;
   jobSpeakers: string[];
   jobVoices?: Record<string, JobSpeakerVoice>;
   lookForSpeaker: (name: string) => string;
@@ -2230,6 +2237,7 @@ function ShotLineEditor({
         shot={shot}
         clips={clips}
         trackClipFile={trackClipFile}
+        stockLook={stockLook}
         onShotMeta={onShotMeta}
         onJobChange={onJobChange}
       />
