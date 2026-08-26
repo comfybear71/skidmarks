@@ -37,6 +37,15 @@ import {
 } from "../src/lib/sunnyEpisodeCook.ts";
 import { clipsZipFileName, orderedJobClips } from "../src/lib/orderedJobClips.ts";
 import { isSunnyHoldBeat, sunnyShotNeedsHold, SUNNY_HOLD_SEC } from "../src/lib/sunnyHoldAudio.ts";
+import {
+  findSiblingVoiceFile,
+  rebindJobClipVoices,
+  rebindStoryVoiceFiles,
+  voiceFileStem,
+} from "../src/lib/storyVoiceRebind.ts";
+import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join as joinPath } from "node:path";
 import { queueableStoryBeats } from "../src/lib/mobileClipQueue.ts";
 import {
   isStudioReachError,
@@ -476,6 +485,79 @@ assert.match(
   assert.equal(ordered[1].zipName, "02_Dazza_Threat_from_Above.mp4");
   assert.equal(clipsZipFileName(episodeJob), "2_Drop_Bear_Dilemma_69_v3m_clips.zip");
 }
+assert.equal(
+  voiceFileStem("03_01_Ranger_Bazza_Safety-isn't-a-right-folks-its-a-pre_mtaj6shu.mp3"),
+  "03_01_Ranger_Bazza_Safety-isn't-a-right-folks-its-a-pre",
+);
+assert.equal(voiceFileStem("beat_9d909fn.mp3"), "beat_9d909fn");
+{
+  const dir = joinPath(tmpdir(), `skid-voice-rebind-${Date.now()}`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    joinPath(dir, "03_01_Ranger_Bazza_Safety-isn't-a-right-folks-its-a-pre_mtaj6vqs.mp3"),
+    "x",
+  );
+  writeFileSync(joinPath(dir, "beat_9d909fn.mp3"), "x");
+  assert.equal(
+    findSiblingVoiceFile(
+      dir,
+      "03_01_Ranger_Bazza_Safety-isn't-a-right-folks-its-a-pre_mtaj6shu.mp3",
+    ),
+    "03_01_Ranger_Bazza_Safety-isn't-a-right-folks-its-a-pre_mtaj6vqs.mp3",
+  );
+  assert.equal(findSiblingVoiceFile(dir, "beat_missing.mp3"), null);
+  const story = {
+    scenes: [
+      {
+        id: "sc1",
+        shots: [
+          {
+            id: "sh1",
+            beats: [
+              {
+                id: "b1",
+                speaker: "Ranger Bazza",
+                text: "Safety",
+                voiceFile:
+                  "03_01_Ranger_Bazza_Safety-isn't-a-right-folks-its-a-pre_mtaj6shu.mp3",
+              },
+              {
+                id: "b2",
+                speaker: "",
+                text: "",
+                voiceFile: "beat_9d909fn.mp3",
+                kind: "hold",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const rebound = rebindStoryVoiceFiles(story, dir);
+  assert.equal(rebound.rebound, 1);
+  assert.equal(rebound.missing.length, 0);
+  assert.equal(
+    story.scenes[0].shots[0].beats[0].voiceFile,
+    "03_01_Ranger_Bazza_Safety-isn't-a-right-folks-its-a-pre_mtaj6vqs.mp3",
+  );
+  assert.equal(story.scenes[0].shots[0].beats[1].voiceFile, "beat_9d909fn.mp3");
+  const clips = rebindJobClipVoices(
+    [
+      {
+        beatId: "b1",
+        voiceFile: "03_01_Ranger_Bazza_Safety-isn't-a-right-folks-its-a-pre_mtaj6shu.mp3",
+      },
+    ],
+    dir,
+  );
+  assert.equal(clips.rebound, 1);
+  assert.equal(
+    clips.clips[0].voiceFile,
+    "03_01_Ranger_Bazza_Safety-isn't-a-right-folks-its-a-pre_mtaj6vqs.mp3",
+  );
+  rmSync(dir, { recursive: true, force: true });
+}
 assert.equal(SUNNY_HOLD_SEC >= 5 && SUNNY_HOLD_SEC <= 10, true);
 assert.equal(isSunnyHoldBeat({ speaker: "", text: "", voiceFile: "beat_hold.mp3" }), true);
 assert.equal(
@@ -593,6 +675,20 @@ await assert.rejects(
 );
 assert.match(zipRoute, /direction\.pdf/);
 assert.match(zipRoute, /buildDirectionPdf/);
+{
+  const talk = readFileSync(join(here, "../src/components/mobile/TalkTimeline.tsx"), "utf8");
+  const beatAudio = readFileSync(
+    join(here, "../src/app/api/crash/mobile/beat-audio/route.ts"),
+    "utf8",
+  );
+  const cook = readFileSync(join(here, "../src/lib/sunnyEpisodeCook.ts"), "utf8");
+  const resolve = readFileSync(join(here, "../src/lib/resolveMobileBeatAudio.ts"), "utf8");
+  assert.match(talk, /jobId=\$\{encodeURIComponent\(job\.id\)\}/);
+  assert.match(beatAudio, /folderCandidates/);
+  assert.match(cook, /uploadMobileMedia/);
+  assert.match(cook, /rebindStoryVoiceFiles/);
+  assert.match(resolve, /findSiblingVoicePath/);
+}
 
 assert.equal(
   isSunnySeriesLockJob({ prompt: "EP02 DROP BEAR DILEMMA - SUNNY BANKS", folderName: "" }),

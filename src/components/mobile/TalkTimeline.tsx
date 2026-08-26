@@ -60,6 +60,7 @@ function beatAudioUrl(job: MobileGenJob, beatId: string, voiceFile: string): str
   return (
     `/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}` +
     `&folderName=${encodeURIComponent(mobileMediaFolderName(job))}` +
+    `&jobId=${encodeURIComponent(job.id)}` +
     `&beatId=${encodeURIComponent(beatId)}` +
     `&fileName=${encodeURIComponent(file)}`
   );

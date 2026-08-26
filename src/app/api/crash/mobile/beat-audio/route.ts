@@ -43,9 +43,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
+  const jobId = (url.searchParams.get("jobId") || "").trim();
+  let folderCandidates: string[] = [];
+  if (jobId) {
+    const job = await readMobileGenJob(jobId);
+    if (job) folderCandidates = mobileCandidateFolders(job);
+  }
   const filePath = await resolveMobileBeatAudio({
     styleId,
     folderName,
+    folderCandidates,
     beatId,
     voiceFile: fileName,
   });

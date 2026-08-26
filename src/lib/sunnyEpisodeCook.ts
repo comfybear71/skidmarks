@@ -2,7 +2,9 @@
  * One Make-this-episode step: plate a shot, or voice a line, or queue LTX.
  * Fail stays on the job. Does not mint extra house cards. Does not stitch.
  */
-import { synthesizeStoryBeat } from "./crashStorySpeak";
+import { synthesizeStoryBeat, resolveBeatAudioPath } from "./crashStorySpeak";
+import { uploadMobileMedia } from "./mobileMediaStore";
+import { mobileMediaFolder } from "./mobileJobFolder";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "./mobileStoryStore";
 import { mergeClipsFromStory } from "./mobileClipQueue";
 import { patchMobileGenJob, type MobileGenJob } from "./mobileGenJob";
@@ -11,6 +13,7 @@ import { episodeJobShots } from "./mobileScratch";
 import { rebuildShotPlate } from "./mobilePlateRebuild";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { ensureSunnyHoldAudio } from "./sunnyHoldAudio";
+import { packAudioDir, rebindJobClipVoices, rebindStoryVoiceFiles } from "./storyVoiceRebind";
 import { isSunnyExtraName, isSunnySeriesName } from "./sunnyEpisodeSpec";
 import {
   generateSunnyGuestFace,
@@ -204,6 +207,13 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
     await writeMobileStory(held.story, job.folderName);
   }
   const liveStory = held.story;
+  const audioDir = packAudioDir(job.styleId, job.folderName);
+  if (audioDir) {
+    const rebound = rebindStoryVoiceFiles(liveStory, audioDir);
+    if (rebound.rebound) {
+      await writeMobileStory(liveStory, job.folderName);
+    }
+  }
 
   const unvoiced = nextUnvoicedBeat(liveStory);
   if (unvoiced) {
@@ -227,6 +237,23 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
         })),
       };
       await writeMobileStory(voiced, job.folderName);
+      const localVoice = resolveBeatAudioPath(
+        job.styleId,
+        unvoiced.beatId,
+        result.voiceFile,
+      );
+      if (localVoice) {
+        try {
+          await uploadMobileMedia({
+            styleId: job.styleId,
+            folderName: mobileMediaFolder(job),
+            kind: "audio",
+            localPath: localVoice,
+          });
+        } catch {
+          /* Hear still works from disk; Generate needs Blob */
+        }
+      }
       return job;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -239,8 +266,10 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
     }
   }
 
-  const fresh = held.wrote ? liveStory : await readMobileStory(job.styleId, job.folderName);
-  const clips = mergeClipsFromStory(job, fresh, { requeueSaved: false });
+  const clips = audioDir
+    ? rebindJobClipVoices(mergeClipsFromStory(job, liveStory, { requeueSaved: false }), audioDir)
+        .clips
+    : mergeClipsFromStory(job, liveStory, { requeueSaved: false });
   const pending = clips.filter((c) => c.clipStatus === "pending" && c.voiceFile?.trim());
   if (!pending.length) {
     return (

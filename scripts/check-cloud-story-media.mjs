@@ -195,6 +195,38 @@ assert.equal(
   savedTake,
   "hydrate must not steal leftover Jo pack mp3 onto a Saved take",
 );
+const bazzaTake = "03_01_Ranger_Bazza_Safety-isn't-a-right-folks-its-a-pre_mtaj6vqs.mp3";
+const bazzaCard = story([
+  {
+    id: "scene_park",
+    title: "Caravan Park",
+    placeName: "Caravan Park",
+    worldThumbKey: "",
+    shots: [
+      {
+        id: "shot_twilight",
+        title: "Twilight Profits",
+        summary: "",
+        plateFile: "cplate.png",
+        beats: [
+          {
+            id: "beat_odn47p2",
+            speaker: "Ranger Bazza",
+            text: "Safety isn't a right",
+            voiceFile: bazzaTake,
+          },
+        ],
+        sfx: [],
+      },
+    ],
+  },
+]);
+const keptBazza = attachAudioFilenamesToStory(bazzaCard, [bazzaTake]);
+assert.equal(
+  keptBazza.scenes[0].shots[0].beats[0].voiceFile,
+  bazzaTake,
+  "hydrate must keep a stamped Ranger_Bazza Save (parser only sees Ranger)",
+);
 assert.equal(keptSaved.scenes[0].shots[0].beats[0].text, "sitting on the bed texting");
 
 const invented = story([
