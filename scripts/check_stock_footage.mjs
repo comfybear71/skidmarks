@@ -5,6 +5,12 @@ import {
   stockSearchQuery,
 } from "../src/lib/stockFootage.ts";
 import { hangDoneClipOnTrack } from "../src/lib/stockClipHang.ts";
+import {
+  composeStockSearchQuery,
+  parseStockLook,
+  stockLookFoldLabel,
+  stockLookIsOn,
+} from "../src/lib/stockLook.ts";
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -25,7 +31,8 @@ assert(
 );
 
 const links = stockSearchLinks("frozen seed");
-assert(links.length === 4, "four search sites");
+assert(links.length === 5, "five search sites");
+assert(links.some((l) => l.id === "mixkit"), "Mixkit is in the free list");
 assert(links.every((l) => l.href.includes("frozen")), "query is in each URL");
 assert(
   links.find((l) => l.id === "pexels")?.href.includes("/search/videos/"),
@@ -70,5 +77,31 @@ const noClock = hangDoneClipOnTrack({
 });
 assert(noClock?.cuts?.[0]?.clipFile === "stock.mp4", "stamps existing cut");
 assert((noClock?.plateTimings || []).length === 0, "does not invent timings");
+
+const ww1 = parseStockLook({
+  theme: "first world war",
+  colour: "mud brown grain",
+  types: "trenches archival",
+});
+assert(stockLookIsOn(ww1), "WWI look is on");
+assert(stockLookFoldLabel(ww1) === "first world war", "fold shows theme");
+assert(
+  composeStockSearchQuery(ww1, "hospital ward") ===
+    "first world war mud brown grain trenches archival hospital ward",
+  "look rides in front of the shot words",
+);
+
+const nature = parseStockLook({ theme: "nature", colour: "", types: "forest river" });
+assert(
+  composeStockSearchQuery(nature, "aerial") === "nature forest river aerial",
+  "nature topic composes",
+);
+const space = parseStockLook({ theme: "space", colour: "deep black", types: "stars nebula" });
+assert(
+  composeStockSearchQuery(space, "") === "space deep black stars nebula",
+  "space topic composes with no shot extra",
+);
+assert(composeStockSearchQuery(null, "ice drop") === "ice drop", "empty look leaves shot query");
+assert(!stockLookIsOn(parseStockLook({})), "blank look is off");
 
 console.log("stock footage checks passed");
