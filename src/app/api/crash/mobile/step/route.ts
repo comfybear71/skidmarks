@@ -148,9 +148,29 @@ export async function POST(req: Request) {
     }
 
     if (job.phase === "plates") {
-      const { isSunnyAutoJob, runSunnyAutoStep } = await import("@/lib/sunnyEpisodeCook");
+      const {
+        isSunnyAutoJob,
+        runSunnyAutoStep,
+        sunnyStepIsLocked,
+        SUNNY_STEP_LOCK_MS,
+      } = await import("@/lib/sunnyEpisodeCook");
       if (isSunnyAutoJob(job)) {
-        job = await runSunnyAutoStep(job);
+        // Phone tap-again / poll can fire a second /step while the first
+        // plate or voice is still running. Return the same episode — do
+        // not start another cook.
+        if (sunnyStepIsLocked(job)) {
+          return NextResponse.json({ ok: true, job, advanced: false });
+        }
+        const lockUntil = new Date(Date.now() + SUNNY_STEP_LOCK_MS).toISOString();
+        job = (await patchMobileGenJob(jobId, { sunnyStepUntil: lockUntil })) || job;
+        try {
+          job = await runSunnyAutoStep(job);
+        } finally {
+          const live = await readMobileGenJob(jobId);
+          if (live?.sunnyStepUntil === lockUntil) {
+            job = (await patchMobileGenJob(jobId, { sunnyStepUntil: "" })) || job;
+          }
+        }
         return NextResponse.json({
           ok: !job.error,
           job,

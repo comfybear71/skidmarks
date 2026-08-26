@@ -156,6 +156,11 @@ export type MobileGenJob = {
    * /step plates actually draws and voices. Older jobs omit this.
    */
   sunnyAuto?: boolean;
+  /**
+   * Another /step still owns this Sunny cook. ISO time — ignore if past.
+   * Older jobs omit it.
+   */
+  sunnyStepUntil?: string;
   shots: MobileShotUnit[];
   clips: MobileClipUnit[];
   /**

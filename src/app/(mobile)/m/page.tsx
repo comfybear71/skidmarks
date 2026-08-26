@@ -22,7 +22,7 @@ import type { CastBand } from "@/lib/castBands";
 import { matchCastBand } from "@/lib/castBandMatch";
 import { DEFAULT_DESK_ID, jobDeskId } from "@/lib/mobileDesk";
 import { readResumedJobId, writeResumedJobId, clearResumedJobId } from "@/lib/mobileJobResume";
-import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
+import { isStudioReachError, readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
@@ -36,6 +36,12 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     throw new Error(studioFetchError(e, "Request failed"));
   }
   return readApiJson<T & { error?: string }>(res);
+}
+
+async function getMobileJob(jobId: string): Promise<MobileGenJob | null> {
+  const res = await fetch(`/api/crash/mobile/job/${encodeURIComponent(jobId)}`);
+  const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+  return data.job ?? null;
 }
 
 export default function MobileHomePage() {
@@ -58,6 +64,7 @@ export default function MobileHomePage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftingNew, setDraftingNew] = useState(false);
   const pollRef = useRef<number | null>(null);
+  const [pollNonce, setPollNonce] = useState(0);
   // Declared early (before startRun below, which reads it to auto-apply a
   // band on cold start) — the fetch effect that actually populates this
   // still lives further down, near the other band handlers.
@@ -68,18 +75,32 @@ export default function MobileHomePage() {
     pollRef.current = null;
   }, []);
 
-  // "Check again" on the error screen used to just re-fetch the same stuck
-  // job — a GET can't move a terminal "error" phase anywhere. This POSTs to
-  // /step, which now knows how to resume once a clip has been attached
-  // manually; the auto-poll effect below picks up from there since it
-  // restarts whenever job.phase changes.
+  // Tap-again used to POST /step immediately. A long plate/voice dies as
+  // "Couldn't reach Studio" even though the episode is still in Neon.
+  // GET first — if the job is still cooking, keep it. POST /step only when
+  // the job itself is on the error phase.
   const retryFromError = useCallback(async (jobId: string) => {
     setError("");
     try {
+      const live = await getMobileJob(jobId);
+      if (live) {
+        setJob(live);
+        setPollNonce((n) => n + 1);
+        if (live.phase !== "error") {
+          if (live.error) setError(live.error);
+          return;
+        }
+      }
       const data = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/step", { jobId });
       setJob(data.job);
+      if (data.job.error) setError(data.job.error);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry failed");
+      setError(
+        studioFetchError(
+          e,
+          "The episode is still there — tap again. Don't start a new episode.",
+        ),
+      );
     }
   }, []);
 
@@ -101,19 +122,41 @@ export default function MobileHomePage() {
     // copies of the same phase ran at once, which is what tripped ElevenLabs'
     // 5-concurrent-request limit.
     let inFlight = false;
+    let reachHoldUntil = 0;
+    const applyJob = (next: MobileGenJob) => {
+      setJob(next);
+      if (next.error) setError(next.error);
+      else setError("");
+      if (next.phase === "error") stopPoll();
+    };
     const tick = async () => {
       if (inFlight) return;
       inFlight = true;
       try {
+        if (Date.now() < reachHoldUntil) {
+          const live = await getMobileJob(job.id);
+          if (live) applyJob(live);
+          return;
+        }
         const data = await postJson<{ job: MobileGenJob }>(url, {
           jobId: job.id,
         });
-        setJob(data.job);
-        if (data.job.error) setError(data.job.error);
-        if (data.job.phase === "error") stopPoll();
+        applyJob(data.job);
       } catch (e) {
+        if (isStudioReachError(e)) {
+          reachHoldUntil = Date.now() + 20_000;
+        }
+        try {
+          const live = await getMobileJob(job.id);
+          if (live) {
+            applyJob(live);
+            return;
+          }
+        } catch {
+          /* GET also failed — keep the episode on screen */
+        }
         setError(studioFetchError(e, "Step failed"));
-        stopPoll();
+        // Do not stopPoll — a dropped POST is not a deleted episode.
       } finally {
         inFlight = false;
       }
@@ -124,7 +167,7 @@ export default function MobileHomePage() {
     }, 1500);
     return stopPoll;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job?.phase, job?.id]);
+  }, [job?.phase, job?.id, pollNonce]);
 
   useEffect(() => {
     const id = readResumedJobId(window.location.search, window.localStorage, DEFAULT_DESK_ID);
@@ -798,7 +841,7 @@ export default function MobileHomePage() {
   return (
     <main className="mobile-shell" style={{ minHeight: "100dvh" }}>
       <StudioSessionChip />
-      {error ? (
+      {error && !isStudioReachError(error) ? (
         <div style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}
         </div>

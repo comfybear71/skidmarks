@@ -33,7 +33,14 @@ import {
 import {
   sunnyAutoKeepsFailedProof,
   sunnyAutoResumeFromStaleError,
+  sunnyStepIsLocked,
 } from "../src/lib/sunnyEpisodeCook.ts";
+import {
+  isStudioReachError,
+  studioFetchError,
+  STUDIO_STILL_THERE,
+  STUDIO_TIMED_OUT,
+} from "../src/lib/studioFetchError.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const mPage = readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8");
@@ -389,6 +396,7 @@ assert.doesNotMatch(
   /if \(!missing\.length\) return fromShelf/,
 );
 assert.match(readFileSync(join(here, "../src/app/api/crash/mobile/step/route.ts"), "utf8"), /runSunnyAutoStep/);
+assert.match(readFileSync(join(here, "../src/app/api/crash/mobile/step/route.ts"), "utf8"), /sunnyStepIsLocked/);
 assert.equal(
   sunnyAutoKeepsFailedProof({
     plateFile: "cplate_20260826193102083_g13.png",
@@ -413,6 +421,23 @@ assert.match(
   /sunnyAutoKeepsFailedProof/,
 );
 assert.match(readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8"), /WAIT\. Cooking the episode/);
+assert.match(mPage, /getMobileJob/);
+assert.match(mPage, /isStudioReachError/);
+assert.match(mPage, /Do not stopPoll/);
+assert.equal(isStudioReachError(new TypeError("Failed to fetch")), true);
+assert.equal(isStudioReachError(new Error(STUDIO_STILL_THERE)), true);
+assert.equal(isStudioReachError(new Error(STUDIO_TIMED_OUT)), true);
+assert.equal(isStudioReachError(new Error("Missing SIRAY_API_KEY")), false);
+assert.equal(studioFetchError(new TypeError("Failed to fetch"), "x"), STUDIO_STILL_THERE);
+assert.equal(sunnyStepIsLocked({ sunnyStepUntil: "" }), false);
+assert.equal(
+  sunnyStepIsLocked({ sunnyStepUntil: new Date(Date.now() + 60_000).toISOString() }),
+  true,
+);
+assert.equal(
+  sunnyStepIsLocked({ sunnyStepUntil: new Date(Date.now() - 1_000).toISOString() }),
+  false,
+);
 
 const shelfLoose = [
   { name: "Caravan park", thumbKey: "g:place_park.png" },

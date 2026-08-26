@@ -43,6 +43,17 @@ export function sunnyAutoResumeFromStaleError(error: string, phase?: string): bo
   return false;
 }
 
+/** Phone tap-again must not start a second plate/voice while the first /step is still on it. */
+export const SUNNY_STEP_LOCK_MS = 3 * 60 * 1000;
+
+export function sunnyStepIsLocked(
+  job: Pick<MobileGenJob, "sunnyStepUntil">,
+  now = Date.now(),
+): boolean {
+  const until = Date.parse(String(job.sunnyStepUntil || ""));
+  return Number.isFinite(until) && until > now;
+}
+
 function nextUnvoicedBeat(story: Awaited<ReturnType<typeof readMobileStory>>) {
   for (const scene of story.scenes) {
     for (const shot of scene.shots) {
