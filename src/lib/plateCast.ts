@@ -38,6 +38,29 @@ export function plateFramingLine(opts: {
     ) {
       return "WIDE full-body framing: head to toe, plenty of the locked place visible, figure smaller in frame. Keep the locked place from image 1 behind them. Still only one person.";
     }
+    if (
+      /\b(high angle|looking down|from above|bird.?s.?eye|crane down)\b/.test(t)
+    ) {
+      return "HIGH ANGLE looking down: camera above the person, looking down at them. Head and shoulders read from above. Keep the locked place from image 1. One person only.";
+    }
+    if (
+      /\b(low angle|looking up|from below|worm.?s.?eye|hero low)\b/.test(t)
+    ) {
+      return "LOW ANGLE looking up: camera below the person, looking up at them. Chest and hat against the sky. Keep the locked place from image 1. One person only.";
+    }
+    if (
+      /\b(over the shoulder|over-shoulder|three-quarter back|looking back over)\b/.test(
+        t,
+      )
+    ) {
+      return "OVER THE SHOULDER framing: three-quarter back, looking back over the shoulder at the camera. Not a selfie. Keep the locked place from image 1. One person only.";
+    }
+    if (/\b(from behind|walks away|walk away|rear silhouette)\b/.test(t)) {
+      return "FROM BEHIND framing: camera behind the person, walking away, full silhouette. Face not readable. Keep the locked place from image 1. One person only.";
+    }
+    if (/\b(sitting|knees bent|use the place as a seat)\b/.test(t)) {
+      return "SITTING framing: medium shot, knees bent, planted on the place as a seat. Keep the locked place from image 1. One person only.";
+    }
     return "MEDIUM SHOT framing: figure large in frame, dead centre horizontally. Keep the locked place from image 1 behind them. One person only.";
   }
   return "Wide enough to show everyone clearly — full figures preferred, same camera as the locked place. Keep the locked place from image 1 behind them.";

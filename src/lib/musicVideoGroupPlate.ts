@@ -27,6 +27,8 @@ export const MUSIC_VIDEO_CAMERAS = {
   medium: "MEDIUM SHOT, full upper body. Three-quarter, not a lineup.",
   wide: "WIDE full-body, head to toe, lots of the place around them, smaller in frame. Show the ground and the sky.",
   ots: "MEDIUM SHOT. Three-quarter back, looking back over the shoulder at the camera. Same face. Not a selfie.",
+  high: "HIGH ANGLE looking down. Camera above, looking down at them. Not a mug shot. Not eye-level.",
+  low: "LOW ANGLE looking up. Camera below, looking up at them. Chest and hat against the sky. Not a mug shot.",
   sitting: "MEDIUM SHOT. Sitting, knees bent, planted. Use the place as a seat, not a backdrop.",
   "ots-two":
     "OVER THE SHOULDER two-shot. Camera looks past the nearer person at the farther one. Not a lineup. Not a selfie.",
@@ -48,6 +50,8 @@ export const MUSIC_VIDEO_OFF_AXIS_CAMERAS: readonly MusicVideoCameraKey[] = [
 export function musicVideoCameraLabel(key: MusicVideoCameraKey): string {
   if (key === "medium") return "three-quarter";
   if (key === "ots") return "over shoulder";
+  if (key === "high") return "looking down";
+  if (key === "low") return "looking up";
   if (key === "ots-two") return "over shoulder two-shot";
   if (key === "wide-three") return "wide three-shot";
   if (key === "tight-cu") return "tight close-up";

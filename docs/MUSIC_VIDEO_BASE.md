@@ -40,6 +40,8 @@ Camera words stay available as a menu. A new **solo** Start uses two off-axis ke
 | `medium` | Medium, full upper body, three-quarter |
 | `wide` | Wide full-body, ground and sky |
 | `ots` | Over the shoulder, three-quarter back, same face |
+| `high` | High angle looking down |
+| `low` | Low angle looking up |
 | `sitting` | Sitting, knees bent, place is a seat |
 | `ots-two` | Look past the nearer person at the farther one |
 | `wide-three` | Wide three-shot, depth, not a lineup |
