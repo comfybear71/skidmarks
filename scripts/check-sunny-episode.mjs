@@ -36,7 +36,7 @@ import {
   sunnyStepIsLocked,
 } from "../src/lib/sunnyEpisodeCook.ts";
 import { clipsZipFileName, orderedJobClips } from "../src/lib/orderedJobClips.ts";
-import { isSunnyHoldBeat, sunnyShotNeedsHold, SUNNY_HOLD_SEC } from "../src/lib/sunnyHoldAudio.ts";
+import { isSunnyHoldBeat, sunnyShotNeedsHold, SUNNY_HOLD_SEC } from "../src/lib/sunnyHoldBeat.ts";
 import {
   findSiblingVoiceFile,
   rebindJobClipVoices,
@@ -746,5 +746,21 @@ assert.equal(
   })?.fileName,
   "thumb_1786096652402.png",
 );
+
+{
+  const clipQueue = readFileSync(join(here, "../src/lib/mobileClipQueue.ts"), "utf8");
+  const tree = readFileSync(join(here, "../src/components/mobile/StudioTree.tsx"), "utf8");
+  assert.match(clipQueue, /from "\.\/sunnyHoldBeat"/);
+  assert.doesNotMatch(
+    clipQueue,
+    /from "\.\/sunnyHoldAudio"/,
+    "/m clip queue must not import the fs hold writer",
+  );
+  assert.doesNotMatch(
+    tree,
+    /sunnyHoldAudio/,
+    "StudioTree must not import the fs hold writer",
+  );
+}
 
 console.log("check-sunny-episode: ok");

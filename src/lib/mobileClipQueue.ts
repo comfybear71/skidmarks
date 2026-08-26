@@ -4,7 +4,7 @@ import { isSupportShot } from "./stockFootage";
 import type { MobileClipUnit, MobileGenJob } from "./mobileGenJob";
 import { clipFileBasename, stackedClipFiles } from "./mobilePlateClips";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
-import { isSunnyHoldBeat } from "./sunnyHoldAudio";
+import { isSunnyHoldBeat } from "./sunnyHoldBeat";
 import { voiceNamesMatch } from "./voiceNameMatch";
 
 type ClipQueueRow = Pick<MobileClipUnit, "beatId" | "shotId" | "clipStatus" | "clipFile">;

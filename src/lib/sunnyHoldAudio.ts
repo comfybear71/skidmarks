@@ -5,39 +5,16 @@
 import fs from "fs";
 import path from "path";
 import { storyDialogueDir } from "./crashStoryLocations";
-import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
+import type { CrashStoryBeat, CrashStoryDoc } from "./crashStoryTypes";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { uploadMobileMedia } from "./mobileMediaStore";
 import { writeSilentMp3 } from "./silentAudio";
 import { isSunnyExtraName } from "./sunnyEpisodeSpec";
 import { newId } from "./types";
 import type { MobileGenJob } from "./mobileGenJob";
+import { SUNNY_HOLD_SEC, sunnyShotNeedsHold } from "./sunnyHoldBeat";
 
-export const SUNNY_HOLD_SEC = 8;
-
-export function isSunnyHoldBeat(
-  beat: Pick<CrashStoryBeat, "speaker" | "text" | "voiceFile" | "kind">,
-): boolean {
-  if (beat.kind === "hold") return true;
-  const speaker = (beat.speaker || "").trim();
-  const voice = (beat.voiceFile || "").trim();
-  if (!speaker && voice) return true;
-  if (isSunnyExtraName(speaker) && voice) return true;
-  return false;
-}
-
-export function sunnyShotHasSeriesLine(shot: CrashStoryShot): boolean {
-  return (shot.beats || []).some((beat) => {
-    if (leftoverHydrateBeat(shot.id, beat.id)) return false;
-    const speaker = (beat.speaker || "").trim();
-    if (!speaker || isSunnyExtraName(speaker)) return false;
-    return Boolean((beat.text || "").trim());
-  });
-}
-
-export function sunnyShotNeedsHold(shot: CrashStoryShot): boolean {
-  return !sunnyShotHasSeriesLine(shot);
-}
+export { isSunnyHoldBeat, sunnyShotHasSeriesLine, sunnyShotNeedsHold, SUNNY_HOLD_SEC } from "./sunnyHoldBeat";
 
 function holdVoiceName(beatId: string): string {
   return `${beatId}.mp3`;
