@@ -5,6 +5,7 @@ import {
   readMobileGenJob,
 } from "@/lib/mobileGenJob";
 import { bounceStuckStitch } from "@/lib/mobilePipeline";
+import { autoPickSunnyTakes } from "@/lib/sunnyEpisodeSeed";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,14 @@ export async function GET(_req: Request, ctx: Ctx) {
   const unstick = bounceStuckStitch({ phase: job.phase, error: job.error });
   if (unstick) {
     job = (await patchMobileGenJob(id, { phase: unstick, error: "" })) || job;
+  }
+  const picked = autoPickSunnyTakes(job);
+  if (picked.changed) {
+    job =
+      (await patchMobileGenJob(id, {
+        castCandidates: picked.castCandidates,
+        locationCandidates: picked.locationCandidates,
+      })) || job;
   }
   return NextResponse.json({ ok: true, job });
 }

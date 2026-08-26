@@ -2,7 +2,7 @@
  * Sunny Banks create-episode card — series machine, not a vibe box.
  * Names and aliases only. Does not mint jobs.
  */
-function placeKey(name: string): string {
+export function placeKey(name: string): string {
   return name
     .replace(/^(int|ext)\.\s*/i, "")
     .replace(/\s+-\s+(day|night|dawn|dusk|evening|morning|later|continuous|same).*$/i, "")
@@ -101,6 +101,24 @@ function keepSunnyName(raw: string): string {
   return n;
 }
 
+/** Parenthetical on Cast:/Name: — look words for a guest we have to draw. */
+export function sunnyGuestLooksFromScript(raw: string): Record<string, string> {
+  const looks: Record<string, string> = {};
+  for (const line of (raw || "").split("\n")) {
+    const field = line.match(/^(?:Cast|Name):\s*(.+)$/i);
+    if (!field) continue;
+    for (const part of field[1].split(/,|&|\//)) {
+      const paren = part.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (!paren) continue;
+      const name = keepSunnyName(paren[1]);
+      const look = paren[2].trim();
+      if (!name || !look || isSunnyExtraName(name) || isSunnySeriesName(name)) continue;
+      if (!looks[name]) looks[name] = look;
+    }
+  }
+  return looks;
+}
+
 /** Read names and places from a pasted --- SHOT --- script. Does not lock. */
 export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
   const text = (raw || "").trim();
@@ -176,6 +194,28 @@ export function matchSunnyPlace<T extends { name: string }>(
   const key = placeKey(wanted);
   if (!key) return null;
   return shelf.find((p) => placeKey(p.name) === key) || null;
+}
+
+/**
+ * Exact first, then containment either way so "Caravan Park Main Deck"
+ * still finds the shelf card "Caravan park". Short keys under 4 letters
+ * do not fuzzy-match.
+ */
+export function matchSunnyPlaceLoose<T extends { name: string }>(
+  wanted: string,
+  shelf: T[],
+): T | null {
+  const exact = matchSunnyPlace(wanted, shelf);
+  if (exact) return exact;
+  const key = placeKey(wanted);
+  if (key.length < 4) return null;
+  const hits = shelf.filter((p) => {
+    const k = placeKey(p.name);
+    if (!k || k.length < 4) return false;
+    return key.includes(k) || k.includes(key);
+  });
+  hits.sort((a, b) => placeKey(b.name).length - placeKey(a.name).length);
+  return hits[0] || null;
 }
 
 export function sunnyEpisodeGate(opts: {

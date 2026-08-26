@@ -151,6 +151,11 @@ export type MobileGenJob = {
     string,
     { fileName: string; status: "pending" | "done" | "error"; error?: string }
   >;
+  /**
+   * Sunny Banks Make this episode — lock then cook without Pick / Send.
+   * /step plates actually draws and voices. Older jobs omit this.
+   */
+  sunnyAuto?: boolean;
   shots: MobileShotUnit[];
   clips: MobileClipUnit[];
   /**
