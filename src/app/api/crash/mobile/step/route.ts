@@ -23,6 +23,7 @@ import {
   clipNeedsAnimate,
   clipQueueError,
   findBeatHome,
+  findStoryShotBeat,
   nextClipToAnimate,
   queueOneBeatForAnimate,
 } from "@/lib/mobileClipQueue";
@@ -414,9 +415,9 @@ export async function POST(req: Request) {
 
       const shot = job.shots.find((s) => s.shotId === next.shotId);
       story = story ?? (await readMobileStory(job.styleId, job.folderName));
-      const scene = story.scenes.find((sc) => sc.id === next.sceneId);
-      const storyShot = scene?.shots.find((sh) => sh.id === next.shotId);
-      const beat = storyShot?.beats.find((b) => b.id === next.beatId);
+      const home = findStoryShotBeat(story, { shotId: next.shotId, beatId: next.beatId });
+      const storyShot = home?.shot;
+      const beat = home?.beat;
       let tailStillPath: string | null = null;
       try {
         // One message for three different failures told us nothing about

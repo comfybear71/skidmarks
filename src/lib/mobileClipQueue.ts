@@ -1,4 +1,4 @@
-import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
+import type { CrashStoryBeat, CrashStoryDoc, CrashStoryScene, CrashStoryShot } from "./crashStoryTypes";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { isSupportShot } from "./stockFootage";
 import type { MobileClipUnit, MobileGenJob } from "./mobileGenJob";
@@ -29,6 +29,27 @@ export function findBeatHome(story: CrashStoryDoc, beatId: string): {
         voiceFile: beat.voiceFile || "",
         kind: beat.kind,
       };
+    }
+  }
+  return null;
+}
+
+/**
+ * Shot + line across the whole story. scenes.find(id) dies when two places
+ * share an id — the first copy does not have this shot.
+ */
+export function findStoryShotBeat(
+  story: CrashStoryDoc,
+  opts: { shotId: string; beatId: string },
+): { scene: CrashStoryScene; shot: CrashStoryShot; beat: CrashStoryBeat } | null {
+  const shotId = (opts.shotId || "").trim();
+  const beatId = (opts.beatId || "").trim();
+  if (!shotId || !beatId) return null;
+  for (const scene of story.scenes || []) {
+    for (const shot of scene.shots || []) {
+      if (shot.id !== shotId) continue;
+      const beat = (shot.beats || []).find((b) => b.id === beatId);
+      if (beat) return { scene, shot, beat };
     }
   }
   return null;
