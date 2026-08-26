@@ -2,6 +2,8 @@
  * Sunny Banks create-episode card — series machine, not a vibe box.
  * Names and aliases only. Does not mint jobs.
  */
+import type { CrashStoryDoc } from "./crashStoryTypes";
+
 export function placeKey(name: string): string {
   return name
     .replace(/^(int|ext)\.\s*/i, "")
@@ -69,6 +71,37 @@ export function isSunnySeriesName(name: string): boolean {
   return SUNNY_SERIES_NAMES.some((n) => sunnyNameKey(n) === sunnyNameKey(canon));
 }
 
+/**
+ * Cast:/Name: field → people. "Bubbles (Sludge Monster)" stays Bubbles.
+ * "The Laundry Monster (Shazza and Nan in disguise)" also yields Shazza + Nan.
+ */
+export function splitSunnyCastField(raw: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (name: string) => {
+    const n = keepSunnyName(name);
+    if (!n) return;
+    const k = sunnyNameKey(n);
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(n);
+  };
+  for (const part of String(raw || "").split(/,|&|\//)) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const paren = trimmed.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+    add(paren?.[1] || trimmed);
+    if (paren) {
+      const inner = paren[2].trim();
+      if (/in disguise/i.test(inner) || /\band\b/i.test(inner)) {
+        const cleaned = inner.replace(/\s+in disguise.*$/i, "");
+        for (const bit of cleaned.split(/,|&|\band\b/i)) add(bit);
+      }
+    }
+  }
+  return out;
+}
+
 /** Crowd / animal / prop / costume — not a face we must hold. */
 export function isSunnyExtraName(name: string): boolean {
   const k = sunnyNameKey(canonicalSunnyName(name));
@@ -92,7 +125,75 @@ export type SunnyEpisodeScan = {
   guests: string[];
   unknownPlaces: string[];
   overcastShots: string[];
+  /** Shots with no plate plan — Make must not start. */
+  blockedShots: string[];
+  compositeCount: number;
+  hangPlaceCount: number;
 };
+
+export type SunnyShotPlan = {
+  shot: string;
+  title: string;
+  place: string;
+  onCard: string[];
+  plan: "composite" | "hang-place" | "blocked";
+  blockers: string[];
+};
+
+/** One shot: who is on the card, or hang the place still. Does not draw. */
+export function planSunnyShot(block: string, shotLabel: string): SunnyShotPlan {
+  let title = "";
+  let place = "";
+  const named: string[] = [];
+  for (const line of block.split("\n").map((l) => l.trim()).filter(Boolean)) {
+    const t = line.match(/^Title:\s*(.+)$/i);
+    if (t) {
+      title = t[1].trim();
+      continue;
+    }
+    const p = line.match(/^Place:\s*(.+)$/i);
+    if (p) {
+      place = p[1].trim();
+      continue;
+    }
+    const cast = line.match(/^Cast:\s*(.+)$/i);
+    if (cast) {
+      named.push(...splitSunnyCastField(cast[1]));
+      continue;
+    }
+    const nm = line.match(/^Name:\s*(.+)$/i);
+    if (nm) {
+      named.push(...splitSunnyCastField(nm[1]));
+    }
+  }
+  const onCard: string[] = [];
+  const seen = new Set<string>();
+  for (const n of named) {
+    if (!n || isSunnyExtraName(n)) continue;
+    const k = sunnyNameKey(n);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    onCard.push(n);
+  }
+  const blockers: string[] = [];
+  if (!place) blockers.push("need Place:");
+  if (!onCard.length && !place) blockers.push("need a named person or a place still to hang");
+  const plan: SunnyShotPlan["plan"] = blockers.length
+    ? "blocked"
+    : onCard.length
+      ? "composite"
+      : "hang-place";
+  return { shot: shotLabel, title, place, onCard, plan, blockers };
+}
+
+export function planSunnyEpisodeShots(script: string): SunnyShotPlan[] {
+  const text = String(script || "");
+  const headers = [...text.matchAll(/---\s*SHOT(?:\s+(\d+[A-Za-z]*))?\s*---/gi)];
+  const parts = text.split(/(?:^|\n)---\s*SHOT(?:\s+\d+[A-Za-z]*)?\s*---\s*/im).slice(1);
+  return parts.map((block, i) =>
+    planSunnyShot(block, `SHOT ${headers[i]?.[1] || String(i + 1)}`),
+  );
+}
 
 const SKIP_FIELD = /^(place|title|action|plate|cast|sfx|gag|episode|camera|name):/i;
 
@@ -141,8 +242,7 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
       }
       const cast = line.match(/^Cast:\s*(.+)$/i);
       if (cast) {
-        for (const name of cast[1].split(/,|&|\//)) {
-          const n = keepSunnyName(name);
+        for (const n of splitSunnyCastField(cast[1])) {
           if (n && !isSunnyExtraName(n)) {
             speakers.add(n);
             people.add(n);
@@ -176,6 +276,7 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
   }
 
   const guests = [...speakers].filter((n) => !isSunnySeriesName(n));
+  const plans = planSunnyEpisodeShots(text);
   return {
     title,
     gag,
@@ -184,6 +285,11 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
     guests,
     unknownPlaces: [],
     overcastShots,
+    blockedShots: plans
+      .filter((p) => p.blockers.length)
+      .map((p) => `${p.shot}${p.title ? ` ${p.title}` : ""}: ${p.blockers.join("; ")}`),
+    compositeCount: plans.filter((p) => p.plan === "composite").length,
+    hangPlaceCount: plans.filter((p) => p.plan === "hang-place").length,
   };
 }
 
@@ -234,9 +340,60 @@ export function sunnyEpisodeGate(opts: {
   if (!scan.places.length) {
     return { ok: false, error: "Need at least one --- SHOT --- with Place:.", scan };
   }
+  if (scan.blockedShots.length) {
+    return {
+      ok: false,
+      error: `Won't start. ${scan.blockedShots.length} shot${scan.blockedShots.length === 1 ? "" : "s"} have no plate plan: ${scan.blockedShots.join(" · ")}`,
+      scan,
+    };
+  }
+
   const unknownPlaces = scan.places.filter((p) => !matchSunnyPlace(p, opts.shelfPlaces));
   scan.unknownPlaces = unknownPlaces;
   return { ok: true, scan };
+}
+
+/** Write Cast: names onto an already-parsed story so silent roster people stay on the plate. */
+export function applySunnyScriptCastToStory(
+  story: CrashStoryDoc,
+  script: string,
+): CrashStoryDoc {
+  const byTitle = new Map<string, string[]>();
+  const parts = String(script || "")
+    .split(/(?:^|\n)---\s*SHOT(?:\s+\d+[A-Za-z]*)?\s*---\s*/im)
+    .slice(1);
+  for (const block of parts) {
+    const title = block.match(/^Title:\s*(.+)$/im)?.[1]?.trim() || "";
+    const castLine = block.match(/^Cast:\s*(.+)$/im)?.[1]?.trim() || "";
+    const nameLine = block.match(/^Name:\s*(.+)$/im)?.[1]?.trim() || "";
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const n of [...splitSunnyCastField(castLine), ...splitSunnyCastField(nameLine)]) {
+      const k = sunnyNameKey(n);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      unique.push(n);
+    }
+    if (title && unique.length) byTitle.set(title.toLowerCase(), unique);
+  }
+  if (!byTitle.size) return story;
+  return {
+    ...story,
+    scenes: story.scenes.map((sc) => ({
+      ...sc,
+      shots: sc.shots.map((sh) => {
+        const cast = byTitle.get((sh.title || "").trim().toLowerCase());
+        if (!cast?.length) return sh;
+        const prefix = `Cast: ${cast.join(", ")}.`;
+        const staging = String(sh.staging || "");
+        return {
+          ...sh,
+          castNames: cast,
+          staging: /^\s*cast:/i.test(staging) ? staging : `${prefix} ${staging}`.trim(),
+        };
+      }),
+    })),
+  };
 }
 
 export const SUNNY_EPISODE_BLANK = `EPISODE: 

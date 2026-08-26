@@ -34,7 +34,15 @@ export async function GET(req: Request) {
   if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
   const job = await readMobileGenJob(jobId);
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-  const clips = orderedJobClips(job);
+  let story = null;
+  if (job.folderName) {
+    try {
+      story = await readMobileStory(job.styleId, job.folderName);
+    } catch {
+      story = null;
+    }
+  }
+  const clips = orderedJobClips(job, story);
   if (!clips.length) {
     return NextResponse.json({ error: "No rendered clips on this episode yet." }, { status: 404 });
   }
@@ -61,15 +69,12 @@ export async function GET(req: Request) {
   if (!entries.length) {
     return NextResponse.json({ error: "Clip files are missing." }, { status: 404 });
   }
-  if (job.folderName) {
+  if (story?.scenes?.length) {
     try {
-      const story = await readMobileStory(job.styleId, job.folderName);
-      if (story?.scenes?.length) {
-        entries.push({
-          name: "direction.pdf",
-          data: buildDirectionPdf(directionLinesFromStory(story)),
-        });
-      }
+      entries.push({
+        name: "direction.pdf",
+        data: buildDirectionPdf(directionLinesFromStory(story)),
+      });
     } catch {
       /* clips still zip if the sheet cannot be built */
     }

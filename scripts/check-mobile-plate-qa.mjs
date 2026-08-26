@@ -5,6 +5,7 @@ import {
   compileScriptedPosition,
   parsePlateQaJson,
   plateQaChecks,
+  plateQaStopRetry,
 } from "../src/lib/mobilePlateQa.ts";
 
 assert.equal(PLATE_QA_MAX_ATTEMPTS, 3);
@@ -61,5 +62,11 @@ const next = appendPlateQaFix("Sitting on the bed.", "Butt on the mattress.");
 assert.match(next, /Sitting on the bed/);
 assert.match(next, /Butt on the mattress/);
 assert.equal(appendPlateQaFix(next, "Butt on the mattress."), next);
+
+assert.equal(plateQaStopRetry(["noText"], 3), true);
+assert.equal(plateQaStopRetry(["noText"], 1), false);
+assert.equal(plateQaStopRetry(["anatomy"], 3), false);
+assert.equal(plateQaStopRetry(["noText", "anatomy"], 3), false);
+assert.equal(plateQaStopRetry([], 3), false);
 
 console.log("check-mobile-plate-qa: ok");

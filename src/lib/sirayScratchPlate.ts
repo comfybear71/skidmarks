@@ -171,6 +171,7 @@ async function startSirayScratchPlate(
         plateFile: shot.plateFile,
         jobSpeakers: opts.job?.speakers || [],
         beats: shot.beats,
+        castNames: shot.castNames,
       }),
       ...silent,
     ]),
@@ -283,6 +284,19 @@ export async function compositeShotPlateSiray(
     job?: PlateJobRef;
   } = {},
 ): Promise<string> {
+  const speakers = shotSpeakersOnCard({
+    shotId: shot.id,
+    title: shot.title,
+    staging: shot.staging,
+    summary: shot.summary,
+    plateFile: shot.plateFile,
+    jobSpeakers: opts.job?.speakers || [],
+    beats: shot.beats,
+    castNames: shot.castNames,
+  });
+  if (!speakers.length && !(opts.silentCast || []).some((n) => n.trim())) {
+    return compositeShotPlate(styleId, scene, shot, opts);
+  }
   const started = await startSirayScratchPlate(styleId, scene, shot, opts);
   const urls = await sirayWaitImageOutputs(started.taskId);
   const buffer = await sirayDownloadUrl(urls[0]);

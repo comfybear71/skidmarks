@@ -21,8 +21,8 @@ export type CrashStoryBeat = {
    * is prepended on send). Editable on /m for walk / prop experiments.
    */
   imageMotion?: string;
-  /** Silent action hold — catalogue SFX mp3, no spoken line. */
-  kind?: "cutaway";
+  /** Silent action hold — catalogue SFX or a blank 8s hold. No spoken line. */
+  kind?: "cutaway" | "hold";
   /** Crash SPX catalogue id when the cutaway mp3 came from the shelf. */
   spxId?: string;
   /** What they do (stand up, walk away) — not spoken. */
@@ -66,6 +66,9 @@ export type CrashStoryShot = {
   staging?: string;
   /** Prompt-bible chip ids for the current staging / approved take. */
   bibleIds?: string[];
+  /** Names from the script Cast:/Name: lines. Silent people stay on the plate
+   * when the spoken Name is an extra. */
+  castNames?: string[];
   /** cplate_*.png under data/crash/gen/ — always mirrors the approved take. */
   plateFile: string;
   /** Every still drawn for this shot. Older shots have none — plateFile is

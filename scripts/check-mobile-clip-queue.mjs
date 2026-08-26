@@ -147,6 +147,42 @@ const leftoverStory = {
 };
 assert.equal(queueableStoryBeats(leftoverStory, job).length, 1);
 assert.equal(queueableStoryBeats(leftoverStory, job)[0].speaker, "CRAZY BIG HOLE JO");
+{
+  const holdQueued = queueableStoryBeats(
+    {
+      ...leftoverJoStory,
+      scenes: [
+        {
+          ...leftoverJoStory.scenes[0],
+          shots: [
+            {
+              id: "shot_hold",
+              title: "Smoke",
+              summary: "",
+              staging: "",
+              plateFile: "cplate_smoke.png",
+              beats: [
+                {
+                  id: "beat_hold",
+                  speaker: "",
+                  text: "",
+                  voiceFile: "beat_hold.mp3",
+                  kind: "hold",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      ...job,
+      shots: [{ shotId: "shot_hold", sceneId: "sc1", plateFile: "cplate_smoke.png" }],
+    },
+  );
+  assert.equal(holdQueued.length, 1);
+  assert.equal(holdQueued[0].line, "");
+}
 assert.equal(mergeClipsFromStory(job, leftoverStory).length, 1);
 assert.equal(mergeClipsFromStory(job, leftoverStory)[0].speaker, "CRAZY BIG HOLE JO");
 

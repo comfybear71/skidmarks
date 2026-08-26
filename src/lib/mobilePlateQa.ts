@@ -48,6 +48,12 @@ const CHECK_FIX: Record<PlateQaCheckId, string> = {
 };
 
 /** Always proof anatomy + text. Position keywords add more. sameFace when we have a name. */
+/** Group plates almost always have a logo or wrapper. Don't burn two more cooks. */
+export function plateQaStopRetry(fails: string[], people: number): boolean {
+  if (!fails.length) return false;
+  return people >= 2 && fails.every((id) => id === "noText");
+}
+
 export function plateQaChecks(
   staging: string,
   opts?: { identity?: boolean; people?: number },

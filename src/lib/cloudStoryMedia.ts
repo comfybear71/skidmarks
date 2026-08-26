@@ -6,7 +6,7 @@ import type {
 } from "./crashStoryTypes";
 import type { SceneKitDiskDraft } from "./crashSceneKitStore";
 import { humanMediaLabel, inferWorldKeysFromPlates, pickBestMediaMatch } from "./mediaMatch";
-import { isLeftoverPackVoiceFile } from "./mobileSavedVoice";
+import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
 
 function cleanName(name: string | undefined): string {
   return String(name || "").trim();
@@ -438,10 +438,12 @@ export function attachAudioFilenamesToStory(
             !recoverLeftover &&
             parsedExisting &&
             beat.speaker.trim() &&
-            !speakersMatch(parsedExisting.speaker, beat.speaker)
+            !speakersMatch(parsedExisting.speaker, beat.speaker) &&
+            !isMobileSavedVoiceFile(existing)
           ) {
-            // Parked Comfy/Land mp3 sitting on Jo's beat — drop it so Save
-            // voices her line with her library voice, not his leftover clip.
+            // Parked Comfy/Land leftover on Jo's beat — drop it so Save
+            // voices her line. A stamped Save take (`_mjx8k2`) stays even
+            // when the filename speaker is Ranger_Bazza (parser only sees Ranger).
             return { ...beat, voiceFile: undefined };
           }
           if (!recoverLeftover && isLeftoverPackVoiceFile(existing)) {

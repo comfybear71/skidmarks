@@ -8,6 +8,7 @@ import {
   speakerMentionedOnPlate,
   speakersAlreadyInPlate,
   shotSpeakersOnCard,
+  rosterNamedOnPlate,
   leftoverHydrateSpeakers,
   dropLeftoverHydrateBeats,
   imageMotionNamesLeftovers,
@@ -315,5 +316,52 @@ assert.equal(
   ),
   false,
 );
+
+assert.deepEqual(
+  rosterNamedOnPlate(
+    ["Dazza", "Ranger Bazza", "Nuggets", "Nan"],
+    "Cast: Residents, Dazza, Ranger Bazza, Nuggets. Camera: residents crowd the tank, including Nuggets.",
+  ),
+  ["Dazza", "Ranger Bazza", "Nuggets"],
+);
+assert.deepEqual(rosterNamedOnPlate(["Nan"], "The tenant waits by the banana crate."), []);
+
+const campGathers = {
+  shotId: "shot_camp",
+  title: "The Camp Gathers",
+  staging:
+    "Cast: Caravan Park Residents, Dazza, Ranger Bazza, Nuggets. Camera: High angle. Plate: Thongs slapping on gravel.",
+  summary: "",
+  plateFile: "",
+  jobSpeakers: ["Ranger Bazza", "Dazza", "Nuggets", "Shazza", "Nan"],
+  beats: [{ id: "beat_res", speaker: "Caravan Park Resident 1", voiceFile: "" }],
+};
+assert.deepEqual(shotSpeakersOnCard(campGathers).sort(), [
+  "Dazza",
+  "Nuggets",
+  "Ranger Bazza",
+]);
+
+const victory = {
+  shotId: "shot_drinks",
+  title: "Victory Drinks",
+  staging: "Camera: Unit 4 alien trailer while Nuggets munches a burger.",
+  summary: "",
+  plateFile: "",
+  jobSpeakers: ["Shazza", "Nuggets", "The Unit 4s", "Dazza", "Nan"],
+  beats: [{ id: "beat_shaz", speaker: "Shazza", voiceFile: "" }],
+};
+assert.ok(shotSpeakersOnCard(victory).includes("Shazza"));
+
+const turkeys = {
+  shotId: "shot_turk",
+  title: "Turkey Influx",
+  staging: "Cast: Bush Turkeys. Plate: Flapping wings.",
+  summary: "",
+  plateFile: "",
+  jobSpeakers: ["Dazza", "Ranger Bazza"],
+  beats: [{ id: "beat_t", speaker: "Bush Turkeys", voiceFile: "" }],
+};
+assert.deepEqual(shotSpeakersOnCard(turkeys), []);
 
 console.log("check-mobile-plate-lines: ok");
