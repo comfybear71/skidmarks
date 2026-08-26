@@ -154,10 +154,20 @@ export function SunnyEpisodeStart({
             <div style={{ color: "var(--acid)", fontSize: "14px", fontWeight: 700 }}>
               Ready. Make this episode — then wait.
             </div>
+            <div style={{ color: "var(--chrome-dim)", fontSize: "13px" }}>
+              {gate.scan.compositeCount + gate.scan.hangPlaceCount} shots have a
+              plan
+              {gate.scan.compositeCount
+                ? ` — ${gate.scan.compositeCount} draw people`
+                : ""}
+              {gate.scan.hangPlaceCount
+                ? ` — ${gate.scan.hangPlaceCount} hang the place still`
+                : ""}
+              . New places get drawn. Series faces stay the locked cards.
+            </div>
             {gate.scan.guests.length ? (
               <div style={{ color: "var(--chrome-dim)", fontSize: "13px" }}>
                 New names get drawn from the script: {gate.scan.guests.join(", ")}.
-                Series faces stay the locked cards.
               </div>
             ) : null}
           </div>

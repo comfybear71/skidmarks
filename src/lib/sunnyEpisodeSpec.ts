@@ -125,7 +125,75 @@ export type SunnyEpisodeScan = {
   guests: string[];
   unknownPlaces: string[];
   overcastShots: string[];
+  /** Shots with no plate plan — Make must not start. */
+  blockedShots: string[];
+  compositeCount: number;
+  hangPlaceCount: number;
 };
+
+export type SunnyShotPlan = {
+  shot: string;
+  title: string;
+  place: string;
+  onCard: string[];
+  plan: "composite" | "hang-place" | "blocked";
+  blockers: string[];
+};
+
+/** One shot: who is on the card, or hang the place still. Does not draw. */
+export function planSunnyShot(block: string, shotLabel: string): SunnyShotPlan {
+  let title = "";
+  let place = "";
+  const named: string[] = [];
+  for (const line of block.split("\n").map((l) => l.trim()).filter(Boolean)) {
+    const t = line.match(/^Title:\s*(.+)$/i);
+    if (t) {
+      title = t[1].trim();
+      continue;
+    }
+    const p = line.match(/^Place:\s*(.+)$/i);
+    if (p) {
+      place = p[1].trim();
+      continue;
+    }
+    const cast = line.match(/^Cast:\s*(.+)$/i);
+    if (cast) {
+      named.push(...splitSunnyCastField(cast[1]));
+      continue;
+    }
+    const nm = line.match(/^Name:\s*(.+)$/i);
+    if (nm) {
+      named.push(...splitSunnyCastField(nm[1]));
+    }
+  }
+  const onCard: string[] = [];
+  const seen = new Set<string>();
+  for (const n of named) {
+    if (!n || isSunnyExtraName(n)) continue;
+    const k = sunnyNameKey(n);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    onCard.push(n);
+  }
+  const blockers: string[] = [];
+  if (!place) blockers.push("need Place:");
+  if (!onCard.length && !place) blockers.push("need a named person or a place still to hang");
+  const plan: SunnyShotPlan["plan"] = blockers.length
+    ? "blocked"
+    : onCard.length
+      ? "composite"
+      : "hang-place";
+  return { shot: shotLabel, title, place, onCard, plan, blockers };
+}
+
+export function planSunnyEpisodeShots(script: string): SunnyShotPlan[] {
+  const text = String(script || "");
+  const headers = [...text.matchAll(/---\s*SHOT(?:\s+(\d+[A-Za-z]*))?\s*---/gi)];
+  const parts = text.split(/(?:^|\n)---\s*SHOT(?:\s+\d+[A-Za-z]*)?\s*---\s*/im).slice(1);
+  return parts.map((block, i) =>
+    planSunnyShot(block, `SHOT ${headers[i]?.[1] || String(i + 1)}`),
+  );
+}
 
 const SKIP_FIELD = /^(place|title|action|plate|cast|sfx|gag|episode|camera|name):/i;
 
@@ -208,6 +276,7 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
   }
 
   const guests = [...speakers].filter((n) => !isSunnySeriesName(n));
+  const plans = planSunnyEpisodeShots(text);
   return {
     title,
     gag,
@@ -216,6 +285,11 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
     guests,
     unknownPlaces: [],
     overcastShots,
+    blockedShots: plans
+      .filter((p) => p.blockers.length)
+      .map((p) => `${p.shot}${p.title ? ` ${p.title}` : ""}: ${p.blockers.join("; ")}`),
+    compositeCount: plans.filter((p) => p.plan === "composite").length,
+    hangPlaceCount: plans.filter((p) => p.plan === "hang-place").length,
   };
 }
 
@@ -265,6 +339,13 @@ export function sunnyEpisodeGate(opts: {
   }
   if (!scan.places.length) {
     return { ok: false, error: "Need at least one --- SHOT --- with Place:.", scan };
+  }
+  if (scan.blockedShots.length) {
+    return {
+      ok: false,
+      error: `Won't start. ${scan.blockedShots.length} shot${scan.blockedShots.length === 1 ? "" : "s"} have no plate plan: ${scan.blockedShots.join(" · ")}`,
+      scan,
+    };
   }
   const unknownPlaces = scan.places.filter((p) => !matchSunnyPlace(p, opts.shelfPlaces));
   scan.unknownPlaces = unknownPlaces;

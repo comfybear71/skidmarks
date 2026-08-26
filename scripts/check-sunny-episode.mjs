@@ -15,6 +15,8 @@ import {
   sunnyGuestLooksFromScript,
   splitSunnyCastField,
   applySunnyScriptCastToStory,
+  planSunnyShot,
+  planSunnyEpisodeShots,
 } from "../src/lib/sunnyEpisodeSpec.ts";
 import {
   autoPickSunnyTakes,
@@ -284,6 +286,69 @@ Name: Caravan Park Resident 1
 assert.match(patched.scenes[0].shots[0].staging || "", /^Cast:.*Dazza/);
 assert.ok((patched.scenes[0].shots[0].castNames || []).includes("Nuggets"));
 
+const campPlan = planSunnyShot(
+  `Title: The Camp Gathers
+Place: Water Tank District
+Cast: Caravan Park Residents, Dazza, Ranger Bazza, Nuggets
+Name: Caravan Park Resident 1
+`,
+  "SHOT 10",
+);
+assert.equal(campPlan.plan, "composite");
+assert.deepEqual(campPlan.onCard, ["Dazza", "Ranger Bazza", "Nuggets"]);
+assert.equal(campPlan.blockers.length, 0);
+
+const turkeyPlan = planSunnyShot(
+  `Title: Turkey Influx
+Place: Around Bazza’s Golf Cart
+Cast: Bush Turkeys
+Name: Bush Turkeys
+`,
+  "SHOT 27",
+);
+assert.equal(turkeyPlan.plan, "hang-place");
+assert.deepEqual(turkeyPlan.onCard, []);
+
+const laundryPlan = planSunnyShot(
+  `Title: The Fake Alpha Appears
+Place: Edge of the Clearing
+Cast: The Laundry Monster (Shazza and Nan in disguise)
+Name: The Laundry Monster
+`,
+  "SHOT 22",
+);
+assert.equal(laundryPlan.plan, "composite");
+assert.ok(laundryPlan.onCard.includes("Shazza"));
+assert.ok(laundryPlan.onCard.includes("Nan"));
+
+const blockedScript = `EPISODE: Broken
+GAG: No place.
+
+--- SHOT 1 ---
+Title: Oops
+Cast: Dazza
+Name: Dazza
+[tap] "Hi"
+
+--- SHOT 2 ---
+Title: Ok
+Place: Caravan park
+Cast: Dazza
+Name: Dazza
+[tap] "Bye"
+`;
+const blockedGate = sunnyEpisodeGate({
+  brief: "No place.",
+  script: blockedScript,
+  shelfPlaces: shelf,
+});
+assert.equal(blockedGate.ok, false);
+assert.match(blockedGate.error, /no plate plan/i);
+assert.equal(planSunnyEpisodeShots(blockedScript)[0].plan, "blocked");
+assert.ok(dropGate.scan.compositeCount >= 2);
+assert.equal(typeof dropGate.scan.hangPlaceCount, "number");
+assert.deepEqual(dropGate.scan.blockedShots, []);
+
 const scan = scanSunnyEpisodeScript(dropBear);
 assert.equal(scan.title, "2 - Drop Bear Dilemma");
 assert.ok(scan.places.includes("Inside the Metal Cage"));
@@ -301,6 +366,10 @@ assert.match(sunnyCard, /Won't start yet/);
 assert.match(sunnyCard, /Gag and script stay/);
 assert.match(sunnyCard, /No Pick this one/);
 assert.match(sunnyCard, /New names get drawn/);
+assert.match(sunnyCard, /shots have a/);
+assert.match(sunnyCard, /hang the place still/);
+assert.match(readFileSync(join(here, "../src/lib/sunnyEpisodeSpec.ts"), "utf8"), /planSunnyShot/);
+assert.match(readFileSync(join(here, "../src/lib/sunnyEpisodeSpec.ts"), "utf8"), /blockedShots/);
 assert.doesNotMatch(sunnyCard, /What's the vibe\?/);
 assert.doesNotMatch(sunnyCard, /Nothing auto-saves/);
 assert.doesNotMatch(sunnyCard, /Not a block/);
