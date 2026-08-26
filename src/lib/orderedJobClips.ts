@@ -1,8 +1,16 @@
 /**
  * Finished mp4s in song / plate order, with human zip names.
- * TRACK hang order wins. Scratch pad falls back to the clip list.
+ * TRACK hang order wins. Episode uses story shot order.
+ * Scratch pad falls back to the clip list.
  */
-import { clipFileBasename, humanOrderedClipName, stackedClipFiles } from "./mobilePlateClips";
+import type { CrashStoryDoc } from "./crashStoryTypes";
+import {
+  clipFileBasename,
+  clipsUnderPlate,
+  humanMediaSlug,
+  humanOrderedClipName,
+  stackedClipFiles,
+} from "./mobilePlateClips";
 import type { MobileGenJob } from "./mobileGenJob";
 import { sortPlateTimings } from "./musicVideoTrack";
 
@@ -30,7 +38,20 @@ export function hungClipFileForPlate(
   return clipFileBasename(fromClip?.clipFile || "");
 }
 
-export function orderedJobClips(job: MobileGenJob): OrderedJobClip[] {
+function shotTitleFromStory(story: CrashStoryDoc | null | undefined, shotId: string): string {
+  const id = (shotId || "").trim();
+  if (!story || !id) return "";
+  for (const scene of story.scenes) {
+    const shot = scene.shots.find((sh) => sh.id === id);
+    if (shot) return (shot.title || "").trim();
+  }
+  return "";
+}
+
+export function orderedJobClips(
+  job: MobileGenJob,
+  story?: CrashStoryDoc | null,
+): OrderedJobClip[] {
   const seen = new Set<string>();
   const out: OrderedJobClip[] = [];
   const title = (job.songTitle || "").trim();
@@ -46,7 +67,7 @@ export function orderedJobClips(job: MobileGenJob): OrderedJobClip[] {
       zipName: humanOrderedClipName({
         index: out.length + 1,
         speaker: speaker || "clip",
-        title: label || title,
+        title: label || shotTitleFromStory(story, shotId) || title,
       }),
       shotId,
       speaker: speaker || "",
@@ -66,6 +87,17 @@ export function orderedJobClips(job: MobileGenJob): OrderedJobClip[] {
       const clip = (job.clips || []).find((c) => clipFileBasename(c.clipFile || "") === clipFileBasename(cut.clipFile || ""));
       push(cut.clipFile, clip?.speaker || "", cut.shotId || "");
     }
+  } else if (story?.scenes?.length) {
+    for (const scene of story.scenes) {
+      for (const shot of scene.shots) {
+        const beatIds = shot.beats.map((b) => b.id);
+        for (const clip of clipsUnderPlate(shot.id, beatIds, job.clips || [])) {
+          for (const file of stackedClipFiles(clip)) {
+            push(file, clip.speaker || "", clip.shotId, shot.title);
+          }
+        }
+      }
+    }
   }
 
   for (const clip of job.clips || []) {
@@ -77,12 +109,9 @@ export function orderedJobClips(job: MobileGenJob): OrderedJobClip[] {
   return out;
 }
 
-export function clipsZipFileName(job: Pick<MobileGenJob, "songTitle" | "id">): string {
-  const slug = (job.songTitle || job.id || "clips")
-    .trim()
-    .replace(/['’]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 48);
+export function clipsZipFileName(
+  job: Pick<MobileGenJob, "songTitle" | "folderName" | "id">,
+): string {
+  const slug = humanMediaSlug(job.songTitle || job.folderName || job.id || "clips");
   return `${slug || "clips"}_clips.zip`;
 }

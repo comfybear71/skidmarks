@@ -10,6 +10,8 @@ import {
   mobileCard,
 } from "./MobileUi";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsForStillsDesk, clipsUnderPlate } from "./PlateClipThumbs";
+import { stackedClipFiles } from "@/lib/mobilePlateClips";
+import { orderedJobClips } from "@/lib/orderedJobClips";
 import { useMobileAssist } from "./useMobileAssist";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
 import { PositionPromptPanel, LtxImageMotionPanel } from "@/components/mobile/ShotPromptPanels";
@@ -235,6 +237,7 @@ export function PlateReviewEditor({
   const [clipBusy, setClipBusy] = useState(false);
   const [clipsOpen, setClipsOpen] = useState(false);
   const [stillsStripOpen, setStillsStripOpen] = useState(false);
+  const clipsAutoOpened = useRef(false);
 
   const shots = episodeJobShots(job, story);
   const shotIdsKey = shots.map((s) => s.shotId).join("\0");
@@ -331,6 +334,19 @@ export function PlateReviewEditor({
     // displayShot closes over story + shots; list those rather than the fn.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- displayShot is local
   }, [openShotId, shots, story, job]);
+
+  const zipClips = useMemo(() => orderedJobClips(job, story), [job, story]);
+  const zipHref = zipClips.length
+    ? `/api/crash/mobile/clips/zip?jobId=${encodeURIComponent(job.id)}`
+    : "";
+
+  useEffect(() => {
+    if (clipsAutoOpened.current) return;
+    const hasFile = plateClipRail.clips.some((c) => stackedClipFiles(c).length > 0);
+    if (!hasFile) return;
+    clipsAutoOpened.current = true;
+    setClipsOpen(true);
+  }, [plateClipRail.clips]);
 
   function defaultSceneId(): string | null {
     const known = (id: string | undefined): string | null => {
@@ -871,13 +887,32 @@ export function PlateReviewEditor({
       </DeskFold>
       )}
 
-      {!collapsed && isMusicVideoSongJob(job) && plateClipRail.clips.length ? (
+      {!collapsed && zipClips.length ? (
         <DeskFold
           label="Clips"
-          count={plateClipRail.clips.length}
+          count={zipClips.length}
           open={clipsOpen}
           onToggle={() => setClipsOpen((v) => !v)}
         >
+          {zipHref ? (
+            <div style={{ margin: "0 2px 8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+              <a
+                href={zipHref}
+                download
+                style={{
+                  color: "var(--acid)",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                }}
+              >
+                Download clips zip
+              </a>
+              <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
+                Shot order, named 01_Who_Shot_title.mp4. Not a stitch.
+              </div>
+            </div>
+          ) : null}
           <div className="m-plate-clips-bleed">
             {plateClipRail.focusLabel ? (
               <span className="m-plate-clips-bleed-focus">{plateClipRail.focusLabel}</span>

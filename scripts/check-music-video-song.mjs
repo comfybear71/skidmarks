@@ -479,6 +479,12 @@ assert.doesNotMatch(songUi, /ol className="scratch-song-cuts"/);
 assert.match(songUi, /cutsOpen/, "song cuts fold away");
 assert.match(songUi, /<DeskFold/, "song cuts use the same desk fold");
 assert.match(editor, /label="Stills"/, "stills strip folds on every style");
-assert.match(editor, /label="Clips"/, "clips rail folds on music video");
+assert.match(editor, /label="Clips"/, "clips rail folds on every style");
+assert.match(editor, /Download clips zip/, "clips fold can zip the episode");
+assert.doesNotMatch(
+  editor,
+  /isMusicVideoSongJob\(job\) && plateClipRail/,
+  "clips fold is not music-video only",
+);
 
 console.log("check-music-video-song: ok");

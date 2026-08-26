@@ -35,6 +35,7 @@ import {
   sunnyAutoResumeFromStaleError,
   sunnyStepIsLocked,
 } from "../src/lib/sunnyEpisodeCook.ts";
+import { clipsZipFileName, orderedJobClips } from "../src/lib/orderedJobClips.ts";
 import {
   isStudioReachError,
   studioFetchError,
@@ -421,6 +422,58 @@ assert.match(
   /sunnyAutoKeepsFailedProof/,
 );
 assert.match(readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8"), /WAIT\. Cooking the episode/);
+assert.match(
+  readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8"),
+  /label="Clips"/,
+);
+assert.match(
+  readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8"),
+  /Download clips zip/,
+);
+{
+  const episodeJob = {
+    id: "mgen_test",
+    songTitle: "",
+    folderName: "2 - Drop Bear Dilemma 69_v3m",
+    clips: [
+      {
+        beatId: "b2",
+        shotId: "s2",
+        sceneId: "sc1",
+        clipFile: "ltx_b.mp4",
+        clipStatus: "done",
+        error: "",
+        speaker: "Dazza",
+      },
+      {
+        beatId: "b1",
+        shotId: "s1",
+        sceneId: "sc1",
+        clipFile: "ltx_a.mp4",
+        clipStatus: "done",
+        error: "",
+        speaker: "Ranger Bazza",
+      },
+    ],
+    scratchSong: null,
+    trackDraft: null,
+  };
+  const episodeStory = {
+    scenes: [
+      {
+        id: "sc1",
+        shots: [
+          { id: "s1", title: "The Megaphone Announcement", beats: [{ id: "b1" }] },
+          { id: "s2", title: "Threat from Above", beats: [{ id: "b2" }] },
+        ],
+      },
+    ],
+  };
+  const ordered = orderedJobClips(episodeJob, episodeStory);
+  assert.equal(ordered[0].zipName, "01_Ranger_Bazza_The_Megaphone_Announcement.mp4");
+  assert.equal(ordered[1].zipName, "02_Dazza_Threat_from_Above.mp4");
+  assert.equal(clipsZipFileName(episodeJob), "2_Drop_Bear_Dilemma_69_v3m_clips.zip");
+}
 assert.match(mPage, /getMobileJob/);
 assert.match(mPage, /isStudioReachError/);
 assert.match(mPage, /Do not stopPoll/);
