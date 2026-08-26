@@ -696,6 +696,10 @@ assert.match(zipRoute, /direction\.pdf/);
 assert.match(zipRoute, /buildDirectionPdf/);
 {
   const talk = readFileSync(join(here, "../src/components/mobile/TalkTimeline.tsx"), "utf8");
+  const talkCss = readFileSync(join(here, "../src/app/(mobile)/m/mobile.css"), "utf8");
+  assert.match(talkCss, /\.m-talk-acts \{[\s\S]*?flex-wrap:\s*nowrap/);
+  assert.match(talkCss, /\.m-talk-acts \{[\s\S]*?overflow-x:\s*auto/);
+  assert.match(talkCss, /\.m-talk-acts \{[\s\S]*?touch-action:\s*pan-x pan-y/);
   const beatAudio = readFileSync(
     join(here, "../src/app/api/crash/mobile/beat-audio/route.ts"),
     "utf8",

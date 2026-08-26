@@ -3650,9 +3650,26 @@ span.scratch-history-blob {
 
 .m-talk-acts {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   margin: 8px 0 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* /m scrolls the window — a vertical flick must still move the page. */
+  touch-action: pan-x pan-y;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.m-talk-acts::-webkit-scrollbar {
+  display: none;
+}
+
+.m-talk-acts > button,
+.m-talk-acts > .m-talk-template-link {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .m-talk-act-count {
@@ -3663,7 +3680,7 @@ span.scratch-history-blob {
 }
 
 .m-talk-template-link {
-  margin-left: auto;
+  margin-left: 4px;
 }
 
 .m-talk-doc-chips {
