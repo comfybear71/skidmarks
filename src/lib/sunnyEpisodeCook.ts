@@ -10,6 +10,7 @@ import { nextUnplatedEpisodeShot, shotHasPlate } from "./mobilePlateGraph";
 import { episodeJobShots } from "./mobileScratch";
 import { rebuildShotPlate } from "./mobilePlateRebuild";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
+import { ensureSunnyHoldAudio } from "./sunnyHoldAudio";
 import { isSunnyExtraName, isSunnySeriesName } from "./sunnyEpisodeSpec";
 import {
   generateSunnyGuestFace,
@@ -198,7 +199,13 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
     }
   }
 
-  const unvoiced = nextUnvoicedBeat(story);
+  const held = await ensureSunnyHoldAudio(job, story);
+  if (held.wrote) {
+    await writeMobileStory(held.story, job.folderName);
+  }
+  const liveStory = held.story;
+
+  const unvoiced = nextUnvoicedBeat(liveStory);
   if (unvoiced) {
     try {
       const result = await synthesizeStoryBeat({
@@ -208,8 +215,8 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
         text: unvoiced.text,
       });
       const voiced = {
-        ...story,
-        scenes: story.scenes.map((sc) => ({
+        ...liveStory,
+        scenes: liveStory.scenes.map((sc) => ({
           ...sc,
           shots: sc.shots.map((sh) => ({
             ...sh,
@@ -232,7 +239,7 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
     }
   }
 
-  const fresh = await readMobileStory(job.styleId, job.folderName);
+  const fresh = held.wrote ? liveStory : await readMobileStory(job.styleId, job.folderName);
   const clips = mergeClipsFromStory(job, fresh, { requeueSaved: false });
   const pending = clips.filter((c) => c.clipStatus === "pending" && c.voiceFile?.trim());
   if (!pending.length) {

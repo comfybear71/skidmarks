@@ -4,6 +4,7 @@ import { isSupportShot } from "./stockFootage";
 import type { MobileClipUnit, MobileGenJob } from "./mobileGenJob";
 import { clipFileBasename, stackedClipFiles } from "./mobilePlateClips";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
+import { isSunnyHoldBeat } from "./sunnyHoldAudio";
 import { voiceNamesMatch } from "./voiceNameMatch";
 
 type ClipQueueRow = Pick<MobileClipUnit, "beatId" | "shotId" | "clipStatus" | "clipFile">;
@@ -14,7 +15,7 @@ export function findBeatHome(story: CrashStoryDoc, beatId: string): {
   speaker: string;
   text: string;
   voiceFile: string;
-  kind?: "cutaway";
+  kind?: "cutaway" | "hold";
 } | null {
   for (const sc of story.scenes) {
     for (const sh of sc.shots) {
@@ -67,12 +68,22 @@ export function queueableStoryBeats(
       if (!shotIds.has(sh.id)) continue;
       if (isSupportShot(sh)) continue;
       for (const b of sh.beats) {
-        if (!b.speaker.trim()) continue;
         if (leftoverHydrateBeat(sh.id, b.id)) continue;
-        if (!speakerOnJob(job.speakers, b.speaker)) continue;
         const voiceFile = b.voiceFile || "";
-        if (!voiceFile.trim()) continue;
-        if (isLeftoverPackVoiceFile(voiceFile)) continue;
+        if (!voiceFile.trim() || isLeftoverPackVoiceFile(voiceFile)) continue;
+        if (isSunnyHoldBeat(b)) {
+          out.push({
+            beatId: b.id,
+            shotId: sh.id,
+            sceneId: sc.id,
+            speaker: b.speaker.trim() || sh.title || "Hold",
+            line: "",
+            voiceFile,
+          });
+          continue;
+        }
+        if (!b.speaker.trim()) continue;
+        if (!speakerOnJob(job.speakers, b.speaker)) continue;
         if (!b.text.trim()) continue;
         out.push({
           beatId: b.id,

@@ -11,8 +11,12 @@ import { resolveFfmpeg } from "./mobileStitch";
  * animate a hold shot without *some* mp3 — this generates a short silence to
  * feed it, the same way a real line's mp3 would be.
  */
-export function writeSilentMp3(destPath: string, seconds = 3): boolean {
-  if (fs.existsSync(destPath)) return true;
+export function writeSilentMp3(
+  destPath: string,
+  seconds = 3,
+  opts?: { overwrite?: boolean },
+): boolean {
+  if (fs.existsSync(destPath) && !opts?.overwrite) return true;
   const { bin } = resolveFfmpeg();
   const ffmpeg = bin || "ffmpeg";
   fs.mkdirSync(path.dirname(destPath), { recursive: true });

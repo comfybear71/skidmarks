@@ -36,6 +36,8 @@ import {
   sunnyStepIsLocked,
 } from "../src/lib/sunnyEpisodeCook.ts";
 import { clipsZipFileName, orderedJobClips } from "../src/lib/orderedJobClips.ts";
+import { isSunnyHoldBeat, sunnyShotNeedsHold, SUNNY_HOLD_SEC } from "../src/lib/sunnyHoldAudio.ts";
+import { queueableStoryBeats } from "../src/lib/mobileClipQueue.ts";
 import {
   isStudioReachError,
   studioFetchError,
@@ -473,6 +475,57 @@ assert.match(
   assert.equal(ordered[0].zipName, "01_Ranger_Bazza_The_Megaphone_Announcement.mp4");
   assert.equal(ordered[1].zipName, "02_Dazza_Threat_from_Above.mp4");
   assert.equal(clipsZipFileName(episodeJob), "2_Drop_Bear_Dilemma_69_v3m_clips.zip");
+}
+assert.equal(SUNNY_HOLD_SEC >= 5 && SUNNY_HOLD_SEC <= 10, true);
+assert.equal(isSunnyHoldBeat({ speaker: "", text: "", voiceFile: "beat_hold.mp3" }), true);
+assert.equal(
+  isSunnyHoldBeat({
+    speaker: "Caravan Park Resident 1",
+    text: "Look at the teeth",
+    voiceFile: "beat_res.mp3",
+    kind: "hold",
+  }),
+  true,
+);
+assert.equal(
+  isSunnyHoldBeat({
+    speaker: "Ranger Bazza",
+    text: "Attention residents",
+    voiceFile: "01_01_Ranger_Bazza_line_mtaj6e9h.mp3",
+  }),
+  false,
+);
+assert.equal(
+  sunnyShotNeedsHold({
+    id: "shot_x",
+    title: "Turkey Influx",
+    beats: [{ id: "b", speaker: "", text: "", voiceFile: "" }],
+  }),
+  true,
+);
+{
+  const holdStory = {
+    scenes: [
+      {
+        id: "sc1",
+        shots: [
+          {
+            id: "shot_hold",
+            title: "Turkey Influx",
+            beats: [{ id: "beat_hold", speaker: "", text: "", voiceFile: "beat_hold.mp3", kind: "hold" }],
+          },
+        ],
+      },
+    ],
+  };
+  const holdJob = {
+    shots: [{ shotId: "shot_hold", sceneId: "sc1", plateFile: "cplate.png" }],
+    speakers: ["Ranger Bazza"],
+  };
+  const queued = queueableStoryBeats(holdStory, holdJob);
+  assert.equal(queued.length, 1);
+  assert.equal(queued[0].line, "");
+  assert.equal(queued[0].voiceFile, "beat_hold.mp3");
 }
 assert.match(mPage, /getMobileJob/);
 assert.match(mPage, /isStudioReachError/);
