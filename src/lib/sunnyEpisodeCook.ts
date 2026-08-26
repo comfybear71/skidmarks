@@ -23,7 +23,7 @@ import {
 } from "./sunnyEpisodeSeed";
 import { approvedCandidateFileName } from "./mobileJobReady";
 
-export function isSunnyAutoJob(job: Pick<MobileGenJob, "styleId" | "sunnyAuto">): boolean {
+export function isSunnyAutoJob(job: { styleId: string; sunnyAuto?: boolean }): boolean {
   return job.styleId === "sunny_banks" && Boolean(job.sunnyAuto);
 }
 
