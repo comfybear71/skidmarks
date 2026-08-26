@@ -53,6 +53,7 @@ import {
   STUDIO_STILL_THERE,
   STUDIO_TIMED_OUT,
 } from "../src/lib/studioFetchError.ts";
+import { sunnyAutoShouldContinue } from "../src/lib/sunnyAutoContinue.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const mPage = readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8");
@@ -612,6 +613,24 @@ assert.equal(
 assert.match(mPage, /getMobileJob/);
 assert.match(mPage, /isStudioReachError/);
 assert.match(mPage, /Do not stopPoll/);
+assert.match(mPage, /visibilitychange/);
+assert.match(mPage, /pageHidden/);
+assert.equal(
+  sunnyAutoShouldContinue({ styleId: "sunny_banks", sunnyAuto: true, phase: "animate" }),
+  true,
+);
+assert.equal(
+  sunnyAutoShouldContinue({ styleId: "sunny_banks", sunnyAuto: true, phase: "review" }),
+  false,
+);
+{
+  const stepRoute = readFileSync(
+    join(here, "../src/app/api/crash/mobile/step/route.ts"),
+    "utf8",
+  );
+  assert.match(stepRoute, /continueSunnyAutoAfterResponse/);
+  assert.match(stepRoute, /after\(/);
+}
 assert.equal(isStudioReachError(new TypeError("Failed to fetch")), true);
 assert.equal(isStudioReachError(new Error(STUDIO_STILL_THERE)), true);
 assert.equal(isStudioReachError(new Error(STUDIO_TIMED_OUT)), true);

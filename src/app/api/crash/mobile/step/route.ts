@@ -1,5 +1,6 @@
 import path from "path";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { sunnyAutoShouldContinue } from "@/lib/sunnyAutoContinue";
 import { assignReusedVoice } from "@/lib/mobileVoiceReuse";
 import { hydrateMobilePackOnDisk, readMobileStory } from "@/lib/mobileStoryStore";
 import { uploadMobileMedia, resolveMobileMedia } from "@/lib/mobileMediaStore";
@@ -50,6 +51,31 @@ import {
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
+
+/** Keep Make walking after the phone leaves /m. Cookie so Studio auth still passes. */
+function continueSunnyAutoAfterResponse(
+  req: Request,
+  job: { id: string; styleId: string; sunnyAuto?: boolean; phase: string },
+  advanced: boolean,
+): void {
+  if (!advanced || !sunnyAutoShouldContinue(job)) return;
+  const cookie = req.headers.get("cookie") || "";
+  const url = new URL("/api/crash/mobile/step", req.url);
+  after(async () => {
+    try {
+      await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({ jobId: job.id }),
+      });
+    } catch {
+      /* next phone poll picks it up */
+    }
+  });
+}
 
 async function ensureComfyReady(): Promise<string> {
   // runLtxSmoke checks preferComfyCloudLtx() first and, when true, goes
@@ -171,6 +197,7 @@ export async function POST(req: Request) {
             job = (await patchMobileGenJob(jobId, { sunnyStepUntil: "" })) || job;
           }
         }
+        continueSunnyAutoAfterResponse(req, job, true);
         return NextResponse.json({
           ok: !job.error,
           job,
@@ -568,6 +595,7 @@ export async function POST(req: Request) {
       } finally {
         dropTailStill(tailStillPath);
       }
+      continueSunnyAutoAfterResponse(req, job, true);
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 

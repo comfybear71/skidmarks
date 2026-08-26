@@ -133,7 +133,9 @@ export default function MobileHomePage() {
       if (inFlight) return;
       inFlight = true;
       try {
-        if (Date.now() < reachHoldUntil) {
+        const pageHidden =
+          typeof document !== "undefined" && document.visibilityState === "hidden";
+        if (pageHidden || Date.now() < reachHoldUntil) {
           const live = await getMobileJob(job.id);
           if (live) applyJob(live);
           return;
@@ -155,17 +157,28 @@ export default function MobileHomePage() {
         } catch {
           /* GET also failed — keep the episode on screen */
         }
-        setError(studioFetchError(e, "Step failed"));
+        // Leaving /m or opening CAST aborts the POST. Same episode. Do not
+        // paint "Couldn't reach Studio" on the other screen.
+        if (!isStudioReachError(e)) {
+          setError(studioFetchError(e, "Step failed"));
+        }
         // Do not stopPoll — a dropped POST is not a deleted episode.
       } finally {
         inFlight = false;
       }
     };
+    const onVis = () => {
+      if (document.visibilityState === "visible") void tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
     void tick();
     pollRef.current = window.setInterval(() => {
       void tick();
     }, 1500);
-    return stopPoll;
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      stopPoll();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.phase, job?.id, pollNonce]);
 
@@ -1113,7 +1126,7 @@ export default function MobileHomePage() {
           job={job}
           characterIds={characterIds}
           busy={busy}
-          error={error}
+          error={isStudioReachError(error) ? "" : error}
           lockingScript={lockingScript}
           onGenerateCast={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
           onApproveCast={(name, candidateId) => approveCandidate("cast", name, candidateId)}
