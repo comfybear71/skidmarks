@@ -908,7 +908,7 @@ export default function MobileHomePage() {
           <OpenEpisodePicker
             deskId={DEFAULT_DESK_ID}
             activeJobId={job?.id}
-            styleId={job ? undefined : styleId}
+            styleId={job?.styleId || styleId}
             open={pickerOpen || !job || showResumeFail}
             onOpenChange={setPickerOpen}
             onOpen={(id) => void openEpisode(id)}
