@@ -33,6 +33,13 @@ export function sunnyAutoKeepsFailedProof(opts: {
   return opts.qaOk === false;
 }
 
+/** Live old Make still throws this. A blank error phase is a wiped stamp. Keep cooking. */
+export function sunnyAutoResumeFromStaleError(error: string, phase?: string): boolean {
+  const err = String(error || "").trim();
+  if (phase === "error" && !err) return true;
+  return /shot has no cast to composite/i.test(err);
+}
+
 function nextUnvoicedBeat(story: Awaited<ReturnType<typeof readMobileStory>>) {
   for (const scene of story.scenes) {
     for (const shot of scene.shots) {
@@ -50,6 +57,10 @@ function nextUnvoicedBeat(story: Awaited<ReturnType<typeof readMobileStory>>) {
 }
 
 export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob> {
+  if (sunnyAutoResumeFromStaleError(job.error, job.phase)) {
+    const cleared = await patchMobileGenJob(job.id, { phase: "plates", error: "" });
+    if (cleared) job = cleared;
+  }
   if (!job.folderName) {
     return (
       (await patchMobileGenJob(job.id, {

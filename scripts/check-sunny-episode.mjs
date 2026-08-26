@@ -30,7 +30,10 @@ import {
   buildDirectionPdf,
   directionLinesFromStory,
 } from "../src/lib/episodeDirectionPdf.ts";
-import { sunnyAutoKeepsFailedProof } from "../src/lib/sunnyEpisodeCook.ts";
+import {
+  sunnyAutoKeepsFailedProof,
+  sunnyAutoResumeFromStaleError,
+} from "../src/lib/sunnyEpisodeCook.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const mPage = readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8");
@@ -395,6 +398,9 @@ assert.equal(
 );
 assert.equal(sunnyAutoKeepsFailedProof({ plateFile: "", qaOk: false }), false);
 assert.equal(sunnyAutoKeepsFailedProof({ plateFile: "__error__", qaOk: false }), false);
+assert.equal(sunnyAutoResumeFromStaleError("Shot has no cast to composite", "error"), true);
+assert.equal(sunnyAutoResumeFromStaleError("", "error"), true);
+assert.equal(sunnyAutoResumeFromStaleError("Missing SIRAY_API_KEY", "error"), false);
 assert.match(
   readFileSync(join(here, "../src/lib/sunnyEpisodeCook.ts"), "utf8"),
   /sunnyAutoKeepsFailedProof/,
