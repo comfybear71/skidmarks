@@ -83,9 +83,53 @@ function takesForSpeaker(
   return faceCandidateTakes(hit?.[1]);
 }
 
+/** The Aug 20 series lock — not a later Make that copied old shelf thumbs. */
+export function isSunnySeriesLockJob(job: {
+  folderName?: string;
+  prompt?: string;
+}): boolean {
+  return /EP02\s*DROP\s*BEAR/i.test(`${job.folderName || ""} ${job.prompt || ""}`);
+}
+
+export type SunnyJobFace = {
+  fileName: string;
+  look: string;
+  seriesLock: boolean;
+};
+
 /**
- * Series faces: show shelf first, then the latest Sunny Banks job that
- * already has that person picked (the updated EP02 cards). Never a
+ * Updated EP02 faces beat the Aug 13 shelf. A later Make that copied
+ * those old thumbs does not become the new series. Never a plate_{slug} sheet.
+ */
+export function pickSunnySeriesFace(opts: {
+  name: string;
+  shelf: ReusableCastCard | null;
+  jobFaces: SunnyJobFace[];
+}): ReusableCastCard | null {
+  const lock = opts.jobFaces.find((f) => f.seriesLock && f.fileName.trim());
+  if (lock) {
+    return {
+      name: opts.name,
+      fileName: lock.fileName,
+      look: usableLook(lock.look, opts.name),
+    };
+  }
+  const later = opts.jobFaces.find(
+    (f) => f.fileName.trim() && f.fileName !== (opts.shelf?.fileName || ""),
+  );
+  if (later) {
+    return {
+      name: opts.name,
+      fileName: later.fileName,
+      look: usableLook(later.look, opts.name),
+    };
+  }
+  return opts.shelf;
+}
+
+/**
+ * Series faces: EP02 DROP BEAR lock first, then another Sunny job
+ * face that is not the old shelf thumb, then the shelf. Never a
  * plate_{slug} turnaround sheet.
  */
 export async function findSunnyReusableFaces(
@@ -94,26 +138,31 @@ export async function findSunnyReusableFaces(
 ): Promise<Record<string, ReusableCastCard>> {
   const wanted = [...new Set([...speakers, ...SUNNY_SERIES_NAMES].map((s) => s.trim()).filter(Boolean))];
   const fromShelf = wanted.length ? await findReusableCastCards("sunny_banks", wanted) : {};
-  const missing = wanted.filter((name) => !fromShelf[name]);
-  if (!missing.length) return fromShelf;
-
-  const jobs = await listMobileGenJobs(deskId).catch(() => []);
-  const sunny = jobs.filter((j) => j.styleId === "sunny_banks");
-  for (const job of sunny) {
-    for (const name of missing) {
-      if (fromShelf[name]) continue;
+  const jobs = (await listMobileGenJobs(deskId).catch(() => [])).filter(
+    (j) => j.styleId === "sunny_banks",
+  );
+  const out: Record<string, ReusableCastCard> = {};
+  for (const name of wanted) {
+    const jobFaces: SunnyJobFace[] = [];
+    for (const job of jobs) {
       const approved = takesForSpeaker(job.castCandidates, name).find(
         (c) => c.approved && c.fileName.trim(),
       );
       if (!approved) continue;
-      fromShelf[name] = {
-        name,
+      jobFaces.push({
         fileName: approved.fileName,
-        look: usableLook(approved.prompt || "", name),
-      };
+        look: approved.prompt || "",
+        seriesLock: isSunnySeriesLockJob(job),
+      });
     }
+    const picked = pickSunnySeriesFace({
+      name,
+      shelf: fromShelf[name] || null,
+      jobFaces,
+    });
+    if (picked) out[name] = picked;
   }
-  return fromShelf;
+  return out;
 }
 
 /** Approve the last face/place take when a Sunny row already has stills and nobody picked. */
