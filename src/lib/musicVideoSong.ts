@@ -394,6 +394,92 @@ export function songCutTallyLine(tally: SongCutTally): string {
   return bits.join(" · ");
 }
 
+export type SongCookAlertKind = "ok" | "cooking" | "failed" | "stuck";
+
+export type SongCookAlert = {
+  kind: SongCookAlertKind;
+  title: string;
+  detail: string;
+  /** Stable id so we only ping once per fail set. */
+  fingerprint: string;
+  short: string;
+};
+
+/** Cuts that already failed — never hide these behind “it keeps going”. */
+export function failedSongCuts<T extends Pick<ScratchSongCut, "status">>(cuts: T[] = []): T[] {
+  return cuts.filter((c) => c.status === "error");
+}
+
+/**
+ * What the phone should shout about this cook.
+ * Fail always wins. “You can leave — it keeps going” is only when this
+ * phone is still driving and nothing has failed.
+ */
+export function songCookAlert(
+  cuts: Pick<ScratchSongCut, "id" | "status" | "error" | "clipFile">[] = [],
+  opts?: { cooking?: boolean },
+): SongCookAlert {
+  const cooking = Boolean(opts?.cooking);
+  const tally = tallySongCuts(cuts);
+  const short = songCutTallyLine(tally);
+  const failed = cuts
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => c.status === "error");
+  const stillGoing = tally.parked + tally.cooking > 0;
+
+  if (failed.length) {
+    const first = failed[0]!;
+    const n = first.i + 1;
+    const err = (first.c.error || "").trim() || "That clip failed.";
+    const extra = failed.length > 1 ? ` (+${failed.length - 1} more)` : "";
+    return {
+      kind: "failed",
+      title: stillGoing
+        ? `Clip ${n} failed — others still going`
+        : `Clip ${n} failed — cook stopped`,
+      detail: `${err}${extra}`,
+      fingerprint: failed.map(({ c }) => `${c.id}:${(c.error || "").trim()}`).join("|"),
+      short,
+    };
+  }
+
+  if (hasStuckSongCook(cuts) && !cooking) {
+    return {
+      kind: "stuck",
+      title: "A clip is stuck",
+      detail:
+        "It sat too long with no file. Tap Stop, then Generate again — don't Start directing.",
+      fingerprint:
+        cuts
+          .filter((c) => c.status === "running" && !(c.clipFile || "").trim())
+          .map((c) => (c.id || "").trim())
+          .filter(Boolean)
+          .join("|") || "stuck",
+      short,
+    };
+  }
+
+  if (cooking) {
+    return {
+      kind: "cooking",
+      title: tally.total
+        ? `Still on a clip (${tally.done}/${tally.total})`
+        : "Still on a clip",
+      detail: "You can leave — it keeps going.",
+      fingerprint: "cooking",
+      short,
+    };
+  }
+
+  return { kind: "ok", title: "", detail: "", fingerprint: "", short };
+}
+
+export function songCookNote(alert: SongCookAlert): string {
+  if (alert.kind === "ok") return "";
+  if (alert.kind === "cooking") return `${alert.title}. ${alert.detail}`;
+  return [alert.title, alert.detail].filter(Boolean).join(" — ");
+}
+
 export const MUSIC_VIDEO_SLICE_DEFAULT = 1;
 export const MUSIC_VIDEO_SLICE_MAX = 16;
 

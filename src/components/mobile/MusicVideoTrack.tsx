@@ -64,6 +64,8 @@ import {
   stockLookIsOn,
   type StockLook,
 } from "@/lib/stockLook";
+import { songCookFlagOn } from "@/lib/songCutCook";
+import { SongCookAlertBanner } from "./SongCookAlertBanner";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
 const TRACK_WAVE_HEIGHT = 78;
@@ -1047,6 +1049,10 @@ export function MusicVideoTrack({
       <>
           {/* Title line owns the card: name left, Lyrics and drop right.
               Lyrics stay shut — that box is for entering them, not reading. */}
+          <SongCookAlertBanner
+            cuts={song?.cuts || []}
+            cooking={songCookFlagOn(job.id)}
+          />
           <div className="m-track-song-top">
             <span className="m-track-song-name">
               {musicVideoCreditLine(job) || songChipName(song?.fileName || parked?.file.name || "")}

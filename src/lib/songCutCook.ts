@@ -6,6 +6,69 @@
 import { readApiJson } from "./studioFetchError";
 import type { MobileGenJob } from "./mobileGenJob";
 import type { ScratchSongCut } from "./scratchSongWindow";
+import { songCookAlert, songCookNote, type SongCookAlert } from "./musicVideoSong";
+
+const SONG_COOK_PAGE_TITLE = "Skidmarks — Vibe Director";
+const pingedAlerts = new Set<string>();
+
+/** Ask once when they tap Generate — needed before we can ping the phone. */
+export function askSongCookNotifyPermission(): void {
+  if (typeof window === "undefined" || typeof Notification === "undefined") return;
+  if (Notification.permission === "default") {
+    void Notification.requestPermission();
+  }
+}
+
+export function restoreSongCookTitle(): void {
+  if (typeof document === "undefined") return;
+  if (document.title.startsWith("FAIL ·") || document.title.startsWith("STUCK ·")) {
+    document.title = SONG_COOK_PAGE_TITLE;
+  }
+}
+
+/** Tab title + phone notification when a clip fails or the cook is stuck. */
+export function notifySongCookProblem(alert: SongCookAlert): void {
+  if (typeof window === "undefined") return;
+  if (alert.kind !== "failed" && alert.kind !== "stuck") {
+    restoreSongCookTitle();
+    return;
+  }
+  document.title = `${alert.kind === "failed" ? "FAIL" : "STUCK"} · ${alert.short}`;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  const key = `skidmarks.songCookPing.${alert.fingerprint}`;
+  if (pingedAlerts.has(key)) return;
+  try {
+    if (window.sessionStorage.getItem(key) === "1") {
+      pingedAlerts.add(key);
+      return;
+    }
+    window.sessionStorage.setItem(key, "1");
+  } catch {
+    /* private mode — still ping once this session */
+  }
+  pingedAlerts.add(key);
+  try {
+    new Notification(alert.title, {
+      body: alert.detail || alert.short,
+      tag: alert.fingerprint,
+    });
+  } catch {
+    /* unsupported */
+  }
+}
+
+function pushCookStatus(
+  opts: { onNote?: (msg: string) => void },
+  cuts: Pick<ScratchSongCut, "id" | "status" | "error" | "clipFile">[],
+  extra?: { cooking?: boolean },
+): SongCookAlert {
+  const alert = songCookAlert(cuts, { cooking: extra?.cooking ?? true });
+  if (alert.kind === "failed" || alert.kind === "stuck") {
+    notifySongCookProblem(alert);
+  }
+  opts.onNote?.(songCookNote(alert));
+  return alert;
+}
 
 /** How long we wait for a cut that is actually running on the server. */
 export const SONG_COOK_MS_PER_CUT = 720_000;
@@ -123,7 +186,14 @@ export async function cookPendingSongCuts(opts: {
       live = opts.getJob() || live;
       const pending = pendingSongCuts(live);
       if (!pending.length) {
-        opts.onNote?.("");
+        const doneCuts = live?.scratchSong?.cuts || [];
+        const doneAlert = songCookAlert(doneCuts, { cooking: false });
+        if (doneAlert.kind === "failed" || doneAlert.kind === "stuck") {
+          notifySongCookProblem(doneAlert);
+          opts.onNote?.(songCookNote(doneAlert));
+        } else {
+          opts.onNote?.("");
+        }
         return live;
       }
       const cut = pending.find((c) => c.status === "running") || pending[0]!;
@@ -146,13 +216,7 @@ export async function cookPendingSongCuts(opts: {
           }
         }
       } else {
-        const doneN = (live?.scratchSong?.cuts || []).filter((c) => c.status === "done").length;
-        const total = (live?.scratchSong?.cuts || []).length;
-        opts.onNote?.(
-          total
-            ? `Still on a clip (${doneN}/${total}). You can leave — it keeps going.`
-            : "Still on a clip. You can leave — it keeps going.",
-        );
+        pushCookStatus(opts, live?.scratchSong?.cuts || [], { cooking: true });
       }
 
       live = opts.getJob() || live;
@@ -162,7 +226,7 @@ export async function cookPendingSongCuts(opts: {
         continue;
       }
       if (afterStart?.status === "error") {
-        opts.onNote?.(afterStart.error?.trim() || "That clip failed.");
+        pushCookStatus(opts, live?.scratchSong?.cuts || [], { cooking: true });
         continue;
       }
       if (afterStart?.status === "done") {
@@ -181,7 +245,7 @@ export async function cookPendingSongCuts(opts: {
       if (afterWait) live = afterWait;
       const after = songCutById(live, cut.id);
       if (after?.status === "error") {
-        opts.onNote?.(after.error?.trim() || "That clip failed.");
+        pushCookStatus(opts, live?.scratchSong?.cuts || [], { cooking: true });
         continue;
       }
       if (after?.status === "done") {
@@ -191,9 +255,7 @@ export async function cookPendingSongCuts(opts: {
         const n = (unstickCount[cut.id] || 0) + 1;
         unstickCount[cut.id] = n;
         if (n > SONG_COOK_MAX_UNSTICK) {
-          opts.onNote?.(
-            "That clip is stuck on the server. Close this tab and open the episode again — don't Start directing.",
-          );
+          pushCookStatus(opts, live?.scratchSong?.cuts || [], { cooking: false });
           return live;
         }
         opts.onNote?.("That cut sat too long — sending it again.");
