@@ -1,12 +1,24 @@
 import { NextResponse } from "next/server";
 import { applyImportedStoryToJob } from "@/lib/mobileApplyScreenplay";
-import { findReusableCastCards } from "@/lib/mobileCastReuse";
 import { createMobileGenJob, patchMobileGenJob } from "@/lib/mobileGenJob";
 import { importPastedStory, parseMobilePaste } from "@/lib/mobilePasteScript";
 import { DEFAULT_DESK_ID } from "@/lib/mobileDesk";
 import { newId } from "@/lib/types";
-import { isSunnyExtraName, matchSunnyPlace, sunnyEpisodeGate } from "@/lib/sunnyEpisodeSpec";
+import {
+  isSunnyExtraName,
+  isSunnySeriesName,
+  matchSunnyPlaceLoose,
+  SUNNY_SERIES_NAMES,
+  sunnyEpisodeGate,
+  sunnyGuestLooksFromScript,
+} from "@/lib/sunnyEpisodeSpec";
 import { listSunnyShelfPlaces } from "@/lib/sunnyEpisodeShelf";
+import {
+  attachSunnyCharacterPlates,
+  copySunnyPlaceStills,
+  findSunnyReusableFaces,
+  seedSunnyCastCandidates,
+} from "@/lib/sunnyEpisodeSeed";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -15,9 +27,8 @@ const DEFAULT_SECONDS_PER_SHOT = 5;
 
 /**
  * POST { brief, script } — Sunny Banks create-episode.
- * Locks the paste. Extras (residents, turkeys, props) are not faces.
- * Missing guest stills land on CAST after Make — they do not block start.
- * Does not cook plates or LTX. Does not mint a music-video job.
+ * Locks the paste, picks series faces/places, then /step cooks plates
+ * and clips. No Pick this one. No Send this. Extras are not faces.
  */
 export async function POST(req: Request) {
   try {
@@ -29,11 +40,34 @@ export async function POST(req: Request) {
     };
     const brief = (body.brief || "").trim();
     const script = (body.script || "").trim();
+    const deskId = body.deskId || DEFAULT_DESK_ID;
     const shelfPlaces = await listSunnyShelfPlaces();
     const gate = sunnyEpisodeGate({ brief, script, shelfPlaces });
     if (!gate.ok) {
       return NextResponse.json(
         { error: gate.error, scan: gate.scan },
+        { status: 400 },
+      );
+    }
+
+    const scriptSpeakers = gate.scan.speakers.filter((s) => !isSunnyExtraName(s));
+    const reusable = await findSunnyReusableFaces(scriptSpeakers, deskId);
+    const guestLooks = sunnyGuestLooksFromScript(script);
+    const speakers = [
+      ...new Set([
+        ...scriptSpeakers,
+        ...SUNNY_SERIES_NAMES.filter((name) => reusable[name]),
+      ]),
+    ];
+    const missingSeries = scriptSpeakers.filter(
+      (name) => isSunnySeriesName(name) && !reusable[name],
+    );
+    if (missingSeries.length) {
+      return NextResponse.json(
+        {
+          error: `Couldn't find the locked ${missingSeries.join(", ")} face. Those stay the series cards — won't invent them.`,
+          scan: gate.scan,
+        },
         { status: 400 },
       );
     }
@@ -49,30 +83,11 @@ export async function POST(req: Request) {
       secondsPerShot: DEFAULT_SECONDS_PER_SHOT,
       styleRealism:
         typeof body.styleRealism === "number" ? body.styleRealism : 25,
-      deskId: body.deskId || DEFAULT_DESK_ID,
+      deskId,
     });
 
-    const speakers = gate.scan.speakers;
-    const reusable = speakers.length
-      ? await findReusableCastCards("sunny_banks", speakers)
-      : {};
-    const castCandidates: Record<
-      string,
-      { id: string; fileName: string; approved: boolean; prompt: string }[]
-    > = {};
-    for (const [name, card] of Object.entries(reusable)) {
-      castCandidates[name] = [
-        {
-          id: card.fileName,
-          fileName: card.fileName,
-          approved: true,
-          prompt: card.look || "",
-        },
-      ];
-    }
-
     const scenes = gate.scan.places.map((placeName) => {
-      const hit = matchSunnyPlace(placeName, shelfPlaces);
+      const hit = matchSunnyPlaceLoose(placeName, shelfPlaces);
       return {
         id: newId("scene"),
         placeName: hit?.name || placeName,
@@ -81,7 +96,7 @@ export async function POST(req: Request) {
     });
 
     const storyPlaces = pasted.story.scenes.map((sc) => {
-      const hit = matchSunnyPlace(sc.placeName, shelfPlaces);
+      const hit = matchSunnyPlaceLoose(sc.placeName, shelfPlaces);
       const scene = scenes.find(
         (s) => s.placeName.toLowerCase() === (hit?.name || sc.placeName).toLowerCase(),
       );
@@ -102,9 +117,13 @@ export async function POST(req: Request) {
     const seeded = await patchMobileGenJob(created.id, {
       prompt: gag,
       speakers,
-      roster: speakers.map((name) => ({ name, description: "", appearance: "" })),
+      roster: speakers.map((name) => ({
+        name,
+        description: "",
+        appearance: reusable[name]?.look || guestLooks[name] || "",
+      })),
       scenes,
-      castCandidates,
+      castCandidates: seedSunnyCastCandidates(reusable),
     });
     const job = seeded || created;
 
@@ -122,11 +141,30 @@ export async function POST(req: Request) {
       story: { ...story, campaignLabel: packTitle },
       parsedCharacters: pasted.characters.filter((c) => !isSunnyExtraName(c.name)),
     });
-    const speakersOnly = updated.speakers.filter((s) => !isSunnyExtraName(s));
-    const jobOut =
-      speakersOnly.length !== updated.speakers.length
-        ? await patchMobileGenJob(updated.id, { speakers: speakersOnly })
-        : updated;
+    const speakersOnly = [
+      ...new Set([
+        ...updated.speakers.filter((s) => !isSunnyExtraName(s)),
+        ...SUNNY_SERIES_NAMES.filter((name) => reusable[name]),
+      ]),
+    ];
+    const locationCandidates = await copySunnyPlaceStills({
+      job: { ...updated, speakers: speakersOnly },
+      places: gate.scan.places,
+      shelf: shelfPlaces,
+    });
+    const characterPlates = await attachSunnyCharacterPlates(updated, speakersOnly);
+    const jobOut = await patchMobileGenJob(updated.id, {
+      speakers: speakersOnly,
+      castCandidates: {
+        ...updated.castCandidates,
+        ...seedSunnyCastCandidates(reusable),
+      },
+      locationCandidates,
+      characterPlates,
+      sunnyAuto: true,
+      phase: "plates",
+      error: "",
+    });
 
     return NextResponse.json({ ok: true, job: jobOut || updated, scan: gate.scan });
   } catch (e) {

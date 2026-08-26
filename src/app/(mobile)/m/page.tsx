@@ -255,6 +255,14 @@ export default function MobileHomePage() {
       setDraftingNew(false);
       setResumeError("");
       setPickerOpen(false);
+      try {
+        writeResumedJobId(window.localStorage, created.id, jobDeskId(created));
+      } catch {
+        /* private mode */
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.set("job", created.id);
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't make that episode");
     } finally {
@@ -793,6 +801,21 @@ export default function MobileHomePage() {
       {error ? (
         <div style={{ margin: "8px 16px", padding: "10px", borderRadius: "8px", background: "rgba(255,26,140,0.12)", color: "var(--magenta-hot)", fontSize: "13px" }}>
           {error}
+        </div>
+      ) : null}
+      {job?.sunnyAuto && (job.phase === "plates" || job.phase === "animate") ? (
+        <div
+          style={{
+            margin: "8px 16px",
+            padding: "12px",
+            borderRadius: "8px",
+            background: "var(--acid)",
+            color: "#111",
+            fontSize: "16px",
+            fontWeight: 700,
+          }}
+        >
+          WAIT. Cooking the episode. Do not tap Pick or Send.
         </div>
       ) : null}
       {bandSyncNote ? (

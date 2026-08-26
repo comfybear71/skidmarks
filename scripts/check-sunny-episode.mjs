@@ -8,9 +8,18 @@ import {
   SUNNY_EPISODE_BLANK,
   canonicalSunnyName,
   isSunnyExtraName,
+  matchSunnyPlace,
+  matchSunnyPlaceLoose,
   scanSunnyEpisodeScript,
   sunnyEpisodeGate,
+  sunnyGuestLooksFromScript,
 } from "../src/lib/sunnyEpisodeSpec.ts";
+import {
+  autoPickSunnyTakes,
+  generateSunnyGuestFace,
+  missingSunnyShelfFaces,
+  missingSunnyShelfPlaces,
+} from "../src/lib/sunnyEpisodeSeed.ts";
 import {
   buildDirectionPdf,
   directionLinesFromStory,
@@ -151,13 +160,68 @@ assert.match(mPage, /sunny-episode/);
 assert.match(sunnyCard, /Make this episode/);
 assert.match(sunnyCard, /WAIT\. Making the episode/);
 assert.match(sunnyCard, /Won't start yet/);
-assert.match(sunnyCard, /Nothing auto-saves/);
-assert.match(sunnyCard, /Not a block/);
+assert.match(sunnyCard, /Gag and script stay/);
+assert.match(sunnyCard, /No Pick this one/);
+assert.match(sunnyCard, /New names get drawn/);
 assert.doesNotMatch(sunnyCard, /What's the vibe\?/);
+assert.doesNotMatch(sunnyCard, /Nothing auto-saves/);
+assert.doesNotMatch(sunnyCard, /Not a block/);
+assert.doesNotMatch(sunnyCard, /Make fails red/);
 assert.doesNotMatch(sunnyRoute, /Add a face first/);
 assert.match(sunnyRoute, /sunnyEpisodeGate/);
+assert.match(sunnyRoute, /findSunnyReusableFaces/);
+assert.match(sunnyRoute, /sunnyAuto: true/);
 assert.match(sunnyRoute, /importPastedStory/);
 assert.doesNotMatch(sunnyRoute, /mgen_20260824085817084_edp/);
+assert.match(readFileSync(join(here, "../src/app/api/crash/mobile/step/route.ts"), "utf8"), /runSunnyAutoStep/);
+assert.match(readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8"), /WAIT\. Cooking the episode/);
+
+const shelfLoose = [
+  { name: "Caravan park", thumbKey: "g:place_park.png" },
+  { name: "Ranger office", thumbKey: "g:place_office.png" },
+];
+assert.equal(matchSunnyPlace("Caravan Park Main Deck", shelfLoose), null);
+assert.equal(matchSunnyPlaceLoose("Caravan Park Main Deck", shelfLoose)?.name, "Caravan park");
+assert.deepEqual(missingSunnyShelfPlaces(["Caravan Park Main Deck"], shelfLoose), []);
+assert.deepEqual(missingSunnyShelfPlaces(["Inside the Metal Cage"], shelfLoose), [
+  "Inside the Metal Cage",
+]);
+assert.deepEqual(missingSunnyShelfFaces(["Bubbles"], {}), ["Bubbles"]);
+assert.equal(
+  sunnyGuestLooksFromScript('Name: Bubbles (Cosmic Sludge Creature)')["Bubbles"],
+  "Cosmic Sludge Creature",
+);
+assert.doesNotMatch(sunnyRoute, /sunnyShelfFailMessage/);
+
+const picked = autoPickSunnyTakes({
+  styleId: "sunny_banks",
+  castCandidates: {
+    Dazza: [
+      { id: "plate", fileName: "plate_dazza.png", approved: false },
+      { id: "face", fileName: "thumb_dazza.png", approved: false },
+    ],
+  },
+  locationCandidates: {
+    scene1: [{ id: "p1", fileName: "place_1.png", approved: false }],
+  },
+});
+assert.equal(picked.changed, true);
+assert.equal(picked.castCandidates.Dazza.find((c) => c.approved)?.fileName, "thumb_dazza.png");
+assert.equal(picked.locationCandidates.scene1[0].approved, true);
+await assert.rejects(
+  () =>
+    generateSunnyGuestFace(
+      {
+        id: "mgen_test",
+        styleId: "sunny_banks",
+        folderName: "",
+        styleRealism: 25,
+      },
+      "Dazza",
+      "",
+    ),
+  /Won't invent Dazza/,
+);
 assert.match(zipRoute, /direction\.pdf/);
 assert.match(zipRoute, /buildDirectionPdf/);
 

@@ -8,6 +8,7 @@ import {
   SUNNY_EPISODE_BLANK,
   sunnyEpisodeGate,
 } from "@/lib/sunnyEpisodeSpec";
+import { readSunnyEpisodeDraft, writeSunnyEpisodeDraft } from "@/lib/sunnyEpisodeDraft";
 
 type WorldCard = {
   id: string;
@@ -25,6 +26,27 @@ export function SunnyEpisodeStart({
 }) {
   const [brief, setBrief] = useState("");
   const [script, setScript] = useState(SUNNY_EPISODE_BLANK);
+  const [draftReady, setDraftReady] = useState(false);
+
+  useEffect(() => {
+    try {
+      const draft = readSunnyEpisodeDraft(window.localStorage);
+      if (draft.brief) setBrief(draft.brief);
+      if (draft.script.trim()) setScript(draft.script);
+    } catch {
+      /* private mode */
+    }
+    setDraftReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    try {
+      writeSunnyEpisodeDraft(window.localStorage, brief, script);
+    } catch {
+      /* private mode */
+    }
+  }, [brief, script, draftReady]);
   const shoutRef = useRef<HTMLDivElement>(null);
   const [shelfNames, setShelfNames] = useState<string[]>(
     () => getShowStylePreset("sunny_banks").presetPlaces.map((p) => p.name),
@@ -78,8 +100,9 @@ export function SunnyEpisodeStart({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
       <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
-        Nothing auto-saves. Pink writing = it has not started. Yellow WAIT = it is working.
-        Camera words: {SUNNY_CAMERAS.join(", ")}.
+        Gag and script stay if you refresh. Make picks the series faces and
+        places, then cooks. No Pick this one. Pink = not started. Yellow WAIT =
+        working. Camera words: {SUNNY_CAMERAS.join(", ")}.
       </div>
       <MobileTextInput
         value={brief}
@@ -129,11 +152,12 @@ export function SunnyEpisodeStart({
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <div style={{ color: "var(--acid)", fontSize: "14px", fontWeight: 700 }}>
-              Ready. Tap Make this episode.
+              Ready. Make this episode — then wait.
             </div>
             {gate.scan.guests.length ? (
               <div style={{ color: "var(--chrome-dim)", fontSize: "13px" }}>
-                No face yet — add after: {gate.scan.guests.join(", ")}. Not a block.
+                New names get drawn from the script: {gate.scan.guests.join(", ")}.
+                Series faces stay the locked cards.
               </div>
             ) : null}
           </div>

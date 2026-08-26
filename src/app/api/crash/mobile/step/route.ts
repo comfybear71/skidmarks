@@ -148,6 +148,15 @@ export async function POST(req: Request) {
     }
 
     if (job.phase === "plates") {
+      const { isSunnyAutoJob, runSunnyAutoStep } = await import("@/lib/sunnyEpisodeCook");
+      if (isSunnyAutoJob(job)) {
+        job = await runSunnyAutoStep(job);
+        return NextResponse.json({
+          ok: !job.error,
+          job,
+          advanced: true,
+        });
+      }
       // Empty shot strip on purpose. Auto-compositing every shot from the
       // lock used to mint an early-dev still nobody asked to start from.
       // Rebuild one shot at a time from Tweak. In-flight jobs already in
