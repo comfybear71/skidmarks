@@ -17,8 +17,10 @@ import {
 import {
   autoPickSunnyTakes,
   generateSunnyGuestFace,
+  isSunnySeriesLockJob,
   missingSunnyShelfFaces,
   missingSunnyShelfPlaces,
+  pickSunnySeriesFace,
 } from "../src/lib/sunnyEpisodeSeed.ts";
 import {
   buildDirectionPdf,
@@ -49,6 +51,8 @@ assert.equal(isSunnyExtraName("Caravan Park Resident 1"), true);
 assert.equal(isSunnyExtraName("Bush Turkeys"), true);
 assert.equal(isSunnyExtraName("Discarded Manuals"), true);
 assert.equal(isSunnyExtraName("The Foam Monster"), true);
+assert.equal(isSunnyExtraName("The Laundry Monster"), true);
+assert.equal(isSunnyExtraName("The Laundry Monster (Shazza and Nan in disguise)"), true);
 assert.equal(isSunnyExtraName("Bubbles"), false);
 assert.equal(isSunnyExtraName("Gazza"), false);
 
@@ -146,6 +150,47 @@ assert.equal(splitGate.ok, true);
 assert.equal(splitGate.scan.overcastShots.length, 0);
 assert.ok(!splitGate.scan.guests.includes("Caravan Park Resident 1"));
 
+const groupScript = `EPISODE: Group
+GAG: Crew pile in.
+
+--- SHOT 17 ---
+Place: Caravan park
+Cast: Dazza, Shazza, Nan, Unit 4s
+Name: Dazza
+[Tap] "Alright."
+
+--- SHOT 35 ---
+Place: Caravan park
+Cast: Unit 4s, Dazza, Shazza, Nan, Nuggets
+Name: Shazza
+[Can] "Not a bad evening."
+`;
+const groupGate = sunnyEpisodeGate({
+  brief: "Crew pile in.",
+  script: groupScript,
+  shelfPlaces: shelf,
+});
+assert.equal(groupGate.ok, true);
+assert.ok(groupGate.scan.overcastShots.length >= 2);
+
+const laundryScript = `EPISODE: Costume
+GAG: Fake bear.
+
+--- SHOT 22 ---
+Place: Caravan park
+Cast: The Laundry Monster (Shazza and Nan in disguise)
+Name: The Laundry Monster
+[Thump]
+`;
+const laundryGate = sunnyEpisodeGate({
+  brief: "Fake bear.",
+  script: laundryScript,
+  shelfPlaces: shelf,
+});
+assert.equal(laundryGate.ok, true);
+assert.ok(!laundryGate.scan.guests.includes("The Laundry Monster"));
+assert.ok(!laundryGate.scan.speakers.includes("The Laundry Monster"));
+
 const scan = scanSunnyEpisodeScript(dropBear);
 assert.equal(scan.title, "2 - Drop Bear Dilemma");
 assert.ok(scan.places.includes("Inside the Metal Cage"));
@@ -173,6 +218,11 @@ assert.match(sunnyRoute, /findSunnyReusableFaces/);
 assert.match(sunnyRoute, /sunnyAuto: true/);
 assert.match(sunnyRoute, /importPastedStory/);
 assert.doesNotMatch(sunnyRoute, /mgen_20260824085817084_edp/);
+assert.match(readFileSync(join(here, "../src/lib/sunnyEpisodeSeed.ts"), "utf8"), /pickSunnySeriesFace/);
+assert.doesNotMatch(
+  readFileSync(join(here, "../src/lib/sunnyEpisodeSeed.ts"), "utf8"),
+  /if \(!missing\.length\) return fromShelf/,
+);
 assert.match(readFileSync(join(here, "../src/app/api/crash/mobile/step/route.ts"), "utf8"), /runSunnyAutoStep/);
 assert.match(readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8"), /WAIT\. Cooking the episode/);
 
@@ -224,5 +274,36 @@ await assert.rejects(
 );
 assert.match(zipRoute, /direction\.pdf/);
 assert.match(zipRoute, /buildDirectionPdf/);
+
+assert.equal(
+  isSunnySeriesLockJob({ prompt: "EP02 DROP BEAR DILEMMA - SUNNY BANKS", folderName: "" }),
+  true,
+);
+assert.equal(
+  isSunnySeriesLockJob({
+    folderName: "2 - Drop Bear Dilemma 91_kc3",
+    prompt: "Ranger Dan tries to demonstrate his device",
+  }),
+  false,
+);
+assert.equal(
+  pickSunnySeriesFace({
+    name: "Dazza",
+    shelf: { name: "Dazza", fileName: "thumb_1786096652402.png", look: "old shelf" },
+    jobFaces: [
+      { fileName: "thumb_1786096652402.png", look: "old shelf", seriesLock: false },
+      { fileName: "face_ujnrc38.png", look: "a front on of this character", seriesLock: true },
+    ],
+  })?.fileName,
+  "face_ujnrc38.png",
+);
+assert.equal(
+  pickSunnySeriesFace({
+    name: "Dazza",
+    shelf: { name: "Dazza", fileName: "thumb_1786096652402.png", look: "old shelf" },
+    jobFaces: [{ fileName: "thumb_1786096652402.png", look: "old shelf", seriesLock: false }],
+  })?.fileName,
+  "thumb_1786096652402.png",
+);
 
 console.log("check-sunny-episode: ok");
