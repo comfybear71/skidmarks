@@ -117,6 +117,46 @@ export function clipsUnderPlate(
   return out;
 }
 
+/**
+ * /m Clips fold under Stills. TRACK hang writes cuts + plateTimings.
+ * If we only look at job.clips, a hung mute clip hides the whole dropdown.
+ */
+export function clipsForStillsDesk(job: {
+  clips?: MobileClipUnit[];
+  shots?: { shotId: string; sceneId: string }[];
+  scratchSong?: {
+    cuts?: {
+      id?: string;
+      shotId?: string;
+      clipFile?: string;
+      status?: string;
+      durationSec?: number;
+    }[];
+  } | null;
+}): MobileClipUnit[] {
+  const clips = [...(job.clips || [])];
+  const seenShot = new Set(
+    clips.filter((c) => clipFileBasename(c.clipFile || "")).map((c) => (c.shotId || "").trim()),
+  );
+  for (const cut of job.scratchSong?.cuts || []) {
+    const shotId = (cut.shotId || "").trim();
+    const file = clipFileBasename(cut.clipFile || "");
+    if (!shotId || !file || cut.status !== "done" || seenShot.has(shotId)) continue;
+    seenShot.add(shotId);
+    const shot = (job.shots || []).find((s) => s.shotId === shotId);
+    clips.push({
+      beatId: cut.id || `cut:${shotId}`,
+      shotId,
+      sceneId: shot?.sceneId || "",
+      clipFile: file,
+      clipStatus: "done",
+      error: "",
+      durationSec: cut.durationSec,
+    });
+  }
+  return clips;
+}
+
 /** Drop one take from a clip row — newest remaining take becomes clipFile. */
 export function dropClipTakeFromRow(clip: MobileClipUnit, fileName: string): MobileClipUnit {
   const want = clipFileBasename(fileName);

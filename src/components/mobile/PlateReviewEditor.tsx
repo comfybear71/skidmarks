@@ -9,7 +9,7 @@ import {
   ShimmerText,
   mobileCard,
 } from "./MobileUi";
-import { PLATE_TILE_PX, PlateClipThumbs, clipsUnderPlate } from "./PlateClipThumbs";
+import { PLATE_TILE_PX, PlateClipThumbs, clipsForStillsDesk, clipsUnderPlate } from "./PlateClipThumbs";
 import { useMobileAssist } from "./useMobileAssist";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
 import { PositionPromptPanel, LtxImageMotionPanel } from "@/components/mobile/ShotPromptPanels";
@@ -292,11 +292,12 @@ export function PlateReviewEditor({
   /** Full-bleed Clips rail under the plate strip — not trapped in a 160px column. */
   const plateClipRail = useMemo(() => {
     const focus = (openShotId || "").trim();
+    const deskClips = clipsForStillsDesk(job);
     const gather = (list: typeof shots) => {
       const out: MobileClipUnit[] = [];
       for (const s of list) {
         const beatIds = displayShot(s.shotId)?.beats.map((b) => b.id) || [];
-        out.push(...clipsUnderPlate(s.shotId, beatIds, job.clips));
+        out.push(...clipsUnderPlate(s.shotId, beatIds, deskClips));
       }
       return out;
     };
@@ -310,7 +311,7 @@ export function PlateReviewEditor({
       (focus ? shots.find((s) => s.shotId === focus) : null) ||
       shots.find((s) => {
         const beatIds = displayShot(s.shotId)?.beats.map((b) => b.id) || [];
-        return clipsUnderPlate(s.shotId, beatIds, job.clips).length > 0;
+        return clipsUnderPlate(s.shotId, beatIds, deskClips).length > 0;
       });
     const plated = Boolean(posterRow?.plateFile && posterRow.plateFile !== "__error__");
     const poster = plated
