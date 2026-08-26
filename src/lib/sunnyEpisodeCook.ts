@@ -6,7 +6,8 @@ import { synthesizeStoryBeat } from "./crashStorySpeak";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "./mobileStoryStore";
 import { mergeClipsFromStory } from "./mobileClipQueue";
 import { patchMobileGenJob, type MobileGenJob } from "./mobileGenJob";
-import { nextUnplatedEpisodeShot } from "./mobilePlateGraph";
+import { nextUnplatedEpisodeShot, shotHasPlate } from "./mobilePlateGraph";
+import { episodeJobShots } from "./mobileScratch";
 import { rebuildShotPlate } from "./mobilePlateRebuild";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { isSunnyExtraName, isSunnySeriesName } from "./sunnyEpisodeSpec";
@@ -117,7 +118,9 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
     }
   }
 
-  const unplated = nextUnplatedEpisodeShot(job, story);
+  const unplated =
+    episodeJobShots(job, story).find((s) => !shotHasPlate(s)) ||
+    nextUnplatedEpisodeShot(job, story);
   if (unplated) {
     try {
       const rebuilt = await rebuildShotPlate({

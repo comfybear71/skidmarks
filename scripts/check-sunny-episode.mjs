@@ -13,6 +13,8 @@ import {
   scanSunnyEpisodeScript,
   sunnyEpisodeGate,
   sunnyGuestLooksFromScript,
+  splitSunnyCastField,
+  applySunnyScriptCastToStory,
 } from "../src/lib/sunnyEpisodeSpec.ts";
 import {
   autoPickSunnyTakes,
@@ -190,6 +192,96 @@ const laundryGate = sunnyEpisodeGate({
 assert.equal(laundryGate.ok, true);
 assert.ok(!laundryGate.scan.guests.includes("The Laundry Monster"));
 assert.ok(!laundryGate.scan.speakers.includes("The Laundry Monster"));
+assert.ok(laundryGate.scan.speakers.includes("Shazza"));
+assert.ok(laundryGate.scan.speakers.includes("Nan"));
+assert.deepEqual(splitSunnyCastField("Bubbles (Sludge Monster)"), ["Bubbles"]);
+assert.deepEqual(splitSunnyCastField("The Laundry Monster (Shazza and Nan in disguise)"), [
+  "The Laundry Monster",
+  "Shazza",
+  "Nan",
+]);
+
+const campParsed = parseMobilePaste(
+  `EPISODE: Camp
+GAG: Crowd.
+
+--- SHOT 10 ---
+Title: The Camp Gathers
+Place: Caravan park
+Cast: Caravan Park Residents, Dazza, Ranger Bazza, Nuggets
+Camera: High angle including Nuggets.
+Plate: Thongs slapping on gravel.
+Name: Caravan Park Resident 1
+[Excited chatter] "Look at the glowing purple teeth on it!"
+`,
+  "sunny_banks",
+);
+const campShot = campParsed.story.scenes[0].shots[0];
+assert.match(campShot.staging || "", /Cast:.*Dazza/);
+assert.ok((campShot.castNames || []).includes("Dazza"));
+assert.ok((campShot.castNames || []).includes("Ranger Bazza"));
+assert.equal(campShot.beats[0].speaker, "Caravan Park Resident 1");
+
+const bubblesHold = parseMobilePaste(
+  `EPISODE: Cage
+GAG: Goo.
+
+--- SHOT 1 ---
+Title: Hello
+Place: Caravan park
+Cast: Dazza
+Name: Dazza
+[tap] "Hi"
+
+--- SHOT 8 ---
+Title: Bubbles is Trapped
+Place: Caravan park
+Cast: Bubbles (Sludge Monster)
+Plate: Purple goo.
+Name: Bubbles
+[Gurgling liquid noises]
+`,
+  "sunny_banks",
+);
+const bubbleShot = bubblesHold.story.scenes[0].shots.find((s) => s.title === "Bubbles is Trapped");
+assert.equal(bubbleShot?.beats[0].speaker, "Bubbles");
+
+const patched = applySunnyScriptCastToStory(
+  {
+    styleId: "sunny_banks",
+    campaignLabel: "",
+    gagNote: "",
+    intro: { title: "", notes: "", sfx: [] },
+    outro: { title: "", notes: "", sfx: [] },
+    scenes: [
+      {
+        id: "sc1",
+        title: "Water Tank District",
+        placeName: "Water Tank District",
+        worldThumbKey: "",
+        shots: [
+          {
+            id: "s10",
+            title: "The Camp Gathers",
+            summary: "",
+            staging: "Camera: High angle. Plate: Thongs.",
+            plateFile: "",
+            beats: [{ id: "b", speaker: "Caravan Park Resident 1", text: "Look!" }],
+            sfx: [],
+          },
+        ],
+      },
+    ],
+    updatedAt: "",
+  },
+  `--- SHOT 10 ---
+Title: The Camp Gathers
+Cast: Caravan Park Residents, Dazza, Ranger Bazza, Nuggets
+Name: Caravan Park Resident 1
+`,
+);
+assert.match(patched.scenes[0].shots[0].staging || "", /^Cast:.*Dazza/);
+assert.ok((patched.scenes[0].shots[0].castNames || []).includes("Nuggets"));
 
 const scan = scanSunnyEpisodeScript(dropBear);
 assert.equal(scan.title, "2 - Drop Bear Dilemma");

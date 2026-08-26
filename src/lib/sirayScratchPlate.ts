@@ -171,6 +171,7 @@ async function startSirayScratchPlate(
         plateFile: shot.plateFile,
         jobSpeakers: opts.job?.speakers || [],
         beats: shot.beats,
+        castNames: shot.castNames,
       }),
       ...silent,
     ]),

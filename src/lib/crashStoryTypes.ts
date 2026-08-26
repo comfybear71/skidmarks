@@ -66,6 +66,9 @@ export type CrashStoryShot = {
   staging?: string;
   /** Prompt-bible chip ids for the current staging / approved take. */
   bibleIds?: string[];
+  /** Names from the script Cast:/Name: lines. Silent people stay on the plate
+   * when the spoken Name is an extra. */
+  castNames?: string[];
   /** cplate_*.png under data/crash/gen/ — always mirrors the approved take. */
   plateFile: string;
   /** Every still drawn for this shot. Older shots have none — plateFile is

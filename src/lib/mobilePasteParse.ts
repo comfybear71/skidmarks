@@ -8,7 +8,11 @@ import type {
 } from "./crashStoryTypes";
 import type { ShowStyleId } from "./showStylePresets";
 import { productionShowLabel, styleEpisodeBlank } from "./styleEpisodeProcess";
-import { canonicalSunnyName } from "./sunnyEpisodeSpec";
+import {
+  canonicalSunnyName,
+  isSunnyExtraName,
+  splitSunnyCastField,
+} from "./sunnyEpisodeSpec";
 
 export const MOBILE_PASTE_SAMPLE = `EPISODE: Crazy Big Hole Jo
 GAG: Jo falls in a hole. Matty has a bar.
@@ -77,10 +81,11 @@ function canonSpeaker(styleId: ShowStyleId, name: string): string {
 
 function holdOrSpoken(
   lines: { speaker: string; text: string }[],
+  fallbackSpeaker = "",
 ): CrashStoryBeat[] {
   if (!lines.length) {
     const id = newId("beat");
-    return [{ id, speaker: "", text: "", voiceFile: `${id}.mp3` }];
+    return [{ id, speaker: fallbackSpeaker.trim(), text: "", voiceFile: `${id}.mp3` }];
   }
   return lines.map((d) => ({
     id: newId("beat"),
@@ -101,6 +106,7 @@ type LooseShot = {
   staging: string;
   camera?: string;
   castNames?: string[];
+  holdSpeaker?: string;
   cues?: string[];
   lines: { speaker: string; text: string }[];
 };
@@ -148,7 +154,7 @@ function shotsToStory(
       byPlace.set(key, scene);
       scenes.push(scene);
     }
-    const beats = holdOrSpoken(shot.lines);
+    const beats = holdOrSpoken(shot.lines, shot.holdSpeaker || "");
     const cast = Array.from(
       new Set(
         [...(shot.castNames || []), ...beats.map((b) => b.speaker)].filter(Boolean),
@@ -156,6 +162,7 @@ function shotsToStory(
     );
     const camera = (shot.camera || "").trim();
     const stagingBits = [
+      cast.length ? `Cast: ${cast.join(", ")}.` : "",
       camera ? `Camera: ${camera}.` : "",
       shot.staging,
     ].filter(Boolean);
@@ -163,6 +170,7 @@ function shotsToStory(
       id: newId("shot"),
       title: shot.title || placeName,
       summary: shot.summary,
+      castNames: cast.length ? cast : undefined,
       staging:
         stagingBits.join(" ") ||
         (cast.length ? `${cast.join(", ")} · ${placeName}` : placeName),
@@ -395,8 +403,11 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
       }
       const cast = line.match(/^Cast:\s*(.+)$/i);
       if (cast) {
-        for (const name of cast[1].split(/,|&/)) {
-          const bit = canonSpeaker(styleId, name.trim());
+        const bits =
+          styleId === "sunny_banks"
+            ? splitSunnyCastField(cast[1])
+            : cast[1].split(/,|&/).map((name) => canonSpeaker(styleId, name.trim()));
+        for (const bit of bits) {
           if (bit && !/^none$/i.test(bit)) castNames.push(bit);
         }
         continue;
@@ -448,6 +459,13 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
     if (!placeName) {
       throw new Error(`SHOT ${i + 1}: need Place:`);
     }
+    const holdSpeaker =
+      namedSpeaker ||
+      castNames.find(
+        (n) => n && (styleId !== "sunny_banks" || !isSunnyExtraName(n)),
+      ) ||
+      namedSpeaker ||
+      "";
     shots.push({
       placeName,
       title: titleLine,
@@ -455,6 +473,7 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
       staging,
       camera,
       castNames,
+      holdSpeaker,
       cues,
       lines: spoken,
     });

@@ -2,6 +2,8 @@
  * Sunny Banks create-episode card — series machine, not a vibe box.
  * Names and aliases only. Does not mint jobs.
  */
+import type { CrashStoryDoc } from "./crashStoryTypes";
+
 export function placeKey(name: string): string {
   return name
     .replace(/^(int|ext)\.\s*/i, "")
@@ -67,6 +69,37 @@ export function canonicalSunnyName(name: string): string {
 export function isSunnySeriesName(name: string): boolean {
   const canon = canonicalSunnyName(name);
   return SUNNY_SERIES_NAMES.some((n) => sunnyNameKey(n) === sunnyNameKey(canon));
+}
+
+/**
+ * Cast:/Name: field → people. "Bubbles (Sludge Monster)" stays Bubbles.
+ * "The Laundry Monster (Shazza and Nan in disguise)" also yields Shazza + Nan.
+ */
+export function splitSunnyCastField(raw: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (name: string) => {
+    const n = keepSunnyName(name);
+    if (!n) return;
+    const k = sunnyNameKey(n);
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(n);
+  };
+  for (const part of String(raw || "").split(/,|&|\//)) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const paren = trimmed.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+    add(paren?.[1] || trimmed);
+    if (paren) {
+      const inner = paren[2].trim();
+      if (/in disguise/i.test(inner) || /\band\b/i.test(inner)) {
+        const cleaned = inner.replace(/\s+in disguise.*$/i, "");
+        for (const bit of cleaned.split(/,|&|\band\b/i)) add(bit);
+      }
+    }
+  }
+  return out;
 }
 
 /** Crowd / animal / prop / costume — not a face we must hold. */
@@ -141,8 +174,7 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
       }
       const cast = line.match(/^Cast:\s*(.+)$/i);
       if (cast) {
-        for (const name of cast[1].split(/,|&|\//)) {
-          const n = keepSunnyName(name);
+        for (const n of splitSunnyCastField(cast[1])) {
           if (n && !isSunnyExtraName(n)) {
             speakers.add(n);
             people.add(n);
@@ -237,6 +269,49 @@ export function sunnyEpisodeGate(opts: {
   const unknownPlaces = scan.places.filter((p) => !matchSunnyPlace(p, opts.shelfPlaces));
   scan.unknownPlaces = unknownPlaces;
   return { ok: true, scan };
+}
+
+/** Write Cast: names onto an already-parsed story so silent roster people stay on the plate. */
+export function applySunnyScriptCastToStory(
+  story: CrashStoryDoc,
+  script: string,
+): CrashStoryDoc {
+  const byTitle = new Map<string, string[]>();
+  const parts = String(script || "")
+    .split(/(?:^|\n)---\s*SHOT(?:\s+\d+[A-Za-z]*)?\s*---\s*/im)
+    .slice(1);
+  for (const block of parts) {
+    const title = block.match(/^Title:\s*(.+)$/im)?.[1]?.trim() || "";
+    const castLine = block.match(/^Cast:\s*(.+)$/im)?.[1]?.trim() || "";
+    const nameLine = block.match(/^Name:\s*(.+)$/im)?.[1]?.trim() || "";
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const n of [...splitSunnyCastField(castLine), ...splitSunnyCastField(nameLine)]) {
+      const k = sunnyNameKey(n);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      unique.push(n);
+    }
+    if (title && unique.length) byTitle.set(title.toLowerCase(), unique);
+  }
+  if (!byTitle.size) return story;
+  return {
+    ...story,
+    scenes: story.scenes.map((sc) => ({
+      ...sc,
+      shots: sc.shots.map((sh) => {
+        const cast = byTitle.get((sh.title || "").trim().toLowerCase());
+        if (!cast?.length) return sh;
+        const prefix = `Cast: ${cast.join(", ")}.`;
+        const staging = String(sh.staging || "");
+        return {
+          ...sh,
+          castNames: cast,
+          staging: /^\s*cast:/i.test(staging) ? staging : `${prefix} ${staging}`.trim(),
+        };
+      }),
+    })),
+  };
 }
 
 export const SUNNY_EPISODE_BLANK = `EPISODE: 

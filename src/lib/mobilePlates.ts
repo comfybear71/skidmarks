@@ -22,6 +22,7 @@ import { candidateLookPrompt } from "./mobileJobReady";
 import { plateCastStagingNote, shotSpeakersOnCard } from "./mobilePlateLines";
 import type { CrashStoryScene, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileGenJob } from "./mobileGenJob";
+import { sortableId } from "./types";
 
 /** Pull a show-shelf asset down to a temp file so code that needs a path works
  * the same whether the bytes came from disk or Blob. Keys arrive as "g:name". */
@@ -89,7 +90,17 @@ function uniqueShotSpeakers(
     plateFile: shot.plateFile,
     jobSpeakers,
     beats: shot.beats,
+    castNames: shot.castNames,
   });
+}
+
+function hangPlaceAsPlate(bgPath: string): string {
+  const ext = path.extname(bgPath) || ".png";
+  const fileName = `${sortableId("cplate")}${ext.startsWith(".") ? ext : `.${ext}`}`;
+  const dest = path.join(CRASH_DIR, "gen", fileName);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(bgPath, dest);
+  return fileName;
 }
 
 export type PlateJobRef = Pick<
@@ -191,7 +202,12 @@ export async function compositeShotPlate(
   const speakers = [
     ...new Set([...uniqueShotSpeakers(shot, opts.job?.speakers || []), ...silent]),
   ];
-  if (!speakers.length) throw new Error("Shot has no cast to composite");
+  if (!speakers.length) {
+    // Extra-only scenery (bush turkeys, a crowd) — hang the place still.
+    // Shots whose Cast: names series people must have those names on the
+    // card already; do not drop Dazza because the spoken Name is a resident.
+    return hangPlaceAsPlate(bgPath);
+  }
 
   const manifest = readStyleCardManifest(styleId);
   const resolved: { name: string; path: string }[] = [];

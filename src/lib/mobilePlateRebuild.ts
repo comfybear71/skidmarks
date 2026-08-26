@@ -2,7 +2,7 @@ import path from "path";
 import type { CrashStoryDoc, PlateTake } from "./crashStoryTypes";
 import type { MobileGenJob } from "./mobileGenJob";
 import { candidateLookPrompt } from "./mobileJobReady";
-import { leftoverHydrateBeat, dropLeftoverHydrateBeats } from "./mobilePlateLines";
+import { leftoverHydrateBeat, dropLeftoverHydrateBeats, shotSpeakersOnCard } from "./mobilePlateLines";
 import {
   PLATE_QA_MAX_ATTEMPTS,
   appendPlateQaFix,
@@ -63,7 +63,18 @@ export async function rebuildShotPlate(opts: {
   if (!scene || !shot) throw new Error("That shot is not in the story");
 
   const cleanedBeats = dropLeftoverHydrateBeats(shotId, shot.beats);
+  const onCard = shotSpeakersOnCard({
+    shotId,
+    title: shot.title,
+    staging: shot.staging,
+    summary: shot.summary,
+    plateFile: shot.plateFile,
+    jobSpeakers: job.speakers || [],
+    beats: cleanedBeats,
+    castNames: shot.castNames,
+  });
   const speaker =
+    onCard[0] ||
     cleanedBeats.find((b) => b.speaker.trim() && !leftoverHydrateBeat(shotId, b.id))?.speaker ||
     cleanedBeats[0]?.speaker ||
     "";
@@ -72,7 +83,7 @@ export async function rebuildShotPlate(opts: {
     existingStaging: shot.staging,
     summary: shot.summary,
     speaker,
-    speakers: cleanedBeats.map((b) => b.speaker),
+    speakers: onCard.length ? onCard : cleanedBeats.map((b) => b.speaker),
     place: scene.placeName || "this place",
   });
   if (!staging) throw new Error("Say who sits where — not two people stuck in the front.");
@@ -85,13 +96,11 @@ export async function rebuildShotPlate(opts: {
     job.roster.find((c) => c.name.trim().toLowerCase() === speaker.trim().toLowerCase())
       ?.appearance ||
     "";
-  const identity = speaker
+  const identity = speaker && onCard.length
     ? await resolvePlateQaIdentity({ styleId: job.styleId, name: speaker, job }).catch(() => null)
     : null;
-  const expectedPeople = [
-    ...new Set(cleanedBeats.map((b) => b.speaker.trim()).filter(Boolean)),
-  ].length;
-  const wantQa = opts.qa !== false;
+  const expectedPeople = onCard.length;
+  const wantQa = opts.qa !== false && onCard.length > 0;
 
   let working: CrashStoryDoc = {
     ...story,

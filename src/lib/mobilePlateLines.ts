@@ -2,6 +2,31 @@ import { voiceNamesMatch } from "./voiceNameMatch";
 import { emptyHandsStillLock, joPhoneStagingExtra } from "./mobileImageMotion";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
 
+function nameMentionedInWords(name: string, words: string): boolean {
+  const who = name.trim();
+  const text = words.trim();
+  if (!who || !text) return false;
+  const escaped = who.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (new RegExp(`\\b${escaped}\\b`, "i").test(text)) return true;
+  return voiceNamesMatch(who, text);
+}
+
+/** Job faces named in the shot heading / Cast: / Position — even if they do not speak. */
+export function rosterNamedOnPlate(jobSpeakers: string[], plateWords: string): string[] {
+  const words = String(plateWords || "").trim();
+  if (!words) return [];
+  const found: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of jobSpeakers) {
+    const name = raw.trim();
+    if (!name || seen.has(name.toLowerCase())) continue;
+    if (!nameMentionedInWords(name, words)) continue;
+    seen.add(name.toLowerCase());
+    found.push(name);
+  }
+  return found;
+}
+
 export function leftoverHydrateBeat(shotId: string, beatId: string): boolean {
   if (!shotId || !beatId) return false;
   if (beatId === `${shotId}_hold`) return true;
@@ -76,7 +101,13 @@ export function plateLineBeats<T extends LineBeat>(opts: {
       ) {
         return false;
       }
-      return speakerMentionedOnPlate(b.speaker, opts.jobSpeakers, words);
+      // Leftover Comfy/Land pack lines stay off a Jo card. A real Name: on
+      // the roster stays even when Camera names someone else (Nuggets in a
+      // Shazza shot).
+      if (isLeftoverPackVoiceFile(b.voiceFile)) {
+        return speakerMentionedOnPlate(b.speaker, opts.jobSpeakers, words);
+      }
+      return speakerMentionedOnPlate(b.speaker, opts.jobSpeakers, "");
     })
     .map((b) =>
       isLeftoverPackVoiceFile(b.voiceFile)
@@ -131,7 +162,7 @@ export function speakersAlreadyInPlate(opts: {
     .filter(Boolean);
 }
 
-/** Unique faces for composite / Image motion — same people the line editors show. */
+/** Unique faces for composite / Image motion — spoken roster + Cast: names. */
 export function shotSpeakersOnCard(opts: {
   shotId: string;
   title?: string;
@@ -140,8 +171,17 @@ export function shotSpeakersOnCard(opts: {
   plateFile?: string;
   jobSpeakers: string[];
   beats: LineBeat[];
+  castNames?: string[];
 }): string[] {
-  return [...new Set(speakersAlreadyInPlate(opts))];
+  const words = [opts.title, opts.staging, opts.summary, ...(opts.castNames || [])]
+    .filter(Boolean)
+    .join(" ");
+  return [
+    ...new Set([
+      ...speakersAlreadyInPlate(opts),
+      ...rosterNamedOnPlate(opts.jobSpeakers, words),
+    ]),
+  ];
 }
 
 export function leftoverHydrateSpeakers(
