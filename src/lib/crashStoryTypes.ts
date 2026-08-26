@@ -44,10 +44,21 @@ export type PlateTake = {
   approved: boolean;
 };
 
+/** hero = our cast / LTX (default). support = b-roll — hang licensed stock. */
+export type ShotFootageRole = "hero" | "support";
+
 export type CrashStoryShot = {
   id: string;
   title: string;
   summary: string;
+  /**
+   * hero = needs our character through Plates / Speak / Animate.
+   * support = scenery / mood / transition — stock file, not a cook.
+   * Omitted on older shots = hero.
+   */
+  footageRole?: ShotFootageRole;
+  /** Words for the stock search links. Empty = title + summary + staging. */
+  stockQuery?: string;
   /**
    * Who's prominent + place roles for Gen plate
    * e.g. "Sharon prominent · cafe table · Kim secondary back"

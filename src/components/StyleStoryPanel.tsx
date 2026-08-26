@@ -37,6 +37,7 @@ import {
   type ShowStyleId,
 } from "@/lib/showStylePresets";
 import { newId } from "@/lib/types";
+import { StockFootagePanel } from "@/components/StockFootagePanel";
 
 function newEmptyStoryShot(index: number): CrashStoryShot {
   return {
@@ -742,6 +743,8 @@ function ShotBlock({
   >([]);
   const [dropErr, setDropErr] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [stockBusy, setStockBusy] = useState(false);
+  const [stockErr, setStockErr] = useState("");
   const canUp = shotIndex > 0;
   const canDown = shotIndex < shotCount - 1;
 
@@ -976,6 +979,42 @@ function ShotBlock({
           {dropErr ? (
             <p className="mt-0.5 text-[9px] text-[var(--fail)]">{dropErr}</p>
           ) : null}
+          <div className="mt-1.5">
+            <StockFootagePanel
+              shot={shot}
+              attachBusy={stockBusy}
+              attachError={stockErr}
+              onRoleChange={(footageRole) => onChange({ ...shot, footageRole })}
+              onQueryChange={(stockQuery) => onChange({ ...shot, stockQuery })}
+              onAttachFile={(file) => {
+                const beatId = shot.beats[0]?.id;
+                if (!beatId) {
+                  setStockErr("This shot has no beat to hang on.");
+                  return;
+                }
+                setStockBusy(true);
+                setStockErr("");
+                void (async () => {
+                  try {
+                    const fd = new FormData();
+                    fd.set("styleId", styleId);
+                    fd.set("beatId", beatId);
+                    fd.set("file", file, file.name);
+                    const res = await fetch("/api/crash/comfy/ltx/attach", {
+                      method: "POST",
+                      body: fd,
+                    });
+                    const data = (await res.json()) as { error?: string };
+                    if (!res.ok) throw new Error(data.error || "Attach failed");
+                  } catch (e) {
+                    setStockErr(e instanceof Error ? e.message : "Attach failed");
+                  } finally {
+                    setStockBusy(false);
+                  }
+                })();
+              }}
+            />
+          </div>
           {pickOpen ? (
             <div className="mt-1 max-h-20 overflow-y-auto rounded-sm border border-[var(--line)] bg-[var(--void)]/50 p-1">
               {genPlates.length === 0 ? (

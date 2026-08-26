@@ -33,7 +33,9 @@ import {
 } from "@/lib/mobileJobReady";
 import { imageMotionAssistHint, platePositionAssistHint } from "@/lib/mobileAssist";
 import type { MobileClipUnit, MobileGenJob } from "@/lib/mobileGenJob";
-import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
+import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot, PlateTake, ShotFootageRole } from "@/lib/crashStoryTypes";
+import { StockFootagePanel } from "@/components/StockFootagePanel";
+import { isSupportShot } from "@/lib/stockFootage";
 import {
   leftoverHydrateBeat,
   plateLineBeats,
@@ -723,6 +725,25 @@ export function PlateReviewEditor({
                     lineHeight: 0,
                   }}
                 >
+                  {isSupportShot(storyShot) ? (
+                    <span
+                      style={{
+                        position: "absolute",
+                        right: "4px",
+                        bottom: "4px",
+                        fontSize: "9px",
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        background: "var(--acid)",
+                        color: "#111",
+                        padding: "1px 4px",
+                        borderRadius: "2px",
+                        zIndex: 2,
+                      }}
+                    >
+                      Stock
+                    </span>
+                  ) : null}
                   {thumbSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -979,6 +1000,22 @@ export function PlateReviewEditor({
               : undefined
           }
           songAdding={Boolean(openShotId && songAddFor === openShotId)}
+          onJobChange={onJobChange}
+          onShotMeta={(patch) => {
+            if (!openShotId) return;
+            setStory((cur) => {
+              if (!cur) return cur;
+              return {
+                ...cur,
+                scenes: cur.scenes.map((sc) => ({
+                  ...sc,
+                  shots: sc.shots.map((sh) =>
+                    sh.id === openShotId ? { ...sh, ...patch } : sh,
+                  ),
+                })),
+              };
+            });
+          }}
           onDismissClipError={(beatId) => void postClipAction({ action: "dismiss", beatId })}
           onPlateRebuilt={(plateFile, staging, summary, plateTakes, bibleIds) => {
             setStory((cur) => {
@@ -1955,6 +1992,86 @@ function PlatePreview({
   );
 }
 
+function ShotStockPanel({
+  jobId,
+  shot,
+  onShotMeta,
+  onJobChange,
+}: {
+  jobId: string;
+  shot: CrashStoryShot;
+  onShotMeta?: (patch: { footageRole?: ShotFootageRole; stockQuery?: string }) => void;
+  onJobChange?: (job: MobileGenJob) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const queryTimer = useRef<number | null>(null);
+
+  async function saveMeta(patch: { footageRole?: ShotFootageRole; stockQuery?: string }) {
+    onShotMeta?.(patch);
+    setError("");
+    try {
+      const res = await fetch("/api/crash/mobile/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId,
+          shotId: shot.id,
+          action: "save",
+          ...patch,
+        }),
+      });
+      const data = await readApiJson<{ error?: string }>(res);
+      if (data.error) setError(data.error);
+    } catch (e) {
+      setError(studioFetchError(e, "Couldn't save that tag"));
+    }
+  }
+
+  async function attachStock(file: File) {
+    const beatId = shot.beats[0]?.id;
+    if (!beatId) {
+      setError("This shot has no beat to hang on.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const form = new FormData();
+      form.set("jobId", jobId);
+      form.set("beatId", beatId);
+      form.set("source", "stock");
+      form.set("file", file);
+      const res = await fetch("/api/crash/mobile/clip/upload", { method: "POST", body: form });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onJobChange?.(data.job);
+      if (data.error) setError(data.error);
+    } catch (e) {
+      setError(studioFetchError(e, "Couldn't hang that clip"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <StockFootagePanel
+      shot={shot}
+      variant="phone"
+      attachBusy={busy}
+      attachError={error}
+      onRoleChange={(footageRole) => void saveMeta({ footageRole })}
+      onQueryChange={(stockQuery) => {
+        onShotMeta?.({ stockQuery });
+        if (queryTimer.current) window.clearTimeout(queryTimer.current);
+        queryTimer.current = window.setTimeout(() => {
+          void saveMeta({ stockQuery });
+        }, 600);
+      }}
+      onAttachFile={(file) => void attachStock(file)}
+    />
+  );
+}
+
 function ShotLineEditor({
   styleId,
   folderName,
@@ -1978,6 +2095,8 @@ function ShotLineEditor({
   onAddCast,
   onAddToSong,
   songAdding,
+  onJobChange,
+  onShotMeta,
 }: {
   styleId: string;
   folderName: string;
@@ -2000,6 +2119,8 @@ function ShotLineEditor({
           onAddCast?: () => void;
           onAddToSong?: () => void;
           songAdding?: boolean;
+          onJobChange?: (job: MobileGenJob) => void;
+          onShotMeta?: (patch: { footageRole?: ShotFootageRole; stockQuery?: string }) => void;
           onPlateRebuilt: (
     plateFile: string | undefined,
     staging: string,
@@ -2043,6 +2164,12 @@ function ShotLineEditor({
         onPicked={(plateFile, staging, plateTakes) =>
           onPlateRebuilt(plateFile, staging, shot.summary, plateTakes)
         }
+      />
+      <ShotStockPanel
+        jobId={jobId}
+        shot={shot}
+        onShotMeta={onShotMeta}
+        onJobChange={onJobChange}
       />
       {speakingBeats.map((beat) => {
         const clip = clips.find((c) => c.beatId === beat.id);

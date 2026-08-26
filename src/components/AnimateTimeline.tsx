@@ -25,6 +25,7 @@ import {
 import { MediaThumb } from "@/components/MediaThumb";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { newId } from "@/lib/types";
+import { StockFootagePanel } from "@/components/StockFootagePanel";
 
 function newEmptyStoryShot(index: number): CrashStoryShot {
   return {
@@ -126,6 +127,7 @@ type Props = {
     shotId: string,
     plateFile: string,
   ) => void | Promise<void>;
+  onAttachMp4?: (beatId: string, file: File) => void;
   comfyReady: boolean;
   queueBusy: boolean;
   ltxInFlightCount: number;
@@ -375,6 +377,7 @@ export function AnimateTimeline({
   onVerdict,
   onReorderShots,
   onReplacePlateKeepFail,
+  onAttachMp4,
   comfyReady,
   queueBusy,
   ltxInFlightCount,
@@ -1428,6 +1431,25 @@ export function AnimateTimeline({
               </p>
               {cutChrome}
             </div>
+            <StockFootagePanel
+              shot={editShot}
+              attachError={storyErr}
+              onRoleChange={(footageRole) =>
+                void patchShot((s) => ({ ...s, footageRole }))
+              }
+              onQueryChange={(stockQuery) =>
+                void patchShot((s) => ({ ...s, stockQuery }))
+              }
+              onAttachFile={(file) => {
+                const beatId = editShot.beats[0]?.id;
+                if (!beatId) {
+                  setStoryErr("This shot has no beat to hang on.");
+                  return;
+                }
+                setStoryErr("");
+                onAttachMp4?.(beatId, file);
+              }}
+            />
             <div className="flex gap-2">
               {editShot.plateFile ? (
                 <button
