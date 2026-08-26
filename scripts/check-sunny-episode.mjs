@@ -400,6 +400,13 @@ assert.equal(sunnyAutoKeepsFailedProof({ plateFile: "", qaOk: false }), false);
 assert.equal(sunnyAutoKeepsFailedProof({ plateFile: "__error__", qaOk: false }), false);
 assert.equal(sunnyAutoResumeFromStaleError("Shot has no cast to composite", "error"), true);
 assert.equal(sunnyAutoResumeFromStaleError("", "error"), true);
+assert.equal(
+  sunnyAutoResumeFromStaleError(
+    "xAI image request timed out after 40s (model grok-imagine-image)",
+    "error",
+  ),
+  true,
+);
 assert.equal(sunnyAutoResumeFromStaleError("Missing SIRAY_API_KEY", "error"), false);
 assert.match(
   readFileSync(join(here, "../src/lib/sunnyEpisodeCook.ts"), "utf8"),

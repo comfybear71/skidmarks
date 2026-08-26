@@ -37,7 +37,10 @@ export function sunnyAutoKeepsFailedProof(opts: {
 export function sunnyAutoResumeFromStaleError(error: string, phase?: string): boolean {
   const err = String(error || "").trim();
   if (phase === "error" && !err) return true;
-  return /shot has no cast to composite/i.test(err);
+  if (/shot has no cast to composite/i.test(err)) return true;
+  // One slow Grok still must not kill the episode. Same shot, try again.
+  if (/xai image request timed out/i.test(err)) return true;
+  return false;
 }
 
 function nextUnvoicedBeat(story: Awaited<ReturnType<typeof readMobileStory>>) {
