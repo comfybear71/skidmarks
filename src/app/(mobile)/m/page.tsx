@@ -91,9 +91,11 @@ export default function MobileHomePage() {
           return;
         }
       }
-      const data = await postJson<{ job: MobileGenJob }>("/api/crash/mobile/step", { jobId });
-      setJob(data.job);
-      if (data.job.error) setError(data.job.error);
+      const data = await postJson<{ job?: MobileGenJob }>("/api/crash/mobile/step", { jobId });
+      if (data.job) {
+        setJob(data.job);
+        if (data.job.error) setError(data.job.error);
+      }
     } catch (e) {
       setError(
         studioFetchError(
@@ -123,7 +125,8 @@ export default function MobileHomePage() {
     // 5-concurrent-request limit.
     let inFlight = false;
     let reachHoldUntil = 0;
-    const applyJob = (next: MobileGenJob) => {
+    const applyJob = (next: MobileGenJob | null | undefined) => {
+      if (!next?.id) return;
       setJob(next);
       if (next.error) setError(next.error);
       else setError("");
@@ -140,10 +143,15 @@ export default function MobileHomePage() {
           if (live) applyJob(live);
           return;
         }
-        const data = await postJson<{ job: MobileGenJob }>(url, {
+        const data = await postJson<{ job?: MobileGenJob }>(url, {
           jobId: job.id,
         });
-        applyJob(data.job);
+        if (data.job) {
+          applyJob(data.job);
+          return;
+        }
+        const live = await getMobileJob(job.id);
+        if (live) applyJob(live);
       } catch (e) {
         if (isStudioReachError(e)) {
           reachHoldUntil = Date.now() + 20_000;
@@ -308,10 +316,11 @@ export default function MobileHomePage() {
     setBusy(true);
     setError("");
     try {
-      const { job: created } = await postJson<{ job: MobileGenJob }>(
+      const { job: created } = await postJson<{ job?: MobileGenJob }>(
         "/api/crash/mobile/sunny-episode",
         { brief, script, deskId: DEFAULT_DESK_ID, styleRealism: 25 },
       );
+      if (!created?.id) throw new Error("Make did not return the episode. Don't tap Start directing.");
       setJob(created);
       setDraftingNew(false);
       setResumeError("");

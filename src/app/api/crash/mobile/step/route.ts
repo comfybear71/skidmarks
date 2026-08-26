@@ -199,7 +199,7 @@ export async function POST(req: Request) {
         }
         continueSunnyAutoAfterResponse(req, job, true);
         return NextResponse.json({
-          ok: !job.error,
+          ok: Boolean(job && !job.error),
           job,
           advanced: true,
         });

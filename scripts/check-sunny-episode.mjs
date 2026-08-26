@@ -616,6 +616,8 @@ assert.match(mPage, /Do not stopPoll/);
 assert.match(mPage, /visibilitychange/);
 assert.match(mPage, /pageshow/);
 assert.match(mPage, /pageHidden/);
+assert.match(mPage, /if \(!next\?\.id\) return/);
+assert.match(mPage, /if \(data\.job\) \{\s*applyJob\(data\.job\)/);
 assert.equal(
   sunnyAutoShouldContinue({ styleId: "sunny_banks", sunnyAuto: true, phase: "animate" }),
   true,
