@@ -7,6 +7,7 @@ import {
   PLATE_QA_MAX_ATTEMPTS,
   appendPlateQaFix,
   judgePlateStill,
+  plateQaStopRetry,
   resolvePlateQaIdentity,
   type PlateQaVerdict,
 } from "./mobilePlateQa";
@@ -188,6 +189,15 @@ export async function rebuildShotPlate(opts: {
       );
       working = patchShotFields(working, shotId, { plateTakes });
       await writeMobileStory(working, job.folderName);
+      break;
+    }
+    if (plateQaStopRetry(qa.fails, expectedPeople)) {
+      plateTakes = plateTakes.map((t, i) =>
+        i === plateTakes.length - 1 ? { ...t, approved: true } : t,
+      );
+      working = patchShotFields(working, shotId, { plateTakes });
+      await writeMobileStory(working, job.folderName);
+      qa = { ...qa, ok: true };
       break;
     }
     if (attempt < PLATE_QA_MAX_ATTEMPTS) {

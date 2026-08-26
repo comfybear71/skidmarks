@@ -28,6 +28,7 @@ import {
   buildDirectionPdf,
   directionLinesFromStory,
 } from "../src/lib/episodeDirectionPdf.ts";
+import { sunnyAutoKeepsFailedProof } from "../src/lib/sunnyEpisodeCook.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const mPage = readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8");
@@ -316,6 +317,19 @@ assert.doesNotMatch(
   /if \(!missing\.length\) return fromShelf/,
 );
 assert.match(readFileSync(join(here, "../src/app/api/crash/mobile/step/route.ts"), "utf8"), /runSunnyAutoStep/);
+assert.equal(
+  sunnyAutoKeepsFailedProof({
+    plateFile: "cplate_20260826193102083_g13.png",
+    qaOk: false,
+  }),
+  true,
+);
+assert.equal(sunnyAutoKeepsFailedProof({ plateFile: "", qaOk: false }), false);
+assert.equal(sunnyAutoKeepsFailedProof({ plateFile: "__error__", qaOk: false }), false);
+assert.match(
+  readFileSync(join(here, "../src/lib/sunnyEpisodeCook.ts"), "utf8"),
+  /sunnyAutoKeepsFailedProof/,
+);
 assert.match(readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8"), /WAIT\. Cooking the episode/);
 
 const shelfLoose = [

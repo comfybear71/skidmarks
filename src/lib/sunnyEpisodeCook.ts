@@ -23,6 +23,16 @@ export function isSunnyAutoJob(job: Pick<MobileGenJob, "styleId" | "sunnyAuto">)
   return job.styleId === "sunny_banks" && Boolean(job.sunnyAuto);
 }
 
+/** Make keeps a drawn still and walks on. A red proof must not kill the episode. */
+export function sunnyAutoKeepsFailedProof(opts: {
+  plateFile?: string;
+  qaOk?: boolean;
+}): boolean {
+  const file = String(opts.plateFile || "").trim();
+  if (!file || file === "__error__") return false;
+  return opts.qaOk === false;
+}
+
 function nextUnvoicedBeat(story: Awaited<ReturnType<typeof readMobileStory>>) {
   for (const scene of story.scenes) {
     for (const shot of scene.shots) {
@@ -130,6 +140,17 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
         qa: true,
       });
       if (rebuilt.qa && rebuilt.qa.ok === false) {
+        if (sunnyAutoKeepsFailedProof({ plateFile: rebuilt.plateFile, qaOk: false })) {
+          return (
+            (await patchMobileGenJob(job.id, {
+              phase: "plates",
+              error: "",
+              shots: rebuilt.job.shots.map((s) =>
+                s.shotId === unplated.shotId ? { ...s, error: "" } : s,
+              ),
+            })) || rebuilt.job
+          );
+        }
         return (
           (await patchMobileGenJob(job.id, {
             phase: "error",
