@@ -763,4 +763,35 @@ assert.equal(
   );
 }
 
+assert.equal(
+  isSunnySeriesLockJob({ prompt: "EP02 DROP BEAR DILEMMA - SUNNY BANKS", folderName: "" }),
+  true,
+);
+assert.equal(
+  isSunnySeriesLockJob({
+    folderName: "2 - Drop Bear Dilemma 91_kc3",
+    prompt: "Ranger Dan tries to demonstrate his device",
+  }),
+  false,
+);
+assert.equal(
+  pickSunnySeriesFace({
+    name: "Dazza",
+    shelf: { name: "Dazza", fileName: "thumb_1786096652402.png", look: "old shelf" },
+    jobFaces: [
+      { fileName: "thumb_1786096652402.png", look: "old shelf", seriesLock: false },
+      { fileName: "face_ujnrc38.png", look: "a front on of this character", seriesLock: true },
+    ],
+  })?.fileName,
+  "face_ujnrc38.png",
+);
+assert.equal(
+  pickSunnySeriesFace({
+    name: "Dazza",
+    shelf: { name: "Dazza", fileName: "thumb_1786096652402.png", look: "old shelf" },
+    jobFaces: [{ fileName: "thumb_1786096652402.png", look: "old shelf", seriesLock: false }],
+  })?.fileName,
+  "thumb_1786096652402.png",
+);
+
 console.log("check-sunny-episode: ok");

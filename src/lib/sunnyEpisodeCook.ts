@@ -266,10 +266,11 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
     }
   }
 
+  const fresh = await readMobileStory(job.styleId, job.folderName);
   const clips = audioDir
-    ? rebindJobClipVoices(mergeClipsFromStory(job, liveStory, { requeueSaved: false }), audioDir)
+    ? rebindJobClipVoices(mergeClipsFromStory(job, fresh, { requeueSaved: false }), audioDir)
         .clips
-    : mergeClipsFromStory(job, liveStory, { requeueSaved: false });
+    : mergeClipsFromStory(job, fresh, { requeueSaved: false });
   const pending = clips.filter((c) => c.clipStatus === "pending" && c.voiceFile?.trim());
   if (!pending.length) {
     return (

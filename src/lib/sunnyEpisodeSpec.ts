@@ -347,6 +347,7 @@ export function sunnyEpisodeGate(opts: {
       scan,
     };
   }
+
   const unknownPlaces = scan.places.filter((p) => !matchSunnyPlace(p, opts.shelfPlaces));
   scan.unknownPlaces = unknownPlaces;
   return { ok: true, scan };
