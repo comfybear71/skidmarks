@@ -98,8 +98,8 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
   const places = new Set<string>();
   const overcastShots: string[] = [];
 
-  const headers = [...text.matchAll(/---\s*SHOT(?:\s+(\d+))?\s*---/gi)];
-  const parts = text.split(/(?:^|\n)---\s*SHOT(?:\s+\d+)?\s*---\s*/im).slice(1);
+  const headers = [...text.matchAll(/---\s*SHOT(?:\s+(\d+[A-Za-z]*))?\s*---/gi)];
+  const parts = text.split(/(?:^|\n)---\s*SHOT(?:\s+\d+[A-Za-z]*)?\s*---\s*/im).slice(1);
   for (const [i, block] of parts.entries()) {
     const people = new Set<string>();
     for (const line of block.split("\n").map((l) => l.trim()).filter(Boolean)) {

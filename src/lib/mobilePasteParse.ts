@@ -348,7 +348,7 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
   const title = epMatch?.[1]?.trim() || "Untitled episode";
   const logline = gagMatch?.[1]?.trim() || "";
 
-  const parts = text.split(/(?:^|\n)---\s*SHOT(?:\s+\d+)?\s*---\s*/im).slice(1);
+  const parts = text.split(/(?:^|\n)---\s*SHOT(?:\s+\d+[A-Za-z]*)?\s*---\s*/im).slice(1);
   if (!parts.length) {
     throw new Error("Need at least one --- SHOT --- block.");
   }

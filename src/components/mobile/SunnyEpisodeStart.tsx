@@ -78,8 +78,8 @@ export function SunnyEpisodeStart({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
       <div style={{ color: "var(--chrome-dim)", fontSize: "12px" }}>
-        Series faces are already on. Guests and new places need a still first. Camera words:{" "}
-        {SUNNY_CAMERAS.join(", ")}.
+        Nothing auto-saves. Pink writing = it has not started. Yellow WAIT = it is working.
+        Camera words: {SUNNY_CAMERAS.join(", ")}.
       </div>
       <MobileTextInput
         value={brief}

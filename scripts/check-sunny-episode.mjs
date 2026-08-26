@@ -106,6 +106,30 @@ assert.ok(blocked.scan.speakers.includes("Ranger Bazza"));
 assert.ok(blocked.scan.unknownPlaces.includes("Caravan Park Main Deck"));
 assert.ok(blocked.scan.overcastShots.some((s) => /SHOT 10/.test(s)));
 
+const splitMob = `EPISODE: Split
+GAG: Split the mob.
+
+--- SHOT 10 ---
+Place: Caravan park
+Cast: Dazza, Ranger Dan, Bubbles
+Name: Ranger Dan
+[Gasp] "Look at it!"
+
+--- SHOT 10B ---
+Place: Caravan park
+Cast: Caravan Park Resident 1
+Name: Caravan Park Resident 1
+[Excited chatter] "Look at the glowing purple teeth on it!"
+`;
+const splitGate = sunnyEpisodeGate({
+  brief: "Split the mob.",
+  script: splitMob,
+  shelfPlaces: shelf,
+});
+assert.equal(splitGate.scan.overcastShots.length, 0);
+assert.ok(splitGate.scan.guests.includes("Caravan Park Resident 1"));
+assert.ok(!splitGate.scan.overcastShots.some((s) => /Resident 1/.test(s)));
+
 const scan = scanSunnyEpisodeScript(dropBear);
 assert.equal(scan.title, "2 - Drop Bear Dilemma");
 assert.ok(scan.places.includes("Inside the Metal Cage"));
@@ -120,6 +144,7 @@ assert.match(mPage, /sunny-episode/);
 assert.match(sunnyCard, /Make this episode/);
 assert.match(sunnyCard, /WAIT\. Making the episode/);
 assert.match(sunnyCard, /Won't start yet/);
+assert.match(sunnyCard, /Nothing auto-saves/);
 assert.doesNotMatch(sunnyCard, /What's the vibe\?/);
 assert.match(sunnyRoute, /sunnyEpisodeGate/);
 assert.match(sunnyRoute, /importPastedStory/);
