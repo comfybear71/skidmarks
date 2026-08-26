@@ -8,6 +8,7 @@ import {
   stockSearchLinks,
   stockSearchQuery,
 } from "@/lib/stockFootage";
+import { ARSENAL_EFFECTS, type ArsenalEffectId } from "@/lib/arsenalEffectsCatalog";
 
 type Props = {
   shot: CrashStoryShot;
@@ -17,6 +18,13 @@ type Props = {
   onRoleChange: (role: ShotFootageRole) => void;
   onQueryChange: (query: string) => void;
   onAttachFile: (file: File) => void;
+  /** Music-video Support only. Omit everywhere else. */
+  arsenal?: {
+    hasClip: boolean;
+    busy?: boolean;
+    error?: string;
+    onApply: (effectId: ArsenalEffectId) => void;
+  };
 };
 
 function RoleToggle({
@@ -91,6 +99,7 @@ export function StockFootagePanel({
   onRoleChange,
   onQueryChange,
   onAttachFile,
+  arsenal,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pathNote, setPathNote] = useState("");
@@ -260,6 +269,69 @@ export function StockFootagePanel({
             <p className={compact ? undefined : "text-[10px] text-[var(--fail)]"} style={compact ? { fontSize: "12px", color: "var(--magenta-hot)", margin: 0 } : undefined}>
               {attachError}
             </p>
+          ) : null}
+          {arsenal ? (
+            <div
+              className={compact ? undefined : "space-y-1 border-t border-[var(--line)] pt-1.5"}
+              style={compact ? { display: "flex", flexDirection: "column", gap: "6px", borderTop: "1px solid var(--line)", paddingTop: "8px" } : undefined}
+            >
+              <span
+                className={compact ? undefined : "text-[9px] uppercase tracking-wide text-[var(--acid)]"}
+                style={compact ? { fontSize: "11px", color: "var(--acid)", textTransform: "uppercase", letterSpacing: "0.04em" } : undefined}
+              >
+                Arsenal of effects
+              </span>
+              <p
+                className={compact ? undefined : "text-[10px] leading-snug text-[var(--chrome-dim)]"}
+                style={compact ? { fontSize: "12px", lineHeight: 1.35, color: "var(--chrome-dim)", margin: 0 } : undefined}
+              >
+                Picture spice on this hung stock clip. Our tools, not CapCut. Same clock. Audio stays off.
+              </p>
+              <div className={compact ? undefined : "flex flex-wrap gap-1"} style={compact ? { display: "flex", flexWrap: "wrap", gap: "6px" } : undefined}>
+                {ARSENAL_EFFECTS.map((fx) => (
+                  <button
+                    key={fx.id}
+                    type="button"
+                    title={fx.blurb}
+                    disabled={!arsenal.hasClip || arsenal.busy || attachBusy}
+                    onClick={() => arsenal.onApply(fx.id)}
+                    className={
+                      compact
+                        ? undefined
+                        : "rounded-sm border border-[var(--acid)]/50 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--acid)] hover:bg-[var(--acid)]/10 disabled:opacity-40"
+                    }
+                    style={
+                      compact
+                        ? {
+                            border: "1px solid var(--acid)",
+                            color: "var(--acid)",
+                            fontSize: "11px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.04em",
+                            padding: "6px 8px",
+                            borderRadius: "2px",
+                            background: "transparent",
+                            cursor: !arsenal.hasClip || arsenal.busy ? "not-allowed" : "pointer",
+                            opacity: !arsenal.hasClip || arsenal.busy ? 0.4 : 1,
+                          }
+                        : undefined
+                    }
+                  >
+                    {arsenal.busy ? "…" : fx.label}
+                  </button>
+                ))}
+              </div>
+              {!arsenal.hasClip ? (
+                <p className={compact ? undefined : "text-[10px] text-[var(--mute)]"} style={compact ? { fontSize: "12px", color: "var(--mute)", margin: 0 } : undefined}>
+                  Hang the stock file first.
+                </p>
+              ) : null}
+              {arsenal.error ? (
+                <p className={compact ? undefined : "text-[10px] text-[var(--fail)]"} style={compact ? { fontSize: "12px", color: "var(--magenta-hot)", margin: 0 } : undefined}>
+                  {arsenal.error}
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </>
       ) : (

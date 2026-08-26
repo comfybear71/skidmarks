@@ -972,6 +972,11 @@ export function PlateReviewEditor({
           }
           shot={displayShot(openShotId)}
           clips={job.clips}
+          trackClipFile={
+            (job.scratchSong?.cuts || []).find(
+              (c) => (c.shotId || "") === openShotId && (c.clipFile || "").trim(),
+            )?.clipFile || ""
+          }
           loading={!story && !loadError}
           error={loadError}
           placeName={
@@ -1995,12 +2000,18 @@ function PlatePreview({
 
 function ShotStockPanel({
   jobId,
+  styleId,
   shot,
+  clips,
+  trackClipFile,
   onShotMeta,
   onJobChange,
 }: {
   jobId: string;
+  styleId?: string;
   shot: CrashStoryShot;
+  clips?: MobileClipUnit[];
+  trackClipFile?: string;
   onShotMeta?: (patch: { footageRole?: ShotFootageRole; stockQuery?: string }) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
@@ -2054,12 +2065,57 @@ function ShotStockPanel({
     }
   }
 
+  async function applyArsenal(effectId: string) {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/crash/mobile/clip/arsenal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId,
+          shotId: shot.id,
+          effectId,
+          text: shot.title || "",
+        }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) onJobChange?.(data.job);
+      if (data.error) setError(data.error);
+    } catch (e) {
+      setError(studioFetchError(e, "Couldn't apply that effect"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const hungClip =
+    Boolean((trackClipFile || "").trim()) ||
+    (shot.beats || []).some((b) =>
+      (clips || []).some(
+        (c) => c.beatId === b.id && c.clipStatus === "done" && Boolean((c.clipFile || "").trim()),
+      ),
+    ) ||
+    (clips || []).some(
+      (c) => (c.shotId || "") === shot.id && c.clipStatus === "done" && Boolean((c.clipFile || "").trim()),
+    );
+  const showArsenal = styleId === "music_video";
+
   return (
     <StockFootagePanel
       shot={shot}
       variant="phone"
       attachBusy={busy}
       attachError={error}
+      arsenal={
+        showArsenal
+          ? {
+              hasClip: hungClip,
+              busy,
+              onApply: (effectId) => void applyArsenal(effectId),
+            }
+          : undefined
+      }
       onRoleChange={(footageRole) => void saveMeta({ footageRole })}
       onQueryChange={(stockQuery) => {
         onShotMeta?.({ stockQuery });
@@ -2082,6 +2138,7 @@ function ShotLineEditor({
   lookForSpeaker,
   shot,
   clips,
+  trackClipFile,
   loading,
   error,
   placeName,
@@ -2107,6 +2164,7 @@ function ShotLineEditor({
   lookForSpeaker: (name: string) => string;
   shot: CrashStoryShot | null;
   clips: MobileClipUnit[];
+  trackClipFile?: string;
   loading: boolean;
   error: string;
   placeName?: string;
@@ -2168,7 +2226,10 @@ function ShotLineEditor({
       />
       <ShotStockPanel
         jobId={jobId}
+        styleId={styleId}
         shot={shot}
+        clips={clips}
+        trackClipFile={trackClipFile}
         onShotMeta={onShotMeta}
         onJobChange={onJobChange}
       />
