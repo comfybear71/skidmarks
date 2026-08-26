@@ -127,8 +127,15 @@ export function SunnyEpisodeStart({
             Won&apos;t start. {gate.error}
           </div>
         ) : (
-          <div style={{ color: "var(--acid)", fontSize: "14px", fontWeight: 700 }}>
-            Ready. Tap Make this episode.
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ color: "var(--acid)", fontSize: "14px", fontWeight: 700 }}>
+              Ready. Tap Make this episode.
+            </div>
+            {gate.scan.guests.length ? (
+              <div style={{ color: "var(--chrome-dim)", fontSize: "13px" }}>
+                No face yet — add after: {gate.scan.guests.join(", ")}. Not a block.
+              </div>
+            ) : null}
           </div>
         )}
       </div>

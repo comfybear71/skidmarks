@@ -5,7 +5,7 @@ import { createMobileGenJob, patchMobileGenJob } from "@/lib/mobileGenJob";
 import { importPastedStory, parseMobilePaste } from "@/lib/mobilePasteScript";
 import { DEFAULT_DESK_ID } from "@/lib/mobileDesk";
 import { newId } from "@/lib/types";
-import { matchSunnyPlace, sunnyEpisodeGate } from "@/lib/sunnyEpisodeSpec";
+import { isSunnyExtraName, matchSunnyPlace, sunnyEpisodeGate } from "@/lib/sunnyEpisodeSpec";
 import { listSunnyShelfPlaces } from "@/lib/sunnyEpisodeShelf";
 
 export const runtime = "nodejs";
@@ -15,8 +15,9 @@ const DEFAULT_SECONDS_PER_SHOT = 5;
 
 /**
  * POST { brief, script } — Sunny Banks create-episode.
- * Gates guests / unknown places, seeds series faces + shelf stills, locks
- * the paste. Does not cook plates or LTX. Does not mint a music-video job.
+ * Locks the paste. Extras (residents, turkeys, props) are not faces.
+ * Missing guest stills land on CAST after Make — they do not block start.
+ * Does not cook plates or LTX. Does not mint a music-video job.
  */
 export async function POST(req: Request) {
   try {
@@ -119,10 +120,15 @@ export async function POST(req: Request) {
       job,
       folderName,
       story: { ...story, campaignLabel: packTitle },
-      parsedCharacters: pasted.characters,
+      parsedCharacters: pasted.characters.filter((c) => !isSunnyExtraName(c.name)),
     });
+    const speakersOnly = updated.speakers.filter((s) => !isSunnyExtraName(s));
+    const jobOut =
+      speakersOnly.length !== updated.speakers.length
+        ? await patchMobileGenJob(updated.id, { speakers: speakersOnly })
+        : updated;
 
-    return NextResponse.json({ ok: true, job: updated, scan: gate.scan });
+    return NextResponse.json({ ok: true, job: jobOut || updated, scan: gate.scan });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },

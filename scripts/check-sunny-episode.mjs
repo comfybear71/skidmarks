@@ -7,6 +7,7 @@ import { parseMobilePaste } from "../src/lib/mobilePasteParse.ts";
 import {
   SUNNY_EPISODE_BLANK,
   canonicalSunnyName,
+  isSunnyExtraName,
   scanSunnyEpisodeScript,
   sunnyEpisodeGate,
 } from "../src/lib/sunnyEpisodeSpec.ts";
@@ -35,6 +36,12 @@ assert.equal(canonicalSunnyName("Dan"), "Ranger Bazza");
 assert.equal(canonicalSunnyName("Bubbles"), "Bubbles");
 assert.equal(canonicalSunnyName("Bubbles (Cosmic Sludge Creature)"), "Bubbles");
 assert.equal(canonicalSunnyName("The Foam Monster (Gazza and Shazza in disguise)"), "The Foam Monster");
+assert.equal(isSunnyExtraName("Caravan Park Resident 1"), true);
+assert.equal(isSunnyExtraName("Bush Turkeys"), true);
+assert.equal(isSunnyExtraName("Discarded Manuals"), true);
+assert.equal(isSunnyExtraName("The Foam Monster"), true);
+assert.equal(isSunnyExtraName("Bubbles"), false);
+assert.equal(isSunnyExtraName("Gazza"), false);
 
 const okScript = `EPISODE: Whistle Sale
 GAG: Dan sells a whistle.
@@ -92,19 +99,19 @@ Name: Caravan Park Resident 1
 [Excited chatter] "Look at the glowing purple teeth on it!"
 `;
 
-const blocked = sunnyEpisodeGate({
+const dropGate = sunnyEpisodeGate({
   brief: "Turkeys nest in the golf cart.",
   script: dropBear,
   shelfPlaces: shelf,
 });
-assert.equal(blocked.ok, false);
-assert.match(blocked.error, /Max 3 people|Add a face first|Add a place still first/);
-assert.ok(blocked.scan.guests.includes("Bubbles"));
-assert.ok(blocked.scan.guests.includes("Caravan Park Residents"));
-assert.ok(!blocked.scan.speakers.includes("Ranger Dan"));
-assert.ok(blocked.scan.speakers.includes("Ranger Bazza"));
-assert.ok(blocked.scan.unknownPlaces.includes("Caravan Park Main Deck"));
-assert.ok(blocked.scan.overcastShots.some((s) => /SHOT 10/.test(s)));
+assert.equal(dropGate.ok, true);
+assert.ok(dropGate.scan.guests.includes("Bubbles"));
+assert.ok(!dropGate.scan.guests.includes("Caravan Park Residents"));
+assert.ok(!dropGate.scan.guests.includes("Caravan Park Resident 1"));
+assert.ok(!dropGate.scan.speakers.includes("Ranger Dan"));
+assert.ok(dropGate.scan.speakers.includes("Ranger Bazza"));
+assert.ok(dropGate.scan.unknownPlaces.includes("Caravan Park Main Deck"));
+assert.equal(dropGate.scan.overcastShots.length, 0);
 
 const splitMob = `EPISODE: Split
 GAG: Split the mob.
@@ -126,9 +133,9 @@ const splitGate = sunnyEpisodeGate({
   script: splitMob,
   shelfPlaces: shelf,
 });
+assert.equal(splitGate.ok, true);
 assert.equal(splitGate.scan.overcastShots.length, 0);
-assert.ok(splitGate.scan.guests.includes("Caravan Park Resident 1"));
-assert.ok(!splitGate.scan.overcastShots.some((s) => /Resident 1/.test(s)));
+assert.ok(!splitGate.scan.guests.includes("Caravan Park Resident 1"));
 
 const scan = scanSunnyEpisodeScript(dropBear);
 assert.equal(scan.title, "2 - Drop Bear Dilemma");
@@ -145,7 +152,9 @@ assert.match(sunnyCard, /Make this episode/);
 assert.match(sunnyCard, /WAIT\. Making the episode/);
 assert.match(sunnyCard, /Won't start yet/);
 assert.match(sunnyCard, /Nothing auto-saves/);
+assert.match(sunnyCard, /Not a block/);
 assert.doesNotMatch(sunnyCard, /What's the vibe\?/);
+assert.doesNotMatch(sunnyRoute, /Add a face first/);
 assert.match(sunnyRoute, /sunnyEpisodeGate/);
 assert.match(sunnyRoute, /importPastedStory/);
 assert.doesNotMatch(sunnyRoute, /mgen_20260824085817084_edp/);

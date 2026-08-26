@@ -69,6 +69,18 @@ export function isSunnySeriesName(name: string): boolean {
   return SUNNY_SERIES_NAMES.some((n) => sunnyNameKey(n) === sunnyNameKey(canon));
 }
 
+/** Crowd / animal / prop / costume — not a face we must hold. */
+export function isSunnyExtraName(name: string): boolean {
+  const k = sunnyNameKey(canonicalSunnyName(name));
+  if (!k || k === "none") return true;
+  if (/resident/.test(k)) return true;
+  if (/^(the )?bush turkeys?$/.test(k) || /^turkeys?$/.test(k)) return true;
+  if (/foam monster/.test(k)) return true;
+  if (/discarded manuals?/.test(k) || k === "manuals") return true;
+  if (/^(crowd|extras|background)$/.test(k)) return true;
+  return false;
+}
+
 export const SUNNY_MAX_FACES = 3;
 
 export type SunnyEpisodeScan = {
@@ -112,7 +124,7 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
       if (cast) {
         for (const name of cast[1].split(/,|&|\//)) {
           const n = keepSunnyName(name);
-          if (n) {
+          if (n && !isSunnyExtraName(n)) {
             speakers.add(n);
             people.add(n);
           }
@@ -122,7 +134,7 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
       const named = line.match(/^Name:\s*(.+)$/i);
       if (named) {
         const n = keepSunnyName(named[1]);
-        if (n) {
+        if (n && !isSunnyExtraName(n)) {
           speakers.add(n);
           people.add(n);
         }
@@ -132,7 +144,7 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
       const inline = line.match(/^([^:]{1,40}):\s+(.+)$/);
       if (inline && !SKIP_FIELD.test(`${inline[1]}:`)) {
         const n = keepSunnyName(inline[1]);
-        if (n) {
+        if (n && !isSunnyExtraName(n)) {
           speakers.add(n);
           people.add(n);
         }
@@ -187,20 +199,6 @@ export function sunnyEpisodeGate(opts: {
     return {
       ok: false,
       error: `Max ${SUNNY_MAX_FACES} people on a plate: ${scan.overcastShots.join("; ")}.`,
-      scan,
-    };
-  }
-  if (scan.guests.length) {
-    return {
-      ok: false,
-      error: `Add a face first: ${scan.guests.join(", ")}. Series regulars are already on.`,
-      scan,
-    };
-  }
-  if (unknownPlaces.length) {
-    return {
-      ok: false,
-      error: `Add a place still first: ${unknownPlaces.join(", ")}. Or spell a shelf place the same.`,
       scan,
     };
   }
