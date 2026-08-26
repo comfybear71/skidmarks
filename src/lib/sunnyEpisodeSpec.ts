@@ -58,7 +58,7 @@ export function sunnyNameKey(name: string): string {
 
 /** Ranger Dan → Ranger Bazza. Unknown names stay as written. */
 export function canonicalSunnyName(name: string): string {
-  const raw = name.trim();
+  const raw = name.trim().replace(/\s*\([^)]*\)\s*$/, "").trim();
   if (!raw) return "";
   const hit = SUNNY_NAME_ALIASES[sunnyNameKey(raw)];
   return hit || raw;
@@ -110,7 +110,7 @@ export function scanSunnyEpisodeScript(raw: string): SunnyEpisodeScan {
       }
       const cast = line.match(/^Cast:\s*(.+)$/i);
       if (cast) {
-        for (const name of cast[1].split(/,|&|\/|\band\b/i)) {
+        for (const name of cast[1].split(/,|&|\//)) {
           const n = keepSunnyName(name);
           if (n) {
             speakers.add(n);

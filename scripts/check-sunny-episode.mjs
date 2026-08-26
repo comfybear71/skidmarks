@@ -33,6 +33,8 @@ const zipRoute = readFileSync(
 assert.equal(canonicalSunnyName("Ranger Dan"), "Ranger Bazza");
 assert.equal(canonicalSunnyName("Dan"), "Ranger Bazza");
 assert.equal(canonicalSunnyName("Bubbles"), "Bubbles");
+assert.equal(canonicalSunnyName("Bubbles (Cosmic Sludge Creature)"), "Bubbles");
+assert.equal(canonicalSunnyName("The Foam Monster (Gazza and Shazza in disguise)"), "The Foam Monster");
 
 const okScript = `EPISODE: Whistle Sale
 GAG: Dan sells a whistle.

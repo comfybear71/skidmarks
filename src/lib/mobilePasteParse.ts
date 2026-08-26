@@ -395,7 +395,7 @@ function parseShotBlocks(text: string, styleId: ShowStyleId): MobilePasteResult 
       }
       const cast = line.match(/^Cast:\s*(.+)$/i);
       if (cast) {
-        for (const name of cast[1].split(/,|&|\band\b/i)) {
+        for (const name of cast[1].split(/,|&/)) {
           const bit = canonSpeaker(styleId, name.trim());
           if (bit && !/^none$/i.test(bit)) castNames.push(bit);
         }
