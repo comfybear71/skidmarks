@@ -168,6 +168,28 @@ assert.equal(namedCue.story.scenes[0].shots[0].sfx?.[0]?.label, "Megaphone stati
 assert.equal(namedCue.story.scenes[1].shots[0].beats[0].speaker, "");
 assert.equal(namedCue.story.scenes[1].shots[0].sfx?.[0]?.label, "A single, distant, aggressive turkey gobble");
 
+const tenB = parseMobilePaste(
+  `EPISODE: Split
+GAG: Split.
+
+--- SHOT 10 ---
+Place: Caravan park
+Cast: Dazza, Ranger Dan, Bubbles
+Name: Ranger Dan
+[Gasp] "Look at it!"
+
+--- SHOT 10B ---
+Place: Caravan park
+Cast: Caravan Park Resident 1
+Name: Caravan Park Resident 1
+[Excited chatter] "Look at the teeth!"
+`,
+  "sunny_banks",
+);
+assert.equal(tenB.story.scenes[0].shots.length, 2);
+assert.equal(tenB.story.scenes[0].shots[0].beats[0].speaker, "Ranger Bazza");
+assert.equal(tenB.story.scenes[0].shots[1].beats[0].speaker, "Caravan Park Resident 1");
+
 assert.equal(normalizePlaceKey("INT. MATTY BAR - DAY"), "matty bar");
 assert.equal(normalizePlaceKey("Matty bar"), "matty bar");
 

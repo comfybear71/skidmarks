@@ -857,7 +857,11 @@ export default function MobileHomePage() {
           }
         >
           {isSunnyStyle ? (
-            <SunnyEpisodeStart busy={busy} onMake={(brief, script) => void startSunnyEpisode(brief, script)} />
+            <SunnyEpisodeStart
+              busy={busy}
+              error={error}
+              onMake={(brief, script) => void startSunnyEpisode(brief, script)}
+            />
           ) : !isMusicVideoStyle ? (
             <>
               <MobileTextInput
