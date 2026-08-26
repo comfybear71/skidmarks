@@ -118,6 +118,8 @@ assert.match(mPage, /Start directing/);
 assert.match(mPage, /SunnyEpisodeStart/);
 assert.match(mPage, /sunny-episode/);
 assert.match(sunnyCard, /Make this episode/);
+assert.match(sunnyCard, /WAIT\. Making the episode/);
+assert.match(sunnyCard, /Won't start yet/);
 assert.doesNotMatch(sunnyCard, /What's the vibe\?/);
 assert.match(sunnyRoute, /sunnyEpisodeGate/);
 assert.match(sunnyRoute, /importPastedStory/);
