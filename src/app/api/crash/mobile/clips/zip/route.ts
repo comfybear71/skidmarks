@@ -7,6 +7,8 @@ import { mobileMediaFolder } from "@/lib/mobileJobFolder";
 import { CRASH_DIR } from "@/lib/paths";
 import { clipsZipFileName, orderedJobClips } from "@/lib/orderedJobClips";
 import { buildStoreZip } from "@/lib/zipStore";
+import { buildDirectionPdf, directionLinesFromStory } from "@/lib/episodeDirectionPdf";
+import { readMobileStory } from "@/lib/mobileStoryStore";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -58,6 +60,19 @@ export async function GET(req: Request) {
   }
   if (!entries.length) {
     return NextResponse.json({ error: "Clip files are missing." }, { status: 404 });
+  }
+  if (job.folderName) {
+    try {
+      const story = await readMobileStory(job.styleId, job.folderName);
+      if (story?.scenes?.length) {
+        entries.push({
+          name: "direction.pdf",
+          data: buildDirectionPdf(directionLinesFromStory(story)),
+        });
+      }
+    } catch {
+      /* clips still zip if the sheet cannot be built */
+    }
   }
   const zip = buildStoreZip(entries);
   const fileName = clipsZipFileName(job);

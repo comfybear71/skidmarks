@@ -16,6 +16,7 @@ import { SHOW_STYLE_PRESETS } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
 import { MUSIC_VIDEO_SHOW_NAME } from "@/lib/musicVideoSong";
 import { attachTakenPendingSong } from "@/components/mobile/MusicVideoStart";
+import { SunnyEpisodeStart } from "@/components/mobile/SunnyEpisodeStart";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import type { CastBand } from "@/lib/castBands";
 import { matchCastBand } from "@/lib/castBandMatch";
@@ -239,7 +240,27 @@ export default function MobileHomePage() {
   // (musicVideoCreditLine, driven by the separate artist/songTitle fields
   // saved alongside prompt) — matches the two-line Vibe display convention.
   const isMusicVideoStyle = styleId === "music_video";
+  const isSunnyStyle = styleId === "sunny_banks";
   const effectivePrompt = isMusicVideoStyle ? MUSIC_VIDEO_SHOW_NAME : prompt;
+
+  const startSunnyEpisode = useCallback(async (brief: string, script: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      const { job: created } = await postJson<{ job: MobileGenJob }>(
+        "/api/crash/mobile/sunny-episode",
+        { brief, script, deskId: DEFAULT_DESK_ID, styleRealism: 25 },
+      );
+      setJob(created);
+      setDraftingNew(false);
+      setResumeError("");
+      setPickerOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't make that episode");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
   const startRun = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -820,14 +841,24 @@ export default function MobileHomePage() {
         </div>
       ) : showVibeForm ? (
         <ActiveStepPanel
-          title={isMusicVideoStyle ? "What's the track?" : "What's the vibe?"}
+          title={
+            isSunnyStyle
+              ? "New Sunny Banks episode"
+              : isMusicVideoStyle
+                ? "What's the track?"
+                : "What's the vibe?"
+          }
           subtitle={
-            isMusicVideoStyle
-              ? "We hold the cast, the places, and the plates."
-              : "You direct. We hold the cast, the places, and the plates."
+            isSunnyStyle
+              ? "Paste the gag and the shots. Series faces are already on."
+              : isMusicVideoStyle
+                ? "We hold the cast, the places, and the plates."
+                : "You direct. We hold the cast, the places, and the plates."
           }
         >
-          {!isMusicVideoStyle ? (
+          {isSunnyStyle ? (
+            <SunnyEpisodeStart busy={busy} onMake={(brief, script) => void startSunnyEpisode(brief, script)} />
+          ) : !isMusicVideoStyle ? (
             <>
               <MobileTextInput
                 value={prompt}
@@ -967,39 +998,43 @@ export default function MobileHomePage() {
             ))}
           </div>
 
-          <div style={{ marginTop: "14px" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: "11px",
-                color: "var(--chrome-dim)",
-                marginBottom: "4px",
-              }}
-            >
-              <span>Cartoon</span>
-              <span style={{ color: "var(--acid)", fontWeight: 700 }}>
-                {styleRealism} · {styleRealismLabel(styleRealism)}
-              </span>
-              <span>Photoreal</span>
+          {!isSunnyStyle ? (
+            <div style={{ marginTop: "14px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "11px",
+                  color: "var(--chrome-dim)",
+                  marginBottom: "4px",
+                }}
+              >
+                <span>Cartoon</span>
+                <span style={{ color: "var(--acid)", fontWeight: 700 }}>
+                  {styleRealism} · {styleRealismLabel(styleRealism)}
+                </span>
+                <span>Photoreal</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={styleRealism}
+                onChange={(e) => setStyleRealism(Number(e.target.value))}
+                aria-label="Cartoon to photoreal"
+                style={{ width: "100%", accentColor: "var(--acid)" }}
+              />
             </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={styleRealism}
-              onChange={(e) => setStyleRealism(Number(e.target.value))}
-              aria-label="Cartoon to photoreal"
-              style={{ width: "100%", accentColor: "var(--acid)" }}
-            />
-          </div>
+          ) : null}
 
-          <div style={{ marginTop: "14px" }}>
-            <MobilePrimaryButton disabled={!effectivePrompt.trim() || busy} onClick={() => void startRun()}>
-              {busy ? "Starting…" : "Start directing"}
-            </MobilePrimaryButton>
-          </div>
+          {!isSunnyStyle ? (
+            <div style={{ marginTop: "14px" }}>
+              <MobilePrimaryButton disabled={!effectivePrompt.trim() || busy} onClick={() => void startRun()}>
+                {busy ? "Starting…" : "Start directing"}
+              </MobilePrimaryButton>
+            </div>
+          ) : null}
         </ActiveStepPanel>
       ) : null}
 
