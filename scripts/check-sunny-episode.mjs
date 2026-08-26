@@ -614,6 +614,7 @@ assert.match(mPage, /getMobileJob/);
 assert.match(mPage, /isStudioReachError/);
 assert.match(mPage, /Do not stopPoll/);
 assert.match(mPage, /visibilitychange/);
+assert.match(mPage, /pageshow/);
 assert.match(mPage, /pageHidden/);
 assert.equal(
   sunnyAutoShouldContinue({ styleId: "sunny_banks", sunnyAuto: true, phase: "animate" }),

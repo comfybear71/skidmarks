@@ -170,13 +170,18 @@ export default function MobileHomePage() {
     const onVis = () => {
       if (document.visibilityState === "visible") void tick();
     };
+    const onShow = () => {
+      void tick();
+    };
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pageshow", onShow);
     void tick();
     pollRef.current = window.setInterval(() => {
       void tick();
     }, 1500);
     return () => {
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pageshow", onShow);
       stopPoll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

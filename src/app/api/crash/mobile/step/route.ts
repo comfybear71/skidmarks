@@ -330,6 +330,7 @@ export async function POST(req: Request) {
         phase: "animate",
         error: "",
       }))!;
+      continueSunnyAutoAfterResponse(req, job, true);
       return NextResponse.json({ ok: true, job, advanced: true });
     }
 
