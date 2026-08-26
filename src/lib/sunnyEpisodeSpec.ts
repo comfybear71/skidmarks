@@ -76,6 +76,7 @@ export function isSunnyExtraName(name: string): boolean {
   if (/resident/.test(k)) return true;
   if (/^(the )?bush turkeys?$/.test(k) || /^turkeys?$/.test(k)) return true;
   if (/foam monster/.test(k)) return true;
+  if (/laundry monster/.test(k)) return true;
   if (/discarded manuals?/.test(k) || k === "manuals") return true;
   if (/^(crowd|extras|background)$/.test(k)) return true;
   return false;
@@ -235,13 +236,6 @@ export function sunnyEpisodeGate(opts: {
   }
   const unknownPlaces = scan.places.filter((p) => !matchSunnyPlace(p, opts.shelfPlaces));
   scan.unknownPlaces = unknownPlaces;
-  if (scan.overcastShots.length) {
-    return {
-      ok: false,
-      error: `Max ${SUNNY_MAX_FACES} people on a plate: ${scan.overcastShots.join("; ")}.`,
-      scan,
-    };
-  }
   return { ok: true, scan };
 }
 
