@@ -1,5 +1,6 @@
 import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
+import { isSupportShot } from "./stockFootage";
 import type { MobileClipUnit, MobileGenJob } from "./mobileGenJob";
 import { clipFileBasename, stackedClipFiles } from "./mobilePlateClips";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
@@ -64,6 +65,7 @@ export function queueableStoryBeats(
   for (const sc of story.scenes) {
     for (const sh of sc.shots) {
       if (!shotIds.has(sh.id)) continue;
+      if (isSupportShot(sh)) continue;
       for (const b of sh.beats) {
         if (!b.speaker.trim()) continue;
         if (leftoverHydrateBeat(sh.id, b.id)) continue;
@@ -164,6 +166,10 @@ export function mergeClipsFromStory(
     if (isLeftoverPackVoiceFile(prev.voiceFile)) continue;
     const home = findBeatHome(story, prev.beatId);
     if (!home) continue;
+    const homeShot = story.scenes
+      .flatMap((sc) => sc.shots)
+      .find((sh) => sh.id === home.shotId);
+    if (isSupportShot(homeShot)) continue;
     const voiceFile = isLeftoverPackVoiceFile(home.voiceFile)
       ? prev.voiceFile
       : home.voiceFile || prev.voiceFile;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
-import type { CrashStoryDoc, CrashStoryShot, PlateTake } from "@/lib/crashStoryTypes";
+import type { CrashStoryDoc, CrashStoryShot, PlateTake, ShotFootageRole } from "@/lib/crashStoryTypes";
 import { isHydratedLeftoverBeat } from "@/lib/cloudStoryMedia";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
 import { clearAllStoryShots, clipQueueError } from "@/lib/mobileClipQueue";
@@ -44,6 +44,8 @@ function patchShotFields(
     plateFile?: string;
     plateTakes?: PlateTake[];
     bibleIds?: string[];
+    footageRole?: ShotFootageRole;
+    stockQuery?: string;
   },
 ): CrashStoryDoc {
   return {
@@ -109,6 +111,8 @@ export async function POST(req: Request) {
       bibleIds?: string[];
       summary?: string;
       title?: string;
+      footageRole?: ShotFootageRole;
+      stockQuery?: string;
       action?: string;
       shot?: CrashStoryShot;
       takeId?: string;
@@ -127,6 +131,11 @@ export async function POST(req: Request) {
       : undefined;
     const summaryIn = body.summary !== undefined ? String(body.summary) : undefined;
     const titleIn = body.title !== undefined ? String(body.title) : undefined;
+    const footageRoleIn =
+      body.footageRole === "hero" || body.footageRole === "support"
+        ? body.footageRole
+        : undefined;
+    const stockQueryIn = body.stockQuery !== undefined ? String(body.stockQuery) : undefined;
     const action = (body.action || "rebuild").trim().toLowerCase();
     const drop = action === "drop";
     const saveOnly = action === "save";
@@ -153,7 +162,14 @@ export async function POST(req: Request) {
     }
     if ((pick || dropTake) && !takeIdIn) return NextResponse.json({ error: "Need takeId" }, { status: 400 });
     if (removeLine && !beatIdIn) return NextResponse.json({ error: "Need beatId" }, { status: 400 });
-    if (saveOnly && stagingIn === undefined && summaryIn === undefined && titleIn === undefined) {
+    if (
+      saveOnly &&
+      stagingIn === undefined &&
+      summaryIn === undefined &&
+      titleIn === undefined &&
+      footageRoleIn === undefined &&
+      stockQueryIn === undefined
+    ) {
       return NextResponse.json({ error: "Nothing to save" }, { status: 400 });
     }
 
@@ -700,11 +716,20 @@ export async function POST(req: Request) {
     }
 
     if (saveOnly) {
-      const patch: { staging?: string; summary?: string; title?: string; bibleIds?: string[] } = {};
+      const patch: {
+        staging?: string;
+        summary?: string;
+        title?: string;
+        bibleIds?: string[];
+        footageRole?: ShotFootageRole;
+        stockQuery?: string;
+      } = {};
       if (stagingIn !== undefined) patch.staging = stagingIn;
       if (summaryIn !== undefined) patch.summary = summaryIn;
       if (titleIn !== undefined) patch.title = titleIn;
       if (bibleIdsIn !== undefined) patch.bibleIds = bibleIdsIn;
+      if (footageRoleIn !== undefined) patch.footageRole = footageRoleIn;
+      if (stockQueryIn !== undefined) patch.stockQuery = stockQueryIn;
       const saved = patchShotFields(story, shotId, patch);
       await writeMobileStory(saved, job.folderName);
       const next = saved.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === shotId);
@@ -715,6 +740,8 @@ export async function POST(req: Request) {
         summary: next?.summary,
         title: next?.title,
         bibleIds: next?.bibleIds || [],
+        footageRole: next?.footageRole,
+        stockQuery: next?.stockQuery,
       });
     }
 

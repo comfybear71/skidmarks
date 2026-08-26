@@ -127,6 +127,8 @@ When a mute clip **Passes**, move it up into **Proven** with the engine, duratio
 
 A clip is not on the timeline until `plateTimings` has the same clock. Hang is one write: cut (`clipFile`, `status: done`) **and** `{ plateId, startMs, endMs, sortIndex }`. File first — if it is already in Blob, hang it; do not recook.
 
+**Support shots (stock first):** scenery / mood / transitions. Tag Support. Search Pexels / Pixabay / Coverr / Commons. Drop the file. Do not cook. Do not invent a 15s clock. Strip stock audio so TRACK keeps our mix. Hero stays on Plates / Speak / Animate.
+
 Stitch is out. Finish is ordered unstitched mp4s with human names.
 
 ---

@@ -21,6 +21,7 @@ export type {
   CrashStoryScene,
   CrashStoryShot,
   CrashStorySfx,
+  ShotFootageRole,
 } from "./crashStoryTypes";
 export { sceneIsFilled } from "./crashStoryTypes";
 

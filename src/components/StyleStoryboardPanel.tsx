@@ -1,23 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BeatAudioMini } from "@/components/BeatAudioMini";
 import { MediaThumb } from "@/components/MediaThumb";
 import type { CrashSpxItem } from "@/lib/crashSpx";
 import type {
   CrashStoryBeat,
   CrashStoryDoc,
+  CrashStoryShot,
   CrashStorySfx,
+  ShotFootageRole,
 } from "@/lib/crashStoryTypes";
-import { CRASH_STORY_SAVED, CRASH_SHOW_STYLE_EVENT } from "@/lib/crashStyleSync";
+import { CRASH_STORY_SAVED, CRASH_SHOW_STYLE_EVENT, dispatchStorySaved } from "@/lib/crashStyleSync";
 import {
   CRASH_ACTIVE_EPISODE_EVENT,
   crashDeskLtxFetchUrl,
   crashDeskStoryFetchUrl,
+  crashDeskStoryPutBody,
   preferPackedStory,
+  readActiveEpisode,
   readOpenLtxCache,
   readOpenStoryCache,
+  writeOpenStoryCache,
 } from "@/lib/crashActiveEpisode";
+import { findStoryShot, isSupportShot } from "@/lib/stockFootage";
+import { StockFootagePanel } from "@/components/StockFootagePanel";
 import {
   COMFY_INTRO_BEAT_ID,
   COMFY_OUTRO_BEAT_ID,
@@ -40,6 +47,7 @@ type BoardPanel = {
   /** LTX / lipsync mp4 — preferred over still thumb */
   videoSrc: string | null;
   kind: "intro" | "shot" | "outro";
+  footageRole?: ShotFootageRole;
   lines: BoardAudioLine[];
 };
 
@@ -138,6 +146,7 @@ function buildPanels(
         src: shot.plateFile ? genUrl(shot.plateFile) : null,
         videoSrc: pickShotVideo(shot.beats, videoByBeat),
         kind: "shot",
+        footageRole: shot.footageRole,
         lines: [...voiceLines, ...sfxLines(styleId, shot.sfx, shelf)],
       });
     }
@@ -174,6 +183,11 @@ export function StyleStoryboardPanel({ styleId }: Props) {
     label: string;
     video?: boolean;
   } | null>(null);
+  const [selectedShotId, setSelectedShotId] = useState<string | null>(null);
+  const [stockBusy, setStockBusy] = useState(false);
+  const [stockErr, setStockErr] = useState("");
+  const storySaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const storyLatestRef = useRef<CrashStoryDoc | null>(null);
 
   const loadVideos = useCallback(async () => {
     try {
@@ -215,10 +229,16 @@ export function StyleStoryboardPanel({ styleId }: Props) {
     setLoading(true);
     try {
       const cached = readOpenStoryCache(styleId) as CrashStoryDoc | null;
-      if (cached?.styleId === styleId) setStory(cached);
+      if (cached?.styleId === styleId) {
+        setStory(cached);
+        storyLatestRef.current = cached;
+      }
       const storyUrl = crashDeskStoryFetchUrl(styleId);
       if (!storyUrl) {
-        if (!cached) setStory(null);
+        if (!cached) {
+          setStory(null);
+          storyLatestRef.current = null;
+        }
         return;
       }
       const [storyRes, spxRes] = await Promise.all([
@@ -229,9 +249,13 @@ export function StyleStoryboardPanel({ styleId }: Props) {
       const spxData = await spxRes.json();
       if (storyRes.ok && storyData.story) {
         const next = preferPackedStory(storyData.story, cached) as CrashStoryDoc;
-        if (next?.styleId) setStory(next);
+        if (next?.styleId) {
+          setStory(next);
+          storyLatestRef.current = next;
+        }
       } else if (cached?.styleId === styleId) {
         setStory(cached);
+        storyLatestRef.current = cached;
       }
       if (spxRes.ok && Array.isArray(spxData.items)) {
         setShelf(
@@ -263,6 +287,124 @@ export function StyleStoryboardPanel({ styleId }: Props) {
     [story, styleId, shelf, videoByBeat],
   );
 
+  const selectedShot = useMemo(
+    () => (story && selectedShotId ? findStoryShot(story, selectedShotId) : null),
+    [story, selectedShotId],
+  );
+
+  const persistStory = useCallback(
+    (next: CrashStoryDoc, flush?: boolean) => {
+      setStory(next);
+      storyLatestRef.current = next;
+      const ep = readActiveEpisode();
+      if (ep?.folderName) {
+        writeOpenStoryCache({
+          styleId,
+          folderName: ep.folderName,
+          story: next,
+        });
+      }
+
+      const doPut = async () => {
+        const doc = storyLatestRef.current || next;
+        const payload = crashDeskStoryPutBody(doc);
+        if (!payload.folderName) {
+          setStockErr("Open a pack first — stock tags need folderName.");
+          return;
+        }
+        try {
+          const res = await fetch("/api/crash/story", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = (await res.json()) as {
+            error?: string;
+            story?: CrashStoryDoc;
+          };
+          if (!res.ok) {
+            setStockErr(data.error || "Could not save stock tag");
+            return;
+          }
+          if (data.story) {
+            setStory(data.story);
+            storyLatestRef.current = data.story;
+          }
+          dispatchStorySaved();
+        } catch (e) {
+          setStockErr(e instanceof Error ? e.message : "Could not save stock tag");
+        }
+      };
+
+      if (flush) {
+        if (storySaveTimer.current) {
+          clearTimeout(storySaveTimer.current);
+          storySaveTimer.current = null;
+        }
+        return doPut();
+      }
+      if (storySaveTimer.current) clearTimeout(storySaveTimer.current);
+      storySaveTimer.current = setTimeout(() => {
+        void doPut();
+      }, 450);
+    },
+    [styleId],
+  );
+
+  const patchSelectedShot = useCallback(
+    (mutator: (s: CrashStoryShot) => CrashStoryShot, flush = false) => {
+      const current = storyLatestRef.current || story;
+      if (!current || !selectedShotId) return;
+      const base = findStoryShot(current, selectedShotId);
+      if (!base) return;
+      const nextShot = mutator(base);
+      persistStory(
+        {
+          ...current,
+          scenes: current.scenes.map((sc) => ({
+            ...sc,
+            shots: sc.shots.map((sh) => (sh.id === nextShot.id ? nextShot : sh)),
+          })),
+          updatedAt: new Date().toISOString(),
+        },
+        flush,
+      );
+    },
+    [persistStory, selectedShotId, story],
+  );
+
+  const attachStockFile = useCallback(
+    (file: File) => {
+      const beatId = selectedShot?.beats[0]?.id;
+      if (!beatId) {
+        setStockErr("This shot has no beat to hang on.");
+        return;
+      }
+      setStockBusy(true);
+      setStockErr("");
+      void (async () => {
+        try {
+          const fd = new FormData();
+          fd.set("styleId", styleId);
+          fd.set("beatId", beatId);
+          fd.set("file", file, file.name);
+          const res = await fetch("/api/crash/comfy/ltx/attach", {
+            method: "POST",
+            body: fd,
+          });
+          const data = (await res.json()) as { error?: string };
+          if (!res.ok) throw new Error(data.error || "Attach failed");
+          await loadVideos();
+        } catch (e) {
+          setStockErr(e instanceof Error ? e.message : "Attach failed");
+        } finally {
+          setStockBusy(false);
+        }
+      })();
+    },
+    [loadVideos, selectedShot, styleId],
+  );
+
   const audioReady = panels.reduce(
     (n, p) => n + p.lines.filter((l) => l.audioSrc).length,
     0,
@@ -285,8 +427,8 @@ export function StyleStoryboardPanel({ styleId }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1">
       <p className="shrink-0 text-[9px] text-[var(--mute)]">
-        {story.campaignLabel || "Storyboard"} — cartoon sheet · mp4 thumb when
-        Animate has a take · click to enlarge
+        {story.campaignLabel || "Storyboard"} — cartoon sheet · click a shot
+        title for Hero / Support stock · thumb enlarges
       </p>
 
       <div
@@ -310,12 +452,21 @@ export function StyleStoryboardPanel({ styleId }: Props) {
           {panels.map((p) => (
             <article
               key={p.id}
-              className="flex min-w-0 flex-col rounded-sm border-2 border-black bg-[#fff8ea] shadow-[2px_2px_0_#1a1208]"
+              className={`flex min-w-0 flex-col rounded-sm border-2 bg-[#fff8ea] shadow-[2px_2px_0_#1a1208] ${
+                selectedShotId === p.id
+                  ? "border-[var(--acid)]"
+                  : "border-black"
+              }`}
             >
               <div className="relative aspect-[3/2] w-full overflow-hidden border-b border-black bg-[#e8dcc4]">
                 <span className="pointer-events-none absolute left-0.5 top-0.5 z-[1] flex h-4 w-4 items-center justify-center rounded-sm border border-black bg-[#ffe066] text-[9px] font-bold text-black">
                   {p.n}
                 </span>
+                {p.kind === "shot" && isSupportShot({ footageRole: p.footageRole }) ? (
+                  <span className="pointer-events-none absolute right-0.5 top-0.5 z-[1] rounded-sm border border-black bg-[var(--acid)] px-1 text-[8px] font-bold uppercase tracking-wide text-[#111]">
+                    Support
+                  </span>
+                ) : null}
                 {p.videoSrc || p.src ? (
                   <MediaThumb
                     stillSrc={p.src}
@@ -346,14 +497,29 @@ export function StyleStoryboardPanel({ styleId }: Props) {
                   </div>
                 )}
               </div>
-              <div className="px-1 py-0.5">
+              <button
+                type="button"
+                className="w-full px-1 py-0.5 text-left"
+                title={
+                  p.kind === "shot"
+                    ? "Tag Hero / Support and hang stock"
+                    : p.label
+                }
+                onClick={() => {
+                  if (p.kind === "shot") {
+                    setSelectedShotId(p.id);
+                    setStockErr("");
+                  }
+                }}
+              >
                 <p className="truncate text-[7px] font-bold uppercase tracking-wider text-[#8b4513]">
                   {p.label}
                 </p>
                 <p className="line-clamp-1 text-[8px] leading-tight text-[#2a2018]">
                   {p.caption}
                 </p>
-
+              </button>
+              <div className="px-1 pb-0.5">
                 {p.lines.length ? (
                   <ul className="mt-0.5 space-y-0.5 border-t border-[#dcc9a3] pt-0.5 pb-0.5">
                     {p.lines.slice(0, 3).map((line, i) => (
@@ -402,6 +568,25 @@ export function StyleStoryboardPanel({ styleId }: Props) {
         panels filled · {videoCount} mp4 thumbs · {audioReady}/{audioTotal} audio
         ready
       </p>
+
+      {selectedShot ? (
+        <StockFootagePanel
+          shot={selectedShot}
+          attachBusy={stockBusy}
+          attachError={stockErr}
+          onRoleChange={(footageRole) =>
+            patchSelectedShot((s) => ({ ...s, footageRole }), true)
+          }
+          onQueryChange={(stockQuery) =>
+            patchSelectedShot((s) => ({ ...s, stockQuery }))
+          }
+          onAttachFile={attachStockFile}
+        />
+      ) : (
+        <p className="shrink-0 text-[10px] text-[var(--mute)]">
+          Click a shot title to tag Hero (LTX) or Support (stock b-roll).
+        </p>
+      )}
 
       <StoryFolderLinks styleId={styleId} />
 

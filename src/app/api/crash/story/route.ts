@@ -37,16 +37,29 @@ export async function GET(req: Request) {
   return NextResponse.json({ ok: true, story });
 }
 
-/** PUT — save full story doc. */
+/** PUT — save full story doc. Cloud writes the named pack only. */
 export async function PUT(req: Request) {
   try {
-    const body = (await req.json()) as { story?: CrashStoryDoc };
+    const body = (await req.json()) as {
+      story?: CrashStoryDoc;
+      folderName?: string;
+    };
     const story = body.story;
     if (!story?.styleId) {
       return NextResponse.json({ error: "Need story.styleId" }, { status: 400 });
     }
     if (useCloudStore()) {
-      await writeCloudStory(story);
+      const folderName = String(body.folderName || "").trim();
+      if (!folderName) {
+        return NextResponse.json(
+          {
+            error:
+              "Need folderName to save this pack. A story PUT without it writes the last opened episode.",
+          },
+          { status: 400 },
+        );
+      }
+      await writeCloudStory(story, folderName);
       return NextResponse.json({ ok: true, story });
     }
     writeCrashStory(story);

@@ -21,11 +21,13 @@ import {
   CRASH_ACTIVE_EPISODE_EVENT,
   crashDeskLtxFetchUrl,
   crashDeskStoryFetchUrl,
+  crashDeskStoryPutBody,
   preferPackedStory,
   readOpenLtxCache,
   readOpenStoryCache,
 } from "@/lib/crashActiveEpisode";
 import { LTX_CLOUD_SKIP_BEAT_IDS } from "@/lib/ltxCloudSkip";
+import { storyShotIsSupport } from "@/lib/stockFootage";
 import { MediaThumb } from "@/components/MediaThumb";
 import { AnimateTimeline } from "@/components/AnimateTimeline";
 
@@ -1476,6 +1478,7 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
     sendAllCancelRef.current = false;
     const pending = visibleRows.filter((r) => {
       if (LTX_CLOUD_SKIP_BEAT_IDS.has(r.beatId)) return false;
+      if (storyShotIsSupport(story, r.shotId)) return false;
       if (!beatReady(r).ok) return false;
       const st = ltxByBeat[r.beatId];
       if (st?.inFlight) return false;
@@ -1690,7 +1693,7 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
         const res = await fetch("/api/crash/story", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ story: doc }),
+          body: JSON.stringify(crashDeskStoryPutBody(doc)),
         });
         const data = (await res.json()) as {
           error?: string;
@@ -2177,6 +2180,7 @@ export function StyleComfyPanel({ styleId, mode, onActivityChange }: Props) {
           onVerdict={(id, v) => void setLtxVerdict(id, v)}
           onReorderShots={(from, to) => void reorderShotsById(from, to)}
           onReplacePlateKeepFail={replacePlateKeepFail}
+          onAttachMp4={(id, file) => attachMp4(id, file)}
           comfyReady={Boolean(comfyPreflight?.ok)}
           queueBusy={Boolean(sendAllProgress)}
           ltxInFlightCount={ltxInFlightCount}
