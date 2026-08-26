@@ -192,6 +192,7 @@ Do not treat these as facts. The public page was vague, contradictory, 404, or l
 10. **Image-to-video vs Seedance / Dream Machine / Happy Horse / VEO / Gemini Omni** — Several products all claim image→video. Which model the generic `ai-image-to-video` page actually runs is **not named**.
 11. **Duplicate landings** — `ai-video-generator` ≡ `ai-video-maker` (same H1/copy). TTS / voice generator / voice over overlap. Auto caption / AI caption overlap. Speech-to-text / sound-to-text / video-to-text overlap. Image BG remove / transparent BG overlap. Generative fill / inpainting overlap.
 12. **In-app stock / templates / music library** — Not catalogued. `robots.txt` blocks `/templates/`. Opening the editor to list stock clips would be login + asset scrape — out of scope.
+12b. **In-app Video Effects / Filters catalog** — See [In-app effects library](#in-app-effects-library-not-on-the-public-web). Thousands of cloud presets. No public full list. We did not open the app.
 13. **llms.txt vs live hub** — June 2026 list is missing Seedance 2.5, Nano Banana Pro, GPT Image 2, Happy Horse, VEO 3.0, Gemini Omni, Director Mode, body editor, etc. Prefer the Aug 2026 hub + this table.
 14. **Style transfer** — No public tool page with that name. Closest: AI art / image-to-image / Nano Banana prompt-edit.
 15. **Subway Surfers template** — Resource/trend article, not a tool.
@@ -218,6 +219,26 @@ This is a **map**, not a go-ahead to wire CapCut into Crash Lab.
 | Timeline NLE | Online / desktop editor | Trim, captions, reframe | Keyframes not documented on the public pages |
 
 **Do not:** sign in from this VM to “just look”, pull CapCut template packs, or treat CapCut as a silent stock source. If a tool is added to the desk later, it should be a named, licensed path — same rule as Mixkit Free vs Restricted.
+
+**Spice / transitions (if built later):** our own named effects only — not CapCut’s cloud menu. Scope is **music-video Support / stock clips** (one file, hang on the existing clock). Not Hero LTX, not speech, not a stitch of the song.
+
+---
+
+## In-app effects library (not on the public web)
+
+CapCut’s weekly cloud presets (Video Effects, Body Effects, Photo Effects, Filters) are **not** on any static tools page. The public `/tools` inventory above is landings (upscaler, lip sync, Seedance…). The “thousands of effects” people see on TikTok live **inside a project timeline**. We did not open that app. We will not scrape it.
+
+How CapCut itself tells you to browse (owner note, not a crawl):
+
+| In-app place | What it holds (their buckets) |
+|---|---|
+| **Effects → Video Effects** | Horizontal libraries: Trending, Opening & Closing, Lens, Glitch, Retro, Nightclub, … |
+| **Body Effects** | Track a person — neon outline, clone, etc. |
+| **Photo Effects** | 3D zoom, AI still styles |
+| **Filters** | Colour grades: Cinematic, Food, Vibe, Scenery, … |
+| **Search** in Video Effects | Keywords (`blur`, `glitch`, `neon`, `vintage`, `shake`) pull extra cloud items that never sit on the main tabs |
+
+There is no complete text list to copy. If we want shimmer / split screen / fade text / zoom / shake on **our** stock, we name **our** tools. We do not import CapCut’s catalog.
 
 ---
 
