@@ -6,6 +6,8 @@
  * when THIS job's Position names them. No extras. No character-plate sheets.
  */
 
+import { isEmptyStageStaging } from "./emptyStagePlate";
+
 export const MUSIC_VIDEO_GROUP_MAX = 3;
 
 /**
@@ -459,7 +461,11 @@ export function stagingAfterAddCast(opts: {
   const names = uniqueCastNames(opts.speakers);
   if (names.length <= 1) {
     const prev = (opts.previous || "").trim();
-    if (prev) return prev;
+    // An "Add empty plate" card carries the empty-stage line — "No people. No
+    // musicians. No faces." Keeping it once somebody is added leaves the plate
+    // prompt saying there is nobody in a shot that now has a person on it, so
+    // that one gets replaced rather than kept.
+    if (prev && !isEmptyStageStaging(prev)) return prev;
     return opts.soloStaging(names[0] || "");
   }
   if (opts.styleId === "music_video") {

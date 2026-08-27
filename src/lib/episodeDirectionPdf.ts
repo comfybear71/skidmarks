@@ -3,8 +3,31 @@
  */
 import type { CrashStoryDoc } from "./crashStoryTypes";
 
+/**
+ * The sheet is a Helvetica PDF with no embedded font, so anything outside
+ * plain ASCII does not survive the stream — a curly apostrophe came out as
+ * blanks, turning "Sunnybank\u2019s" into "Sunnybank   s" and "Let\u2019s" into
+ * "Let   s". Fold the punctuation a phone keyboard actually produces down to
+ * its ASCII twin, then drop anything still unrepresentable rather than
+ * emitting bytes the reader will mangle.
+ */
+function toPdfAscii(text: string): string {
+  return text
+    .replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/[\u00A0\u2007\u202F]/g, " ")
+    .replace(/\u2022/g, "-")
+    .replace(/\u00D7/g, "x")
+    .replace(/[^\x20-\x7E]/g, "");
+}
+
 function pdfEscape(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  return toPdfAscii(text)
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
 }
 
 function wrapLine(text: string, max = 92): string[] {
