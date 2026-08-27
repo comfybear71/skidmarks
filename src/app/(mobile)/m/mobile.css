@@ -3697,6 +3697,14 @@ span.scratch-history-blob {
   font-size: 11px;
 }
 
+.m-talk-act-place {
+  margin-left: 6px;
+  color: inherit;
+  opacity: 0.85;
+  font-weight: 600;
+  text-transform: none;
+}
+
 .m-talk-act-count {
   color: inherit;
   opacity: 0.7;
