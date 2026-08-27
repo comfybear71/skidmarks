@@ -665,6 +665,7 @@ export function TalkTimeline({
   const innerW = talkDeskInnerWidth(visibleCells);
   const selected =
     visibleCells.find((c) => c.key === pickedKey) || visibleCells[0] || null;
+  const actSceneId = openAct?.sceneId || "";
 
   async function addActPlace() {
     const name = addActName.trim();
@@ -701,7 +702,8 @@ export function TalkTimeline({
   }
 
   async function addSlot() {
-    if (!pickWho || !pickWhere || !job.folderName) return;
+    const sceneId = pickWhere || actSceneId;
+    if (!pickWho || !sceneId || !job.folderName) return;
     setDeskBusy("add");
     setDeskError("");
     try {
@@ -712,13 +714,15 @@ export function TalkTimeline({
         body: JSON.stringify({
           jobId: job.id,
           action: "add",
-          sceneId: pickWhere,
+          sceneId,
           speaker: pickWho,
           title,
+          reuseScene: true,
         }),
       });
       const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
       if (data.job) onJobChange?.(data.job);
+      setOpenActId(`place-${sceneId}`);
       setPickOpen(false);
       setPickWho("");
       setPickWhere("");
@@ -814,7 +818,7 @@ export function TalkTimeline({
       <div className="m-plate-pick-actions">
         <MobilePrimaryButton
           size="chip"
-          disabled={Boolean(deskBusy) || !pickWho || !pickWhere || !job.folderName}
+          disabled={Boolean(deskBusy) || !pickWho || !(pickWhere || actSceneId) || !job.folderName}
           onClick={() => void addSlot()}
         >
           {deskBusy === "add" ? "…" : `Add ${pickWho || "clip"}`}
@@ -832,7 +836,10 @@ export function TalkTimeline({
         size="chip"
         tone="ghost"
         disabled={Boolean(deskBusy) || !job.folderName}
-        onClick={() => setPickOpen((v) => !v)}
+        onClick={() => {
+          setPickOpen((v) => !v);
+          if (!pickWhere && actSceneId) setPickWhere(actSceneId);
+        }}
       >
         {pickOpen ? "Hide add" : "+ Add clip"}
       </MobilePrimaryButton>
@@ -1047,7 +1054,10 @@ export function TalkTimeline({
                   aria-label="Add a talking clip"
                   aria-expanded={pickOpen}
                   disabled={Boolean(deskBusy) || !job.folderName}
-                  onClick={() => setPickOpen((v) => !v)}
+                  onClick={() => {
+                    setPickOpen((v) => !v);
+                    if (!pickWhere && actSceneId) setPickWhere(actSceneId);
+                  }}
                 >
                   +
                 </button>
@@ -1058,7 +1068,7 @@ export function TalkTimeline({
         ) : (
           <p className="m-talk-empty">
             {openAct
-              ? `No clips on Act ${openAct.roman} yet.`
+              ? `No clips on Act ${openAct.roman}${openAct.title ? ` · ${openAct.title}` : ""} yet.`
               : "Tap an act to see its clips."}
           </p>
         )

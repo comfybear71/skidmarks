@@ -514,6 +514,27 @@ assert.equal(fourActs[3].title, "Back shed");
 assert.equal(fourActs[3].lineCount, 0);
 assert.equal(talkActRoman(4), "IV");
 assert.equal(talkActRoman(11), "XI");
+const bbqOrphan = {
+  ...jokeDesk.cells[0],
+  key: "shot:bbq_12",
+  shotId: "bbq_12",
+  sceneId: "scene_bbq_tail",
+  sceneTitle: "BBQ shelter",
+  title: "SHOT 12 — Shazza",
+};
+const afterBbq = talkPlaceActsFrom(
+  [
+    { id: "scene_park", placeName: "Caravan park" },
+    { id: "scene_unit9", placeName: "Unit 9" },
+    { id: "scene_bbq", placeName: "BBQ shelter" },
+  ],
+  [...jokeDesk.cells, bbqOrphan],
+);
+assert.equal(afterBbq.length, 2, "empty Unit 9 does not steal Act II once BBQ has clips");
+assert.equal(afterBbq[0].title, "Caravan park");
+assert.equal(afterBbq[1].title, "BBQ shelter");
+assert.equal(afterBbq[1].roman, "II");
+assert.ok(afterBbq[1].cellKeys.includes("shot:bbq_12"));
 assert.equal(
   talkPlaceActsFrom([], jokeDesk.cells).length,
   talkActScriptsFrom(jokeDesk.cells).length,
@@ -579,6 +600,7 @@ assert.match(talkUi, /Redo clip/);
 assert.match(talkUi, /Add video/);
 assert.match(talkUi, /Remove video/);
 assert.match(talkUi, /\+ Add clip/);
+assert.match(talkUi, /reuseScene: true/);
 assert.match(talkUi, /Send this/);
 assert.match(talkUi, /Remove slot/);
 assert.match(talkUi, /Act \{act\.roman\}/);
