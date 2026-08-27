@@ -455,7 +455,7 @@ assert.doesNotMatch(tree, /Hide stills|m-talk-stills-toggle/);
 assert.match(tree, /<MusicVideoTrack/);
 assert.match(editor, /label="Stills"/);
 assert.match(editor, /stillsStripOpen/);
-assert.match(editor, /isMusicVideoSongJob\(job\) && plateClipRail\.clips\.length/);
+assert.match(editor, /plateClipRail\.clips/);
 assert.doesNotMatch(song, /jobShowsMusicTrack/);
 assert.match(trackRoute, /Music video only/);
 

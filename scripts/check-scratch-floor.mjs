@@ -14,7 +14,7 @@ import {
   scratchStillWireMode,
 } from "../src/lib/scratchStillSend.ts";
 import { lastStillCastNames } from "../src/lib/sirayScratchPlate.ts";
-import { scratchNudeStillLock, SCRATCH_ADD_INTO_STILL_LOCK } from "../src/lib/sirayI2v.ts";
+import { scratchNudeStillLock } from "../src/lib/sirayI2v.ts";
 import { isScratchShotTitle } from "../src/lib/mobileScratch.ts";
 import { SCRATCH_DROPDOWN_PRESET_IDS, SCRATCH_PROMPT_BIBLE } from "../src/lib/scratchBench/promptBible.ts";
 
@@ -276,7 +276,8 @@ const addShazzaOntoDazza = buildScratchStillSend({
   joPhone: false,
 });
 assert.equal(addShazzaOntoDazza.mode, "add-into-still");
-assert.match(addShazzaOntoDazza.prompt, SCRATCH_ADD_INTO_STILL_LOCK);
+assert.match(addShazzaOntoDazza.prompt, /Keep every person already in image 1/);
+assert.match(addShazzaOntoDazza.prompt, /Do not invent a stranger/);
 assert.match(addShazzaOntoDazza.prompt, /Image 2 is Shazza's face card/);
 assert.match(addShazzaOntoDazza.prompt, /Add only Shazza/);
 assert.match(addShazzaOntoDazza.prompt, /Exactly 2 people in frame: Dazza, Shazza/);
