@@ -19,13 +19,24 @@ export function talkNextShotTitle(
   cells: { episodeNo?: number | null; title?: string }[],
   speaker = "",
 ): string {
-  const max = cells.reduce(
+  const maxEp = cells.reduce(
     (n, cell) => Math.max(n, cell.episodeNo || talkShotNumber(cell.title || "") || 0),
     0,
   );
-  const no = String(max + 1).padStart(2, "0");
+  // Count matters: 10 clips with only SHOT 01–02 used to mint SHOT 03 and
+  // drop the new still in the middle of the desk.
+  const no = String(Math.max(maxEp, cells.length) + 1).padStart(2, "0");
   const who = String(speaker || "").trim();
   return who ? `SHOT ${no} — ${who}` : `SHOT ${no}`;
+}
+
+/** Keep SHOT 0N when a person is added — do not retitle the card to a bare name. */
+export function titleAfterAddCast(previousTitle: string, speakers: string[]): string {
+  const names = speakers.map((s) => s.trim()).filter(Boolean).join(", ");
+  if (!names) return previousTitle;
+  const n = talkShotNumber(previousTitle);
+  if (n != null) return `SHOT ${String(n).padStart(2, "0")} — ${names}`;
+  return names;
 }
 
 /** Same scale as the music-video wave — a second is 28px, then the strip scrolls. */

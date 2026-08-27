@@ -9,6 +9,7 @@ import { isEpisodeClipPlanError, planParkClipsUnderPlate } from "@/lib/mobileEpi
 import { CUTAWAY_ACTIONS } from "@/lib/cutawayActions";
 import { buildCutawayMotion, defaultSoloStaging } from "@/lib/mobileImageMotion";
 import { stagingAfterAddCast } from "@/lib/musicVideoGroupPlate";
+import { titleAfterAddCast } from "@/lib/talkClipTimeline";
 import { candidateLookPrompt, phaseAfterPlateAdd } from "@/lib/mobileJobReady";
 import { beatsAfterRemoveLine, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import { castNamesMatch } from "@/lib/mobileDropCast";
@@ -483,7 +484,7 @@ export async function POST(req: Request) {
                     ? {
                         ...sh,
                         beats,
-                        title: cast.join(", ") || sh.title,
+                        title: titleAfterAddCast(sh.title, cast),
                         staging: stagingAfterAddCast({
                           styleId: job.styleId,
                           speakers: cast,

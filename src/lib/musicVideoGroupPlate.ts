@@ -1,3 +1,5 @@
+import { isEmptyStageStaging } from "./emptyStagePlate";
+
 /**
  * Music-video group plates.
  *
@@ -431,9 +433,12 @@ export function stagingAfterAddCast(opts: {
   soloStaging: (speaker: string) => string;
 }): string {
   const names = uniqueCastNames(opts.speakers);
+  const prev = (opts.previous || "").trim();
+  // Empty-stage establishing text says "No people. No faces." Keeping it
+  // when Shazza steps onto the card is how the model invented a stranger.
+  const keepPrev = Boolean(prev) && !isEmptyStageStaging(prev);
   if (names.length <= 1) {
-    const prev = (opts.previous || "").trim();
-    if (prev) return prev;
+    if (keepPrev) return prev;
     return opts.soloStaging(names[0] || "");
   }
   if (opts.styleId === "music_video") {

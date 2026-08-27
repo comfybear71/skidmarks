@@ -23,6 +23,7 @@ import {
   talkClipDeskFrom,
   talkClipWidthPx,
   talkNextShotTitle,
+  titleAfterAddCast,
   talkSceneBands,
   talkSceneColor,
   talkSkidmarksActsFrom,
@@ -322,6 +323,30 @@ assert.equal(bands[0].widthPx, desk.cells[0].widthPx + desk.cells[1].widthPx);
 assert.equal(talkClipClock(8), "8s");
 assert.equal(talkNextShotTitle(desk.cells, "MATTY"), "SHOT 05 — MATTY");
 assert.equal(talkNextShotTitle([], "TEE"), "SHOT 01 — TEE");
+assert.equal(
+  talkNextShotTitle(
+    [
+      { title: "SHOT 01 — Ranger Bazza" },
+      { title: "SHOT 02 — Dazza" },
+      { title: "Caravan park" },
+      { title: "Empty stage" },
+      { title: "Support" },
+      { title: "Wide" },
+      { title: "Cutaway" },
+      { title: "Park dusk" },
+      { title: "Trailer" },
+      { title: "Heat haze" },
+    ],
+    "Shazza",
+  ),
+  "SHOT 11 — Shazza",
+  "a 10-clip desk must not reuse SHOT 03",
+);
+assert.equal(
+  titleAfterAddCast("SHOT 03 — Caravan park", ["Shazza"]),
+  "SHOT 03 — Shazza",
+);
+assert.equal(titleAfterAddCast("Empty stage", ["Shazza"]), "Shazza");
 const actScripts = talkActScriptsFrom(desk.cells);
 assert.equal(actScripts.length, 2);
 assert.equal(actScripts[0].roman, "I");

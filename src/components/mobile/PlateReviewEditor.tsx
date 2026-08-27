@@ -58,6 +58,8 @@ import {
   stripLtxLipSyncLead,
 } from "@/lib/mobileImageMotion";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
+import { isEmptyStageStaging } from "@/lib/emptyStagePlate";
+import { talkNextShotTitle } from "@/lib/talkClipTimeline";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { episodeJobShots } from "@/lib/mobileScratch";
 import {
@@ -380,10 +382,14 @@ export function PlateReviewEditor({
     setAddError("");
     setAddBusySpeaker(speaker || "__empty__");
     try {
+      const titled = (story?.scenes || []).flatMap((sc) =>
+        sc.shots.map((sh) => ({ title: sh.title })),
+      );
+      const title = talkNextShotTitle(titled, speaker);
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, action: "add", sceneId, speaker }),
+        body: JSON.stringify({ jobId: job.id, action: "add", sceneId, speaker, title }),
       });
       const data = (await res.json()) as { error?: string; job?: MobileGenJob; shotId?: string };
       if (!res.ok) throw new Error(data.error || "Couldn't add that card");
@@ -1375,7 +1381,7 @@ function CastIntoPlatePopup({
       const existing = (shot?.staging || "").trim();
       const next = already
         ? staging.trim()
-        : existing
+        : existing && !isEmptyStageStaging(existing)
           ? `${existing.replace(/\s+$/, "")} ${staging.trim()}`
           : staging.trim();
       const drawData = await drawPlateStill({
@@ -2611,7 +2617,9 @@ function BeatLineEditor({
   useEffect(() => {
     setPositionDraft(null);
     setBibleActiveIds((positionBibleIds || []).filter(Boolean));
-  }, [shotId, positionPrompt, positionBibleIds]);
+    // Do not depend on positionBibleIds identity — resolveShotBibleIds
+    // returns a new array every render and was wiping chip picks.
+  }, [shotId, positionPrompt]);
 
   // Sticky voice like Scratch — survive take switches / parent story rewrites.
   useEffect(() => {
@@ -2989,7 +2997,9 @@ function BeatLineEditor({
         bibleActiveIds={bibleActiveIds}
         bibleDisabled={saving || redrawing}
         onBiblePick={(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => {
-          const text = applyBibleTokens(entry.template, {
+          const template =
+            shotSpeakers.length > 1 ? stripBibleSoloLock(entry.template) : entry.template;
+          const text = applyBibleTokens(template, {
             name: beat.speaker,
             place: placeName || "this place",
             cast: shotSpeakers.length ? shotSpeakers : [beat.speaker],
