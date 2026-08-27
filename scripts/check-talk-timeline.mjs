@@ -345,7 +345,7 @@ assert.equal(
 );
 
 // Stuie's manual Act I — THE GREATEST JOKE IN AUSTRALIA.
-// Eight cards, thirteen lines. SHOT 11 is card 8, not card 2.
+// Eight cards. Extra lines stay on their shot. SHOT 11 is card 8, not card 2.
 function jokeShot(id, title, file, beats) {
   return {
     id,
