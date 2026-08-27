@@ -7,7 +7,11 @@ import { uploadMobileMedia } from "./mobileMediaStore";
 import { mobileMediaFolder } from "./mobileJobFolder";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "./mobileStoryStore";
 import { mergeClipsFromStory } from "./mobileClipQueue";
-import { patchMobileGenJob, type MobileGenJob } from "./mobileGenJob";
+import {
+  patchMobileGenJob,
+  type MobileGenJob,
+  type MobileShotUnit,
+} from "./mobileGenJob";
 import { nextUnplatedEpisodeShot, shotHasPlate } from "./mobilePlateGraph";
 import { episodeJobShots } from "./mobileScratch";
 import { rebuildShotPlate } from "./mobilePlateRebuild";
@@ -20,6 +24,7 @@ import {
   generateSunnyPlaceStill,
   nextSunnyGuestNeedingFace,
   nextSunnyPlaceNeedingStill,
+  reusableSunnyPlaceStill,
 } from "./sunnyEpisodeSeed";
 import { approvedCandidateFileName } from "./mobileJobReady";
 
@@ -37,6 +42,28 @@ export function sunnyAutoKeepsFailedProof(opts: {
   return opts.qaOk === false;
 }
 
+/**
+ * Plates Make kept even though proof went red. Not a failure to fix now —
+ * a list to look at, because the episode still finished. Empty string when
+ * every plate passed, so a clean run says nothing.
+ */
+export function sunnyPlateProofNote(
+  shots: Pick<MobileShotUnit, "shotId" | "qaFails">[],
+): string {
+  const flagged = shots.filter((s) => (s.qaFails || []).length);
+  if (!flagged.length) return "";
+  const counts = new Map<string, number>();
+  for (const shot of flagged) {
+    for (const fail of shot.qaFails || []) {
+      counts.set(fail, (counts.get(fail) || 0) + 1);
+    }
+  }
+  const worst = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  return `${flagged.length} of ${shots.length} plates were kept but failed proof (${worst
+    .map(([id, n]) => `${id} ×${n}`)
+    .join(", ")}). The episode is finished — look at those stills.`;
+}
+
 /** Live old Make still throws this. A blank error phase is a wiped stamp. Keep cooking. */
 export function sunnyAutoResumeFromStaleError(error: string, phase?: string): boolean {
   const err = String(error || "").trim();
@@ -45,6 +72,34 @@ export function sunnyAutoResumeFromStaleError(error: string, phase?: string): bo
   // One slow Grok still must not kill the episode. Same shot, try again.
   if (/xai image request timed out/i.test(err)) return true;
   return false;
+}
+
+/**
+ * A Sunny FAIL used to land on /step's generic error branch, which salvages
+ * whatever clips exist and parks the job on "review". On a Make job that is
+ * still walking plates that threw the rest of the episode away — every
+ * unplated shot, every unvoiced line — and "review" is not an auto phase, so
+ * the poll stopped and nothing ever picked it back up. It also meant
+ * sunnyAutoResumeFromStaleError never ran, because that is only read from
+ * inside the "plates" branch.
+ *
+ * One tap on a Make job goes back to the cook instead. runSunnyAutoStep is
+ * a re-scan from the top — faces, places, plates, holds, voices — and it
+ * decides the next phase itself when there is nothing left, so "plates" is
+ * always the right place to resume from. A failure that is real just fails
+ * again and stops there; it does not loop, because sunnyAutoShouldContinue
+ * is false on "error".
+ */
+export function sunnyResumesOwnCook(job: {
+  styleId: string;
+  sunnyAuto?: boolean;
+  phase: string;
+  folderName?: string;
+}): boolean {
+  if (!isSunnyAutoJob(job)) return false;
+  if (job.phase !== "error") return false;
+  // No pack means the lock itself failed — the cook has nothing to walk.
+  return Boolean(job.folderName?.trim());
 }
 
 /** Phone tap-again must not start a second plate/voice while the first /step is still on it. */
@@ -138,6 +193,20 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
 
   const place = nextSunnyPlaceNeedingStill(job);
   if (place) {
+    // Same place, later in the episode. Hang the still it already has —
+    // a second cook comes back looking like somewhere else.
+    const already = reusableSunnyPlaceStill(job, job.locationCandidates, place.sceneId);
+    if (already) {
+      return (
+        (await patchMobileGenJob(job.id, {
+          locationCandidates: {
+            ...job.locationCandidates,
+            [place.sceneId]: [already],
+          },
+          error: "",
+        })) || job
+      );
+    }
     try {
       const take = await generateSunnyPlaceStill(job, place.placeName);
       return (
@@ -170,12 +239,19 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
       });
       if (rebuilt.qa && rebuilt.qa.ok === false) {
         if (sunnyAutoKeepsFailedProof({ plateFile: rebuilt.plateFile, qaOk: false })) {
+          // Keep the still and walk on — a red proof must not kill the
+          // episode. But record WHICH checks it failed instead of clearing
+          // the error and losing the only thing that knew. At ~60 plates on a
+          // long episode that list is the review surface.
+          const qaFails = (rebuilt.qa.fails || []).filter(Boolean);
           return (
             (await patchMobileGenJob(job.id, {
               phase: "plates",
               error: "",
               shots: rebuilt.job.shots.map((s) =>
-                s.shotId === unplated.shotId ? { ...s, error: "" } : s,
+                s.shotId === unplated.shotId
+                  ? { ...s, error: "", qaFails: qaFails.length ? qaFails : undefined }
+                  : s,
               ),
             })) || rebuilt.job
           );
@@ -190,7 +266,13 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
           })) || rebuilt.job
         );
       }
-      return rebuilt.job;
+      // Proof passed on this take — drop any verdict left by an earlier one.
+      const cleared = await patchMobileGenJob(job.id, {
+        shots: rebuilt.job.shots.map((s) =>
+          s.shotId === unplated.shotId ? { ...s, qaFails: undefined } : s,
+        ),
+      });
+      return cleared || rebuilt.job;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       return (
@@ -277,7 +359,9 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
       (await patchMobileGenJob(job.id, {
         clips,
         phase: "review",
-        error: clips.length ? "" : "Locked. No spoken lines to cook.",
+        error: clips.length
+          ? sunnyPlateProofNote(job.shots)
+          : "Locked. No spoken lines to cook.",
       })) || job
     );
   }

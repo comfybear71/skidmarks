@@ -6,6 +6,7 @@ import { getShowStylePreset } from "@/lib/showStylePresets";
 import {
   SUNNY_CAMERAS,
   SUNNY_EPISODE_BLANK,
+  SUNNY_MAX_FACES,
   sunnyEpisodeGate,
 } from "@/lib/sunnyEpisodeSpec";
 import { readSunnyEpisodeDraft, writeSunnyEpisodeDraft } from "@/lib/sunnyEpisodeDraft";
@@ -168,6 +169,20 @@ export function SunnyEpisodeStart({
             {gate.scan.guests.length ? (
               <div style={{ color: "var(--chrome-dim)", fontSize: "13px" }}>
                 New names get drawn from the script: {gate.scan.guests.join(", ")}.
+              </div>
+            ) : null}
+            {gate.scan.unknownPlaces.length ? (
+              <div style={{ color: "var(--chrome-dim)", fontSize: "13px" }}>
+                Not on the shelf, so these get drawn fresh:{" "}
+                {gate.scan.unknownPlaces.join(", ")}. Spell the Place: like the
+                shelf to hang the card you already have.
+              </div>
+            ) : null}
+            {gate.scan.overcastShots.length ? (
+              <div style={{ color: "var(--magenta-hot)", fontSize: "13px", fontWeight: 700 }}>
+                Over {SUNNY_MAX_FACES} faces on one card — the composite starts
+                losing people. Split the shot or drop a name:{" "}
+                {gate.scan.overcastShots.join(" · ")}.
               </div>
             ) : null}
           </div>

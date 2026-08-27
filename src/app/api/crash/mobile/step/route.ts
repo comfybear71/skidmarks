@@ -120,6 +120,20 @@ export async function POST(req: Request) {
     let job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
+    // A Make-this-episode FAIL is not a finished run — the plate walk is
+    // still mid-episode. Send it back to its own cook instead of the generic
+    // salvage below, which parks it on "review" (not an auto phase) and
+    // abandons every shot that never got a plate. Sunny Make only; every
+    // other show keeps the branch underneath.
+    {
+      const { sunnyResumesOwnCook } = await import("@/lib/sunnyEpisodeCook");
+      if (sunnyResumesOwnCook(job)) {
+        job = (await patchMobileGenJob(jobId, { phase: "plates", error: "" }))!;
+        continueSunnyAutoAfterResponse(req, job, true);
+        return NextResponse.json({ ok: true, job, advanced: true });
+      }
+    }
+
     // "error" is terminal and outside autoPhases, so nothing ever polled it
     // again — a clip attached from the error screen (clip/upload/route.ts)
     // updated the clip but had no way to make the run continue. If any clip

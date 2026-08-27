@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseMobilePaste } from "../src/lib/mobilePasteParse.ts";
+import { normalizePlaceKey, parseMobilePaste } from "../src/lib/mobilePasteParse.ts";
 import {
   SUNNY_EPISODE_BLANK,
   canonicalSunnyName,
@@ -54,6 +54,14 @@ import {
   STUDIO_TIMED_OUT,
 } from "../src/lib/studioFetchError.ts";
 import { sunnyAutoShouldContinue } from "../src/lib/sunnyAutoContinue.ts";
+import {
+  orderSunnyStoryByScript,
+  sunnyScriptPlaceOrder,
+} from "../src/lib/sunnyEpisodeOrder.ts";
+import { sunnyResumesOwnCook, sunnyPlateProofNote } from "../src/lib/sunnyEpisodeCook.ts";
+import { plateCastStagingNote } from "../src/lib/mobilePlateLines.ts";
+import { stagingNamesHeldProp } from "../src/lib/mobileImageMotion.ts";
+import { reusableSunnyPlaceStill } from "../src/lib/sunnyEpisodeSeed.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const mPage = readFileSync(join(here, "../src/app/(mobile)/m/page.tsx"), "utf8");
@@ -151,7 +159,12 @@ assert.ok(!dropGate.scan.guests.includes("Caravan Park Residents"));
 assert.ok(!dropGate.scan.guests.includes("Caravan Park Resident 1"));
 assert.ok(!dropGate.scan.speakers.includes("Ranger Dan"));
 assert.ok(dropGate.scan.speakers.includes("Ranger Bazza"));
-assert.ok(dropGate.scan.unknownPlaces.includes("Caravan Park Main Deck"));
+// unknownPlaces means "Make will draw this fresh", so it has to use the same
+// loose match Make uses. "Caravan Park Main Deck" hangs the shelf card
+// "Caravan park"; only a place with no shelf card at all is unknown.
+assert.ok(!dropGate.scan.unknownPlaces.includes("Caravan Park Main Deck"));
+assert.ok(dropGate.scan.unknownPlaces.includes("Inside the Metal Cage"));
+assert.ok(dropGate.scan.unknownPlaces.includes("Scrub Line Edge"));
 assert.equal(dropGate.scan.overcastShots.length, 0);
 
 const splitMob = `EPISODE: Split
@@ -793,5 +806,289 @@ assert.equal(
   })?.fileName,
   "thumb_1786096652402.png",
 );
+
+// ---------------------------------------------------------------------------
+// Script order. parseShotBlocks folds every shot at one Place into one scene,
+// so a script that leaves a place and comes back plays 1, 2, 4, 3 — and
+// orderedJobClips walks scene -> shot, so that is the order the mp4s and the
+// zip numbers came out in.
+// ---------------------------------------------------------------------------
+const orderScript = `EPISODE: Order
+GAG: Leave the deck and come back.
+
+--- SHOT 1 ---
+Title: The pitch
+Place: Caravan Park Main Deck
+Cast: Ranger Dan
+Name: Ranger Dan
+[Megaphone] "Ten bucks."
+
+--- SHOT 2 ---
+Title: Nan is unimpressed
+Place: Caravan Park Main Deck
+Cast: Nan
+Name: Nan
+"He sold me a rain dance."
+
+--- SHOT 3 ---
+Title: The turkeys arrive
+Place: Scrub Line Edge
+Cast: Bush Turkeys
+Plate: Empty scrub. Dust rising.
+[Wings thrashing]
+
+--- SHOT 4 ---
+Title: Nuggets gets covered
+Place: Caravan Park Main Deck
+Cast: Nuggets
+Name: Nuggets
+"GET THEM OFF ME."
+
+--- SHOT 5 ---
+Title: Bazza retreats
+Place: Ranger office
+Cast: Ranger Dan
+Name: Ranger Dan
+"Refunds are not a thing I do."
+`;
+
+assert.deepEqual(sunnyScriptPlaceOrder(orderScript), [
+  "Caravan Park Main Deck",
+  "Caravan Park Main Deck",
+  "Scrub Line Edge",
+  "Caravan Park Main Deck",
+  "Ranger office",
+]);
+
+const orderParsed = parseMobilePaste(orderScript, "sunny_banks", "Order");
+const flatTitles = (story) =>
+  story.scenes.flatMap((sc) => sc.shots.map((sh) => sh.title));
+
+// What the shared parser hands us: the deck's three shots welded together.
+assert.deepEqual(flatTitles(orderParsed.story), [
+  "The pitch",
+  "Nan is unimpressed",
+  "Nuggets gets covered",
+  "The turkeys arrive",
+  "Bazza retreats",
+]);
+
+const orderedStory = orderSunnyStoryByScript(orderParsed.story, orderScript);
+assert.deepEqual(flatTitles(orderedStory), [
+  "The pitch",
+  "Nan is unimpressed",
+  "The turkeys arrive",
+  "Nuggets gets covered",
+  "Bazza retreats",
+]);
+// The deck is two scenes now — one before the scrub, one after.
+assert.deepEqual(orderedStory.scenes.map((sc) => sc.placeName), [
+  "Caravan Park Main Deck",
+  "Scrub Line Edge",
+  "Caravan Park Main Deck",
+  "Ranger office",
+]);
+// Duplicate scene ids break the animate lookup (scenes.find by id wins once
+// and the shots in the second visit are never found).
+const orderedIds = orderedStory.scenes.map((sc) => sc.id);
+assert.equal(new Set(orderedIds).size, orderedIds.length);
+// Every beat still has a home.
+assert.equal(
+  orderedStory.scenes.flatMap((sc) => sc.shots.flatMap((sh) => sh.beats)).length,
+  orderParsed.story.scenes.flatMap((sc) => sc.shots.flatMap((sh) => sh.beats)).length,
+);
+// One place, one scene, nothing to re-lay.
+const onePlace = parseMobilePaste(okScript, "sunny_banks", "One");
+assert.deepEqual(
+  flatTitles(orderSunnyStoryByScript(onePlace.story, okScript)),
+  flatTitles(onePlace.story),
+);
+// A story with no scenes comes straight back.
+assert.deepEqual(orderSunnyStoryByScript({ scenes: [] }, orderScript), { scenes: [] });
+
+// The route must clear the job's pre-built scenes before locking. It cannot
+// just stop writing them: createMobileGenJob seeds a Sunny job with the whole
+// preset place shelf, and applyImportedStoryToJob re-keys story scenes onto
+// whatever job scenes exist BY PLACE NAME. Model that re-key and prove both
+// directions, so a route that quietly leaves the preset scenes on fails here.
+assert.doesNotMatch(sunnyRoute, /newId\("scene"\)/);
+assert.match(sunnyRoute, /orderSunnyStoryByScript/);
+assert.match(sunnyRoute, /scenes: \[\],/);
+
+const rekeyLikeApplyImported = (story, preBuilt) => {
+  const byPlace = new Map(preBuilt.map((s) => [normalizePlaceKey(s.placeName), s]));
+  const scenes = story.scenes.map((sc) => {
+    const match = byPlace.get(normalizePlaceKey(sc.placeName));
+    return match ? { ...sc, id: match.id } : sc;
+  });
+  return scenes.map((sc) => ({ id: sc.id, placeName: sc.placeName }));
+};
+
+// Cleared (what the route does): 1:1, ids intact, both deck visits distinct.
+const derived = rekeyLikeApplyImported(orderedStory, []);
+assert.equal(derived.length, orderedStory.scenes.length);
+assert.equal(new Set(derived.map((s) => s.id)).size, derived.length);
+
+// Left on (the bug): the two deck visits collapse onto one preset id, and the
+// second visit's shots become unreachable by scene id.
+const collapsed = rekeyLikeApplyImported(orderedStory, [
+  { id: "preset_deck", placeName: "Caravan Park Main Deck" },
+  { id: "preset_office", placeName: "Ranger office" },
+]);
+assert.ok(new Set(collapsed.map((s) => s.id)).size < collapsed.length);
+
+// The second visit to a place hangs the still the first one already has.
+const twoVisits = {
+  scenes: [
+    { id: "scene_a", placeName: "Caravan Park Main Deck", worldThumbKey: "" },
+    { id: "scene_b", placeName: "Scrub Line Edge", worldThumbKey: "" },
+    { id: "scene_c", placeName: "Caravan park main deck", worldThumbKey: "" },
+  ],
+};
+const withFirstStill = {
+  scene_a: [{ id: "place_a.png", fileName: "place_a.png", approved: true, prompt: "deck" }],
+};
+assert.equal(
+  reusableSunnyPlaceStill(twoVisits, withFirstStill, "scene_c")?.fileName,
+  "place_a.png",
+);
+assert.equal(reusableSunnyPlaceStill(twoVisits, withFirstStill, "scene_b"), null);
+assert.equal(reusableSunnyPlaceStill(twoVisits, {}, "scene_c"), null);
+// An unapproved take is not a still to hang.
+assert.equal(
+  reusableSunnyPlaceStill(
+    twoVisits,
+    { scene_a: [{ id: "x.png", fileName: "x.png", approved: false }] },
+    "scene_c",
+  ),
+  null,
+);
+
+// ---------------------------------------------------------------------------
+// FAIL on a Make job goes back to the cook, not to /step's generic salvage
+// (which parks it on "review" — not an auto phase — and abandons every shot
+// that never got a plate).
+// ---------------------------------------------------------------------------
+const failedMake = {
+  styleId: "sunny_banks",
+  sunnyAuto: true,
+  phase: "error",
+  folderName: "PILOT_WHISTLE_abc123",
+};
+assert.equal(sunnyResumesOwnCook(failedMake), true);
+// Not a Make job — the generic branch still owns it.
+assert.equal(sunnyResumesOwnCook({ ...failedMake, sunnyAuto: false }), false);
+assert.equal(sunnyResumesOwnCook({ ...failedMake, styleId: "skidmarks" }), false);
+// Not on error — the normal phase branches own it.
+assert.equal(sunnyResumesOwnCook({ ...failedMake, phase: "plates" }), false);
+assert.equal(sunnyResumesOwnCook({ ...failedMake, phase: "review" }), false);
+// The lock itself failed, so there is no pack to walk.
+assert.equal(sunnyResumesOwnCook({ ...failedMake, folderName: "" }), false);
+// Back on "plates" the cook keeps walking on its own, and it does not
+// ping-pong: "error" is not a continue phase.
+assert.equal(
+  sunnyAutoShouldContinue({ styleId: "sunny_banks", sunnyAuto: true, phase: "plates" }),
+  true,
+);
+assert.equal(
+  sunnyAutoShouldContinue({ styleId: "sunny_banks", sunnyAuto: true, phase: "error" }),
+  false,
+);
+const stepRoute = readFileSync(
+  join(here, "../src/app/api/crash/mobile/step/route.ts"),
+  "utf8",
+);
+// The Sunny guard has to come before the generic error branch or it never runs.
+assert.ok(
+  stepRoute.indexOf("sunnyResumesOwnCook") <
+    stepRoute.indexOf('if (job.phase === "error")'),
+);
+
+// The card has to show the two signals the scan was already computing.
+assert.match(sunnyCard, /overcastShots/);
+assert.match(sunnyCard, /unknownPlaces/);
+
+// ---------------------------------------------------------------------------
+// F6 — "Bazza holds a whistle up" is a named prop. Only the gerund matched, so
+// the natural wording got "Empty hands... Do not invent props" stapled on next
+// to the prop it just named. Sunny only; every other show is untouched.
+// ---------------------------------------------------------------------------
+const heldStaging = "Bazza holds a whistle up. Dazza leans on the rail.";
+assert.equal(stagingNamesHeldProp(heldStaging, "sunny_banks"), true);
+assert.equal(stagingNamesHeldProp(heldStaging, "skidmarks"), false);
+assert.equal(stagingNamesHeldProp(heldStaging), false);
+for (const verb of ["grips the megaphone", "carries a esky", "waves a whistle"]) {
+  assert.equal(stagingNamesHeldProp(`Bazza ${verb}.`, "sunny_banks"), true, verb);
+}
+// The no-props floor stays up: a vibe line is not a held prop, and an explicit
+// empty-hands direction still wins.
+assert.equal(stagingNamesHeldProp("Dazza has a grin.", "sunny_banks"), false);
+assert.equal(stagingNamesHeldProp("Nan sits with a smile.", "sunny_banks"), false);
+assert.equal(
+  stagingNamesHeldProp("Bazza holds a whistle. Empty hands.", "sunny_banks"),
+  false,
+);
+
+// ---------------------------------------------------------------------------
+// F4 — a two-hander gets the headcount lock a solo already had. Sunny only.
+// ---------------------------------------------------------------------------
+const duoNote = plateCastStagingNote({
+  speakers: ["Ranger Bazza", "Dazza"],
+  staging: heldStaging,
+  styleId: "sunny_banks",
+});
+assert.match(duoNote, /Exactly 2 people in frame: Ranger Bazza, Dazza/);
+assert.match(duoNote, /No extras, no walkers, no animals/);
+assert.match(duoNote, /Do not draw the same face twice/);
+// The prop the writer named survives; empty hands is no longer stapled on.
+assert.match(duoNote, /Only the held object named in the position/);
+assert.doesNotMatch(duoNote, /No mug, cup, cooler/);
+// The conditional that could never resolve is gone.
+assert.doesNotMatch(duoNote, /is prominent if this is their line/);
+
+// Solo is unchanged — it already had its guards.
+const soloNote = plateCastStagingNote({
+  speakers: ["Nan"],
+  staging: "Nan sits in her chair.",
+  styleId: "sunny_banks",
+});
+assert.match(soloNote, /Only Nan in frame, no one else appears/);
+assert.doesNotMatch(soloNote, /Exactly 1 people/);
+
+// Every other show keeps exactly what it had.
+const otherShow = plateCastStagingNote({
+  speakers: ["Sharon", "Kim"],
+  staging: "Sharon leans on the bar.",
+  styleId: "skidmarks",
+});
+assert.match(otherShow, /Sharon is prominent if this is their line/);
+assert.doesNotMatch(otherShow, /Exactly 2 people/);
+assert.deepEqual(
+  plateCastStagingNote({ speakers: ["Sharon", "Kim"], staging: "Sharon leans on the bar." }),
+  otherShow,
+);
+
+// ---------------------------------------------------------------------------
+// F7 — Make keeps a still that failed proof, but no longer wipes the verdict.
+// ---------------------------------------------------------------------------
+assert.equal(sunnyPlateProofNote([{ shotId: "a" }, { shotId: "b" }]), "");
+assert.equal(sunnyPlateProofNote([]), "");
+const proofNote = sunnyPlateProofNote([
+  { shotId: "a", qaFails: ["peopleCount"] },
+  { shotId: "b" },
+  { shotId: "c", qaFails: ["peopleCount", "sameFace"] },
+]);
+assert.match(proofNote, /2 of 3 plates were kept but failed proof/);
+assert.match(proofNote, /peopleCount ×2/);
+assert.match(proofNote, /sameFace ×1/);
+// An empty qaFails array is not a flag.
+assert.equal(sunnyPlateProofNote([{ shotId: "a", qaFails: [] }]), "");
+
+const cookSrc = readFileSync(join(here, "../src/lib/sunnyEpisodeCook.ts"), "utf8");
+// The old line cleared the error and kept nothing. It must not come back.
+assert.doesNotMatch(cookSrc, /\? \{ \.\.\.s, error: "" \}\s*:/);
+assert.match(cookSrc, /qaFails: qaFails\.length \? qaFails : undefined/);
+// A later take that passes proof clears the stale verdict.
+assert.match(cookSrc, /qaFails: undefined/);
 
 console.log("check-sunny-episode: ok");

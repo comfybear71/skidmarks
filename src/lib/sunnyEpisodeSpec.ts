@@ -115,6 +115,7 @@ export function isSunnyExtraName(name: string): boolean {
   return false;
 }
 
+/** More faces than this on one card and the composite starts losing people. */
 export const SUNNY_MAX_FACES = 3;
 
 export type SunnyEpisodeScan = {
@@ -348,8 +349,13 @@ export function sunnyEpisodeGate(opts: {
     };
   }
 
-  const unknownPlaces = scan.places.filter((p) => !matchSunnyPlace(p, opts.shelfPlaces));
-  scan.unknownPlaces = unknownPlaces;
+  // Make resolves Place: with the loose match (so "Caravan Park Main Deck"
+  // finds the shelf card "Caravan park"). The strict match was used here, so
+  // the card called a place unknown that Make was about to hang from the
+  // shelf. unknownPlaces means one thing now: this place gets drawn fresh.
+  scan.unknownPlaces = scan.places.filter(
+    (p) => !matchSunnyPlaceLoose(p, opts.shelfPlaces),
+  );
   return { ok: true, scan };
 }
 

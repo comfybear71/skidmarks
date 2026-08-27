@@ -16,6 +16,7 @@ import { findReusableCastCards, type ReusableCastCard } from "./mobileCastReuse"
 import {
   isSunnySeriesName,
   matchSunnyPlaceLoose,
+  placeKey,
   SUNNY_SERIES_NAMES,
 } from "./sunnyEpisodeSpec";
 import { createCharacter, listCharacters } from "./characters";
@@ -239,6 +240,30 @@ async function worldStillBytes(
   return null;
 }
 
+/**
+ * A script leaves a place and comes back, so the same place is two scenes.
+ * Draw it once: the second scene takes the still the first one already has,
+ * instead of a second Grok cook that comes back looking like somewhere else.
+ */
+export function reusableSunnyPlaceStill(
+  job: Pick<MobileGenJob, "scenes">,
+  locationCandidates: Record<string, MobileImageCandidate[]>,
+  sceneId: string,
+): MobileImageCandidate | null {
+  const scene = job.scenes.find((s) => s.id === sceneId);
+  const key = placeKey(scene?.placeName || "");
+  if (!key) return null;
+  for (const other of job.scenes) {
+    if (other.id === sceneId) continue;
+    if (placeKey(other.placeName) !== key) continue;
+    const take = (locationCandidates[other.id] || []).find(
+      (c) => c.approved && c.fileName.trim(),
+    );
+    if (take) return { ...take, approved: true };
+  }
+  return null;
+}
+
 /** Copy each matched shelf place onto this job as an approved still. */
 export async function copySunnyPlaceStills(opts: {
   job: MobileGenJob;
@@ -250,6 +275,11 @@ export async function copySunnyPlaceStills(opts: {
   };
   for (const scene of opts.job.scenes) {
     if (approvedCandidateFileName(locationCandidates, scene.id)) continue;
+    const already = reusableSunnyPlaceStill(opts.job, locationCandidates, scene.id);
+    if (already) {
+      locationCandidates[scene.id] = [already];
+      continue;
+    }
     const wanted =
       opts.places.find(
         (p) => p.trim().toLowerCase() === scene.placeName.trim().toLowerCase(),
