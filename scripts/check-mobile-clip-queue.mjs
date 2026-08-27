@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   clearAllStoryShots,
+  findStoryShotBeat,
   mergeClipsFromStory,
   nextClipToAnimate,
   previousDoneClipOnShot,
@@ -9,6 +10,9 @@ import {
   queuedSavedClips,
   upsertPendingClip,
 } from "../src/lib/mobileClipQueue.ts";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { leftoverHydrateBeat } from "../src/lib/mobilePlateLines.ts";
 
 assert.equal(leftoverHydrateBeat("shot_jo", "shot_jo_a1"), true);
@@ -438,5 +442,70 @@ assert.equal(
 
 const leftoverOne = queueOneBeatForAnimate(job, leftoverJoStory, "shot_jo_a1");
 assert.match(leftoverOne.error || "", /Save the spoken line/);
+
+const dupSceneStory = {
+  styleId: "sunny_banks",
+  title: "dup",
+  logline: "",
+  scenes: [
+    {
+      id: "scene_zam0tq9",
+      placeName: "Near Site Laundry",
+      worldThumbKey: "",
+      shots: [
+        {
+          id: "shot_other",
+          title: "Other",
+          summary: "",
+          staging: "",
+          plateFile: "a.png",
+          beats: [{ id: "beat_other", speaker: "Dazza", text: "nah", voiceFile: "a.mp3" }],
+        },
+      ],
+    },
+    {
+      id: "scene_zam0tq9",
+      placeName: "Outside Site Laundry",
+      worldThumbKey: "",
+      shots: [
+        {
+          id: "shot_m4p8il7",
+          title: "The Aliens Realise",
+          summary: "",
+          staging: "",
+          plateFile: "b.png",
+          beats: [
+            {
+              id: "beat_feh57t0",
+              speaker: "The Unit 4s",
+              text: "Observation",
+              voiceFile: "b.mp3",
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+const firstCopy = dupSceneStory.scenes.find((sc) => sc.id === "scene_zam0tq9");
+assert.equal(firstCopy?.shots.some((sh) => sh.id === "shot_m4p8il7"), false);
+const home = findStoryShotBeat(dupSceneStory, {
+  shotId: "shot_m4p8il7",
+  beatId: "beat_feh57t0",
+});
+assert.equal(home?.shot.title, "The Aliens Realise");
+assert.equal(home?.beat.speaker, "The Unit 4s");
+assert.equal(findStoryShotBeat(dupSceneStory, { shotId: "shot_m4p8il7", beatId: "nope" }), null);
+
+const stepSrc = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../src/app/api/crash/mobile/step/route.ts"),
+  "utf8",
+);
+assert.match(stepSrc, /findStoryShotBeat/);
+assert.doesNotMatch(
+  stepSrc,
+  /story\.scenes\.find\(\(sc\) => sc\.id === next\.sceneId\)/,
+  "Animate must not take the first place with that id",
+);
 
 console.log("check-mobile-clip-queue: ok");
