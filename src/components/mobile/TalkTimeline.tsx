@@ -15,6 +15,7 @@ import {
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   talkPlaceActsFrom,
+  talkActRoman,
   talkCellTakes,
   talkClipClock,
   talkClipDeskFrom,
@@ -635,6 +636,8 @@ export function TalkTimeline({
   const [pickWhere, setPickWhere] = useState("");
   const [deskBusy, setDeskBusy] = useState("");
   const [deskError, setDeskError] = useState("");
+  const [addActOpen, setAddActOpen] = useState(false);
+  const [addActName, setAddActName] = useState("");
   const isSkidmarks = job.styleId === "skidmarks";
   const [openActId, setOpenActId] = useState(isSkidmarks ? "stage-1" : "");
   const [openDoc, setOpenDoc] = useState<"" | "rules" | "blank">("");
@@ -662,9 +665,45 @@ export function TalkTimeline({
   const innerW = talkDeskInnerWidth(visibleCells);
   const selected =
     visibleCells.find((c) => c.key === pickedKey) || visibleCells[0] || null;
+  const actSceneId = openAct?.sceneId || "";
+
+  async function addActPlace() {
+    const name = addActName.trim();
+    if (!name || !job.id) return;
+    setDeskBusy("add-act");
+    setDeskError("");
+    try {
+      const res = await fetch("/api/crash/mobile/candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: job.id,
+          kind: "location",
+          action: "add",
+          name,
+        }),
+      });
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (!data.job) throw new Error(data.error || "Couldn't add that act");
+      const newest = data.job.scenes[data.job.scenes.length - 1];
+      onJobChange?.(data.job);
+      if (newest?.id) {
+        setOpenActId(`place-${newest.id}`);
+        setPickedKey("");
+        setPlayingKey("");
+      }
+      setAddActOpen(false);
+      setAddActName("");
+    } catch (e) {
+      setDeskError(studioFetchError(e, "Couldn't add that act"));
+    } finally {
+      setDeskBusy("");
+    }
+  }
 
   async function addSlot() {
-    if (!pickWho || !pickWhere || !job.folderName) return;
+    const sceneId = pickWhere || actSceneId;
+    if (!pickWho || !sceneId || !job.folderName) return;
     setDeskBusy("add");
     setDeskError("");
     try {
@@ -675,13 +714,15 @@ export function TalkTimeline({
         body: JSON.stringify({
           jobId: job.id,
           action: "add",
-          sceneId: pickWhere,
+          sceneId,
           speaker: pickWho,
           title,
+          reuseScene: true,
         }),
       });
       const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
       if (data.job) onJobChange?.(data.job);
+      setOpenActId(`place-${sceneId}`);
       setPickOpen(false);
       setPickWho("");
       setPickWhere("");
@@ -777,7 +818,7 @@ export function TalkTimeline({
       <div className="m-plate-pick-actions">
         <MobilePrimaryButton
           size="chip"
-          disabled={Boolean(deskBusy) || !pickWho || !pickWhere || !job.folderName}
+          disabled={Boolean(deskBusy) || !pickWho || !(pickWhere || actSceneId) || !job.folderName}
           onClick={() => void addSlot()}
         >
           {deskBusy === "add" ? "…" : `Add ${pickWho || "clip"}`}
@@ -795,7 +836,10 @@ export function TalkTimeline({
         size="chip"
         tone="ghost"
         disabled={Boolean(deskBusy) || !job.folderName}
-        onClick={() => setPickOpen((v) => !v)}
+        onClick={() => {
+          setPickOpen((v) => !v);
+          if (!pickWhere && actSceneId) setPickWhere(actSceneId);
+        }}
       >
         {pickOpen ? "Hide add" : "+ Add clip"}
       </MobilePrimaryButton>
@@ -822,9 +866,10 @@ export function TalkTimeline({
       <div className="m-talk-head">
         <span className="m-talk-kicker">Talking timeline</span>
         <span className="m-talk-hint">
-          Tap an act — only that act is on the strip. Tap a box to play it — every
-          clip on that shot, in order. + adds a slot. × parks it — files stay. Send
-          cooks the next line.
+          Tap an act — only that act is on the strip. + Act names the next place
+          when you need another one. Tap a box to play it — every clip on that shot,
+          in order. + adds a slot. × parks it — files stay. Send cooks the next
+          line.
         </span>
       </div>
       {!compact && (acts.length || isSkidmarks) ? (
@@ -833,7 +878,7 @@ export function TalkTimeline({
             <button
               type="button"
               key={act.id}
-              className={`m-mv-lyr-toggle${resolvedActId === act.id ? " is-open" : ""}`}
+              className={`m-mv-lyr-toggle m-talk-act-chip${resolvedActId === act.id ? " is-open" : ""}`}
               aria-pressed={resolvedActId === act.id}
               onClick={() => {
                 setOpenActId(act.id);
@@ -842,11 +887,59 @@ export function TalkTimeline({
                 setPickedKey(first || "");
               }}
             >
-              Act {act.roman}
+              <span className="m-talk-act-roman">
+                Act {act.roman}
+                <span className="m-talk-act-count">{act.lineCount}</span>
+              </span>
               {act.title ? <span className="m-talk-act-place">{act.title}</span> : null}
-              <span className="m-talk-act-count">{act.lineCount}</span>
             </button>
           ))}
+          {!isSkidmarks ? (
+            addActOpen ? (
+              <form
+                className="m-talk-add-act"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void addActPlace();
+                }}
+              >
+                <input
+                  className="m-talk-add-act-input"
+                  value={addActName}
+                  onChange={(e) => setAddActName(e.target.value)}
+                  placeholder="Place — Back shed"
+                  aria-label="Place for the next act"
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  className="m-mv-lyr-toggle is-open"
+                  disabled={Boolean(deskBusy) || !addActName.trim()}
+                >
+                  {deskBusy === "add-act" ? "…" : `Add Act ${talkActRoman(acts.length + 1)}`}
+                </button>
+                <button
+                  type="button"
+                  className="m-track-btn"
+                  onClick={() => {
+                    setAddActOpen(false);
+                    setAddActName("");
+                  }}
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                className="m-mv-lyr-toggle m-talk-act-add"
+                disabled={Boolean(deskBusy) || !job.id}
+                onClick={() => setAddActOpen(true)}
+              >
+                + Act {talkActRoman(acts.length + 1)}
+              </button>
+            )
+          ) : null}
           {isSkidmarks ? (
             <div className="m-talk-template-link m-talk-doc-chips">
               <button
@@ -961,7 +1054,10 @@ export function TalkTimeline({
                   aria-label="Add a talking clip"
                   aria-expanded={pickOpen}
                   disabled={Boolean(deskBusy) || !job.folderName}
-                  onClick={() => setPickOpen((v) => !v)}
+                  onClick={() => {
+                    setPickOpen((v) => !v);
+                    if (!pickWhere && actSceneId) setPickWhere(actSceneId);
+                  }}
                 >
                   +
                 </button>
@@ -972,7 +1068,7 @@ export function TalkTimeline({
         ) : (
           <p className="m-talk-empty">
             {openAct
-              ? `No clips on Act ${openAct.roman} yet.`
+              ? `No clips on Act ${openAct.roman}${openAct.title ? ` · ${openAct.title}` : ""} yet.`
               : "Tap an act to see its clips."}
           </p>
         )

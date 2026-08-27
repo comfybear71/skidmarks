@@ -67,6 +67,17 @@ assert.equal(new Set(ids).size, ids.length, "scene ids stay unique");
 // And it tells the route which scene's still to copy.
 assert.equal(mid.carryStillFrom, "scene_deck");
 
+const stay = appendPlacePlate({
+  job,
+  story,
+  sceneId: "scene_deck",
+  speaker: "Dazza",
+  reuseScene: true,
+});
+assert.equal(stay.sceneId, "scene_deck", "talking desk stays on this act");
+assert.equal(stay.story.scenes.length, 2);
+assert.equal(stay.story.scenes[0].shots.at(-1).id, stay.shotId);
+
 // Picking the place that IS already last just appends there — no extra scene.
 const tail = appendPlacePlate({ job, story, sceneId: "scene_office", speaker: "Dazza" });
 assert.equal(tail.sceneId, "scene_office");
@@ -95,5 +106,6 @@ const route = readFileSync(
 assert.match(route, /carryStillFrom/);
 assert.match(route, /locationCandidates,/);
 assert.match(route, /scenes,/);
+assert.match(route, /reuseScene: Boolean\(body.reuseScene\)/);
 
 console.log("check-plate-add-at-end: ok");

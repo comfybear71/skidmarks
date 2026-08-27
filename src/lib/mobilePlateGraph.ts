@@ -243,6 +243,7 @@ function pickCastPlateScene(
   job: Pick<MobileGenJob, "scenes">,
   story: CrashStoryDoc,
   sceneId: string,
+  opts?: { reuseScene?: boolean },
 ): {
   sceneId: string;
   placeName: string;
@@ -253,7 +254,7 @@ function pickCastPlateScene(
   const inStory = story.scenes.find((sc) => sc.id === want);
   if (inStory) {
     const last = story.scenes[story.scenes.length - 1];
-    if (last && last.id === inStory.id) {
+    if (opts?.reuseScene || (last && last.id === inStory.id)) {
       return { sceneId: inStory.id, placeName: inStory.placeName || "this place", story };
     }
     const tail: CrashStoryScene = {
@@ -355,6 +356,8 @@ export function appendPlacePlate(opts: {
   story: CrashStoryDoc;
   sceneId: string;
   speaker?: string;
+  /** Talking desk: stay on this act. Do not mint a tail scene. */
+  reuseScene?: boolean;
 }): {
   story: CrashStoryDoc;
   shots: MobileShotUnit[];
@@ -364,7 +367,9 @@ export function appendPlacePlate(opts: {
   carryStillFrom?: string;
 } {
   const speaker = (opts.speaker || "").trim();
-  const picked = pickCastPlateScene(opts.job, opts.story, opts.sceneId);
+  const picked = pickCastPlateScene(opts.job, opts.story, opts.sceneId, {
+    reuseScene: opts.reuseScene,
+  });
   const newShot: CrashStoryShot = speaker
     ? {
         id: newId("shot"),

@@ -111,6 +111,7 @@ export async function POST(req: Request) {
       bibleIds?: string[];
       summary?: string;
       title?: string;
+      reuseScene?: boolean;
       footageRole?: ShotFootageRole;
       stockQuery?: string;
       action?: string;
@@ -269,6 +270,7 @@ export async function POST(req: Request) {
           story,
           sceneId: sceneIdIn,
           speaker: speakerIn,
+          reuseScene: Boolean(body.reuseScene),
         });
         const deskTitle = titleIn?.trim();
         if (deskTitle) {

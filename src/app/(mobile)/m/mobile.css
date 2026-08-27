@@ -3667,9 +3667,34 @@ span.scratch-history-blob {
 }
 
 .m-talk-acts > button,
-.m-talk-acts > .m-talk-template-link {
+.m-talk-acts > .m-talk-template-link,
+.m-talk-acts > .m-talk-add-act {
   flex: 0 0 auto;
-  white-space: nowrap;
+}
+
+.m-talk-act-chip {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 5.5rem;
+  max-width: 8.5rem;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.m-talk-act-roman {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.m-talk-act-place {
+  color: inherit;
+  opacity: 0.85;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
 }
 
 .m-talk-act-place {
@@ -3681,10 +3706,25 @@ span.scratch-history-blob {
 }
 
 .m-talk-act-count {
-  margin-left: 6px;
   color: inherit;
   opacity: 0.7;
   font-weight: 700;
+}
+
+.m-talk-add-act {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.m-talk-add-act-input {
+  width: 11rem;
+  padding: 6px 8px;
+  border: 1px solid var(--acid);
+  border-radius: 8px;
+  background: var(--void);
+  color: var(--chrome);
+  font-size: 13px;
 }
 
 .m-talk-template-link {
