@@ -120,12 +120,16 @@ export function isCutawayMotion(prompt: string): boolean {
 export function ltxSendPrompt(
   imageMotion: string,
   staging = "",
-  opts?: { skipLipSyncLead?: boolean },
+  opts?: { skipLipSyncLead?: boolean; speaker?: string; shotSpeakers?: string[] },
 ): string {
   let body = ensureGoldFrameLocks(imageMotion);
   if (directorWantsEmptyHands(staging) || directorWantsEmptyHands(body)) {
     body = stripJoPhoneLock(body);
   }
+  body = ensureSpeakingListenerLock(body, {
+    speaker: opts?.speaker,
+    shotSpeakers: opts?.shotSpeakers,
+  });
   if (isCutawayMotion(body) || opts?.skipLipSyncLead) return body;
   return withLtxLipSyncLead(body);
 }
@@ -278,6 +282,72 @@ export function onlyTheseInFrame(names: string[]): string {
   return `Only ${roll} in frame, no one else appears.`;
 }
 
+function namesEqual(a: string, b: string): boolean {
+  return clean(a).toLowerCase() === clean(b).toLowerCase();
+}
+
+function possessiveName(name: string): string {
+  return /s$/i.test(name) ? `${name}'` : `${name}'s`;
+}
+
+/** One CAST name, more than one body — The Unit 4s, two purple figures. */
+function isGroupListener(name: string): boolean {
+  return /\bunit\s*4s\b/i.test(name) || /\baliens\b/i.test(name);
+}
+
+function joinPeople(names: string[]): string {
+  if (names.length <= 1) return names[0] || "";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+function speakerFromMotion(motion: string): string {
+  const hits = [...motion.matchAll(/([A-Za-z0-9][A-Za-z0-9 '-]{0,40}?)\s+says:\s*"/g)];
+  return clean(hits.at(-1)?.[1] || "");
+}
+
+function othersFromMotion(motion: string, speaker: string): string[] {
+  const m = motion.match(/Only (.+?) in frame/i);
+  if (!m) return [];
+  return m[1]
+    .split(/,| and /i)
+    .map(clean)
+    .filter((n) => n && !/^the person/i.test(n) && !namesEqual(n, speaker));
+}
+
+/** Other faces on a two-hander must not take the lip-sync. Solo gold stays untouched. */
+export function speakingListenerLock(speaker: string, others: string[]): string {
+  const who = clean(speaker);
+  const rest = [...new Set(others.map(clean).filter((n) => n && !namesEqual(n, who)))];
+  if (!who || !rest.length) return "";
+  const listeners = joinPeople(rest);
+  const many = rest.length > 1 || rest.some(isGroupListener);
+  const verb = many ? "listen" : "listens";
+  const mouths = many ? "mouths closed" : "mouth closed";
+  return `Only ${possessiveName(who)} mouth moves. ${listeners} ${verb} in silence, ${mouths}.`;
+}
+
+export function speakingMotionHasListenerLock(motion: string): boolean {
+  const t = stripLtxLipSyncLead(motion);
+  return /mouth moves/i.test(t) && /listen(?:s)? in silence/i.test(t);
+}
+
+export function ensureSpeakingListenerLock(
+  motion: string,
+  opts?: { speaker?: string; shotSpeakers?: string[] },
+): string {
+  const body = clean(motion);
+  if (!body || !/\bsays:\s*"/i.test(body)) return body;
+  if (speakingMotionHasListenerLock(body)) return body;
+  const speaker = clean(opts?.speaker || "") || speakerFromMotion(body);
+  const fromCard = (opts?.shotSpeakers || [])
+    .map(clean)
+    .filter((n) => n && !namesEqual(n, speaker));
+  const others = fromCard.length ? [...new Set(fromCard)] : othersFromMotion(body, speaker);
+  const lock = speakingListenerLock(speaker, others);
+  return lock ? clean(`${body} ${lock}`) : body;
+}
+
 /**
  * Plate staging ("alone in the cell, only Jo in frame, sitting on the bed")
  * is for the still. If it is Saved as the spoken line, LTX lip-syncs a
@@ -332,7 +402,8 @@ export function storedMotionReinventsLook(motion: string | undefined): boolean {
   return (
     /\bsame person just\b/.test(t) ||
     /\ba little bit younger\b/.test(t) ||
-    /\bshe is cleaner\b/.test(t)
+    /\bshe is cleaner\b/.test(t) ||
+    /\bfront on (of|off) this character\b/.test(t)
   );
 }
 
@@ -375,6 +446,7 @@ function inFrameNames(speaker: string, shotSpeakers?: string[]): string[] {
 export function shortLtxLookLock(lookLock: string, maxChars = 120): string {
   const raw = clean(lookLock);
   if (!raw) return "";
+  if (/front on (of|off) this character/i.test(raw)) return "";
   const drop =
     /\b(loves?|love[sd]?|barrack|barracks|fan of|supports?|not a cartoon|not a photo|not photographic|not photorealistic|3d model|a 3d|personality|vibe|energy|younger|older|cleaner|same person)\b/i;
   const parts = raw
@@ -404,11 +476,14 @@ export function buildSpeakingMotion(opts: {
   const name = clean(opts.speaker) || "The character";
   const look = shortLtxLookLock(opts.lookLock || "");
   const who = look ? `${name}, ${look}` : name;
+  const inFrame = inFrameNames(name, opts.shotSpeakers);
+  const others = inFrame.filter((n) => !namesEqual(n, name));
   return clean(
     [
       "Use the provided start image as the first frame.",
       `${who} is prominent, ${speakingAction(opts.speaker, opts.staging || "", opts.styleId)}.`,
-      onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
+      onlyTheseInFrame(inFrame),
+      speakingListenerLock(name, others),
       "Props and background stay exactly as the start image, nothing new enters frame.",
       GOLD_NO_TEXT,
       `${name} says: "${clean(opts.line)}".`,

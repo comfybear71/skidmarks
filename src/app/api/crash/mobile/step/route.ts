@@ -553,7 +553,10 @@ export async function POST(req: Request) {
               shotSpeakers: shotCast,
               staging: storyShot.staging,
             });
-        const imageMotion = ltxSendPrompt(body, storyShot.staging);
+        const imageMotion = ltxSendPrompt(body, storyShot.staging, {
+          speaker,
+          shotSpeakers: shotCast,
+        });
 
         // Recorded on the clip before the render even starts, so the prompt is
         // visible on screen the moment the clip is queued — not only once it

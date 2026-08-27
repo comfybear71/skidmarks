@@ -759,6 +759,17 @@ assert.equal(
   })?.fileName,
   "thumb_1786096652402.png",
 );
+assert.equal(
+  pickSunnySeriesFace({
+    name: "Nuggets",
+    shelf: { name: "Nuggets", fileName: "thumb_nug.png", look: "skinny teen" },
+    jobFaces: [
+      { fileName: "face_nug.png", look: "a front on off this character", seriesLock: true },
+    ],
+  })?.look,
+  "",
+  "camera note is not a look lock — of or off",
+);
 
 {
   const clipQueue = readFileSync(join(here, "../src/lib/mobileClipQueue.ts"), "utf8");

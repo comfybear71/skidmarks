@@ -63,7 +63,7 @@ function usableLook(look: string, name: string): string {
   const t = (look || "").trim();
   if (!t) return "";
   if (t.toLowerCase() === name.trim().toLowerCase()) return "";
-  if (/^a front on of this character/i.test(t)) return "";
+  if (/front on (of|off) this character/i.test(t)) return "";
   return t;
 }
 

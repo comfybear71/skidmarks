@@ -210,6 +210,8 @@ export async function runScratchLtxClip(opts: {
       performance,
       singing,
     }),
+    speaker,
+    shotSpeakers: shotCast,
   });
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)

@@ -131,8 +131,8 @@ export const PLATE_AUTOMATION_ENTRIES: ArchiveEntry[] = [
     layer: "speech",
     verdict: "fails",
     title: "Nothing tells the listener to keep their mouth shut",
-    why: "buildSpeakingMotion names everyone via onlyTheseInFrame but has no listener rule — buildGroupHoldMotion has All mouths stay closed, the speaking shape has no equivalent. LTX_LIP_SYNC_LEAD (perfect lip sync, clear lip movement…) is prepended with no subject, so on a two-face frame it reads as an instruction for both mouths.",
-    fix: "Candidate: add Only [SPEAKER]'s mouth moves. [OTHERS] listen in silence, mouths closed for shotSpeakers > 1, and subject the lip-sync lead to the speaker. Test one variable at a time on /m.",
+    why: "buildSpeakingMotion names everyone via onlyTheseInFrame but used to have no listener rule — buildGroupHoldMotion has All mouths stay closed. LTX_LIP_SYNC_LEAD (perfect lip sync, clear lip movement…) is prepended with no subject, so on a two-face frame it reads as an instruction for both mouths. Logged live: Nuggets line, alien mouth moved.",
+    fix: "BUILT (unscored): Only [SPEAKER]'s mouth moves. [OTHERS] listen in silence, mouth(s) closed — on buildSpeakingMotion when shotSpeakers > 1, and on ltxSendPrompt so Redo of an old stored body still gets the lock. Solo gold unchanged. Score on /m before calling it gold. Lip-sync lead still global (one variable at a time).",
   },
   {
     id: "group-speak-no-spatial-anchor",
