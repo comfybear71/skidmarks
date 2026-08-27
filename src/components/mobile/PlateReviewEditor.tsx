@@ -17,6 +17,7 @@ import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scra
 import { PositionPromptPanel, LtxImageMotionPanel } from "@/components/mobile/ShotPromptPanels";
 import {
   applyBibleTokens,
+  stripBibleSoloLock,
   dropPercents,
   mergePlacementsIntoStaging,
   readScratchDrag,
@@ -1694,7 +1695,17 @@ function CastIntoPlatePopup({
               }
               onPick={(_sectionId: ScratchBibleSectionId, entry: ScratchBibleEntry) => {
                 const who = picked || padCast[0] || "";
-                const text = applyBibleTokens(entry.template, {
+                // Every chip on the dropdown opens with "{{name}} alone at
+                // {{place}}. Only {{name}} in frame, no one else appears." —
+                // right on Scratch, which is one character by design. On a
+                // group plate it fights the headcount lock in the same
+                // paragraph, so the chip looked like it did nothing. Keep the
+                // camera, pose, wardrobe and props; drop the alone-ness.
+                const template =
+                  crowd && padCast.length > 1
+                    ? stripBibleSoloLock(entry.template)
+                    : entry.template;
+                const text = applyBibleTokens(template, {
                   name: who,
                   place: placeName || "this place",
                   cast: crowd && padCast.length ? padCast : who ? [who] : [],

@@ -49,6 +49,7 @@ export {
   SCRATCH_DROPDOWN_PRESET_IDS,
   SCRATCH_PROMPT_BIBLE,
   applyBibleTokens,
+  stripBibleSoloLock,
   composeBibleBlocks,
   inferBibleIdsFromPrompt,
   resolveShotBibleIds,
