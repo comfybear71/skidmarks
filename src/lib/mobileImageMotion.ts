@@ -290,6 +290,11 @@ function possessiveName(name: string): string {
   return /s$/i.test(name) ? `${name}'` : `${name}'s`;
 }
 
+/** One CAST name, more than one body — The Unit 4s, two purple figures. */
+function isGroupListener(name: string): boolean {
+  return /\bunit\s*4s\b/i.test(name) || /\baliens\b/i.test(name);
+}
+
 function joinPeople(names: string[]): string {
   if (names.length <= 1) return names[0] || "";
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
@@ -316,8 +321,9 @@ export function speakingListenerLock(speaker: string, others: string[]): string 
   const rest = [...new Set(others.map(clean).filter((n) => n && !namesEqual(n, who)))];
   if (!who || !rest.length) return "";
   const listeners = joinPeople(rest);
-  const verb = rest.length === 1 ? "listens" : "listen";
-  const mouths = rest.length === 1 ? "mouth closed" : "mouths closed";
+  const many = rest.length > 1 || rest.some(isGroupListener);
+  const verb = many ? "listen" : "listens";
+  const mouths = many ? "mouths closed" : "mouth closed";
   return `Only ${possessiveName(who)} mouth moves. ${listeners} ${verb} in silence, ${mouths}.`;
 }
 
@@ -396,7 +402,8 @@ export function storedMotionReinventsLook(motion: string | undefined): boolean {
   return (
     /\bsame person just\b/.test(t) ||
     /\ba little bit younger\b/.test(t) ||
-    /\bshe is cleaner\b/.test(t)
+    /\bshe is cleaner\b/.test(t) ||
+    /\bfront on (of|off) this character\b/.test(t)
   );
 }
 
@@ -439,6 +446,7 @@ function inFrameNames(speaker: string, shotSpeakers?: string[]): string[] {
 export function shortLtxLookLock(lookLock: string, maxChars = 120): string {
   const raw = clean(lookLock);
   if (!raw) return "";
+  if (/front on (of|off) this character/i.test(raw)) return "";
   const drop =
     /\b(loves?|love[sd]?|barrack|barracks|fan of|supports?|not a cartoon|not a photo|not photographic|not photorealistic|3d model|a 3d|personality|vibe|energy|younger|older|cleaner|same person)\b/i;
   const parts = raw

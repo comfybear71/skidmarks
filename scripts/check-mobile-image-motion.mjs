@@ -281,4 +281,25 @@ const oldTwoHander = ltxSendPrompt(
 assert.match(oldTwoHander, /Only Nuggets' mouth moves/);
 assert.match(oldTwoHander, /Alien 1 listens in silence, mouth closed/);
 
+const unit4s = buildDefaultBeatMotion({
+  styleId: "sunny_banks",
+  speaker: "Nuggets",
+  line: "righty o, I'll ask them? They'll look like idiots Shazza,",
+  lookLock: "a front on off this character",
+  shotSpeakers: ["Nuggets", "The Unit 4s"],
+  staging: "Nuggets looking at the pie. The Unit 4s just arriving behind him, two purple figures, not dressed yet. BBQ shelter.",
+});
+assert.doesNotMatch(unit4s, /front on/i);
+assert.match(unit4s, /Nuggets is prominent/);
+assert.match(unit4s, /Only Nuggets and The Unit 4s in frame/);
+assert.match(unit4s, /Only Nuggets' mouth moves/);
+assert.match(unit4s, /The Unit 4s listen in silence, mouths closed/);
+assert.doesNotMatch(unit4s, /The Unit 4s listens/);
+assert.equal(
+  storedMotionReinventsLook(
+    'Use the provided start image as the first frame. Nuggets, a front on off this character is prominent, mouth and head move naturally while speaking.',
+  ),
+  true,
+);
+
 console.log("check-mobile-image-motion: ok");
