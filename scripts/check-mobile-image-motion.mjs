@@ -250,4 +250,35 @@ assert.equal(sentCutaway.startsWith(LTX_LIP_SYNC_LEAD), false);
 assert.equal(isCutawayMotion(sentCutaway), true);
 assert.equal(isCutawayMotion(jo), false);
 
+const nuggetsSolo = buildDefaultBeatMotion({
+  styleId: "sunny_banks",
+  speaker: "Nuggets",
+  line: "Nah, mate. It's plastic.",
+  lookLock: "skinny teen, buzz cut, blue and yellow jersey, meat pie",
+});
+assert.match(nuggetsSolo, /Only Nuggets in frame/);
+assert.doesNotMatch(nuggetsSolo, /mouth moves/);
+assert.doesNotMatch(nuggetsSolo, /listen(?:s)? in silence/);
+
+const nuggetsAlien = buildDefaultBeatMotion({
+  styleId: "sunny_banks",
+  speaker: "Nuggets",
+  line: "Nah, mate. It's plastic.",
+  lookLock: "skinny teen, buzz cut, blue and yellow jersey, meat pie",
+  shotSpeakers: ["Nuggets", "Alien 1"],
+});
+assert.match(nuggetsAlien, /Only Nuggets and Alien 1 in frame/);
+assert.match(nuggetsAlien, /Only Nuggets' mouth moves/);
+assert.match(nuggetsAlien, /Alien 1 listens in silence, mouth closed/);
+assert.doesNotMatch(nuggetsAlien, /All mouths stay closed/);
+assert.doesNotMatch(nuggetsAlien, /Other people/);
+
+const oldTwoHander = ltxSendPrompt(
+  'Use the provided start image as the first frame. Nuggets is prominent, mouth and head move naturally while speaking. Only Nuggets in frame, no one else appears. Nuggets says: "Nah, mate. It\'s plastic."',
+  "",
+  { speaker: "Nuggets", shotSpeakers: ["Nuggets", "Alien 1"] },
+);
+assert.match(oldTwoHander, /Only Nuggets' mouth moves/);
+assert.match(oldTwoHander, /Alien 1 listens in silence, mouth closed/);
+
 console.log("check-mobile-image-motion: ok");

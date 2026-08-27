@@ -109,8 +109,7 @@ assert.ok(
   "gold should still contain group HOLD beats",
 );
 
-// The group hold has a mouths-closed rule; the speaking shape has no listener
-// rule at all. That asymmetry is Failure 2 in the research doc.
+// Two-hander speak now names the listener. Group hold still silences every mouth.
 const twoHanderSpeak = ltxSendPrompt(
   buildDefaultBeatMotion({
     styleId: "sunny_banks",
@@ -121,7 +120,9 @@ const twoHanderSpeak = ltxSendPrompt(
   }),
 );
 assert.match(twoHanderSpeak, /Only Ranger Bazza and Dazza in frame/);
-assert.doesNotMatch(twoHanderSpeak, /mouths? (stay|stays|remain) closed/i);
+assert.match(twoHanderSpeak, /Only Ranger Bazza's mouth moves/);
+assert.match(twoHanderSpeak, /Dazza listens in silence, mouth closed/);
+assert.doesNotMatch(twoHanderSpeak, /All mouths stay closed/);
 assert.match(
   buildGroupHoldMotion({ styleId: "sunny_banks", names: ["Ranger Bazza", "Dazza"] }),
   /All mouths stay closed/,
