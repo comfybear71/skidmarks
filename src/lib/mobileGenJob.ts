@@ -67,6 +67,14 @@ export type MobileShotUnit = {
   /** Why compositing failed, when it did — otherwise animate can only report
    * that a plate is missing, not what went wrong making it. */
   error?: string;
+  /**
+   * Plate QA checks this still failed on the take that was kept (peopleCount,
+   * sameFace, anatomy…). Make keeps a drawn still and walks on, which is right
+   * — but it used to clear the shot error too, so the one thing that knew the
+   * plate was wrong threw the answer away. Not an error: the still is usable,
+   * it just needs eyes.
+   */
+  qaFails?: string[];
 };
 
 /** One per dialogue beat — LTX animates per-line, not per-shot. The first

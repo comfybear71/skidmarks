@@ -239,6 +239,7 @@ export async function compositeShotPlate(
     staging: shot.staging,
     looks,
     placeLook,
+    styleId,
   });
 
   let currentBg = bgPath;

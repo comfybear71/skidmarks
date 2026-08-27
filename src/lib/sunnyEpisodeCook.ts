@@ -7,7 +7,11 @@ import { uploadMobileMedia } from "./mobileMediaStore";
 import { mobileMediaFolder } from "./mobileJobFolder";
 import { hydrateMobilePackOnDisk, readMobileStory, writeMobileStory } from "./mobileStoryStore";
 import { mergeClipsFromStory } from "./mobileClipQueue";
-import { patchMobileGenJob, type MobileGenJob } from "./mobileGenJob";
+import {
+  patchMobileGenJob,
+  type MobileGenJob,
+  type MobileShotUnit,
+} from "./mobileGenJob";
 import { nextUnplatedEpisodeShot, shotHasPlate } from "./mobilePlateGraph";
 import { episodeJobShots } from "./mobileScratch";
 import { rebuildShotPlate } from "./mobilePlateRebuild";
@@ -36,6 +40,28 @@ export function sunnyAutoKeepsFailedProof(opts: {
   const file = String(opts.plateFile || "").trim();
   if (!file || file === "__error__") return false;
   return opts.qaOk === false;
+}
+
+/**
+ * Plates Make kept even though proof went red. Not a failure to fix now —
+ * a list to look at, because the episode still finished. Empty string when
+ * every plate passed, so a clean run says nothing.
+ */
+export function sunnyPlateProofNote(
+  shots: Pick<MobileShotUnit, "shotId" | "qaFails">[],
+): string {
+  const flagged = shots.filter((s) => (s.qaFails || []).length);
+  if (!flagged.length) return "";
+  const counts = new Map<string, number>();
+  for (const shot of flagged) {
+    for (const fail of shot.qaFails || []) {
+      counts.set(fail, (counts.get(fail) || 0) + 1);
+    }
+  }
+  const worst = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  return `${flagged.length} of ${shots.length} plates were kept but failed proof (${worst
+    .map(([id, n]) => `${id} ×${n}`)
+    .join(", ")}). The episode is finished — look at those stills.`;
 }
 
 /** Live old Make still throws this. A blank error phase is a wiped stamp. Keep cooking. */
@@ -213,12 +239,19 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
       });
       if (rebuilt.qa && rebuilt.qa.ok === false) {
         if (sunnyAutoKeepsFailedProof({ plateFile: rebuilt.plateFile, qaOk: false })) {
+          // Keep the still and walk on — a red proof must not kill the
+          // episode. But record WHICH checks it failed instead of clearing
+          // the error and losing the only thing that knew. At ~60 plates on a
+          // long episode that list is the review surface.
+          const qaFails = (rebuilt.qa.fails || []).filter(Boolean);
           return (
             (await patchMobileGenJob(job.id, {
               phase: "plates",
               error: "",
               shots: rebuilt.job.shots.map((s) =>
-                s.shotId === unplated.shotId ? { ...s, error: "" } : s,
+                s.shotId === unplated.shotId
+                  ? { ...s, error: "", qaFails: qaFails.length ? qaFails : undefined }
+                  : s,
               ),
             })) || rebuilt.job
           );
@@ -233,7 +266,13 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
           })) || rebuilt.job
         );
       }
-      return rebuilt.job;
+      // Proof passed on this take — drop any verdict left by an earlier one.
+      const cleared = await patchMobileGenJob(job.id, {
+        shots: rebuilt.job.shots.map((s) =>
+          s.shotId === unplated.shotId ? { ...s, qaFails: undefined } : s,
+        ),
+      });
+      return cleared || rebuilt.job;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       return (
@@ -320,7 +359,9 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
       (await patchMobileGenJob(job.id, {
         clips,
         phase: "review",
-        error: clips.length ? "" : "Locked. No spoken lines to cook.",
+        error: clips.length
+          ? sunnyPlateProofNote(job.shots)
+          : "Locked. No spoken lines to cook.",
       })) || job
     );
   }

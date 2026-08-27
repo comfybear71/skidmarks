@@ -5,7 +5,11 @@ Logged **2026-08-27**. Diagnosis of the two failures Stuie reports on Sunny Bank
 more people are in the shot**. Third section covers what a **10-minute episode**
 actually costs.
 
-**This is not new gold.** Nothing here has been through a model yet. Every claim
+**Status:** F4, F6 and F7 are now **built** (see each section) — F4 and F6 are
+prompt changes that still need a Scratch score before they count as gold; F7 only
+stops information being discarded. F1, F2, F3, F5 and F8 are still candidates.
+
+**This is not new gold.** No wording here has been through a model yet. Every claim
 below is a *code* fact — the exact prompt strings the pipeline builds, printed and
 checked. The proposed shapes in "Fixes to test" are **candidates**, not proven
 wording. Do not write any of it onto a live pack until Scratch and `/m` score it,
@@ -105,9 +109,11 @@ Plate line produces a prompt that says **"Bazza holds a whistle up"** and
 the contradiction however it likes — prop vanishes, prop duplicates, or a hand
 melts around it.
 
-Worse: `Shazza has a cigarette` is not an invention — **cigarette is in Shazza's
-gold look lock**. The look lock asks for it and the staging lock forbids it, on a
-series regular, every time.
+`Shazza has a cigarette` is the weaker case — a cigarette in the mouth is not
+"in anyone's hands", so `Do not invent props` is a tension with her gold look lock
+rather than a flat contradiction. Left unsolved: `has a` and `with a` are too loose
+to add to the detector (they match "has a grin", "with a smile") and widening to
+them would punch a hole in the no-props floor.
 
 ### 1d. Three faces = two chained generative passes
 
@@ -248,25 +254,38 @@ no animals. Do not invent anyone else. Do not draw the same face twice.
 `[VISUAL_ACTION]` path, which a Sunny script never takes. The sentence exists; it
 just never reaches Sunny.
 
+**BUILT, unscored.** Sunny two-handers now get
+`Exactly [N] people in frame: [A], [B]. No one else appears. No extras, no walkers,
+no animals. Do not invent anyone else. Do not draw the same face twice.` in place of
+the conditional. Solo is untouched; other shows are untouched. **Needs a Scratch
+score.**
+
 ### F5 — Cross-check the camera word against the cast count
 
 `Camera: wide three-shot` with two names is a contradiction the parser should not
 pass through. Either drop the camera word to the cast count, or flag it on the
 create card next to the over-cast warning.
 
-### F6 — Widen `stagingNamesHeldProp`
+### F6 — Widen `stagingNamesHeldProp` — **BUILT, unscored**
 
-Add `holds`, `holding`, `has`, `grips`, `carries`, `with a` to the detector so a
-normally-written Plate line stops getting `Empty hands` stapled onto it. Check the
-series look locks for props (Shazza's cigarette, Nan's teacup and cricket bat,
-Nuggets' meat pie) so the look lock and the staging lock stop contradicting.
+Sunny only: `holds`, `grips`, `clutches`, `carries`, `cradles`, `waves`, `raises`
+now read as a named prop, so a normally-written Plate line stops getting
+`Empty hands` stapled onto it. `has a` / `with a` deliberately stay out — they
+match "has a grin" and would punch a hole in the no-props floor. An explicit
+`Empty hands` in the Position still wins, as before. Every other show is byte-for-byte
+unchanged. **Still needs a Scratch score before it is gold.**
 
-### F7 — Keep the QA verdict
+### F7 — Keep the QA verdict — **BUILT**
 
-Stop clearing `s.error` on a kept-but-failed proof. Record the verdict on the shot
-(`qaFails: ["peopleCount"]`) and show the list when the cook finishes: *"9 of 62
-plates failed proof — look at these."* Cheap, and it turns an invisible failure into
-a work list.
+`MobileShotUnit.qaFails` records which checks the kept take failed. Make still keeps
+the still and walks on (a red proof must not kill the episode) but no longer clears
+the answer, and a later take that passes proof clears the stale verdict. When the
+cook finishes, `sunnyPlateProofNote` says *"9 of 62 plates were kept but failed proof
+(peopleCount ×7, sameFace ×2). The episode is finished — look at those stills."*
+A clean run says nothing.
+
+This one is not a prompt change, so there is nothing to score — it only stops
+information being thrown away.
 
 ### F8 — Shot-side: write two-handers as over-shoulder
 

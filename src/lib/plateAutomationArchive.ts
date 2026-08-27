@@ -150,7 +150,7 @@ export const PLATE_AUTOMATION_ENTRIES: ArchiveEntry[] = [
     verdict: "fails",
     title: "Every anti-extra lock is dropped once there are two people",
     why: "plateCastStagingNote branches on solo. Solo gets four guards (Only X in frame / X is the only person / Empty of extra people and animals / Do not invent anyone else). Two-hander gets one line — X is prominent if this is their line — a conditional the image model cannot evaluate, since there is no line at plate time. The headcount is never stated and Bodies in the room is plural.",
-    fix: "Candidate: give the multi branch Exactly [N] people in frame: [A], [B]. No extras. Do not draw the same face twice. compileConstructionStillPosition already emits that sentence, but only on the Skidmarks [VISUAL_ACTION] path a Sunny script never takes.",
+    fix: "BUILT (unscored): plateCastStagingNote now gives a Sunny two-hander Exactly [N] people in frame: [A], [B]. No one else appears. No extras, no walkers, no animals. Do not invent anyone else. Do not draw the same face twice. Solo and every other show unchanged. Score it on Scratch before calling it gold.",
   },
   {
     id: "held-prop-regex-gap",
@@ -158,8 +158,8 @@ export const PLATE_AUTOMATION_ENTRIES: ArchiveEntry[] = [
     layer: "still",
     verdict: "fails",
     title: "holds a whistle becomes Empty hands",
-    why: "stagingNamesHeldProp matches only racket|pie|phone|mobile, the gerund holding, or in her/his/their hands. holds a whistle up and has a cigarette both miss, so NO_PROPS_STILL_LOCK (Empty hands… Do not invent props) is appended to a staging that just named the prop. Shazza's cigarette is in her gold look lock, so the look lock and the staging lock contradict each other on a series regular.",
-    fix: "Candidate: widen the detector to holds/has/grips/carries/with a, and check the series look locks for props. Until then write Plate lines with holding, not holds.",
+    why: "stagingNamesHeldProp matched only racket|pie|phone|mobile, the gerund holding, or in her/his/their hands. Bazza holds a whistle up missed, so NO_PROPS_STILL_LOCK (Empty hands… Do not invent props) was appended to a staging that had just named the prop.",
+    fix: "BUILT (unscored), Sunny only: holds/grips/clutches/carries/cradles/waves/raises now read as a named prop. has a / with a stay out — they match has a grin and would punch a hole in the no-props floor. An explicit Empty hands still wins. Score it on Scratch.",
   },
   {
     id: "three-faces-two-render-passes",
@@ -177,7 +177,7 @@ export const PLATE_AUTOMATION_ENTRIES: ArchiveEntry[] = [
     verdict: "fails",
     title: "The peopleCount verdict is caught and then thrown away",
     why: "judgePlateStill runs a peopleCount check (exactly N distinct people, no clones, no extras) with up to PLATE_QA_MAX_ATTEMPTS retries — it is looking for exactly this bug. runSunnyAutoStep then clears the shot's error on a kept-but-failed proof. Walking on is right; wiping the verdict means nobody can see which plates came back wrong.",
-    fix: "Candidate: record the verdict on the shot (qaFails) instead of clearing it, and list the failed plates when the cook finishes. On a 10-minute episode (~60 plates) that list is the review surface.",
+    fix: "BUILT: MobileShotUnit.qaFails records the failed checks, a later passing take clears them, and sunnyPlateProofNote lists them when the cook finishes. Make still keeps the still and walks on. Not a prompt change — nothing to score.",
   },
   {
     id: "cast-bio-in-motion",

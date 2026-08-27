@@ -188,22 +188,37 @@ export function withScratchEmptyHands(staging: string, skip = false): string {
 export const NO_PROPS_STILL_LOCK =
   "Empty hands. No phone. No mug, cup, cooler, bottle, or extra objects in anyone's hands. Do not invent props. Do not copy a phone or held object from the face card.";
 
+/**
+ * Sunny Plate: lines are written "Bazza holds a whistle up", not "holding".
+ * Only the gerund was matched, so the natural wording missed and
+ * NO_PROPS_STILL_LOCK ("Empty hands... Do not invent props") got appended
+ * next to the prop the writer had just named. Unambiguous holding verbs only —
+ * "has a" / "with a" stay out, they match "has a grin" and would punch a hole
+ * in the no-props floor.
+ */
+const HELD_PROP_VERBS =
+  /\b(holds?|holding|grips?|gripping|clutch(?:es|ing)?|carries|carrying|cradl(?:es|ing)|waves?|waving|raises?|raising)\b/;
+
 /** Position named a thing in their hands — keep that, do not inject empty hands or Jo's phone. */
-export function stagingNamesHeldProp(staging: string): boolean {
+export function stagingNamesHeldProp(
+  staging: string,
+  styleId?: ShowStyleId,
+): boolean {
   const text = staging.toLowerCase();
   if (!text.trim()) return false;
   if (directorWantsEmptyHands(text)) return false;
   if (/\b(racket|pie|phone|mobile)\b/.test(text)) return true;
   if (/\bholding\b/.test(text)) return true;
+  if (styleId === "sunny_banks" && HELD_PROP_VERBS.test(text)) return true;
   return /\bin (her|his|their) hands?\b/.test(text);
 }
 
 /** Empty-hands line for the still, or "" when Position already named a held prop. */
-export function emptyHandsStillLock(staging: string): string {
+export function emptyHandsStillLock(staging: string, styleId?: ShowStyleId): string {
   if (directorWantsEmptyHands(staging)) {
     return "Empty hands. No phone in anyone's hands.";
   }
-  if (stagingNamesHeldProp(staging)) {
+  if (stagingNamesHeldProp(staging, styleId)) {
     return "Only the held object named in the position. Do not invent extra objects.";
   }
   return NO_PROPS_STILL_LOCK;
@@ -234,8 +249,8 @@ export function defaultSoloStaging(speaker: string): string {
   return `${who} alone. Only ${who} in frame, no one else appears. Standing centre-frame, facing camera, mid body. Empty hands. No phone. No extra objects.`;
 }
 
-function speakingAction(speaker: string, staging = ""): string {
-  if (directorWantsEmptyHands(staging) || !stagingNamesHeldProp(staging)) {
+function speakingAction(speaker: string, staging = "", styleId?: ShowStyleId): string {
+  if (directorWantsEmptyHands(staging) || !stagingNamesHeldProp(staging, styleId)) {
     return "empty hands stay as the start image, no phone, mouth and head move naturally while speaking, subtle gesture";
   }
   if (isJoKeyboardWarrior(speaker) && /\b(phone|mobile)\b/i.test(staging)) {
@@ -244,8 +259,8 @@ function speakingAction(speaker: string, staging = ""): string {
   return "mouth and head move naturally while speaking, subtle gesture";
 }
 
-function holdAction(speaker: string, staging = ""): string {
-  if (directorWantsEmptyHands(staging) || !stagingNamesHeldProp(staging)) {
+function holdAction(speaker: string, staging = "", styleId?: ShowStyleId): string {
+  if (directorWantsEmptyHands(staging) || !stagingNamesHeldProp(staging, styleId)) {
     return "is prominent, empty hands, no phone, holds their pose, subtle idle motion, weight shift, breathing, heat haze, flies";
   }
   if (isJoKeyboardWarrior(speaker) && /\b(phone|mobile)\b/i.test(staging)) {
@@ -392,7 +407,7 @@ export function buildSpeakingMotion(opts: {
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} is prominent, ${speakingAction(opts.speaker, opts.staging || "")}.`,
+      `${who} is prominent, ${speakingAction(opts.speaker, opts.staging || "", opts.styleId)}.`,
       onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
       "Props and background stay exactly as the start image, nothing new enters frame.",
       GOLD_NO_TEXT,
@@ -449,7 +464,7 @@ export function buildHoldMotion(opts: {
   return clean(
     [
       "Use the provided start image as the first frame.",
-      `${who} ${holdAction(opts.speaker, opts.staging || "")}.`,
+      `${who} ${holdAction(opts.speaker, opts.staging || "", opts.styleId)}.`,
       onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
       "Props and background stay exactly as the start image, nothing new enters frame.",
       GOLD_NO_TEXT,

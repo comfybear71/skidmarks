@@ -1,5 +1,6 @@
 import { voiceNamesMatch } from "./voiceNameMatch";
 import { emptyHandsStillLock, joPhoneStagingExtra } from "./mobileImageMotion";
+import type { ShowStyleId } from "./showStylePresets";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
 
 function nameMentionedInWords(name: string, words: string): boolean {
@@ -244,6 +245,8 @@ export function plateCastStagingNote(opts: {
   placeLook?: string;
   /** True = Jo phone layer on (Scratch toggle). Default off — no props unless Position names them. */
   joPhone?: boolean;
+  /** Sunny two-handers get the headcount lock a solo shot already gets. */
+  styleId?: ShowStyleId;
 }): string {
   const speakers = [...new Set(opts.speakers.map((s) => s.trim()).filter(Boolean))];
   const solo = speakers.length === 1;
@@ -258,14 +261,22 @@ export function plateCastStagingNote(opts: {
   return [
     staging,
     phoneExtra,
-    phoneExtra ? "" : emptyHandsStillLock(staging),
+    phoneExtra ? "" : emptyHandsStillLock(staging, opts.styleId),
     opts.looks,
     opts.placeLook ? `This place: ${opts.placeLook}` : "",
+    // A solo shot got four anti-extra guards and a two-hander got one line —
+    // "X is prominent if this is their line", a conditional the image model
+    // cannot evaluate, because there is no line when the still is drawn. So
+    // exactly when the headcount most needs pinning, nothing pinned it.
+    // compileConstructionStillPosition already had the sentence; it only ever
+    // reached the Skidmarks [VISUAL_ACTION] path, which Sunny never takes.
     solo
       ? `Only ${name} in frame, no one else appears. ${name} is the only person. Empty of extra people and animals. Do not invent anyone else.`
-      : speakers[0]
-        ? `${speakers[0]} is prominent if this is their line.`
-        : "",
+      : opts.styleId === "sunny_banks" && speakers.length > 1
+        ? `Exactly ${speakers.length} people in frame: ${speakers.join(", ")}. No one else appears. No extras, no walkers, no animals. Do not invent anyone else. Do not draw the same face twice.`
+        : speakers[0]
+          ? `${speakers[0]} is prominent if this is their line.`
+          : "",
     "Identity from each single face card — one person per reference. Never a turnaround sheet with several copies of the same character.",
     solo
       ? "One body in the room — sitting, leaning, or standing as staged. Matching light. Not a lineup of people standing in the foreground like cutouts."

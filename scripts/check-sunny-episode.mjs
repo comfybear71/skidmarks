@@ -58,7 +58,9 @@ import {
   orderSunnyStoryByScript,
   sunnyScriptPlaceOrder,
 } from "../src/lib/sunnyEpisodeOrder.ts";
-import { sunnyResumesOwnCook } from "../src/lib/sunnyEpisodeCook.ts";
+import { sunnyResumesOwnCook, sunnyPlateProofNote } from "../src/lib/sunnyEpisodeCook.ts";
+import { plateCastStagingNote } from "../src/lib/mobilePlateLines.ts";
+import { stagingNamesHeldProp } from "../src/lib/mobileImageMotion.ts";
 import { reusableSunnyPlaceStill } from "../src/lib/sunnyEpisodeSeed.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -1005,5 +1007,88 @@ assert.ok(
 // The card has to show the two signals the scan was already computing.
 assert.match(sunnyCard, /overcastShots/);
 assert.match(sunnyCard, /unknownPlaces/);
+
+// ---------------------------------------------------------------------------
+// F6 — "Bazza holds a whistle up" is a named prop. Only the gerund matched, so
+// the natural wording got "Empty hands... Do not invent props" stapled on next
+// to the prop it just named. Sunny only; every other show is untouched.
+// ---------------------------------------------------------------------------
+const heldStaging = "Bazza holds a whistle up. Dazza leans on the rail.";
+assert.equal(stagingNamesHeldProp(heldStaging, "sunny_banks"), true);
+assert.equal(stagingNamesHeldProp(heldStaging, "skidmarks"), false);
+assert.equal(stagingNamesHeldProp(heldStaging), false);
+for (const verb of ["grips the megaphone", "carries a esky", "waves a whistle"]) {
+  assert.equal(stagingNamesHeldProp(`Bazza ${verb}.`, "sunny_banks"), true, verb);
+}
+// The no-props floor stays up: a vibe line is not a held prop, and an explicit
+// empty-hands direction still wins.
+assert.equal(stagingNamesHeldProp("Dazza has a grin.", "sunny_banks"), false);
+assert.equal(stagingNamesHeldProp("Nan sits with a smile.", "sunny_banks"), false);
+assert.equal(
+  stagingNamesHeldProp("Bazza holds a whistle. Empty hands.", "sunny_banks"),
+  false,
+);
+
+// ---------------------------------------------------------------------------
+// F4 — a two-hander gets the headcount lock a solo already had. Sunny only.
+// ---------------------------------------------------------------------------
+const duoNote = plateCastStagingNote({
+  speakers: ["Ranger Bazza", "Dazza"],
+  staging: heldStaging,
+  styleId: "sunny_banks",
+});
+assert.match(duoNote, /Exactly 2 people in frame: Ranger Bazza, Dazza/);
+assert.match(duoNote, /No extras, no walkers, no animals/);
+assert.match(duoNote, /Do not draw the same face twice/);
+// The prop the writer named survives; empty hands is no longer stapled on.
+assert.match(duoNote, /Only the held object named in the position/);
+assert.doesNotMatch(duoNote, /No mug, cup, cooler/);
+// The conditional that could never resolve is gone.
+assert.doesNotMatch(duoNote, /is prominent if this is their line/);
+
+// Solo is unchanged — it already had its guards.
+const soloNote = plateCastStagingNote({
+  speakers: ["Nan"],
+  staging: "Nan sits in her chair.",
+  styleId: "sunny_banks",
+});
+assert.match(soloNote, /Only Nan in frame, no one else appears/);
+assert.doesNotMatch(soloNote, /Exactly 1 people/);
+
+// Every other show keeps exactly what it had.
+const otherShow = plateCastStagingNote({
+  speakers: ["Sharon", "Kim"],
+  staging: "Sharon leans on the bar.",
+  styleId: "skidmarks",
+});
+assert.match(otherShow, /Sharon is prominent if this is their line/);
+assert.doesNotMatch(otherShow, /Exactly 2 people/);
+assert.deepEqual(
+  plateCastStagingNote({ speakers: ["Sharon", "Kim"], staging: "Sharon leans on the bar." }),
+  otherShow,
+);
+
+// ---------------------------------------------------------------------------
+// F7 — Make keeps a still that failed proof, but no longer wipes the verdict.
+// ---------------------------------------------------------------------------
+assert.equal(sunnyPlateProofNote([{ shotId: "a" }, { shotId: "b" }]), "");
+assert.equal(sunnyPlateProofNote([]), "");
+const proofNote = sunnyPlateProofNote([
+  { shotId: "a", qaFails: ["peopleCount"] },
+  { shotId: "b" },
+  { shotId: "c", qaFails: ["peopleCount", "sameFace"] },
+]);
+assert.match(proofNote, /2 of 3 plates were kept but failed proof/);
+assert.match(proofNote, /peopleCount ×2/);
+assert.match(proofNote, /sameFace ×1/);
+// An empty qaFails array is not a flag.
+assert.equal(sunnyPlateProofNote([{ shotId: "a", qaFails: [] }]), "");
+
+const cookSrc = readFileSync(join(here, "../src/lib/sunnyEpisodeCook.ts"), "utf8");
+// The old line cleared the error and kept nothing. It must not come back.
+assert.doesNotMatch(cookSrc, /\? \{ \.\.\.s, error: "" \}\s*:/);
+assert.match(cookSrc, /qaFails: qaFails\.length \? qaFails : undefined/);
+// A later take that passes proof clears the stale verdict.
+assert.match(cookSrc, /qaFails: undefined/);
 
 console.log("check-sunny-episode: ok");
