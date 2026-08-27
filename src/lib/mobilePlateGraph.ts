@@ -1,4 +1,4 @@
-import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
+import type { CrashStoryDoc, CrashStoryShot, CrashStoryScene } from "./crashStoryTypes";
 import type { MobileGenJob, MobileShotUnit } from "./mobileGenJob";
 import {
   barMixGroups,
@@ -227,15 +227,48 @@ export function storyShotSpeaker(
   return { speaker: "", placeName: "this place" };
 }
 
+/**
+ * Where a newly added shot goes.
+ *
+ * A scene is one place, and a new shot used to land at the end of the PICKED
+ * scene — which is the middle of the episode whenever a later scene exists.
+ * Pick "Caravan park", get a shot at position 3 with the ranger office still
+ * after it. "Add a shot" means add it at the end, so when the picked scene is
+ * not the last one we open a fresh scene for that same place at the end of the
+ * story instead. `carryStillFrom` tells the caller which scene's approved
+ * location still to copy across, so the new scene is not left with no
+ * background (resolvePlateBackground throws on that).
+ */
 function pickCastPlateScene(
   job: Pick<MobileGenJob, "scenes">,
   story: CrashStoryDoc,
   sceneId: string,
-): { sceneId: string; placeName: string; story: CrashStoryDoc } {
+): {
+  sceneId: string;
+  placeName: string;
+  story: CrashStoryDoc;
+  carryStillFrom?: string;
+} {
   const want = sceneId.trim();
   const inStory = story.scenes.find((sc) => sc.id === want);
   if (inStory) {
-    return { sceneId: inStory.id, placeName: inStory.placeName || "this place", story };
+    const last = story.scenes[story.scenes.length - 1];
+    if (last && last.id === inStory.id) {
+      return { sceneId: inStory.id, placeName: inStory.placeName || "this place", story };
+    }
+    const tail: CrashStoryScene = {
+      id: newId("scene"),
+      title: inStory.title || inStory.placeName,
+      placeName: inStory.placeName,
+      worldThumbKey: inStory.worldThumbKey || "",
+      shots: [],
+    };
+    return {
+      sceneId: tail.id,
+      placeName: tail.placeName || "this place",
+      story: { ...story, scenes: [...story.scenes, tail] },
+      carryStillFrom: inStory.id,
+    };
   }
   const jobScene = job.scenes.find((s) => s.id === want);
   if (!jobScene) throw new Error("That place is not on this episode");
@@ -267,6 +300,7 @@ export function appendSoloCastShot(opts: {
   shotId: string;
   sceneId: string;
   placeName: string;
+  carryStillFrom?: string;
 } {
   const picked = pickCastPlateScene(opts.job, opts.story, opts.sceneId);
   const raw = (opts.speakers?.length ? opts.speakers : [opts.speaker])
@@ -307,6 +341,7 @@ export function appendSoloCastShot(opts: {
     shotId: newShot.id,
     sceneId: picked.sceneId,
     placeName: picked.placeName,
+    carryStillFrom: picked.carryStillFrom,
   };
 }
 
@@ -326,6 +361,7 @@ export function appendPlacePlate(opts: {
   shotId: string;
   sceneId: string;
   placeName: string;
+  carryStillFrom?: string;
 } {
   const speaker = (opts.speaker || "").trim();
   const picked = pickCastPlateScene(opts.job, opts.story, opts.sceneId);
@@ -364,5 +400,6 @@ export function appendPlacePlate(opts: {
     shotId: newShot.id,
     sceneId: picked.sceneId,
     placeName: picked.placeName,
+    carryStillFrom: picked.carryStillFrom,
   };
 }

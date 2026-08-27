@@ -6,6 +6,8 @@
  * when THIS job's Position names them. No extras. No character-plate sheets.
  */
 
+import { isEmptyStageStaging } from "./emptyStagePlate";
+
 export const MUSIC_VIDEO_GROUP_MAX = 3;
 
 /**
@@ -423,6 +425,32 @@ export function forgottenPlateStaging(
 }
 
 /** Rewrite Position after Add cast so the still names everyone on the card. */
+/**
+ * Adding someone to a plate used to overwrite the shot title with the joined
+ * cast list, so "SHOT 03 — Dazza" (or a Title: line straight from the script)
+ * silently became "Ranger Bazza, Shazza". The title is the director's, and it
+ * is not only cosmetic — orderedJobClips names the exported mp4s from it, so a
+ * rename changed the filenames in the clips zip too.
+ *
+ * Keep whatever the shot is called. The only title we still rewrite is one we
+ * wrote ourselves: an empty title, or one that is exactly the old cast list,
+ * which keeps auto-named plates in step as people come and go.
+ */
+export function titleAfterAddCast(opts: {
+  current?: string;
+  previousCast: string[];
+  nextCast: string[];
+}): string {
+  const roll = (names: string[]) =>
+    [...new Set(names.map((n) => n.trim()).filter(Boolean))].join(", ");
+  const current = (opts.current || "").trim();
+  const next = roll(opts.nextCast);
+  if (!current) return next || current;
+  const was = roll(opts.previousCast);
+  if (was && current.toLowerCase() === was.toLowerCase()) return next || current;
+  return current;
+}
+
 export function stagingAfterAddCast(opts: {
   styleId?: string;
   speakers: string[];
@@ -433,7 +461,11 @@ export function stagingAfterAddCast(opts: {
   const names = uniqueCastNames(opts.speakers);
   if (names.length <= 1) {
     const prev = (opts.previous || "").trim();
-    if (prev) return prev;
+    // An "Add empty plate" card carries the empty-stage line — "No people. No
+    // musicians. No faces." Keeping it once somebody is added leaves the plate
+    // prompt saying there is nobody in a shot that now has a person on it, so
+    // that one gets replaced rather than kept.
+    if (prev && !isEmptyStageStaging(prev)) return prev;
     return opts.soloStaging(names[0] || "");
   }
   if (opts.styleId === "music_video") {

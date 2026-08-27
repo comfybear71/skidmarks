@@ -8,7 +8,7 @@ import { clearAllStoryShots, clipQueueError } from "@/lib/mobileClipQueue";
 import { isEpisodeClipPlanError, planParkClipsUnderPlate } from "@/lib/mobileEpisodeClips";
 import { CUTAWAY_ACTIONS } from "@/lib/cutawayActions";
 import { buildCutawayMotion, defaultSoloStaging } from "@/lib/mobileImageMotion";
-import { stagingAfterAddCast } from "@/lib/musicVideoGroupPlate";
+import { stagingAfterAddCast, titleAfterAddCast } from "@/lib/musicVideoGroupPlate";
 import { candidateLookPrompt, phaseAfterPlateAdd } from "@/lib/mobileJobReady";
 import { beatsAfterRemoveLine, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import { castNamesMatch } from "@/lib/mobileDropCast";
@@ -283,8 +283,35 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: message }, { status: missing ? 404 : 400 });
       }
       await writeMobileStory(minted.story, job.folderName);
+      // The new shot goes at the END of the episode, so when the picked place
+      // was not already the last scene it now has a fresh scene of its own.
+      // Register it on the job and carry the place still across, or
+      // resolvePlateBackground has no background to draw on.
+      const addedScene = minted.story.scenes.find((sc) => sc.id === minted.sceneId);
+      const sceneIsNew = addedScene && !job.scenes.some((s) => s.id === minted.sceneId);
+      const scenes = sceneIsNew
+        ? [
+            ...job.scenes,
+            {
+              id: addedScene.id,
+              placeName: addedScene.placeName,
+              worldThumbKey: addedScene.worldThumbKey || "",
+            },
+          ]
+        : job.scenes;
+      const carried = minted.carryStillFrom
+        ? (job.locationCandidates[minted.carryStillFrom] || []).filter(
+            (c) => c.approved && c.fileName.trim(),
+          )
+        : [];
+      const locationCandidates =
+        sceneIsNew && carried.length
+          ? { ...job.locationCandidates, [minted.sceneId]: carried }
+          : job.locationCandidates;
       let updated = await patchMobileGenJob(jobId, {
         shots: minted.shots,
+        scenes,
+        locationCandidates,
         error: "",
         phase: phaseAfterPlateAdd(job.phase),
       });
@@ -483,7 +510,13 @@ export async function POST(req: Request) {
                     ? {
                         ...sh,
                         beats,
-                        title: cast.join(", ") || sh.title,
+                        title: titleAfterAddCast({
+                          current: sh.title,
+                          previousCast: liveShot.beats
+                            .map((b) => b.speaker.trim())
+                            .filter(Boolean),
+                          nextCast: cast,
+                        }),
                         staging: stagingAfterAddCast({
                           styleId: job.styleId,
                           speakers: cast,
