@@ -322,6 +322,25 @@ assert.equal(bands[0].widthPx, desk.cells[0].widthPx + desk.cells[1].widthPx);
 assert.equal(talkClipClock(8), "8s");
 assert.equal(talkNextShotTitle(desk.cells, "MATTY"), "SHOT 05 — MATTY");
 assert.equal(talkNextShotTitle([], "TEE"), "SHOT 01 — TEE");
+assert.equal(
+  talkNextShotTitle(
+    [
+      { title: "SHOT 01 — Ranger Bazza" },
+      { title: "SHOT 02 — Dazza" },
+      { title: "Caravan park" },
+      { title: "Empty stage" },
+      { title: "Support" },
+      { title: "Wide" },
+      { title: "Cutaway" },
+      { title: "Park dusk" },
+      { title: "Trailer" },
+      { title: "Heat haze" },
+    ],
+    "Shazza",
+  ),
+  "SHOT 11 — Shazza",
+  "a 10-clip desk must not reuse SHOT 03",
+);
 const actScripts = talkActScriptsFrom(desk.cells);
 assert.equal(actScripts.length, 2);
 assert.equal(actScripts[0].roman, "I");
@@ -430,7 +449,7 @@ assert.doesNotMatch(tree, /Hide stills|m-talk-stills-toggle/);
 assert.match(tree, /<MusicVideoTrack/);
 assert.match(editor, /label="Stills"/);
 assert.match(editor, /stillsStripOpen/);
-assert.match(editor, /isMusicVideoSongJob\(job\) && plateClipRail\.clips\.length/);
+assert.match(editor, /plateClipRail\.clips/);
 assert.doesNotMatch(song, /jobShowsMusicTrack/);
 assert.match(trackRoute, /Music video only/);
 

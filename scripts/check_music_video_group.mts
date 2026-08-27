@@ -77,6 +77,18 @@ const after = stagingAfterAddCast({
 assert(/HORN/.test(after) && /JACK GHOST/.test(after), "add-cast rewrites solo lock");
 assert(!/JACK GHOST alone/.test(after), "old alone line must go");
 
+const shazzaOnEmpty = stagingAfterAddCast({
+  styleId: "sunny_banks",
+  speakers: ["Shazza"],
+  placeName: "Caravan park",
+  previous:
+    "Far out, wide empty Caravan park. Empty stage. No people. No musicians. No faces. Establishing shot.",
+  soloStaging: (s) => `${s} alone. Only ${s} in frame, no one else appears.`,
+});
+assert(/Shazza alone/.test(shazzaOnEmpty), "empty-stage text must not stay when Shazza is added");
+assert(!/No people/.test(shazzaOnEmpty), "No people lock must go when a person is on the card");
+assert(!/Empty stage/.test(shazzaOnEmpty), "Empty stage lock must go when a person is on the card");
+
 assert(/WIDE full-body/.test(forgottenSoloCamera("JACK GHOST", "Sulfur stream")), "jack is wide — face stays hidden");
 assert(/blood crimson/.test(forgottenSoloCamera("JACK GHOST", "Sulfur stream")), "forgotten keeps the grade");
 assert(

@@ -72,5 +72,8 @@ const editor = readFileSync(
   "utf8",
 );
 assert.match(editor, /crowd && padCast\.length > 1\s*\?\s*stripBibleSoloLock/);
+assert.match(editor, /shotSpeakers\.length > 1 \? stripBibleSoloLock/);
+assert.match(editor, /}, \[shotId, positionPrompt\]/);
+assert.doesNotMatch(editor, /\[shotId, positionPrompt, positionBibleIds\]/);
 
 console.log("check-bible-solo-lock: ok");

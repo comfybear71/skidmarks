@@ -19,11 +19,13 @@ export function talkNextShotTitle(
   cells: { episodeNo?: number | null; title?: string }[],
   speaker = "",
 ): string {
-  const max = cells.reduce(
+  const maxEp = cells.reduce(
     (n, cell) => Math.max(n, cell.episodeNo || talkShotNumber(cell.title || "") || 0),
     0,
   );
-  const no = String(max + 1).padStart(2, "0");
+  // Count matters: 10 clips with only SHOT 01–02 used to mint SHOT 03 and
+  // drop the new still in the middle of the desk.
+  const no = String(Math.max(maxEp, cells.length) + 1).padStart(2, "0");
   const who = String(speaker || "").trim();
   return who ? `SHOT ${no} — ${who}` : `SHOT ${no}`;
 }

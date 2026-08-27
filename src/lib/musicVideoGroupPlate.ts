@@ -1,3 +1,5 @@
+import { isEmptyStageStaging } from "./emptyStagePlate";
+
 /**
  * Music-video group plates.
  *
@@ -5,8 +7,6 @@
  * another job's cameras, grade, instruments, or roster. Instruments only
  * when THIS job's Position names them. No extras. No character-plate sheets.
  */
-
-import { isEmptyStageStaging } from "./emptyStagePlate";
 
 export const MUSIC_VIDEO_GROUP_MAX = 3;
 
@@ -459,13 +459,12 @@ export function stagingAfterAddCast(opts: {
   soloStaging: (speaker: string) => string;
 }): string {
   const names = uniqueCastNames(opts.speakers);
+  const prev = (opts.previous || "").trim();
+  // Empty-stage establishing text says "No people. No faces." Keeping it
+  // when Shazza steps onto the card is how the model invented a stranger.
+  const keepPrev = Boolean(prev) && !isEmptyStageStaging(prev);
   if (names.length <= 1) {
-    const prev = (opts.previous || "").trim();
-    // An "Add empty plate" card carries the empty-stage line — "No people. No
-    // musicians. No faces." Keeping it once somebody is added leaves the plate
-    // prompt saying there is nobody in a shot that now has a person on it, so
-    // that one gets replaced rather than kept.
-    if (prev && !isEmptyStageStaging(prev)) return prev;
+    if (keepPrev) return prev;
     return opts.soloStaging(names[0] || "");
   }
   if (opts.styleId === "music_video") {
