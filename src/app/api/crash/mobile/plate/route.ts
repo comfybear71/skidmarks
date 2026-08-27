@@ -8,7 +8,7 @@ import { clearAllStoryShots, clipQueueError } from "@/lib/mobileClipQueue";
 import { isEpisodeClipPlanError, planParkClipsUnderPlate } from "@/lib/mobileEpisodeClips";
 import { CUTAWAY_ACTIONS } from "@/lib/cutawayActions";
 import { buildCutawayMotion, defaultSoloStaging } from "@/lib/mobileImageMotion";
-import { stagingAfterAddCast } from "@/lib/musicVideoGroupPlate";
+import { stagingAfterAddCast, titleAfterAddCast } from "@/lib/musicVideoGroupPlate";
 import { candidateLookPrompt, phaseAfterPlateAdd } from "@/lib/mobileJobReady";
 import { beatsAfterRemoveLine, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import { castNamesMatch } from "@/lib/mobileDropCast";
@@ -510,7 +510,13 @@ export async function POST(req: Request) {
                     ? {
                         ...sh,
                         beats,
-                        title: cast.join(", ") || sh.title,
+                        title: titleAfterAddCast({
+                          current: sh.title,
+                          previousCast: liveShot.beats
+                            .map((b) => b.speaker.trim())
+                            .filter(Boolean),
+                          nextCast: cast,
+                        }),
                         staging: stagingAfterAddCast({
                           styleId: job.styleId,
                           speakers: cast,
