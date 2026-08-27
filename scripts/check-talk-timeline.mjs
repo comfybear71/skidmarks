@@ -190,11 +190,11 @@ const plated = [
 const rows = talkTimelineFrom({ story, plated });
 assert.deepEqual(
   rows.map((r) => r.shotId),
-  ["shot_01", "shot_02", "shot_04", "shot_old_bar", "shot_loose"],
-  "SHOT 01–04 lead; pack leftovers follow in story order",
+  ["shot_old_bar", "shot_04", "shot_01", "shot_02", "shot_loose"],
+  "scene → shot order; SHOT 01 in the title does not jump the plate to the front",
 );
-assert.equal(rows[0].episodeNo, 1);
-assert.equal(rows[2].placeName, "MATTY BAR");
+assert.equal(rows[2].episodeNo, 1);
+assert.equal(rows[1].placeName, "MATTY BAR");
 assert.ok(
   eventsForShot(story.scenes[1].shots[0]).some((e) => e.kind === "visual" && /phone/i.test(e.detail)),
 );
@@ -224,7 +224,8 @@ const fromStoryOnly = talkTimelineFrom({
   story,
   plated: [{ shotId: "shot_01", sceneId: "scene_lounge", plateFile: "" }],
 });
-assert.equal(fromStoryOnly[0].plateFile, "phone.png", "story still lands when the job row is empty");
+const storyOnlyPhone = fromStoryOnly.find((r) => r.shotId === "shot_01");
+assert.equal(storyOnlyPhone?.plateFile, "phone.png", "story still lands when the job row is empty");
 
 const titledEmpty = talkTimelineFrom({
   story: {
@@ -297,22 +298,23 @@ const desk = talkClipDeskFrom({
 });
 assert.deepEqual(
   desk.cells.map((c) => c.shotId),
-  ["shot_01", "shot_02", "shot_04", "shot_old_bar"],
-  "SHOT 01–04 lead; leftover untitled plates only join when they have a take",
+  ["shot_old_bar", "shot_04", "shot_01", "shot_02"],
+  "desk follows story order; leftover untitled plates only join when they have a take",
 );
+const loungeLead = desk.cells.find((c) => c.shotId === "shot_01");
 assert.ok(
-  desk.cells[0].events.some((e) => e.kind === "dial" || e.kind === "visual" || e.kind === "music"),
+  loungeLead?.events.some((e) => e.kind === "dial" || e.kind === "visual" || e.kind === "music"),
   "template [ ] tags from the shot land on the talking cell",
 );
-assert.equal(desk.cells[0].plateFile, "phone.png", "each clip keeps its own still");
-assert.equal(desk.cells[1].plateFile, "two.png");
-assert.equal(desk.cells[3].plateFile, "old_bar.png");
+assert.equal(desk.cells[0].plateFile, "old_bar.png", "each clip keeps its own still");
+assert.equal(desk.cells[1].plateFile, "bar.png");
+assert.equal(desk.cells[2].plateFile, "phone.png");
 assert.ok(!desk.cells.some((c) => c.shotId === "shot_loose"), "untitled still with no take stays off");
-assert.notEqual(desk.cells[0].plateFile, desk.cells[1].plateFile);
-assert.equal(desk.cells[0].widthPx, talkClipWidthPx(8));
-assert.equal(desk.cells[1].widthPx, talkClipWidthPx(4));
-assert.ok(desk.cells[0].widthPx > desk.cells[1].widthPx, "longer take is a wider box");
-assert.equal(desk.cells[0].widthPx, 8 * TALK_CLIP_PX_PER_SEC);
+assert.notEqual(desk.cells[0].plateFile, desk.cells[2].plateFile);
+assert.equal(desk.cells[2].widthPx, talkClipWidthPx(8));
+assert.equal(desk.cells[3].widthPx, talkClipWidthPx(4));
+assert.ok(desk.cells[2].widthPx > desk.cells[3].widthPx, "longer take is a wider box");
+assert.equal(desk.cells[2].widthPx, 8 * TALK_CLIP_PX_PER_SEC);
 assert.equal(talkSceneColor("scene_lounge"), talkSceneColor("scene_lounge"));
 assert.notEqual(talkSceneColor("scene_lounge"), talkSceneColor("scene_bar"));
 assert.equal(desk.cells[0].sceneColor, desk.cells[1].sceneColor, "same scene, same colour");
@@ -343,6 +345,138 @@ assert.equal(
   ),
   "SHOT 11 — Shazza",
   "a 10-clip desk must not reuse SHOT 03",
+);
+
+// Stuie's manual Act I — THE GREATEST JOKE IN AUSTRALIA.
+// Eight cards. Extra lines stay on their shot. SHOT 11 is card 8, not card 2.
+function jokeShot(id, title, file, beats) {
+  return {
+    id,
+    title,
+    summary: "",
+    plateFile: file,
+    beats: beats.map(([beatId, speaker, text]) => ({ id: beatId, speaker, text })),
+    sfx: [],
+  };
+}
+const jokeAct1Shots = [
+  jokeShot("shot_01", "SHOT 01 — Ranger Bazza", "bazza.png", [
+    ["b01a", "Ranger Bazza", "Well here we go another day at Sunnybank's Caravan Park."],
+    ["b01b", "Ranger Bazza", "I wonder what adventures will happen today."],
+  ]),
+  jokeShot("shot_02", "SHOT 02 — Shazza", "shazza.png", [
+    ["b02a", "Shazza", "Ranger Bazza, ya flaming Gumboot?"],
+    ["b02b", "Shazza", "We need to do something about raising revenue at the park."],
+  ]),
+  jokeShot("shot_03", "Ranger Bazza, Shazza", "two.png", [
+    ["b03a", "Ranger Bazza", "I have no idea shazza let's ask Daza."],
+    ["b03b", "Shazza", "Hey Daza, get over here got something to ask you"],
+  ]),
+  jokeShot("shot_04", "Dazza", "dazza.png", [
+    ["b04a", "Dazza", "Hold your horses. Yeah, no worries. I'm coming"],
+  ]),
+  jokeShot("shot_05", "Caravan park", "park.png", [
+    ["b05a", "Shazza", "We're after a new ideas dazza."],
+  ]),
+  jokeShot("shot_06", "SHOT 06", "ots.png", [
+    ["b06a", "Dazza", "Yeah, I've got one word for you shazza. Drop Bears!"],
+  ]),
+  jokeShot("shot_07", "SHOT 07", "phone.png", [["b07a", "Ranger Bazza", ""]]),
+  jokeShot("shot_08", "SHOT 11 — Shazza", "close.png", [
+    ["b08a", "Shazza", "Yeah naaah, that's a great idea dazza, you're a genius!"],
+    ["b08b", "Shazza", "Australia's best Joke, and I know exactly what to do."],
+    ["b08c", "Shazza", "Let's go Daza I need a hand."],
+  ]),
+];
+const jokeStory = {
+  ...story,
+  styleId: "sunny_banks",
+  campaignLabel: "THE GREATEST JOKE IN AUSTRALIA",
+  scenes: [
+    {
+      id: "scene_park",
+      title: "Caravan park",
+      placeName: "Caravan park",
+      worldThumbKey: "",
+      shots: jokeAct1Shots,
+    },
+  ],
+};
+const jokeDesk = talkClipDeskFrom({
+  story: jokeStory,
+  plated: [...jokeAct1Shots]
+    .reverse()
+    .map((sh) => ({ shotId: sh.id, sceneId: "scene_park", plateFile: sh.plateFile })),
+  clips: jokeAct1Shots.flatMap((sh) =>
+    sh.beats.map((b, i) => ({
+      beatId: b.id,
+      shotId: sh.id,
+      sceneId: "scene_park",
+      clipFile: `${sh.id}_${b.id}.mp4`,
+      clipStatus: "done",
+      error: "",
+      durationSec: 4 + i,
+    })),
+  ),
+});
+assert.equal(jokeDesk.cells.length, 8, "Act I is eight shot boxes — extra lines stay on their shot");
+assert.deepEqual(
+  jokeDesk.cells.map((c) => c.shotId),
+  [
+    "shot_01",
+    "shot_02",
+    "shot_03",
+    "shot_04",
+    "shot_05",
+    "shot_06",
+    "shot_07",
+    "shot_08",
+  ],
+  "Greatest Joke Act I stays in the order it was built — SHOT 11 does not jump to the front",
+);
+assert.deepEqual(
+  jokeDesk.cells.map((c) => c.title),
+  [
+    "SHOT 01 — Ranger Bazza",
+    "SHOT 02 — Shazza",
+    "Ranger Bazza, Shazza",
+    "Dazza",
+    "Caravan park",
+    "SHOT 06",
+    "SHOT 07",
+    "SHOT 11 — Shazza",
+  ],
+);
+assert.deepEqual(
+  jokeDesk.cells.map((c) => c.takes.length),
+  [2, 2, 2, 1, 1, 1, 1, 3],
+  "Bazza, Shazza, the two-shot, and the last Shazza card keep every clip on that box",
+);
+assert.equal(jokeDesk.cells[0].durationSec, 9, "two clips on shot 01 add up on one box (4s + 5s)");
+assert.equal(jokeDesk.cells[7].durationSec, 15, "three clips on SHOT 11 add up (4s + 5s + 6s)");
+assert.equal(jokeDesk.cells[0].speaker, "Ranger Bazza");
+assert.equal(jokeDesk.cells[1].speaker, "Shazza");
+assert.equal(jokeDesk.cells[7].title, "SHOT 11 — Shazza");
+assert.deepEqual(
+  jokeDesk.cells.map((c) => c.episodeNo),
+  [1, 2, null, null, null, 6, 7, 11],
+);
+assert.equal(
+  talkNextShotTitle(jokeDesk.cells, "Nan"),
+  "SHOT 12 — Nan",
+  "a new card still appends after the highest SHOT N / clip count",
+);
+const jokePlatesOnly = talkClipDeskFrom({
+  story: jokeStory,
+  plated: [...jokeAct1Shots]
+    .reverse()
+    .map((sh) => ({ shotId: sh.id, sceneId: "scene_park", plateFile: sh.plateFile })),
+  clips: [],
+});
+assert.deepEqual(
+  jokePlatesOnly.cells.map((c) => c.shotId),
+  jokeAct1Shots.map((sh) => sh.id),
+  "blended stills with no take still sit in script order",
 );
 const actScripts = talkActScriptsFrom(desk.cells);
 assert.equal(actScripts.length, 2);
@@ -388,124 +522,16 @@ assert.equal(plateOnlyLead.voiceFile, "land.mp3", "plate-only keeps the saved li
 assert.ok(plateOnly.cells.every((c) => !c.clipFile), "no takes still allowed");
 assert.ok(!plateOnly.cells.some((c) => c.shotId === "shot_old_bar"), "untitled leftover without a take stays off");
 
-// THE GREATEST JOKE IN AUSTRALIA — Act 1. Titles are 01 / 02 / unnumbered /
-// 06 / 07 / 11. The rail used to sort by the SHOT 0N in the title, so 11
-// jumped and the unnumbered cards fell off the end.
-const jokeShot = (id, title, speaker, line, plateFile) => ({
-  id,
-  title,
-  summary: "",
-  plateFile,
-  beats: [{ id: `${id}_b`, speaker, text: line }],
-  sfx: [],
-});
-const jokeStory = {
-  styleId: "sunny_banks",
-  campaignLabel: "THE GREATEST JOKE IN AUSTRALIA",
-  gagNote: "",
-  intro: { title: "", notes: "", sfx: [] },
-  outro: { title: "", notes: "", sfx: [] },
-  scenes: [
-    {
-      id: "scene_park",
-      title: "Caravan park",
-      placeName: "Caravan park",
-      worldThumbKey: "",
-      shots: [
-        jokeShot("shot_01", "SHOT 01 — Ranger Bazza", "Ranger Bazza", "Well here we go another day at Sunnybank's Caravan Park.", "01.png"),
-        jokeShot("shot_02", "SHOT 02 — Shazza", "Shazza", "Ranger Bazza, ya flaming Gumboot?", "02.png"),
-        jokeShot("shot_03", "Ranger Bazza, Shazza two-shot", "Ranger Bazza", "I have no idea shazza let's ask Daza…", "03.png"),
-        jokeShot("shot_04", "Dazza", "Dazza", "Hold your horses. [pause][yells] Yeah, no worries. I'm coming", "04.png"),
-        jokeShot("shot_05", "Caravan park — low-angle on Shazza", "Shazza", "We're after a new ideas dazza. To Make some extra money. Got any.", "05.png"),
-        jokeShot("shot_06", "SHOT 06 — OTS toward Dazza", "Dazza", "Yeah, I've got one word for you shazza [pause] [excitingly] Drop Bears!", "06.png"),
-        jokeShot("shot_07", "SHOT 07 — lateral track, Ranger Bazza holds a phone", "Ranger Bazza", "phone", "07.png"),
-        jokeShot("shot_11", "SHOT 11 — Shazza alone MCU", "Shazza", "Yeah naaah, [pause] that's a great idea dazza…", "11.png"),
-      ],
-    },
-  ],
-};
-const jokePlated = [
-  { shotId: "shot_11", sceneId: "scene_park", plateFile: "11.png" },
-  { shotId: "shot_06", sceneId: "scene_park", plateFile: "06.png" },
-  { shotId: "shot_01", sceneId: "scene_park", plateFile: "01.png" },
-  { shotId: "shot_04", sceneId: "scene_park", plateFile: "04.png" },
-  { shotId: "shot_07", sceneId: "scene_park", plateFile: "07.png" },
-  { shotId: "shot_02", sceneId: "scene_park", plateFile: "02.png" },
-  { shotId: "shot_05", sceneId: "scene_park", plateFile: "05.png" },
-  { shotId: "shot_03", sceneId: "scene_park", plateFile: "03.png" },
-];
-const jokeScriptIds = [
-  "shot_01",
-  "shot_02",
-  "shot_03",
-  "shot_04",
-  "shot_05",
-  "shot_06",
-  "shot_07",
-  "shot_11",
-];
-const jokeRows = talkTimelineFrom({ story: jokeStory, plated: jokePlated });
-assert.deepEqual(
-  jokeRows.map((r) => r.shotId),
-  jokeScriptIds,
-  "Sunny Act 1 plates stay in script order even when titles skip 03–05 and jump to 11",
-);
-assert.deepEqual(
-  talkTimelineFrom({ story: jokeStory, plated: jokePlated, styleId: "sunny_banks" }).map((r) => r.shotId),
-  jokeScriptIds,
-);
-const jokeDesk = talkClipDeskFrom({
-  story: jokeStory,
-  plated: jokePlated,
-  clips: jokeScriptIds.map((id, i) => ({
-    beatId: `${id}_b`,
-    shotId: id,
-    sceneId: "scene_park",
-    clipFile: `act1_${String(i + 1).padStart(2, "0")}.mp4`,
-    clipStatus: "done",
-    error: "",
-    durationSec: 5,
-  })),
-});
-assert.deepEqual(
-  jokeDesk.cells.map((c) => c.shotId),
-  jokeScriptIds,
-  "Sunny Act 1 clip rail follows the script, not SHOT 0N",
-);
-assert.deepEqual(
-  jokeDesk.cells.map((c) => c.episodeNo),
-  [1, 2, null, null, null, 6, 7, 11],
-);
-assert.equal(
-  talkNextShotTitle(jokeDesk.cells, "Nan"),
-  "SHOT 12 — Nan",
-  "a new card still appends after the highest SHOT N / clip count",
-);
-const jokePlatesOnly = talkClipDeskFrom({
-  story: jokeStory,
-  plated: jokePlated,
-  clips: [],
-});
-assert.deepEqual(
-  jokePlatesOnly.cells.map((c) => c.shotId),
-  jokeScriptIds,
-  "blended stills with no take still sit in script order",
-);
-const jokeAsSkid = talkTimelineFrom({
-  story: { ...jokeStory, styleId: "skidmarks" },
-  plated: jokePlated,
-});
-assert.deepEqual(
-  jokeAsSkid.map((r) => r.shotId),
-  ["shot_01", "shot_02", "shot_06", "shot_07", "shot_11", "shot_03", "shot_04", "shot_05"],
-  "Skidmarks still leads with SHOT 0N — Sunny-only change",
-);
-
 const talkCss = css.slice(css.indexOf("/* Talking episode strip"));
 const editor = readFileSync(join(root, "src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 assert.match(talkUi, /styleId: job\.styleId/);
 assert.match(talkUi, /Talking timeline/);
 assert.match(talkUi, /Tap a box to play it/);
+assert.match(talkUi, /every\s+clip on that shot/);
+assert.match(talkUi, /m-talk-film-n/);
+assert.match(talkUi, /m-talk-take-list/);
+assert.match(talkCss, /\.m-talk-film-n/);
+assert.match(talkCss, /\.m-talk-take-chip/);
 assert.match(talkUi, /Change audio/);
 assert.match(talkUi, /Add audio/);
 assert.match(talkUi, /Redo clip/);
@@ -531,6 +557,13 @@ assert.match(talkUi, /m-talk-doc-fold/);
 assert.doesNotMatch(talkUi, /EPISODE_CONSTRUCTION_EXAMPLE/);
 assert.doesNotMatch(talkUi, /Little Red Riding Hood/);
 assert.match(talkUi, /m-talk-film-head/);
+assert.match(talkUi, /m-talk-film-title/);
+assert.match(talkUi, /TalkClipTray key=\{selected\.key\}/);
+assert.doesNotMatch(
+  talkUi,
+  /chrome\.act \?\s*\(\s*<TalkFilmTag/,
+  "act tag must not hide the shot title — CLIP bar and the box have to name the same plate",
+);
 assert.match(talkUi, /m-talk-film-stage/);
 assert.match(talkUi, /m-talk-film-sfx/);
 assert.match(talkUi, /m-talk-film-notes/);

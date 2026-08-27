@@ -218,12 +218,12 @@ export function talkKeepsScriptOrder(styleId?: string | null): boolean {
 }
 
 /**
- * Episode first (SHOT 01, SHOT 02…) then the rest of the pack in story
- * order. Job-add order is ignored. A still on the story still lands even
- * if the job row has not caught up yet.
- *
- * Sunny Banks skips the SHOT 0N sort — Act 1 titles can be 01 / 02 /
- * unnumbered / 06 / 07 / 11 while the script order is 1→8.
+ * Story scene → shot order. SHOT 01 / 02 in the title is a label, not
+ * a sort key — pulling numbered plates to the front put a later Shazza
+ * card ahead of Ranger Bazza and parked new stills in the middle.
+ * Sunny Act 1 titles can be 01 / 02 / unnumbered / 06 / 07 / 11 while
+ * the script is 1→8. Job-add order is ignored. A still on the story
+ * still lands even if the job row has not caught up yet.
  */
 export function talkTimelineFrom(opts: {
   story: CrashStoryDoc | null | undefined;
@@ -276,13 +276,5 @@ export function talkTimelineFrom(opts: {
     );
   }
 
-  if (talkKeepsScriptOrder(opts.styleId || opts.story?.styleId)) {
-    return collected;
-  }
-
-  const episode = collected
-    .filter((r) => r.episodeNo != null)
-    .sort((a, b) => (a.episodeNo || 0) - (b.episodeNo || 0) || a.shotNo - b.shotNo);
-  const rest = collected.filter((r) => r.episodeNo == null);
-  return [...episode, ...rest];
+  return collected;
 }
