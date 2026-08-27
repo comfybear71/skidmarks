@@ -80,6 +80,40 @@ assert.deepEqual(
   ["ep1"],
 );
 
+const sunnyStory = {
+  styleId: "sunny_banks",
+  scenes: [
+    {
+      id: "scene_park",
+      shots: [
+        { id: "shot_01" },
+        { id: "shot_02" },
+        { id: "shot_03" },
+        { id: "shot_11" },
+      ],
+    },
+  ],
+};
+const sunnyJob = {
+  styleId: "sunny_banks",
+  shots: [
+    { shotId: "shot_11", sceneId: "scene_park", plateFile: "11.png" },
+    { shotId: "shot_01", sceneId: "scene_park", plateFile: "01.png" },
+    { shotId: "shot_03", sceneId: "scene_park", plateFile: "03.png" },
+    { shotId: "shot_02", sceneId: "scene_park", plateFile: "02.png" },
+  ],
+};
+assert.deepEqual(
+  episodeJobShots(sunnyJob, sunnyStory).map((s) => s.shotId),
+  ["shot_01", "shot_02", "shot_03", "shot_11"],
+  "Sunny stills strip follows story order, not job-add or SHOT 11",
+);
+assert.deepEqual(
+  episodeJobShots({ ...sunnyJob, styleId: "skidmarks" }, sunnyStory).map((s) => s.shotId),
+  ["shot_11", "shot_01", "shot_03", "shot_02"],
+  "other shows keep job-add order on the stills strip",
+);
+
 const stacked = {
   ...campaignJob,
   clips: [

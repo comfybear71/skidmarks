@@ -8,6 +8,7 @@ import { STORY_SPINE_STAGES } from "./storySpine";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { clipFileBasename } from "./mobilePlateClips";
 import {
+  talkKeepsScriptOrder,
   talkShotNumber,
   talkTimelineFrom,
   type TalkTimelineEvent,
@@ -485,24 +486,32 @@ function clipsOnPlate(
  * Same scene → shot walk as the talking strip. One box per shot.
  * Two or three lines on that still stay on that box, in story order.
  * Leftover untitled stills with no take stay off the desk. A titled
- * SHOT 0N can sit empty so + Add clip lands. Width is the sum of the
- * clips on that shot.
+ * SHOT 0N can sit empty so + Add clip lands. Sunny Act 1 untitled
+ * cards with a still still sit (SHOT 11 cannot jump them). Width is
+ * the sum of the clips on that shot.
  */
 export function talkClipDeskFrom(opts: {
   story: CrashStoryDoc | null | undefined;
   plated: MobileShotUnit[];
   clips: MobileClipUnit[];
+  styleId?: string | null;
 }): TalkClipDesk {
-  const allPlates = talkTimelineFrom({ story: opts.story, plated: opts.plated });
+  const styleId = opts.styleId || opts.story?.styleId;
+  const allPlates = talkTimelineFrom({
+    story: opts.story,
+    plated: opts.plated,
+    styleId,
+  });
   const clips = opts.clips || [];
   const cells: TalkClipCell[] = [];
+  const sunnyStill = talkKeepsScriptOrder(styleId);
 
   for (const plate of allPlates) {
     const cell = shotCellFrom({
       plate,
       clips,
       story: opts.story,
-      allowEmpty: plate.episodeNo != null,
+      allowEmpty: plate.episodeNo != null || (sunnyStill && Boolean(plate.plateFile)),
     });
     if (cell) cells.push(cell);
   }

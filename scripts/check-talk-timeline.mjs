@@ -8,6 +8,7 @@ import {
   talkFilmChrome,
   talkFilmTagText,
   talkPlateWidthPx,
+  talkKeepsScriptOrder,
   talkShotNumber,
   talkTagKind,
   talkTimelineFrom,
@@ -322,6 +323,8 @@ const bands = talkSceneBands(desk.cells);
 assert.equal(bands.length, 2);
 assert.equal(bands[0].widthPx, desk.cells[0].widthPx + desk.cells[1].widthPx);
 assert.equal(talkClipClock(8), "8s");
+assert.equal(talkKeepsScriptOrder("sunny_banks"), true);
+assert.equal(talkKeepsScriptOrder("skidmarks"), false);
 assert.equal(talkNextShotTitle(desk.cells, "MATTY"), "SHOT 05 — MATTY");
 assert.equal(talkNextShotTitle([], "TEE"), "SHOT 01 — TEE");
 assert.equal(
@@ -454,6 +457,27 @@ assert.equal(jokeDesk.cells[7].durationSec, 15, "three clips on SHOT 11 add up (
 assert.equal(jokeDesk.cells[0].speaker, "Ranger Bazza");
 assert.equal(jokeDesk.cells[1].speaker, "Shazza");
 assert.equal(jokeDesk.cells[7].title, "SHOT 11 — Shazza");
+assert.deepEqual(
+  jokeDesk.cells.map((c) => c.episodeNo),
+  [1, 2, null, null, null, 6, 7, 11],
+);
+assert.equal(
+  talkNextShotTitle(jokeDesk.cells, "Nan"),
+  "SHOT 12 — Nan",
+  "a new card still appends after the highest SHOT N / clip count",
+);
+const jokePlatesOnly = talkClipDeskFrom({
+  story: jokeStory,
+  plated: [...jokeAct1Shots]
+    .reverse()
+    .map((sh) => ({ shotId: sh.id, sceneId: "scene_park", plateFile: sh.plateFile })),
+  clips: [],
+});
+assert.deepEqual(
+  jokePlatesOnly.cells.map((c) => c.shotId),
+  jokeAct1Shots.map((sh) => sh.id),
+  "blended stills with no take still sit in script order",
+);
 const actScripts = talkActScriptsFrom(desk.cells);
 assert.equal(actScripts.length, 2);
 assert.equal(actScripts[0].roman, "I");
@@ -500,6 +524,7 @@ assert.ok(!plateOnly.cells.some((c) => c.shotId === "shot_old_bar"), "untitled l
 
 const talkCss = css.slice(css.indexOf("/* Talking episode strip"));
 const editor = readFileSync(join(root, "src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+assert.match(talkUi, /styleId: job\.styleId/);
 assert.match(talkUi, /Talking timeline/);
 assert.match(talkUi, /Tap a box to play it/);
 assert.match(talkUi, /every\s+clip on that shot/);
