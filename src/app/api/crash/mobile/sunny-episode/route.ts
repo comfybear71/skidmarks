@@ -3,7 +3,7 @@ import { applyImportedStoryToJob } from "@/lib/mobileApplyScreenplay";
 import { createMobileGenJob, patchMobileGenJob } from "@/lib/mobileGenJob";
 import { importPastedStory, parseMobilePaste } from "@/lib/mobilePasteScript";
 import { DEFAULT_DESK_ID } from "@/lib/mobileDesk";
-import { newId } from "@/lib/types";
+import { orderSunnyStoryByScript } from "@/lib/sunnyEpisodeOrder";
 import {
   isSunnyExtraName,
   isSunnySeriesName,
@@ -86,35 +86,35 @@ export async function POST(req: Request) {
       deskId,
     });
 
-    const scenes = gate.scan.places.map((placeName) => {
-      const hit = matchSunnyPlaceLoose(placeName, shelfPlaces);
-      return {
-        id: newId("scene"),
-        placeName: hit?.name || placeName,
-        worldThumbKey: hit?.thumbKey || "",
-      };
-    });
-
-    const storyPlaces = pasted.story.scenes.map((sc) => {
+    // The parser folds every shot at one Place into a single scene, so a
+    // script that leaves a place and comes back plays out of order. Re-lay it
+    // in paste order first — the shot order is the episode.
+    const ordered = orderSunnyStoryByScript(pasted.story, script);
+    const storyPlaces = ordered.scenes.map((sc) => {
       const hit = matchSunnyPlaceLoose(sc.placeName, shelfPlaces);
-      const scene = scenes.find(
-        (s) => s.placeName.toLowerCase() === (hit?.name || sc.placeName).toLowerCase(),
-      );
       return {
         ...sc,
-        id: scene?.id || sc.id,
         placeName: hit?.name || sc.placeName,
-        worldThumbKey: scene?.worldThumbKey || sc.worldThumbKey || "",
+        worldThumbKey: hit?.thumbKey || sc.worldThumbKey || "",
       };
     });
     const story = {
-      ...pasted.story,
+      ...ordered,
       campaignLabel: title,
       gagNote: gag,
       scenes: storyPlaces,
     };
 
+    // scenes: [] on purpose. createMobileGenJob seeds a Sunny job with the
+    // whole preset place shelf, and applyImportedStoryToJob re-keys story
+    // scenes onto whatever job scenes exist BY PLACE NAME — which would
+    // collapse the two visits to one place back onto a single id. Duplicate
+    // scene ids then break the animate lookup (scenes.find by id wins once,
+    // so the shots in the second visit are never found), and every unused
+    // preset place would ride along as a leftover scene wanting a still.
+    // Cleared, it derives job scenes 1:1 from the ordered story, ids and all.
     const seeded = await patchMobileGenJob(created.id, {
+      scenes: [],
       prompt: gag,
       speakers,
       roster: speakers.map((name) => ({
@@ -122,7 +122,6 @@ export async function POST(req: Request) {
         description: "",
         appearance: reusable[name]?.look || guestLooks[name] || "",
       })),
-      scenes,
       castCandidates: seedSunnyCastCandidates(reusable),
     });
     const job = seeded || created;

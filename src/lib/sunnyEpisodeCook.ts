@@ -20,6 +20,7 @@ import {
   generateSunnyPlaceStill,
   nextSunnyGuestNeedingFace,
   nextSunnyPlaceNeedingStill,
+  reusableSunnyPlaceStill,
 } from "./sunnyEpisodeSeed";
 import { approvedCandidateFileName } from "./mobileJobReady";
 
@@ -45,6 +46,34 @@ export function sunnyAutoResumeFromStaleError(error: string, phase?: string): bo
   // One slow Grok still must not kill the episode. Same shot, try again.
   if (/xai image request timed out/i.test(err)) return true;
   return false;
+}
+
+/**
+ * A Sunny FAIL used to land on /step's generic error branch, which salvages
+ * whatever clips exist and parks the job on "review". On a Make job that is
+ * still walking plates that threw the rest of the episode away — every
+ * unplated shot, every unvoiced line — and "review" is not an auto phase, so
+ * the poll stopped and nothing ever picked it back up. It also meant
+ * sunnyAutoResumeFromStaleError never ran, because that is only read from
+ * inside the "plates" branch.
+ *
+ * One tap on a Make job goes back to the cook instead. runSunnyAutoStep is
+ * a re-scan from the top — faces, places, plates, holds, voices — and it
+ * decides the next phase itself when there is nothing left, so "plates" is
+ * always the right place to resume from. A failure that is real just fails
+ * again and stops there; it does not loop, because sunnyAutoShouldContinue
+ * is false on "error".
+ */
+export function sunnyResumesOwnCook(job: {
+  styleId: string;
+  sunnyAuto?: boolean;
+  phase: string;
+  folderName?: string;
+}): boolean {
+  if (!isSunnyAutoJob(job)) return false;
+  if (job.phase !== "error") return false;
+  // No pack means the lock itself failed — the cook has nothing to walk.
+  return Boolean(job.folderName?.trim());
 }
 
 /** Phone tap-again must not start a second plate/voice while the first /step is still on it. */
@@ -138,6 +167,20 @@ export async function runSunnyAutoStep(job: MobileGenJob): Promise<MobileGenJob>
 
   const place = nextSunnyPlaceNeedingStill(job);
   if (place) {
+    // Same place, later in the episode. Hang the still it already has —
+    // a second cook comes back looking like somewhere else.
+    const already = reusableSunnyPlaceStill(job, job.locationCandidates, place.sceneId);
+    if (already) {
+      return (
+        (await patchMobileGenJob(job.id, {
+          locationCandidates: {
+            ...job.locationCandidates,
+            [place.sceneId]: [already],
+          },
+          error: "",
+        })) || job
+      );
+    }
     try {
       const take = await generateSunnyPlaceStill(job, place.placeName);
       return (
