@@ -15,14 +15,17 @@ import {
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   talkActScriptsFrom,
+  talkCellTakes,
   talkClipClock,
   talkClipDeskFrom,
   talkClipLayout,
   talkDeskInnerWidth,
   talkNextShotTitle,
   talkSceneBands,
+  talkSendTake,
   talkSkidmarksActsFrom,
   type TalkClipCell,
+  type TalkClipTake,
 } from "@/lib/talkClipTimeline";
 import { talkFilmChrome, talkFilmTagText, type TalkTimelineEvent } from "@/lib/talkTimeline";
 import { copyTextToClipboard } from "@/lib/copyText";
@@ -77,26 +80,40 @@ function TalkSpeechLane({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [peaks, setPeaks] = useState<Record<string, number[]>>({});
-  const voiceKey = cells.map((c) => `${c.key}:${c.voiceFile}:${c.widthPx}`).join("|");
+  const voiceKey = cells
+    .map((c) =>
+      talkCellTakes(c)
+        .map((t) => `${t.beatId}:${t.voiceFile}:${t.durationSec}`)
+        .join(","),
+    )
+    .join("|");
 
   useEffect(() => {
     let dead = false;
-    const want = cells.filter((c) => c.voiceFile && c.beatId);
+    const want = cells.flatMap((cell) =>
+      talkCellTakes(cell)
+        .filter((t) => t.voiceFile && t.beatId)
+        .map((take) => ({ cell, take })),
+    );
     if (!want.length) {
       setPeaks({});
       return;
     }
     void (async () => {
       const next: Record<string, number[]> = {};
-      for (const cell of want) {
-        const src = beatAudioUrl(job, cell.beatId, cell.voiceFile);
+      for (const { cell, take } of want) {
+        const src = beatAudioUrl(job, take.beatId, take.voiceFile);
         if (!src) continue;
         try {
           const res = await fetch(src);
           if (!res.ok) continue;
           const blob = await res.blob();
-          const samples = Math.max(24, Math.round(cell.widthPx / 2));
-          next[cell.key] = await decodeWaveformPeaks(blob, samples);
+          const slicePx = Math.max(
+            16,
+            Math.round(cell.widthPx * (take.durationSec / Math.max(cell.durationSec, 0.2))),
+          );
+          const samples = Math.max(16, Math.round(slicePx / 2));
+          next[take.key] = await decodeWaveformPeaks(blob, samples);
         } catch {
           /* silent I2V / missing mp3 — lane stays flat */
         }
@@ -131,15 +148,29 @@ function TalkSpeechLane({
       ctx.moveTo(x + 0.5, 0);
       ctx.lineTo(x + 0.5, cssH);
       ctx.stroke();
-      const bars = peaks[cell.key] || [];
-      if (bars.length) {
-        const gap = cell.widthPx / bars.length;
-        ctx.fillStyle = cell.sceneColor;
-        for (let i = 0; i < bars.length; i += 1) {
-          const h = Math.max(2, (bars[i] || 0) * (cssH - 10));
-          ctx.fillRect(x + i * gap + 0.5, (cssH - h) / 2, Math.max(1, gap - 1), h);
+      const takes = talkCellTakes(cell);
+      let tx = x;
+      const total = Math.max(
+        cell.durationSec,
+        takes.reduce((n, t) => n + t.durationSec, 0),
+        0.2,
+      );
+      let drew = false;
+      for (const take of takes) {
+        const slice = Math.max(8, (take.durationSec / total) * cell.widthPx);
+        const bars = peaks[take.key] || [];
+        if (bars.length) {
+          drew = true;
+          const gap = slice / bars.length;
+          ctx.fillStyle = cell.sceneColor;
+          for (let i = 0; i < bars.length; i += 1) {
+            const h = Math.max(2, (bars[i] || 0) * (cssH - 10));
+            ctx.fillRect(tx + i * gap + 0.5, (cssH - h) / 2, Math.max(1, gap - 1), h);
+          }
         }
-      } else {
+        tx += slice;
+      }
+      if (!drew) {
         ctx.fillStyle = "rgba(255,255,255,0.12)";
         ctx.fillRect(x + 8, cssH / 2 - 1, Math.max(8, cell.widthPx - 16), 2);
       }
@@ -170,6 +201,7 @@ function TalkFilmCell({
   playing,
   onPick,
   onRemove,
+  onPlayEnded,
   onMeasured,
 }: {
   job: MobileGenJob;
@@ -178,15 +210,26 @@ function TalkFilmCell({
   playing: boolean;
   onPick: () => void;
   onRemove?: () => void;
+  onPlayEnded?: () => void;
   onMeasured: (sec: number) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const takes = talkCellTakes(cell);
+  const playlist = takes.filter((t) => t.clipFile || t.voiceFile);
+  const [playIdx, setPlayIdx] = useState(0);
+  const active = playlist[playing ? playIdx : 0] || playlist[0] || null;
   const poster = stillUrl(job, cell.plateFile);
-  const clipSrc = cell.clipFile ? mobileClipSrc(job, cell.clipFile) : "";
-  const audioSrc = beatAudioUrl(job, cell.beatId, cell.voiceFile);
+  const clipSrc = active?.clipFile ? mobileClipSrc(job, active.clipFile) : "";
+  const audioSrc = active ? beatAudioUrl(job, active.beatId, active.voiceFile) : "";
   const canPlay = Boolean(clipSrc || audioSrc);
   const chrome = talkFilmChrome(cell.events);
+  const clipCount = takes.filter((t) => t.clipFile).length || takes.length;
+
+  useEffect(() => {
+    if (playing) return;
+    setPlayIdx(0);
+  }, [playing]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -203,7 +246,15 @@ function TalkFilmCell({
       audio.pause();
       audio.currentTime = 0;
     }
-  }, [playing, clipSrc]);
+  }, [playing, clipSrc, playIdx]);
+
+  function advance() {
+    if (playIdx + 1 < playlist.length) {
+      setPlayIdx((n) => n + 1);
+      return;
+    }
+    onPlayEnded?.();
+  }
 
   return (
     <div
@@ -236,7 +287,9 @@ function TalkFilmCell({
             poster={poster || undefined}
             playsInline
             preload="metadata"
+            onEnded={advance}
             onLoadedMetadata={(e) => {
+              if (playlist.length > 1) return;
               const sec = e.currentTarget.duration;
               if (!Number.isFinite(sec) || sec <= 0) return;
               onMeasured(sec);
@@ -255,7 +308,9 @@ function TalkFilmCell({
             className="m-talk-film-audio"
             src={audioSrc}
             preload="metadata"
+            onEnded={advance}
             onLoadedMetadata={(e) => {
+              if (playlist.length > 1) return;
               const sec = e.currentTarget.duration;
               if (!Number.isFinite(sec) || sec <= 0) return;
               onMeasured(sec);
@@ -277,6 +332,11 @@ function TalkFilmCell({
           >
             ×
           </button>
+        ) : null}
+        {clipCount > 1 ? (
+          <span className="m-talk-film-n">
+            {clipCount} clips
+          </span>
         ) : null}
         <span className="m-talk-film-clock">{talkClipClock(cell.durationSec)}</span>
       </div>
@@ -317,13 +377,16 @@ function TalkClipTray({
 }) {
   const audioRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLInputElement | null>(null);
+  const takes = talkCellTakes(cell);
   const [open, setOpen] = useState(false);
+  const [takeIdx, setTakeIdx] = useState(0);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const audioSrc = beatAudioUrl(job, cell.beatId, cell.voiceFile);
+  const take: TalkClipTake = takes[takeIdx] || takes[0];
+  const audioSrc = take ? beatAudioUrl(job, take.beatId, take.voiceFile) : "";
 
   async function onPickAudio(file: File) {
-    if (!cell.beatId) {
+    if (!take?.beatId) {
       setError("This slot has no line yet — wait for the plate beat.");
       return;
     }
@@ -335,14 +398,14 @@ function TalkClipTray({
       if (file.size > SCRATCH_SONG_DIRECT_POST_MAX_BYTES) {
         data = await dropScratchSongViaBlob({
           jobId: job.id,
-          beatId: cell.beatId,
+          beatId: take.beatId,
           file,
           durationSec,
         });
       } else {
         const form = new FormData();
         form.set("jobId", job.id);
-        form.set("beatId", cell.beatId);
+        form.set("beatId", take.beatId);
         form.set("file", file);
         const res = await fetch("/api/crash/mobile/beat-audio/upload", { method: "POST", body: form });
         data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
@@ -356,7 +419,7 @@ function TalkClipTray({
   }
 
   async function onPickVideo(file: File) {
-    if (!cell.beatId) {
+    if (!take?.beatId) {
       setError("This slot has no line yet — wait for the plate beat.");
       return;
     }
@@ -365,7 +428,7 @@ function TalkClipTray({
     try {
       const form = new FormData();
       form.set("jobId", job.id);
-      form.set("beatId", cell.beatId);
+      form.set("beatId", take.beatId);
       form.set("file", file);
       const res = await fetch("/api/crash/mobile/clip/upload", { method: "POST", body: form });
       const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
@@ -378,7 +441,7 @@ function TalkClipTray({
   }
 
   async function removeClip() {
-    if (!cell.beatId || !cell.clipFile) return;
+    if (!take?.beatId || !take.clipFile) return;
     setBusy("remove");
     setError("");
     try {
@@ -388,8 +451,8 @@ function TalkClipTray({
         body: JSON.stringify({
           jobId: job.id,
           action: "remove-clip",
-          beatId: cell.beatId,
-          fileName: cell.clipFile,
+          beatId: take.beatId,
+          fileName: take.clipFile,
         }),
       });
       const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
@@ -402,14 +465,14 @@ function TalkClipTray({
   }
 
   async function redoClip() {
-    if (!cell.beatId) return;
+    if (!take?.beatId) return;
     setBusy("redo");
     setError("");
     try {
       const res = await fetch("/api/crash/mobile/step", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, approveReview: true, beatId: cell.beatId }),
+        body: JSON.stringify({ jobId: job.id, approveReview: true, beatId: take.beatId }),
       });
       const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
       if (data.job) onJobChange?.(data.job);
@@ -430,13 +493,31 @@ function TalkClipTray({
       >
         <span className="m-talk-tray-kicker">{open ? "Hide clip" : "Clip"}</span>
         <span className="m-talk-tray-title">{cell.title}</span>
-        <span className="m-talk-tray-clock">{talkClipClock(cell.durationSec)}</span>
+        <span className="m-talk-tray-clock">
+          {takes.length > 1 ? `${takes.length} clips · ` : ""}
+          {talkClipClock(cell.durationSec)}
+        </span>
       </button>
       {open ? (
         <div className="m-talk-tray-body">
+          {takes.length > 1 ? (
+            <div className="m-talk-take-list">
+              {takes.map((t, i) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`m-talk-take-chip${takeIdx === i ? " is-on" : ""}`}
+                  onClick={() => setTakeIdx(i)}
+                >
+                  {i + 1}. {t.speaker || "Line"}
+                  {t.clipFile ? "" : " · no clip"}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <p className="m-talk-tools-line">
-            {cell.speaker ? `${cell.speaker} — ` : ""}
-            {cell.line || "No line yet"}
+            {take?.speaker ? `${take.speaker} — ` : ""}
+            {take?.line || "No line yet"}
           </p>
           {audioSrc ? (
             // eslint-disable-next-line jsx-a11y/media-has-caption
@@ -472,15 +553,15 @@ function TalkClipTray({
             <MobilePrimaryButton
               size="chip"
               tone="ghost"
-              disabled={Boolean(busy) || !cell.beatId}
+              disabled={Boolean(busy) || !take?.beatId}
               onClick={() => videoRef.current?.click()}
             >
-              {busy === "add" ? "…" : cell.clipFile ? "Replace video" : "Add video"}
+              {busy === "add" ? "…" : take?.clipFile ? "Replace video" : "Add video"}
             </MobilePrimaryButton>
             <MobilePrimaryButton
               size="chip"
               tone="ghost"
-              disabled={Boolean(busy) || !cell.clipFile}
+              disabled={Boolean(busy) || !take?.clipFile}
               onClick={() => void removeClip()}
             >
               {busy === "remove" ? "…" : "Remove video"}
@@ -488,14 +569,14 @@ function TalkClipTray({
             <MobilePrimaryButton
               size="chip"
               tone="ghost"
-              disabled={Boolean(busy) || !cell.beatId}
+              disabled={Boolean(busy) || !take?.beatId}
               onClick={() => audioRef.current?.click()}
             >
-              {busy === "audio" ? "…" : cell.voiceFile ? "Change audio" : "Add audio"}
+              {busy === "audio" ? "…" : take?.voiceFile ? "Change audio" : "Add audio"}
             </MobilePrimaryButton>
             <MobilePrimaryButton
               size="chip"
-              disabled={Boolean(busy) || !cell.beatId || !cell.voiceFile}
+              disabled={Boolean(busy) || !take?.beatId || !take?.voiceFile}
               onClick={() => void redoClip()}
             >
               {busy === "redo" ? "…" : "Redo clip"}
@@ -628,7 +709,8 @@ export function TalkTimeline({
   }
 
   async function sendSlot(cell: TalkClipCell) {
-    if (!cell.beatId || !cell.voiceFile) {
+    const take = talkSendTake(cell);
+    if (!take?.beatId || !take.voiceFile) {
       setDeskError("Add the mp3 on this slot first, then Send.");
       return;
     }
@@ -638,7 +720,7 @@ export function TalkTimeline({
       const res = await fetch("/api/crash/mobile/step", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, approveReview: true, beatId: cell.beatId }),
+        body: JSON.stringify({ jobId: job.id, approveReview: true, beatId: take.beatId }),
       });
       const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
       if (data.job) onJobChange?.(data.job);
@@ -714,7 +796,7 @@ export function TalkTimeline({
       </MobilePrimaryButton>
       <MobilePrimaryButton
         size="chip"
-        disabled={Boolean(deskBusy) || !selected?.beatId || !selected?.voiceFile}
+        disabled={Boolean(deskBusy) || !talkSendTake(selected)}
         onClick={() => selected && void sendSlot(selected)}
       >
         {deskBusy === "send" ? "…" : "Send this"}
@@ -735,8 +817,9 @@ export function TalkTimeline({
       <div className="m-talk-head">
         <span className="m-talk-kicker">Talking timeline</span>
         <span className="m-talk-hint">
-          Tap an act — only that act is on the strip. Tap a box to play it. + adds a
-          slot. × parks it — files stay. Send cooks that clip.
+          Tap an act — only that act is on the strip. Tap a box to play it — every
+          clip on that shot, in order. + adds a slot. × parks it — files stay. Send
+          cooks the next line.
         </span>
       </div>
       {!compact && (acts.length || isSkidmarks) ? (
@@ -849,9 +932,11 @@ export function TalkTimeline({
                   cell={cell}
                   selected={selected?.key === cell.key}
                   playing={playingKey === cell.key}
+                  onPlayEnded={() => setPlayingKey("")}
                   onPick={() => {
                     setPickedKey(cell.key);
-                    if (!cell.clipFile && !cell.voiceFile) {
+                    const playable = talkCellTakes(cell).some((t) => t.clipFile || t.voiceFile);
+                    if (!playable) {
                       setPlayingKey("");
                       return;
                     }

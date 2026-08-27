@@ -416,22 +416,17 @@ const jokeDesk = talkClipDeskFrom({
     })),
   ),
 });
-assert.equal(jokeDesk.cells.length, 13, "Act I is eight cards / thirteen lines");
+assert.equal(jokeDesk.cells.length, 8, "Act I is eight shot boxes — extra lines stay on their shot");
 assert.deepEqual(
   jokeDesk.cells.map((c) => c.shotId),
   [
     "shot_01",
-    "shot_01",
     "shot_02",
-    "shot_02",
-    "shot_03",
     "shot_03",
     "shot_04",
     "shot_05",
     "shot_06",
     "shot_07",
-    "shot_08",
-    "shot_08",
     "shot_08",
   ],
   "Greatest Joke Act I stays in the order it was built — SHOT 11 does not jump to the front",
@@ -440,23 +435,25 @@ assert.deepEqual(
   jokeDesk.cells.map((c) => c.title),
   [
     "SHOT 01 — Ranger Bazza",
-    "SHOT 01 — Ranger Bazza",
     "SHOT 02 — Shazza",
-    "SHOT 02 — Shazza",
-    "Ranger Bazza, Shazza",
     "Ranger Bazza, Shazza",
     "Dazza",
     "Caravan park",
     "SHOT 06",
     "SHOT 07",
     "SHOT 11 — Shazza",
-    "SHOT 11 — Shazza",
-    "SHOT 11 — Shazza",
   ],
 );
+assert.deepEqual(
+  jokeDesk.cells.map((c) => c.takes.length),
+  [2, 2, 2, 1, 1, 1, 1, 3],
+  "Bazza, Shazza, the two-shot, and the last Shazza card keep every clip on that box",
+);
+assert.equal(jokeDesk.cells[0].durationSec, 9, "two clips on shot 01 add up on one box (4s + 5s)");
+assert.equal(jokeDesk.cells[7].durationSec, 15, "three clips on SHOT 11 add up (4s + 5s + 6s)");
 assert.equal(jokeDesk.cells[0].speaker, "Ranger Bazza");
-assert.equal(jokeDesk.cells[2].speaker, "Shazza");
-assert.equal(jokeDesk.cells[10].title, "SHOT 11 — Shazza");
+assert.equal(jokeDesk.cells[1].speaker, "Shazza");
+assert.equal(jokeDesk.cells[7].title, "SHOT 11 — Shazza");
 const actScripts = talkActScriptsFrom(desk.cells);
 assert.equal(actScripts.length, 2);
 assert.equal(actScripts[0].roman, "I");
@@ -505,6 +502,11 @@ const talkCss = css.slice(css.indexOf("/* Talking episode strip"));
 const editor = readFileSync(join(root, "src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 assert.match(talkUi, /Talking timeline/);
 assert.match(talkUi, /Tap a box to play it/);
+assert.match(talkUi, /every\s+clip on that shot/);
+assert.match(talkUi, /m-talk-film-n/);
+assert.match(talkUi, /m-talk-take-list/);
+assert.match(talkCss, /\.m-talk-film-n/);
+assert.match(talkCss, /\.m-talk-take-chip/);
 assert.match(talkUi, /Change audio/);
 assert.match(talkUi, /Add audio/);
 assert.match(talkUi, /Redo clip/);
