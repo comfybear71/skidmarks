@@ -211,11 +211,8 @@ function TalkFilmCell({
       style={{ width: `${cell.widthPx}px`, borderColor: cell.sceneColor }}
     >
       <div className="m-talk-film-head">
-        {chrome.act ? (
-          <TalkFilmTag ev={chrome.act} />
-        ) : (
-          <span className="m-talk-film-title">{cell.title}</span>
-        )}
+        {chrome.act ? <TalkFilmTag ev={chrome.act} /> : null}
+        <span className="m-talk-film-title">{cell.title}</span>
       </div>
       <div
         className="m-talk-film-stage"
@@ -897,7 +894,7 @@ export function TalkTimeline({
       {picker}
       {deskError ? <p className="m-talk-tools-error">{deskError}</p> : null}
       {!compact && selected ? (
-        <TalkClipTray job={job} cell={selected} onJobChange={onJobChange} />
+        <TalkClipTray key={selected.key} job={job} cell={selected} onJobChange={onJobChange} />
       ) : null}
     </div>
   );

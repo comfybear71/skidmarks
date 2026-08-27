@@ -381,9 +381,10 @@ function clipsOnPlate(
 }
 
 /**
- * Episode-titled shots lead (SHOT 01…). Other playable episode clips
- * follow — leftover untitled stills with no take stay off the desk.
- * Each beat keeps its own still. Width follows that take's duration.
+ * Same scene → shot walk as the talking strip. Leftover untitled stills
+ * with no take stay off the desk. A titled SHOT 0N can sit empty so +
+ * Add clip lands. Each beat keeps its own still. Width follows that
+ * take's duration.
  */
 export function talkClipDeskFrom(opts: {
   story: CrashStoryDoc | null | undefined;
@@ -391,10 +392,6 @@ export function talkClipDeskFrom(opts: {
   clips: MobileClipUnit[];
 }): TalkClipDesk {
   const allPlates = talkTimelineFrom({ story: opts.story, plated: opts.plated });
-  const titled = allPlates.filter((p) => p.episodeNo != null);
-  const rest = allPlates.filter((p) => p.episodeNo == null);
-  const lead = titled.length ? titled : allPlates;
-  const tail = titled.length ? rest : [];
   const clips = opts.clips || [];
   const cells: TalkClipCell[] = [];
 
@@ -411,8 +408,7 @@ export function talkClipDeskFrom(opts: {
     }
   };
 
-  for (const plate of lead) pushPlate(plate, plate.episodeNo != null);
-  for (const plate of tail) pushPlate(plate, false);
+  for (const plate of allPlates) pushPlate(plate, plate.episodeNo != null);
 
   const laid = talkClipLayout(cells);
   return {
