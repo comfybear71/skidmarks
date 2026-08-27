@@ -140,12 +140,37 @@ export function isOffEpisodeDeskShot(
   return isScratchShotId(job, shotId, story) || isCampaignShotId(job.plateLtxCampaign, shotId, story);
 }
 
+function orderShotsByStory(units: MobileShotUnit[], story: CrashStoryDoc): MobileShotUnit[] {
+  const byId = new Map(units.map((u) => [u.shotId, u]));
+  const out: MobileShotUnit[] = [];
+  for (const scene of story.scenes) {
+    for (const shot of scene.shots) {
+      const unit = byId.get(shot.id);
+      if (!unit) continue;
+      out.push(unit);
+      byId.delete(shot.id);
+    }
+  }
+  for (const unit of units) {
+    if (byId.has(unit.shotId)) out.push(unit);
+  }
+  return out;
+}
+
 /** Episode strip — scratch and campaign tests live on /scratch, not here. */
 export function episodeJobShots(
-  job: Pick<MobileGenJob, "shots" | "scratchPlate" | "plateLtxCampaign">,
+  job: Pick<MobileGenJob, "shots" | "scratchPlate" | "plateLtxCampaign"> & {
+    styleId?: string;
+  },
   story?: CrashStoryDoc | null,
 ): MobileShotUnit[] {
-  return job.shots.filter((s) => !isOffEpisodeDeskShot(job, s.shotId, story));
+  const units = job.shots.filter((s) => !isOffEpisodeDeskShot(job, s.shotId, story));
+  // Sunny Banks: the stills strip follows the story, not job-add order
+  // and not the SHOT 0N parsed from a title (SHOT 11 is still clip 8).
+  if (job.styleId === "sunny_banks" && story?.scenes?.length) {
+    return orderShotsByStory(units, story);
+  }
+  return units;
 }
 
 export function episodeQueuedClips(

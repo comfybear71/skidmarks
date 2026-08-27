@@ -540,6 +540,7 @@ export function TalkTimeline({
     () =>
       talkClipDeskFrom({
         story,
+        styleId: job.styleId,
         plated:
           plated && plated.length
             ? plated

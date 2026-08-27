@@ -8,6 +8,7 @@ import { STORY_SPINE_STAGES } from "./storySpine";
 import { leftoverHydrateBeat } from "./mobilePlateLines";
 import { clipFileBasename } from "./mobilePlateClips";
 import {
+  talkKeepsScriptOrder,
   talkShotNumber,
   talkTimelineFrom,
   type TalkTimelineEvent,
@@ -384,17 +385,27 @@ function clipsOnPlate(
  * Episode-titled shots lead (SHOT 01…). Other playable episode clips
  * follow — leftover untitled stills with no take stay off the desk.
  * Each beat keeps its own still. Width follows that take's duration.
+ *
+ * Sunny Banks keeps story/script order so SHOT 11 cannot jump past
+ * unnumbered Act 1 cards. Untitled plates with a still still sit.
  */
 export function talkClipDeskFrom(opts: {
   story: CrashStoryDoc | null | undefined;
   plated: MobileShotUnit[];
   clips: MobileClipUnit[];
+  styleId?: string | null;
 }): TalkClipDesk {
-  const allPlates = talkTimelineFrom({ story: opts.story, plated: opts.plated });
+  const styleId = opts.styleId || opts.story?.styleId;
+  const scriptOrder = talkKeepsScriptOrder(styleId);
+  const allPlates = talkTimelineFrom({
+    story: opts.story,
+    plated: opts.plated,
+    styleId,
+  });
   const titled = allPlates.filter((p) => p.episodeNo != null);
   const rest = allPlates.filter((p) => p.episodeNo == null);
-  const lead = titled.length ? titled : allPlates;
-  const tail = titled.length ? rest : [];
+  const lead = scriptOrder ? allPlates : titled.length ? titled : allPlates;
+  const tail = scriptOrder ? [] : titled.length ? rest : [];
   const clips = opts.clips || [];
   const cells: TalkClipCell[] = [];
 
@@ -411,7 +422,9 @@ export function talkClipDeskFrom(opts: {
     }
   };
 
-  for (const plate of lead) pushPlate(plate, plate.episodeNo != null);
+  for (const plate of lead) {
+    pushPlate(plate, scriptOrder ? plate.episodeNo != null || Boolean(plate.plateFile) : plate.episodeNo != null);
+  }
   for (const plate of tail) pushPlate(plate, false);
 
   const laid = talkClipLayout(cells);

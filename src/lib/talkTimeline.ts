@@ -212,14 +212,23 @@ function rowFrom(opts: {
   };
 }
 
+/** Sunny Banks walks the story as pasted. SHOT 11 in the title is not order. */
+export function talkKeepsScriptOrder(styleId?: string | null): boolean {
+  return styleId === "sunny_banks";
+}
+
 /**
  * Episode first (SHOT 01, SHOT 02…) then the rest of the pack in story
  * order. Job-add order is ignored. A still on the story still lands even
  * if the job row has not caught up yet.
+ *
+ * Sunny Banks skips the SHOT 0N sort — Act 1 titles can be 01 / 02 /
+ * unnumbered / 06 / 07 / 11 while the script order is 1→8.
  */
 export function talkTimelineFrom(opts: {
   story: CrashStoryDoc | null | undefined;
   plated: MobileShotUnit[];
+  styleId?: string | null;
 }): TalkTimelinePlate[] {
   const plated = opts.plated || [];
   const byId = new Map(plated.map((u) => [u.shotId, u]));
@@ -265,6 +274,10 @@ export function talkTimelineFrom(opts: {
         shotNo,
       }),
     );
+  }
+
+  if (talkKeepsScriptOrder(opts.styleId || opts.story?.styleId)) {
+    return collected;
   }
 
   const episode = collected
