@@ -41,6 +41,18 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const mime = file.type || "";
     const name = file.name || "drop.png";
+    if (
+      /heic|heif/i.test(mime) ||
+      /\.(heic|heif)$/i.test(name)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "That iPhone photo is HEIC — it won't show. In Photos, share it as JPEG, then add that.",
+        },
+        { status: 400 },
+      );
+    }
 
     if (kind === "cast") {
       let character = listCharacters().find(

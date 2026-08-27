@@ -586,8 +586,8 @@ function CandidatePicker({
   error: string;
   promptPlaceholder: string;
   promptLabel?: string;
-  /** No "drop a photo" strip — CAST has voice in this card; Places go to
-   * Add. More still nudges the still on screen. */
+  /** Hide the phone photo picker. CAST and Places keep it — iPhone has
+   * no drag-drop, so the + / tap-to-choose is the only way back in. */
   hideUpload?: boolean;
   /** Extra content under Undo / More — voice on CAST, plate chips on
    * a place. Full width. Never jammed beside those two buttons. */
@@ -644,7 +644,15 @@ function CandidatePicker({
   const canUndo = focusIndex > 0;
 
   const takeFile = (file: File | undefined) => {
-    if (!file || !file.type.startsWith("image/")) return;
+    if (!file) return;
+    const type = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    if (
+      !type.startsWith("image/") &&
+      !/\.(png|jpe?g|webp|heic|heif)$/.test(name)
+    ) {
+      return;
+    }
     setFocusId(null);
     onUpload(file);
   };
@@ -758,7 +766,7 @@ function CandidatePicker({
           Try again
         </MobilePrimaryButton>
       )}
-      {takes.length ? (
+      {takes.length || !hideUpload ? (
         <div
           style={{
             display: "flex",
@@ -769,6 +777,15 @@ function CandidatePicker({
             overscrollBehaviorX: "contain",
           }}
         >
+          {hideUpload ? null : (
+            <PlusTile
+              label="Add a photo"
+              onClick={() => {
+                if (busy) return;
+                fileRef.current?.click();
+              }}
+            />
+          )}
           {takes.map((c, i) => (
             <ThumbTile
               key={c.id}
@@ -858,7 +875,7 @@ function CandidatePicker({
           <input
             ref={fileRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept="image/png,image/jpeg,image/webp,image/heic,image/heif,image/*"
             hidden
             onChange={(e) => {
               takeFile(e.target.files?.[0]);
@@ -879,7 +896,9 @@ function CandidatePicker({
               fontSize: "12px",
             }}
           >
-            {dragOver ? "Drop it here" : "Drop a photo — or tap to choose. More nudges the still on screen."}
+            {dragOver
+              ? "Drop it here"
+              : "Add a photo from this phone — tap to choose. Keeps the stills already here."}
           </button>
         </div>
       )}
@@ -1596,7 +1615,6 @@ export function StudioTree({
             error={error}
             promptPlaceholder="e.g. more like a grumpy dad"
             promptLabel="Look"
-            hideUpload
             // Music video cast comes from a saved band's real faces, not
             // improvised on the spot — auto-generating a blind guess from
             // the bare name the instant this card opens is exactly how a

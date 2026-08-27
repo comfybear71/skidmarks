@@ -340,8 +340,11 @@ function extFromUpload(fileName: string, mime: string): string {
   const fromName = path.extname(fileName).toLowerCase();
   if (fromName === ".jpeg") return ".jpg";
   if (fromName === ".png" || fromName === ".jpg" || fromName === ".webp") return fromName;
+  if (fromName === ".heic" || fromName === ".heif") return fromName;
   if (mime === "image/jpeg") return ".jpg";
   if (mime === "image/webp") return ".webp";
+  if (mime === "image/heic") return ".heic";
+  if (mime === "image/heif") return ".heif";
   return ".png";
 }
 
