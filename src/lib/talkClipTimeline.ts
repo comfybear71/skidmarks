@@ -157,7 +157,20 @@ export type TalkActScript = {
   stageNote?: string;
 };
 
-const TALK_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"] as const;
+const TALK_ROMAN = [
+  "I",
+  "II",
+  "III",
+  "IV",
+  "V",
+  "VI",
+  "VII",
+  "VIII",
+  "IX",
+  "X",
+  "XI",
+  "XII",
+] as const;
 
 export function talkActRoman(n: number): string {
   return TALK_ROMAN[Math.max(1, Math.floor(n)) - 1] || String(n);

@@ -18,6 +18,7 @@ import {
 import {
   TALK_CLIP_PX_PER_SEC,
   talkActNFromEvents,
+  talkActRoman,
   talkActScriptsFrom,
   talkPlaceActsFrom,
   talkAssignActNs,
@@ -498,6 +499,21 @@ assert.equal(placeActs[1].cellKeys.length, 0);
 assert.equal(placeActs[2].roman, "III");
 assert.equal(placeActs[2].title, "BBQ shelter");
 assert.equal(placeActs[2].lineCount, 0);
+const fourActs = talkPlaceActsFrom(
+  [
+    { id: "scene_park", placeName: "Caravan park" },
+    { id: "scene_unit9", placeName: "Unit 9" },
+    { id: "scene_bbq", placeName: "BBQ shelter" },
+    { id: "scene_shed", placeName: "Back shed" },
+  ],
+  jokeDesk.cells,
+);
+assert.equal(fourActs.length, 4);
+assert.equal(fourActs[3].roman, "IV");
+assert.equal(fourActs[3].title, "Back shed");
+assert.equal(fourActs[3].lineCount, 0);
+assert.equal(talkActRoman(4), "IV");
+assert.equal(talkActRoman(11), "XI");
 assert.equal(
   talkPlaceActsFrom([], jokeDesk.cells).length,
   talkActScriptsFrom(jokeDesk.cells).length,
@@ -572,8 +588,13 @@ assert.match(talkUi, /resolvedActId/);
 assert.match(talkUi, /visibleCells/);
 assert.match(talkUi, /m-talk-act-count/);
 assert.match(talkUi, /m-talk-act-place/);
+assert.match(talkUi, /m-talk-act-chip/);
+assert.match(talkUi, /\+ Act \{talkActRoman/);
+assert.match(talkUi, /addActPlace/);
 assert.match(talkUi, /only that act is on the strip/);
 assert.match(talkCss, /\.m-talk-act-place/);
+assert.match(talkCss, /\.m-talk-act-chip/);
+assert.match(talkCss, /\.m-talk-add-act/);
 assert.doesNotMatch(talkUi, /live pack on this stage/);
 assert.doesNotMatch(talkUi, /m-talk-act-panel/);
 assert.match(talkUi, /skidmarksBlankFromJob/);
@@ -625,6 +646,7 @@ assert.match(tree, /onJobChange=\{onJobChange\}/);
 assert.match(tree, /onAddAct/);
 assert.match(tree, /Add this act/);
 assert.match(tree, /Paste only the next act/);
+assert.match(tree, /named with \+ Act/);
 assert.match(tree, /<TalkTimeline[\s\S]*?onJobChange=\{onJobChange\}\s*\/>/);
 assert.doesNotMatch(tree, /<TalkTimeline[\s\S]*?onOpenPlate=/);
 assert.doesNotMatch(tree, /Hide stills|m-talk-stills-toggle/);

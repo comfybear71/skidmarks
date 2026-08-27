@@ -1949,8 +1949,9 @@ export function StudioTree({
         !isMusicVideoSongJob(job) ? (
           <div style={{ marginBottom: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
-              Paste only the next act — Place: BBQ shelter, then the shots. Act I stays. Do
-              not paste the whole episode again.
+              Paste only the next act. Place: must match that act chip (BBQ shelter,
+              or the place you named with + Act). Act I stays. Do not paste the
+              whole episode again.
             </div>
             <MobileTextInput
               value={actDraft}
