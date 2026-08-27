@@ -23,7 +23,6 @@ import {
   talkClipDeskFrom,
   talkClipWidthPx,
   talkNextShotTitle,
-  titleAfterAddCast,
   talkSceneBands,
   talkSceneColor,
   talkSkidmarksActsFrom,
@@ -342,11 +341,6 @@ assert.equal(
   "SHOT 11 — Shazza",
   "a 10-clip desk must not reuse SHOT 03",
 );
-assert.equal(
-  titleAfterAddCast("SHOT 03 — Caravan park", ["Shazza"]),
-  "SHOT 03 — Shazza",
-);
-assert.equal(titleAfterAddCast("Empty stage", ["Shazza"]), "Shazza");
 const actScripts = talkActScriptsFrom(desk.cells);
 assert.equal(actScripts.length, 2);
 assert.equal(actScripts[0].roman, "I");

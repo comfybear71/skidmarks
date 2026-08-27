@@ -30,15 +30,6 @@ export function talkNextShotTitle(
   return who ? `SHOT ${no} — ${who}` : `SHOT ${no}`;
 }
 
-/** Keep SHOT 0N when a person is added — do not retitle the card to a bare name. */
-export function titleAfterAddCast(previousTitle: string, speakers: string[]): string {
-  const names = speakers.map((s) => s.trim()).filter(Boolean).join(", ");
-  if (!names) return previousTitle;
-  const n = talkShotNumber(previousTitle);
-  if (n != null) return `SHOT ${String(n).padStart(2, "0")} — ${names}`;
-  return names;
-}
-
 /** Same scale as the music-video wave — a second is 28px, then the strip scrolls. */
 export const TALK_CLIP_PX_PER_SEC = 28;
 export const TALK_CLIP_DEFAULT_SEC = 5;

@@ -8,9 +8,13 @@ export function emptyStageFarOutStaging(placeName: string): string {
   return `Far out, wide empty ${place}. Empty stage. No people. No musicians. No faces. Establishing shot.`;
 }
 
-/** The far-out establishing card — putting a person on it must not keep this. */
-export function isEmptyStageStaging(text: string): boolean {
-  const t = String(text || "").trim();
-  if (!t) return false;
-  return /\bempty stage\b/i.test(t) && /\bno people\b/i.test(t);
+/**
+ * Is this staging the "Add empty plate" boilerplate rather than a director's
+ * position? Matched on the sentences that make it wrong once a person is on
+ * the card, not on the place name, so it holds for any place.
+ */
+export function isEmptyStageStaging(staging: string): boolean {
+  const t = (staging || "").toLowerCase();
+  if (!t.trim()) return false;
+  return /\bempty stage\b/.test(t) && /\bno people\b/.test(t);
 }

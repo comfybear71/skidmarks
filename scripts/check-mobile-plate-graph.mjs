@@ -173,9 +173,21 @@ const minted = appendSoloCastShot({
   sceneId: "lounge",
 });
 assert.equal(minted.placeName, "Upstairs lounge");
-const teeShot = minted.story.scenes.find((sc) => sc.id === "lounge")?.shots.find((s) => s.id === minted.shotId);
+// A new shot lands at the END of the episode. "lounge" is not the last scene,
+// so it gets a fresh scene of its own at the tail carrying the same place —
+// it used to append inside "lounge" and land mid-episode.
+assert.notEqual(minted.sceneId, "lounge");
+assert.equal(minted.carryStillFrom, "lounge");
+assert.equal(minted.story.scenes.at(-1)?.id, minted.sceneId);
+assert.equal(minted.story.scenes.at(-1)?.placeName, "Upstairs lounge");
+const teeShot = minted.story.scenes
+  .find((sc) => sc.id === minted.sceneId)
+  ?.shots.find((s) => s.id === minted.shotId);
 assert.equal(teeShot?.beats[0]?.speaker, "TEE");
 assert.equal(teeShot?.staging, "");
+// Every shot in the story keeps a unique home.
+const mintedSceneIds = minted.story.scenes.map((sc) => sc.id);
+assert.equal(new Set(mintedSceneIds).size, mintedSceneIds.length);
 
 const emptyMint = appendPlacePlate({
   job: houseJob,
