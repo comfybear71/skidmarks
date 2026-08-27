@@ -14,7 +14,7 @@ import {
 } from "@/lib/scratchSongDrop";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
-  talkActScriptsFrom,
+  talkPlaceActsFrom,
   talkCellTakes,
   talkClipClock,
   talkClipDeskFrom,
@@ -641,10 +641,14 @@ export function TalkTimeline({
   const [blankCopied, setBlankCopied] = useState(false);
   const cells = useMemo(() => talkClipLayout(desk.cells, measured), [desk.cells, measured]);
   const acts = useMemo(
-    () => (isSkidmarks ? talkSkidmarksActsFrom(cells) : talkActScriptsFrom(cells)),
-    [cells, isSkidmarks],
+    () =>
+      isSkidmarks
+        ? talkSkidmarksActsFrom(cells)
+        : talkPlaceActsFrom(job.scenes, cells),
+    [cells, isSkidmarks, job.scenes],
   );
-  const openAct = acts.find((a) => a.id === openActId) || null;
+  const resolvedActId = openActId || acts[0]?.id || "";
+  const openAct = acts.find((a) => a.id === resolvedActId) || null;
   const visibleCells = useMemo(() => {
     if (compact || !openAct) return cells;
     const keys = new Set(openAct.cellKeys);
@@ -829,8 +833,8 @@ export function TalkTimeline({
             <button
               type="button"
               key={act.id}
-              className={`m-mv-lyr-toggle${openActId === act.id ? " is-open" : ""}`}
-              aria-pressed={openActId === act.id}
+              className={`m-mv-lyr-toggle${resolvedActId === act.id ? " is-open" : ""}`}
+              aria-pressed={resolvedActId === act.id}
               onClick={() => {
                 setOpenActId(act.id);
                 setPlayingKey("");
@@ -839,7 +843,8 @@ export function TalkTimeline({
               }}
             >
               Act {act.roman}
-              {act.lineCount ? <span className="m-talk-act-count">{act.lineCount}</span> : null}
+              {act.title ? <span className="m-talk-act-place">{act.title}</span> : null}
+              <span className="m-talk-act-count">{act.lineCount}</span>
             </button>
           ))}
           {isSkidmarks ? (

@@ -920,6 +920,7 @@ export function StudioTree({
   onDropCast,
   onDropLocation,
   onDropScript,
+  onAddAct,
   onStartMusicVideo,
   onGenerateVideo,
   onRetryError,
@@ -952,6 +953,8 @@ export function StudioTree({
   /** Pull a place off this job's Locations row (stills stay parked). */
   onDropLocation: (sceneId: string) => void;
   onDropScript: (script: string) => void;
+  /** Paste the next act onto a locked pack — Act I stays. */
+  onAddAct?: (script: string) => void;
   onStartMusicVideo: (lyrics: string) => void;
   onGenerateVideo: () => void;
   onRetryError: () => void;
@@ -971,6 +974,7 @@ export function StudioTree({
   const [addPlateDoneFor, setAddPlateDoneFor] = useState<string | null>(null);
   const [focusPlateShotId, setFocusPlateShotId] = useState<string | null>(null);
   const [scriptDraft, setScriptDraft] = useState("");
+  const [actDraft, setActDraft] = useState("");
   const [plating, setPlating] = useState(false);
   const [plateGraphHint, setPlateGraphHint] = useState("");
   const [deskStory, setDeskStory] = useState<CrashStoryDoc | null>(null);
@@ -1919,18 +1923,53 @@ export function StudioTree({
         {lockingScript ? (
           <div style={{ padding: "8px 0 16px" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>
-              {isMusicVideoSongJob(job) ? "Starting the video…" : "Locking the episode…"}
+              {isMusicVideoSongJob(job)
+                ? "Starting the video…"
+                : job.folderName
+                  ? "Adding the act…"
+                  : "Locking the episode…"}
             </ShimmerText>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginTop: "4px" }}>
               {isMusicVideoSongJob(job)
                 ? "Building plates from your band and place."
-                : "Plates and audio come from what you pasted."}
+                : job.folderName
+                  ? "New shots land on that place. Act I stays."
+                  : "Plates and audio come from what you pasted."}
             </div>
           </div>
         ) : null}
 
         {/* Music video has one UI, empty or full — the track above is it.
             Only the other shows get the paste-a-script panel. */}
+        {platesOpen &&
+        job.folderName &&
+        onAddAct &&
+        canLockEpisode(job.phase) &&
+        !lockingScript &&
+        !isMusicVideoSongJob(job) ? (
+          <div style={{ marginBottom: "12px" }}>
+            <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
+              Paste only the next act — Place: BBQ shelter, then the shots. Act I stays. Do
+              not paste the whole episode again.
+            </div>
+            <MobileTextInput
+              value={actDraft}
+              onChange={setActDraft}
+              placeholder="--- SHOT 12 ---&#10;Place: BBQ shelter"
+              multiline
+              rows={10}
+            />
+            <div style={{ marginTop: "10px" }}>
+              <MobilePrimaryButton
+                disabled={busy || !actDraft.trim()}
+                onClick={() => onAddAct(actDraft)}
+              >
+                {busy ? "Adding…" : "Add this act"}
+              </MobilePrimaryButton>
+            </div>
+          </div>
+        ) : null}
+
         {platesOpen && canWrite && !lockingScript && !job.folderName && !isMusicVideoSongJob(job) ? (
           <div style={{ marginBottom: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>

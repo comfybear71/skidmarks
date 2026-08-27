@@ -6,6 +6,10 @@ import {
   storyHasSpokenLine,
 } from "../src/lib/mobilePasteParse.ts";
 import {
+  keepJobUnitsForStory,
+  mergePastedActIntoStory,
+} from "../src/lib/mobileAppendAct.ts";
+import {
   clampLtxDurationSec,
   ltxFollowsMp3DurationSec,
   LTX_LIPSYNC_MIN_SEC,
@@ -189,6 +193,81 @@ Name: Caravan Park Resident 1
 assert.equal(tenB.story.scenes[0].shots.length, 2);
 assert.equal(tenB.story.scenes[0].shots[0].beats[0].speaker, "Ranger Bazza");
 assert.equal(tenB.story.scenes[0].shots[1].beats[0].speaker, "Caravan Park Resident 1");
+
+const act1 = parseMobilePaste(
+  `EPISODE: THE GREATEST JOKE IN AUSTRALIA
+GAG: Drop bears.
+
+--- SHOT 1 ---
+Place: Caravan park
+Title: SHOT 01 — Ranger Bazza
+RANGER BAZZA
+Well here we go.
+`,
+  "sunny_banks",
+);
+const act2 = parseMobilePaste(
+  `EPISODE: THE GREATEST JOKE IN AUSTRALIA
+GAG: Pie bribe.
+
+--- SHOT 12 ---
+Place: BBQ shelter
+Title: SHOT 12 — Shazza
+SHAZZA
+Nuggets. I need a favour.
+
+--- SHOT 13 ---
+Place: BBQ shelter
+Title: SHOT 13 — Nuggets
+NUGGETS
+Nah. They won't be into it.
+`,
+  "sunny_banks",
+);
+const merged = mergePastedActIntoStory({
+  existing: act1.story,
+  pasted: act2.story,
+  jobScenes: [
+    { id: act1.story.scenes[0].id, placeName: "Caravan park" },
+    { id: "scene_unit9", placeName: "Unit 9" },
+    { id: "scene_bbq", placeName: "BBQ shelter" },
+  ],
+});
+assert.equal(merged.scenes.length, 3);
+assert.equal(merged.scenes[0].placeName, "Caravan park");
+assert.equal(merged.scenes[0].shots.length, 1, "Act I shot stays");
+assert.equal(merged.scenes[0].shots[0].id, act1.story.scenes[0].shots[0].id);
+assert.equal(merged.scenes[1].placeName, "Unit 9");
+assert.equal(merged.scenes[1].shots.length, 0);
+assert.equal(merged.scenes[2].id, "scene_bbq");
+assert.equal(merged.scenes[2].shots.length, 2);
+assert.equal(merged.scenes[2].shots[0].title, "SHOT 12 — Shazza");
+const units = keepJobUnitsForStory({
+  story: merged,
+  shots: [
+    {
+      shotId: act1.story.scenes[0].shots[0].id,
+      sceneId: act1.story.scenes[0].id,
+      plateFile: "keep_me.png",
+    },
+  ],
+  clips: [
+    {
+      beatId: act1.story.scenes[0].shots[0].beats[0].id,
+      shotId: act1.story.scenes[0].shots[0].id,
+      sceneId: act1.story.scenes[0].id,
+      clipFile: "keep_me.mp4",
+      clipStatus: "done",
+      error: "",
+    },
+  ],
+});
+assert.equal(units.shots[0].plateFile, "keep_me.png");
+assert.equal(units.clips[0].clipFile, "keep_me.mp4");
+assert.equal(units.shots.length, 3);
+assert.equal(units.clips.length, 3);
+assert.equal(units.shots[1].plateFile, "");
+assert.equal(units.clips[1].clipStatus, "pending");
 
 assert.equal(normalizePlaceKey("INT. MATTY BAR - DAY"), "matty bar");
 assert.equal(normalizePlaceKey("Matty bar"), "matty bar");

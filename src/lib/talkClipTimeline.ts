@@ -224,6 +224,44 @@ function talkActFromCells(n: number, group: TalkClipCell[], id: string): TalkAct
 }
 
 /**
+ * One act chip per location on the job — empty places still get a button
+ * so Act II at the BBQ shelter is tappable before any clip lands.
+ * Cells stay on their scene. Does not rewrite story.
+ */
+export function talkPlaceActsFrom(
+  scenes: Array<{ id: string; placeName?: string; title?: string }>,
+  cells: TalkClipCell[],
+): TalkActScript[] {
+  const list = cells || [];
+  const places = scenes || [];
+  if (!places.length) return talkActScriptsFrom(list);
+
+  const used = new Set<string>();
+  const acts: TalkActScript[] = places.map((scene, i) => {
+    used.add(scene.id);
+    const group = list.filter((c) => c.sceneId === scene.id);
+    const built = talkActFromCells(i + 1, group, `place-${scene.id}`);
+    return {
+      ...built,
+      sceneId: scene.id,
+      title: (scene.placeName || scene.title || built.title || "Shot").trim(),
+    };
+  });
+
+  const extras = new Map<string, TalkClipCell[]>();
+  for (const cell of list) {
+    if (used.has(cell.sceneId)) continue;
+    const group = extras.get(cell.sceneId) || [];
+    group.push(cell);
+    extras.set(cell.sceneId, group);
+  }
+  for (const group of extras.values()) {
+    acts.push(talkActFromCells(acts.length + 1, group, `place-${group[0]!.sceneId}`));
+  }
+  return acts;
+}
+
+/**
  * Acts from `[ACT]` tags. Place stretches are only a fallback when no
  * construction act tags exist. Does not rewrite story.
  */

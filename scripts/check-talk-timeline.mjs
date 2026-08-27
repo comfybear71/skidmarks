@@ -19,6 +19,7 @@ import {
   TALK_CLIP_PX_PER_SEC,
   talkActNFromEvents,
   talkActScriptsFrom,
+  talkPlaceActsFrom,
   talkAssignActNs,
   talkClipClock,
   talkClipDeskFrom,
@@ -478,6 +479,30 @@ assert.deepEqual(
   jokeAct1Shots.map((sh) => sh.id),
   "blended stills with no take still sit in script order",
 );
+const placeActs = talkPlaceActsFrom(
+  [
+    { id: "scene_park", placeName: "Caravan park" },
+    { id: "scene_unit9", placeName: "Unit 9" },
+    { id: "scene_bbq", placeName: "BBQ shelter" },
+  ],
+  jokeDesk.cells,
+);
+assert.equal(placeActs.length, 3, "empty Unit 9 and BBQ still get an act button");
+assert.equal(placeActs[0].roman, "I");
+assert.equal(placeActs[0].title, "Caravan park");
+assert.equal(placeActs[0].lineCount, 8);
+assert.equal(placeActs[1].roman, "II");
+assert.equal(placeActs[1].title, "Unit 9");
+assert.equal(placeActs[1].lineCount, 0);
+assert.equal(placeActs[1].cellKeys.length, 0);
+assert.equal(placeActs[2].roman, "III");
+assert.equal(placeActs[2].title, "BBQ shelter");
+assert.equal(placeActs[2].lineCount, 0);
+assert.equal(
+  talkPlaceActsFrom([], jokeDesk.cells).length,
+  talkActScriptsFrom(jokeDesk.cells).length,
+  "no locations falls back to clip acts",
+);
 const actScripts = talkActScriptsFrom(desk.cells);
 assert.equal(actScripts.length, 2);
 assert.equal(actScripts[0].roman, "I");
@@ -541,10 +566,14 @@ assert.match(talkUi, /\+ Add clip/);
 assert.match(talkUi, /Send this/);
 assert.match(talkUi, /Remove slot/);
 assert.match(talkUi, /Act \{act\.roman\}/);
+assert.match(talkUi, /talkPlaceActsFrom/);
 assert.match(talkUi, /talkSkidmarksActsFrom/);
+assert.match(talkUi, /resolvedActId/);
 assert.match(talkUi, /visibleCells/);
 assert.match(talkUi, /m-talk-act-count/);
+assert.match(talkUi, /m-talk-act-place/);
 assert.match(talkUi, /only that act is on the strip/);
+assert.match(talkCss, /\.m-talk-act-place/);
 assert.doesNotMatch(talkUi, /live pack on this stage/);
 assert.doesNotMatch(talkUi, /m-talk-act-panel/);
 assert.match(talkUi, /skidmarksBlankFromJob/);
@@ -593,6 +622,9 @@ assert.match(talkCss, /\.m-talk-tray-toggle/);
 assert.match(tree, /isMusicVideoSongJob\(job\) \? \(/);
 assert.match(tree, /<TalkTimeline/);
 assert.match(tree, /onJobChange=\{onJobChange\}/);
+assert.match(tree, /onAddAct/);
+assert.match(tree, /Add this act/);
+assert.match(tree, /Paste only the next act/);
 assert.match(tree, /<TalkTimeline[\s\S]*?onJobChange=\{onJobChange\}\s*\/>/);
 assert.doesNotMatch(tree, /<TalkTimeline[\s\S]*?onOpenPlate=/);
 assert.doesNotMatch(tree, /Hide stills|m-talk-stills-toggle/);
@@ -600,6 +632,7 @@ assert.match(tree, /<MusicVideoTrack/);
 assert.match(editor, /label="Stills"/);
 assert.match(editor, /stillsStripOpen/);
 assert.match(editor, /plateClipRail\.clips/);
+assert.match(editor, /posterByShotId/);
 assert.doesNotMatch(song, /jobShowsMusicTrack/);
 assert.match(trackRoute, /Music video only/);
 

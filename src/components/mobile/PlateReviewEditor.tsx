@@ -328,10 +328,20 @@ export function PlateReviewEditor({
       : posterRow
         ? placeStillUrl(job, posterRow.sceneId)
         : undefined;
+    const posterByShotId: Record<string, string> = {};
+    for (const s of shots) {
+      if (s.plateFile && s.plateFile !== "__error__") {
+        posterByShotId[s.shotId] = `/api/crash/gen/file?name=${encodeURIComponent(s.plateFile)}`;
+      } else {
+        const place = placeStillUrl(job, s.sceneId);
+        if (place) posterByShotId[s.shotId] = place;
+      }
+    }
     const focusIdx = focus ? shots.findIndex((s) => s.shotId === focus) : -1;
     return {
       clips,
       poster,
+      posterByShotId,
       focusLabel: focused && focusIdx >= 0 ? `plate ${focusIdx + 1}` : "",
     };
     // displayShot closes over story + shots; list those rather than the fn.
@@ -929,6 +939,7 @@ export function PlateReviewEditor({
                 job={job}
                 clips={plateClipRail.clips}
                 poster={plateClipRail.poster}
+                posterByShotId={plateClipRail.posterByShotId}
                 preload
                 layout="strip"
                 removeDisabled={clipBusy}
