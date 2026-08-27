@@ -189,11 +189,11 @@ const plated = [
 const rows = talkTimelineFrom({ story, plated });
 assert.deepEqual(
   rows.map((r) => r.shotId),
-  ["shot_01", "shot_02", "shot_04", "shot_old_bar", "shot_loose"],
-  "SHOT 01–04 lead; pack leftovers follow in story order",
+  ["shot_old_bar", "shot_04", "shot_01", "shot_02", "shot_loose"],
+  "scene → shot order; SHOT 01 in the title does not jump the plate to the front",
 );
-assert.equal(rows[0].episodeNo, 1);
-assert.equal(rows[2].placeName, "MATTY BAR");
+assert.equal(rows[2].episodeNo, 1);
+assert.equal(rows[1].placeName, "MATTY BAR");
 assert.ok(
   eventsForShot(story.scenes[1].shots[0]).some((e) => e.kind === "visual" && /phone/i.test(e.detail)),
 );
@@ -223,7 +223,8 @@ const fromStoryOnly = talkTimelineFrom({
   story,
   plated: [{ shotId: "shot_01", sceneId: "scene_lounge", plateFile: "" }],
 });
-assert.equal(fromStoryOnly[0].plateFile, "phone.png", "story still lands when the job row is empty");
+const storyOnlyPhone = fromStoryOnly.find((r) => r.shotId === "shot_01");
+assert.equal(storyOnlyPhone?.plateFile, "phone.png", "story still lands when the job row is empty");
 
 const titledEmpty = talkTimelineFrom({
   story: {
@@ -296,22 +297,23 @@ const desk = talkClipDeskFrom({
 });
 assert.deepEqual(
   desk.cells.map((c) => c.shotId),
-  ["shot_01", "shot_02", "shot_04", "shot_old_bar"],
-  "SHOT 01–04 lead; leftover untitled plates only join when they have a take",
+  ["shot_old_bar", "shot_04", "shot_01", "shot_02"],
+  "desk follows story order; leftover untitled plates only join when they have a take",
 );
+const loungeLead = desk.cells.find((c) => c.shotId === "shot_01");
 assert.ok(
-  desk.cells[0].events.some((e) => e.kind === "dial" || e.kind === "visual" || e.kind === "music"),
+  loungeLead?.events.some((e) => e.kind === "dial" || e.kind === "visual" || e.kind === "music"),
   "template [ ] tags from the shot land on the talking cell",
 );
-assert.equal(desk.cells[0].plateFile, "phone.png", "each clip keeps its own still");
-assert.equal(desk.cells[1].plateFile, "two.png");
-assert.equal(desk.cells[3].plateFile, "old_bar.png");
+assert.equal(desk.cells[0].plateFile, "old_bar.png", "each clip keeps its own still");
+assert.equal(desk.cells[1].plateFile, "bar.png");
+assert.equal(desk.cells[2].plateFile, "phone.png");
 assert.ok(!desk.cells.some((c) => c.shotId === "shot_loose"), "untitled still with no take stays off");
-assert.notEqual(desk.cells[0].plateFile, desk.cells[1].plateFile);
-assert.equal(desk.cells[0].widthPx, talkClipWidthPx(8));
-assert.equal(desk.cells[1].widthPx, talkClipWidthPx(4));
-assert.ok(desk.cells[0].widthPx > desk.cells[1].widthPx, "longer take is a wider box");
-assert.equal(desk.cells[0].widthPx, 8 * TALK_CLIP_PX_PER_SEC);
+assert.notEqual(desk.cells[0].plateFile, desk.cells[2].plateFile);
+assert.equal(desk.cells[2].widthPx, talkClipWidthPx(8));
+assert.equal(desk.cells[3].widthPx, talkClipWidthPx(4));
+assert.ok(desk.cells[2].widthPx > desk.cells[3].widthPx, "longer take is a wider box");
+assert.equal(desk.cells[2].widthPx, 8 * TALK_CLIP_PX_PER_SEC);
 assert.equal(talkSceneColor("scene_lounge"), talkSceneColor("scene_lounge"));
 assert.notEqual(talkSceneColor("scene_lounge"), talkSceneColor("scene_bar"));
 assert.equal(desk.cells[0].sceneColor, desk.cells[1].sceneColor, "same scene, same colour");
@@ -340,6 +342,91 @@ assert.equal(
   ),
   "SHOT 11 — Shazza",
   "a 10-clip desk must not reuse SHOT 03",
+);
+
+const sunnyStory = {
+  ...story,
+  styleId: "sunny_banks",
+  scenes: [
+    {
+      id: "scene_park",
+      title: "Caravan park",
+      placeName: "Caravan park",
+      worldThumbKey: "",
+      shots: [
+        {
+          id: "shot_bazza",
+          title: "SHOT 01 — Ranger Bazza",
+          summary: "",
+          plateFile: "bazza.png",
+          beats: [{ id: "bb", speaker: "Ranger Bazza", text: "" }],
+          sfx: [],
+        },
+        {
+          id: "shot_two",
+          title: "Ranger Bazza, Shazza",
+          summary: "",
+          plateFile: "two.png",
+          beats: [{ id: "bt", speaker: "Ranger Bazza", text: "" }],
+          sfx: [],
+        },
+        {
+          id: "shot_shazza",
+          title: "SHOT 11 — Shazza",
+          summary: "",
+          plateFile: "shazza.png",
+          beats: [{ id: "bs", speaker: "Shazza", text: "" }],
+          sfx: [],
+        },
+      ],
+    },
+  ],
+};
+const sunnyDesk = talkClipDeskFrom({
+  story: sunnyStory,
+  plated: [
+    { shotId: "shot_shazza", sceneId: "scene_park", plateFile: "shazza.png" },
+    { shotId: "shot_bazza", sceneId: "scene_park", plateFile: "bazza.png" },
+    { shotId: "shot_two", sceneId: "scene_park", plateFile: "two.png" },
+  ],
+  clips: [
+    {
+      beatId: "bs",
+      shotId: "shot_shazza",
+      sceneId: "scene_park",
+      clipFile: "shazza.mp4",
+      clipStatus: "done",
+      error: "",
+      durationSec: 4,
+    },
+    {
+      beatId: "bb",
+      shotId: "shot_bazza",
+      sceneId: "scene_park",
+      clipFile: "bazza.mp4",
+      clipStatus: "done",
+      error: "",
+      durationSec: 5,
+    },
+    {
+      beatId: "bt",
+      shotId: "shot_two",
+      sceneId: "scene_park",
+      clipFile: "two.mp4",
+      clipStatus: "done",
+      error: "",
+      durationSec: 6,
+    },
+  ],
+});
+assert.deepEqual(
+  sunnyDesk.cells.map((c) => c.shotId),
+  ["shot_bazza", "shot_two", "shot_shazza"],
+  "Sunny strip is story order: Bazza, two-shot, then the later Shazza card — not SHOT 01 / 11 then leftovers",
+);
+assert.deepEqual(
+  sunnyDesk.cells.map((c) => c.title),
+  ["SHOT 01 — Ranger Bazza", "Ranger Bazza, Shazza", "SHOT 11 — Shazza"],
 );
 const actScripts = talkActScriptsFrom(desk.cells);
 assert.equal(actScripts.length, 2);
@@ -414,6 +501,13 @@ assert.match(talkUi, /m-talk-doc-fold/);
 assert.doesNotMatch(talkUi, /EPISODE_CONSTRUCTION_EXAMPLE/);
 assert.doesNotMatch(talkUi, /Little Red Riding Hood/);
 assert.match(talkUi, /m-talk-film-head/);
+assert.match(talkUi, /m-talk-film-title/);
+assert.match(talkUi, /TalkClipTray key=\{selected\.key\}/);
+assert.doesNotMatch(
+  talkUi,
+  /chrome\.act \?\s*\(\s*<TalkFilmTag/,
+  "act tag must not hide the shot title — CLIP bar and the box have to name the same plate",
+);
 assert.match(talkUi, /m-talk-film-stage/);
 assert.match(talkUi, /m-talk-film-sfx/);
 assert.match(talkUi, /m-talk-film-notes/);

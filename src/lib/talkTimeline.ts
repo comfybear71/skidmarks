@@ -213,9 +213,11 @@ function rowFrom(opts: {
 }
 
 /**
- * Episode first (SHOT 01, SHOT 02…) then the rest of the pack in story
- * order. Job-add order is ignored. A still on the story still lands even
- * if the job row has not caught up yet.
+ * Story scene → shot order. SHOT 01 / 02 in the title is a label, not
+ * a sort key — pulling numbered plates to the front put a later Shazza
+ * card ahead of Ranger Bazza and parked new stills in the middle.
+ * Job-add order is ignored. A still on the story still lands even if
+ * the job row has not caught up yet.
  */
 export function talkTimelineFrom(opts: {
   story: CrashStoryDoc | null | undefined;
@@ -267,9 +269,5 @@ export function talkTimelineFrom(opts: {
     );
   }
 
-  const episode = collected
-    .filter((r) => r.episodeNo != null)
-    .sort((a, b) => (a.episodeNo || 0) - (b.episodeNo || 0) || a.shotNo - b.shotNo);
-  const rest = collected.filter((r) => r.episodeNo == null);
-  return [...episode, ...rest];
+  return collected;
 }
