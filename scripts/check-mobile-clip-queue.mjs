@@ -4,6 +4,7 @@ import {
   findStoryShotBeat,
   mergeClipsFromStory,
   nextClipToAnimate,
+  parkOtherPendingClips,
   previousDoneClipOnShot,
   queueableStoryBeats,
   queueOneBeatForAnimate,
@@ -442,6 +443,117 @@ assert.equal(
 
 const leftoverOne = queueOneBeatForAnimate(job, leftoverJoStory, "shot_jo_a1");
 assert.match(leftoverOne.error || "", /Save the spoken line/);
+
+const twoLineStory = {
+  ...savedStory,
+  scenes: [
+    {
+      ...savedStory.scenes[0],
+      shots: [
+        {
+          ...savedStory.scenes[0].shots[0],
+          beats: [
+            leftoverJoStory.scenes[0].shots[0].beats[0],
+            savedStory.scenes[0].shots[0].beats[1],
+            {
+              id: "beat_nuggets",
+              speaker: "Nuggets",
+              text: "See. That's them saying no. I think.",
+              voiceFile: "01_02_Nuggets_see-thats_abc12xyz.mp3",
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+const twoLineJob = {
+  ...job,
+  speakers: ["CRAZY BIG HOLE JO", "Nuggets"],
+  clips: [],
+};
+const saveOneLine = upsertPendingClip(twoLineJob, twoLineStory, "beat_nuggets");
+assert.equal(saveOneLine.length, 1, "Save must not mint a pending row for every other Saved mp3");
+assert.equal(saveOneLine[0].beatId, "beat_nuggets");
+
+const generateOneFromEmpty = queueOneBeatForAnimate(twoLineJob, twoLineStory, "beat_nuggets");
+assert.equal(generateOneFromEmpty.error, undefined);
+assert.equal(
+  generateOneFromEmpty.clips.filter((c) => c.clipStatus === "pending").map((c) => c.beatId).join(),
+  "beat_nuggets",
+  "Generate on Nuggets must not queue Jo's Saved line too",
+);
+assert.equal(
+  nextClipToAnimate(generateOneFromEmpty.clips)?.beatId,
+  "beat_nuggets",
+);
+
+const bothPendingJob = {
+  ...twoLineJob,
+  clips: [
+    {
+      beatId: "beat_jo",
+      shotId: "shot_jo",
+      sceneId: "sc1",
+      clipFile: "",
+      clipStatus: "pending",
+      error: "",
+      speaker: "CRAZY BIG HOLE JO",
+      line: "sitting on the bed texting",
+      voiceFile: "01_01_CRAZY_BIG_HOLE_JO_sitting-texting_mjx8k2.mp3",
+    },
+    {
+      beatId: "beat_nuggets",
+      shotId: "shot_jo",
+      sceneId: "sc1",
+      clipFile: "",
+      clipStatus: "pending",
+      error: "",
+      speaker: "Nuggets",
+      line: "See. That's them saying no. I think.",
+      voiceFile: "01_02_Nuggets_see-thats_abc12xyz.mp3",
+    },
+  ],
+};
+const generateOneFromPanel = queueOneBeatForAnimate(bothPendingJob, twoLineStory, "beat_nuggets");
+assert.equal(
+  generateOneFromPanel.clips.filter((c) => c.clipStatus === "pending").map((c) => c.beatId).join(),
+  "beat_nuggets",
+  "Generate on one line must park the other pending lines in that panel",
+);
+assert.equal(
+  generateOneFromPanel.clips.some((c) => c.beatId === "beat_jo" && c.clipStatus === "pending"),
+  false,
+);
+
+const requeuedTake = parkOtherPendingClips(
+  [
+    {
+      beatId: "beat_jo",
+      shotId: "shot_jo",
+      sceneId: "sc1",
+      clipFile: "jo.mp4",
+      clipStatus: "pending",
+      error: "",
+      speaker: "CRAZY BIG HOLE JO",
+      line: "hi",
+    },
+    {
+      beatId: "beat_nuggets",
+      shotId: "shot_jo",
+      sceneId: "sc1",
+      clipFile: "",
+      clipStatus: "pending",
+      error: "",
+      speaker: "Nuggets",
+      line: "See.",
+    },
+  ],
+  "beat_nuggets",
+);
+assert.equal(requeuedTake.find((c) => c.beatId === "beat_jo")?.clipStatus, "done");
+assert.equal(requeuedTake.find((c) => c.beatId === "beat_jo")?.clipFile, "jo.mp4");
+assert.equal(requeuedTake.find((c) => c.beatId === "beat_nuggets")?.clipStatus, "pending");
 
 const dupSceneStory = {
   styleId: "sunny_banks",
