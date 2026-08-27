@@ -411,6 +411,7 @@ export default function ScratchPage() {
       placeLook: sceneId ? candidateLookPrompt(job.locationCandidates, sceneId) : "",
       staging,
       refineFromStill: Boolean(plateSrc),
+      lastStillCast: plateSrc ? job.scratchPlate?.cast || [] : undefined,
       joPhone,
     });
   }, [job, padCast, speaker, looksByName, placeName, sceneId, staging, plateSrc, joPhone]);

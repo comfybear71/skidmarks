@@ -5,8 +5,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { campaignStagingForId, campaignImageMotionForId } from "../src/lib/mobilePlateLtxCampaign.ts";
 import { SCRATCH_FLOOR_LAWS, SCRATCH_JO_BLEED } from "../src/lib/scratchFloor.ts";
-import { buildScratchStillSend, padHasJo } from "../src/lib/scratchStillSend.ts";
-import { scratchNudeStillLock } from "../src/lib/sirayI2v.ts";
+import {
+  buildScratchStillSend,
+  lastStillCastForSend,
+  padHasJo,
+  scratchStillFaceNamesOnWire,
+  scratchStillNewcomers,
+  scratchStillWireMode,
+} from "../src/lib/scratchStillSend.ts";
+import { lastStillCastNames } from "../src/lib/sirayScratchPlate.ts";
+import { scratchNudeStillLock, SCRATCH_ADD_INTO_STILL_LOCK } from "../src/lib/sirayI2v.ts";
 import { isScratchShotTitle } from "../src/lib/mobileScratch.ts";
 import { SCRATCH_DROPDOWN_PRESET_IDS, SCRATCH_PROMPT_BIBLE } from "../src/lib/scratchBench/promptBible.ts";
 
@@ -15,6 +23,7 @@ const scratchPage = readFileSync(join(repoRoot, "src/app/(mobile)/scratch/page.t
 assert.doesNotMatch(scratchPage, /JO on her back/);
 assert.doesNotMatch(scratchPage, /fillJoMattyBedroom/);
 assert.match(scratchPage, /const \[joPhone, setJoPhone\] = useState\(false\)/);
+assert.match(scratchPage, /lastStillCast: plateSrc \? job\.scratchPlate\?\.cast/);
 assert.match(scratchPage, /clip-poll/);
 assert.match(scratchPage, /layout="strip"/);
 assert.match(scratchPage, /Siray confirmed/);
@@ -158,6 +167,125 @@ const joOff = buildScratchStillSend({
 assert.equal(joOff.joPhone, false);
 assert.doesNotMatch(joOff.prompt, SCRATCH_JO_BLEED);
 assert.match(joOff.prompt, /empty hands/i);
+
+assert.equal(
+  scratchStillWireMode({
+    hasLastStill: true,
+    speakers: ["Shazza"],
+    lastStillCast: [],
+  }),
+  "fresh",
+);
+assert.deepEqual(scratchStillNewcomers(["Shazza"], []), ["Shazza"]);
+assert.deepEqual(scratchStillFaceNamesOnWire("fresh", ["Shazza"], []), ["Shazza"]);
+
+assert.equal(
+  scratchStillWireMode({
+    hasLastStill: true,
+    speakers: ["Shazza"],
+    lastStillCast: ["Dazza"],
+  }),
+  "add-into-still",
+);
+assert.deepEqual(scratchStillNewcomers(["Dazza", "Shazza"], ["Dazza"]), ["Shazza"]);
+assert.deepEqual(
+  scratchStillFaceNamesOnWire("add-into-still", ["Dazza", "Shazza"], ["Dazza"]),
+  ["Shazza"],
+);
+
+assert.equal(
+  scratchStillWireMode({
+    hasLastStill: true,
+    speakers: ["Shazza"],
+    lastStillCast: ["Shazza"],
+  }),
+  "refine",
+);
+assert.deepEqual(scratchStillFaceNamesOnWire("refine", ["Shazza"], ["Shazza"]), []);
+assert.deepEqual(
+  lastStillCastForSend({
+    hasLastStill: true,
+    episode: true,
+    speakers: ["Shazza"],
+    rawLastCast: ["Shazza"],
+  }),
+  [],
+);
+assert.deepEqual(
+  lastStillCastForSend({
+    hasLastStill: true,
+    episode: false,
+    speakers: ["Shazza"],
+    rawLastCast: ["Shazza"],
+  }),
+  ["Shazza"],
+);
+assert.deepEqual(
+  lastStillCastForSend({
+    hasLastStill: true,
+    episode: true,
+    speakers: ["Dazza", "Shazza"],
+    rawLastCast: ["Dazza"],
+  }),
+  ["Dazza"],
+);
+
+assert.deepEqual(lastStillCastNames("", { plateDraw: { castNames: ["Ranger Bazza"] } }), [
+  "Ranger Bazza",
+]);
+assert.deepEqual(
+  lastStillCastNames("gone.png", { scratchPlate: { cast: ["Dazza"] } }),
+  ["Dazza"],
+);
+
+const addShazza = buildScratchStillSend({
+  styleId: "sunny_banks",
+  styleRealism: 25,
+  placeName: "the caravan park",
+  speakers: ["Shazza"],
+  looksByName: {
+    Shazza: "big blonde hair, leopard-print top, cigarette, arms folded",
+  },
+  placeLook: "sun-bleached trailer park",
+  staging: "Medium close-up of Shazza at the caravan park. Only Shazza in frame.",
+  refineFromStill: true,
+  lastStillCast: [],
+  joPhone: false,
+});
+assert.equal(addShazza.mode, "fresh");
+assert.equal(addShazza.imageOnlyRefine, undefined);
+assert.match(addShazza.prompt, /Image 2 is Shazza's face card/);
+assert.match(addShazza.prompt, /Do not invent a new face/);
+assert.match(addShazza.prompt, /No name printed on a shirt/);
+assert.doesNotMatch(addShazza.prompt, /attached image is the only reference/i);
+assert.doesNotMatch(addShazza.prompt, /Do not add a person/);
+
+const addShazzaOntoDazza = buildScratchStillSend({
+  styleId: "sunny_banks",
+  styleRealism: 25,
+  placeName: "the caravan park",
+  speakers: ["Dazza", "Shazza"],
+  looksByName: {
+    Dazza: "scruffy blonde boy, missing tooth",
+    Shazza: "big blonde hair, leopard-print top, cigarette, arms folded",
+  },
+  placeLook: "sun-bleached trailer park",
+  staging: "Shazza stands beside Dazza in the park.",
+  refineFromStill: true,
+  lastStillCast: ["Dazza"],
+  joPhone: false,
+});
+assert.equal(addShazzaOntoDazza.mode, "add-into-still");
+assert.match(addShazzaOntoDazza.prompt, SCRATCH_ADD_INTO_STILL_LOCK);
+assert.match(addShazzaOntoDazza.prompt, /Image 2 is Shazza's face card/);
+assert.match(addShazzaOntoDazza.prompt, /Add only Shazza/);
+assert.match(addShazzaOntoDazza.prompt, /Exactly 2 people in frame: Dazza, Shazza/);
+assert.doesNotMatch(addShazzaOntoDazza.prompt, /attached image is the only reference/i);
+assert.doesNotMatch(addShazzaOntoDazza.prompt, /Do not add a person/);
+assert.deepEqual(
+  addShazzaOntoDazza.faces.map((f) => f.name),
+  ["Shazza"],
+);
 
 assert.equal(isScratchShotTitle("Scratch"), true);
 assert.equal(isScratchShotTitle("01 Closer MCU"), false);

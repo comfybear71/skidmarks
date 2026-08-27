@@ -171,6 +171,10 @@ export const SCRATCH_SINGLE_FRAME_LOCK =
 export const SCRATCH_REFINE_STILL_LOCK =
   "Image 1 is the LOCKED last still. Same people already in that picture. Same room, same camera, same crop, same posture except where staging says. Only change what staging says. Do not add a person. Do not stand up anyone who is sitting. Do not sit anyone who is standing. Do not draw a second copy of anyone.";
 
+/** Add a pad person into the last still — face card on the wire. Not image-only refine. */
+export const SCRATCH_ADD_INTO_STILL_LOCK =
+  "Image 1 is the current still. Keep every person already in image 1 exactly as they are — same faces, clothes, positions. Do not remove, replace, or redraw anyone already there. Do not restyle the place. Add the new person from their face card. Do not invent a stranger. Do not write names or words on clothing.";
+
 /** Refine Draw — the attached still is the only reference; no face card, place, or show look. */
 export const SCRATCH_REFINE_IMAGE_ONLY_LOCK =
   "The attached image is the only reference. Edit it in place. Same room, same camera, same crop, same render style, same person, same wardrobe, same posture except where staging says. Do not restyle. Do not add people. Do not sit someone who is standing or stand someone who is sitting.";

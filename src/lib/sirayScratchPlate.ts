@@ -27,14 +27,37 @@ import {
   siraySubmitImageAsync,
   sirayWaitImageOutputs,
 } from "./sirayClient";
-import { saveCplateMeta } from "./cplateManifest";
-import { buildScratchStillSend, padHasJo, type ScratchStillSend } from "./scratchStillSend";
+import { getCplateMeta, saveCplateMeta } from "./cplateManifest";
+import {
+  buildScratchStillSend,
+  lastStillCastForSend,
+  padHasJo,
+  scratchStillNewcomers,
+  type ScratchStillSend,
+} from "./scratchStillSend";
 import { resolveGenOrPackPlate } from "./crashActivePack";
+import type { MobileGenJob } from "./mobileGenJob";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
   fs.mkdirSync(d, { recursive: true });
   return d;
+}
+
+type JobWithLastCast = PlateJobRef &
+  Partial<Pick<MobileGenJob, "plateDraw" | "scratchPlate" | "scratchDraw">>;
+
+/** Who the last still already drew — manifest first, then the job's last Draw. */
+export function lastStillCastNames(
+  lastFileName: string,
+  job?: JobWithLastCast,
+): string[] {
+  const file = path.basename((lastFileName || "").trim());
+  const fromMeta = (file && getCplateMeta(file)?.castNames) || [];
+  if (fromMeta.length) return fromMeta;
+  const fromDraw = job?.plateDraw?.castNames || job?.scratchDraw?.castNames || [];
+  if (fromDraw.length) return fromDraw;
+  return job?.scratchPlate?.cast || [];
 }
 
 export function fileToDataUrl(filePath: string): string {
@@ -143,7 +166,7 @@ async function startSirayScratchPlate(
   opts: {
     silentCast?: string[];
     styleRealism?: number;
-    job?: PlateJobRef;
+    job?: JobWithLastCast;
     /** Edit the last Draw. False after Clear plate (empty room again). */
     useLastStill?: boolean;
     joPhone?: boolean;
@@ -208,6 +231,12 @@ async function startSirayScratchPlate(
     looksByName[name] = opts.job ? candidateLookPrompt(opts.job.castCandidates, name) : "";
   }
   const placeLook = opts.job ? candidateLookPrompt(opts.job.locationCandidates, scene.id) : "";
+  const lastStillCast = lastStillCastForSend({
+    hasLastStill: Boolean(lastPath),
+    episode: !isScratchShotTitle(shot.title),
+    speakers: castNames,
+    rawLastCast: lastPath ? lastStillCastNames(lastName, opts.job) : [],
+  });
   const send = buildScratchStillSend({
     styleId,
     styleRealism,
@@ -217,13 +246,23 @@ async function startSirayScratchPlate(
     placeLook,
     staging: shot.staging || "",
     refineFromStill,
+    lastStillCast,
     joPhone: padHasJo(castNames) ? opts.joPhone === true : false,
   });
   const prompt = send.prompt;
 
-  const images = refineFromStill
-    ? [fileToDataUrl(bgPath)]
-    : [fileToDataUrl(bgPath), ...castPaths.map(fileToDataUrl)];
+  const facePathsOnWire =
+    send.mode === "refine" || send.imageOnlyRefine
+      ? []
+      : send.mode === "add-into-still"
+        ? scratchStillNewcomers(castNames, lastStillCast || [])
+            .map((name) => {
+              const i = castNames.findIndex((n) => n.toLowerCase() === name.toLowerCase());
+              return i >= 0 ? castPaths[i] : "";
+            })
+            .filter(Boolean)
+        : castPaths;
+  const images = [fileToDataUrl(bgPath), ...facePathsOnWire.map(fileToDataUrl)];
   const taskId = await siraySubmitImageAsync({
     model: SIRAY_SEEDREAM_45_REF2I_SPICY,
     prompt,
@@ -240,7 +279,7 @@ export async function submitSirayScratchPlate(
   opts: {
     silentCast?: string[];
     styleRealism?: number;
-    job?: PlateJobRef;
+    job?: JobWithLastCast;
     useLastStill?: boolean;
     joPhone?: boolean;
   } = {},
