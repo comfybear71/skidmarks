@@ -86,6 +86,24 @@ Official Comfy **LTX-2.5 FLF2V** ([Hub d78377cf53f4](https://comfy.org/workflows
 
 ---
 
+## Two or more on one card — not covered by this floor
+
+The gold speaking shape above is **solo**. Counted in `SUNNY_BANKS_IMAGE_MOTION_GOLD.json`:
+100 beats, 37 speaking, and **0 speaking beats with two or more people in frame**.
+All 16 group beats are holds (`All mouths stay closed.`). There is a proven group
+**hold** and no proven group **speak**.
+
+So a two-hander with a spoken line is outside this floor entirely — both the still
+(headcount / prop locks are dropped for 2+) and the clip (nothing tells the listener
+to keep their mouth shut; the lip-sync lead is frame-wide). Diagnosis, evidence and
+the candidate fixes to score: [`SUNNY_BANKS_MULTI_CHARACTER_RESEARCH.md`](./SUNNY_BANKS_MULTI_CHARACTER_RESEARCH.md).
+
+Cheapest reliable answer until something scores: frame two-handers **over-shoulder**
+so only the speaker's mouth is in frame — that reduces to the solo case that already
+works 100%.
+
+---
+
 ## Character slipping (the worry)
 
 The still turning cartoon or “a real human” is a **Scratch Draw** failure (slider / show lock), not a speech failure. On `/m` clips the same face-change happens if CAST bio leaks into IMAGE MOTION, or if the start image is not locked. Fix the still on Scratch first; then speak on `/m` from that still.
