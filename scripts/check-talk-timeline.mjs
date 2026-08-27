@@ -344,90 +344,119 @@ assert.equal(
   "a 10-clip desk must not reuse SHOT 03",
 );
 
-const sunnyStory = {
+// Stuie's manual Act I — THE GREATEST JOKE IN AUSTRALIA.
+// Eight cards, thirteen lines. SHOT 11 is card 8, not card 2.
+function jokeShot(id, title, file, beats) {
+  return {
+    id,
+    title,
+    summary: "",
+    plateFile: file,
+    beats: beats.map(([beatId, speaker, text]) => ({ id: beatId, speaker, text })),
+    sfx: [],
+  };
+}
+const jokeAct1Shots = [
+  jokeShot("shot_01", "SHOT 01 — Ranger Bazza", "bazza.png", [
+    ["b01a", "Ranger Bazza", "Well here we go another day at Sunnybank's Caravan Park."],
+    ["b01b", "Ranger Bazza", "I wonder what adventures will happen today."],
+  ]),
+  jokeShot("shot_02", "SHOT 02 — Shazza", "shazza.png", [
+    ["b02a", "Shazza", "Ranger Bazza, ya flaming Gumboot?"],
+    ["b02b", "Shazza", "We need to do something about raising revenue at the park."],
+  ]),
+  jokeShot("shot_03", "Ranger Bazza, Shazza", "two.png", [
+    ["b03a", "Ranger Bazza", "I have no idea shazza let's ask Daza."],
+    ["b03b", "Shazza", "Hey Daza, get over here got something to ask you"],
+  ]),
+  jokeShot("shot_04", "Dazza", "dazza.png", [
+    ["b04a", "Dazza", "Hold your horses. Yeah, no worries. I'm coming"],
+  ]),
+  jokeShot("shot_05", "Caravan park", "park.png", [
+    ["b05a", "Shazza", "We're after a new ideas dazza."],
+  ]),
+  jokeShot("shot_06", "SHOT 06", "ots.png", [
+    ["b06a", "Dazza", "Yeah, I've got one word for you shazza. Drop Bears!"],
+  ]),
+  jokeShot("shot_07", "SHOT 07", "phone.png", [["b07a", "Ranger Bazza", ""]]),
+  jokeShot("shot_08", "SHOT 11 — Shazza", "close.png", [
+    ["b08a", "Shazza", "Yeah naaah, that's a great idea dazza, you're a genius!"],
+    ["b08b", "Shazza", "Australia's best Joke, and I know exactly what to do."],
+    ["b08c", "Shazza", "Let's go Daza I need a hand."],
+  ]),
+];
+const jokeStory = {
   ...story,
   styleId: "sunny_banks",
+  campaignLabel: "THE GREATEST JOKE IN AUSTRALIA",
   scenes: [
     {
       id: "scene_park",
       title: "Caravan park",
       placeName: "Caravan park",
       worldThumbKey: "",
-      shots: [
-        {
-          id: "shot_bazza",
-          title: "SHOT 01 — Ranger Bazza",
-          summary: "",
-          plateFile: "bazza.png",
-          beats: [{ id: "bb", speaker: "Ranger Bazza", text: "" }],
-          sfx: [],
-        },
-        {
-          id: "shot_two",
-          title: "Ranger Bazza, Shazza",
-          summary: "",
-          plateFile: "two.png",
-          beats: [{ id: "bt", speaker: "Ranger Bazza", text: "" }],
-          sfx: [],
-        },
-        {
-          id: "shot_shazza",
-          title: "SHOT 11 — Shazza",
-          summary: "",
-          plateFile: "shazza.png",
-          beats: [{ id: "bs", speaker: "Shazza", text: "" }],
-          sfx: [],
-        },
-      ],
+      shots: jokeAct1Shots,
     },
   ],
 };
-const sunnyDesk = talkClipDeskFrom({
-  story: sunnyStory,
-  plated: [
-    { shotId: "shot_shazza", sceneId: "scene_park", plateFile: "shazza.png" },
-    { shotId: "shot_bazza", sceneId: "scene_park", plateFile: "bazza.png" },
-    { shotId: "shot_two", sceneId: "scene_park", plateFile: "two.png" },
-  ],
-  clips: [
-    {
-      beatId: "bs",
-      shotId: "shot_shazza",
+const jokeDesk = talkClipDeskFrom({
+  story: jokeStory,
+  plated: [...jokeAct1Shots]
+    .reverse()
+    .map((sh) => ({ shotId: sh.id, sceneId: "scene_park", plateFile: sh.plateFile })),
+  clips: jokeAct1Shots.flatMap((sh) =>
+    sh.beats.map((b, i) => ({
+      beatId: b.id,
+      shotId: sh.id,
       sceneId: "scene_park",
-      clipFile: "shazza.mp4",
+      clipFile: `${sh.id}_${b.id}.mp4`,
       clipStatus: "done",
       error: "",
-      durationSec: 4,
-    },
-    {
-      beatId: "bb",
-      shotId: "shot_bazza",
-      sceneId: "scene_park",
-      clipFile: "bazza.mp4",
-      clipStatus: "done",
-      error: "",
-      durationSec: 5,
-    },
-    {
-      beatId: "bt",
-      shotId: "shot_two",
-      sceneId: "scene_park",
-      clipFile: "two.mp4",
-      clipStatus: "done",
-      error: "",
-      durationSec: 6,
-    },
-  ],
+      durationSec: 4 + i,
+    })),
+  ),
 });
+assert.equal(jokeDesk.cells.length, 13, "Act I is eight cards / thirteen lines");
 assert.deepEqual(
-  sunnyDesk.cells.map((c) => c.shotId),
-  ["shot_bazza", "shot_two", "shot_shazza"],
-  "Sunny strip is story order: Bazza, two-shot, then the later Shazza card — not SHOT 01 / 11 then leftovers",
+  jokeDesk.cells.map((c) => c.shotId),
+  [
+    "shot_01",
+    "shot_01",
+    "shot_02",
+    "shot_02",
+    "shot_03",
+    "shot_03",
+    "shot_04",
+    "shot_05",
+    "shot_06",
+    "shot_07",
+    "shot_08",
+    "shot_08",
+    "shot_08",
+  ],
+  "Greatest Joke Act I stays in the order it was built — SHOT 11 does not jump to the front",
 );
 assert.deepEqual(
-  sunnyDesk.cells.map((c) => c.title),
-  ["SHOT 01 — Ranger Bazza", "Ranger Bazza, Shazza", "SHOT 11 — Shazza"],
+  jokeDesk.cells.map((c) => c.title),
+  [
+    "SHOT 01 — Ranger Bazza",
+    "SHOT 01 — Ranger Bazza",
+    "SHOT 02 — Shazza",
+    "SHOT 02 — Shazza",
+    "Ranger Bazza, Shazza",
+    "Ranger Bazza, Shazza",
+    "Dazza",
+    "Caravan park",
+    "SHOT 06",
+    "SHOT 07",
+    "SHOT 11 — Shazza",
+    "SHOT 11 — Shazza",
+    "SHOT 11 — Shazza",
+  ],
 );
+assert.equal(jokeDesk.cells[0].speaker, "Ranger Bazza");
+assert.equal(jokeDesk.cells[2].speaker, "Shazza");
+assert.equal(jokeDesk.cells[10].title, "SHOT 11 — Shazza");
 const actScripts = talkActScriptsFrom(desk.cells);
 assert.equal(actScripts.length, 2);
 assert.equal(actScripts[0].roman, "I");
