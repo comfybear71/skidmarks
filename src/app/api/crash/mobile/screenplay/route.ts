@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readMobileGenJob } from "@/lib/mobileGenJob";
+import { appendPastedActToJob } from "@/lib/mobileAppendAct";
 import { applyImportedStoryToJob } from "@/lib/mobileApplyScreenplay";
 import { importPastedStory, parseMobilePaste } from "@/lib/mobilePasteScript";
 import { canLockEpisode } from "@/lib/mobileJobReady";
@@ -17,6 +18,7 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as {
       jobId?: string;
       script?: string;
+      append?: boolean;
     };
     const jobId = (body.jobId || "").trim();
     const script = (body.script || "").trim();
@@ -43,6 +45,15 @@ export async function POST(req: Request) {
     }
 
     const pasted = parseMobilePaste(script, job.styleId, job.prompt.trim() || "Untitled episode");
+    if (body.append) {
+      const updated = await appendPastedActToJob({
+        job,
+        pasted: pasted.story,
+        script,
+        parsedCharacters: pasted.characters,
+      });
+      return NextResponse.json({ ok: true, job: updated, appended: true });
+    }
     const runTag = jobId.slice(-6);
     const title = `${pasted.title} ${runTag}`;
     const { folderName } = await importPastedStory({

@@ -46,7 +46,8 @@ export function ClipFrameThumb({
             const v = e.currentTarget;
             if (v.currentTime > 0) return;
             try {
-              v.currentTime = 0.05;
+              const dur = Number.isFinite(v.duration) ? v.duration : 0;
+              v.currentTime = dur > 0.4 ? 0.35 : 0.05;
             } catch {
               setFrameReady(true);
             }

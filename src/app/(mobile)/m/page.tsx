@@ -258,18 +258,18 @@ export default function MobileHomePage() {
     // refetch so the new one's face-generation calls get a real characterId.
   }, [job?.phase, job?.speakers.length]);
 
-  const runScreenplay = useCallback(async (jobId: string, script: string) => {
+  const runScreenplay = useCallback(async (jobId: string, script: string, append = false) => {
     setBusy(true);
     setLockingScript(true);
     setError("");
     try {
       const { job: withScreenplay } = await postJson<{ job: MobileGenJob }>(
         "/api/crash/mobile/screenplay",
-        { jobId, script },
+        { jobId, script, append: append || undefined },
       );
       setJob(withScreenplay);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't lock the script");
+      setError(e instanceof Error ? e.message : append ? "Couldn't add that act" : "Couldn't lock the script");
     } finally {
       setLockingScript(false);
       setBusy(false);
@@ -1162,6 +1162,7 @@ export default function MobileHomePage() {
           onDropCast={(name) => void dropCast(name)}
           onDropLocation={(sceneId) => void dropLocation(sceneId)}
           onDropScript={(script) => void runScreenplay(job.id, script)}
+          onAddAct={(script) => void runScreenplay(job.id, script, true)}
           onStartMusicVideo={(lyrics) => void startMusicVideo(job.id, lyrics)}
           onGenerateVideo={() => void approveReview()}
           onRetryError={() => void retryFromError(job.id)}

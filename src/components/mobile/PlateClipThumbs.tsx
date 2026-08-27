@@ -25,6 +25,7 @@ export function PlateClipThumbs({
   clips,
   preload,
   poster,
+  posterByShotId,
   layout = "stack",
   onRemoveTake,
   removeDisabled,
@@ -39,6 +40,8 @@ export function PlateClipThumbs({
   preload?: boolean;
   /** Plate still — first frame stand-in so the box is not black before play. */
   poster?: string;
+  /** One still per shot so the Clips rail is not eighteen copies of shot 01. */
+  posterByShotId?: Record<string, string>;
   layout?: "stack" | "strip";
   /** /m and Scratch — park one take (mp4 stays in _cleared/ or Blob). */
   onRemoveTake?: (opts: { beatId: string; fileName: string }) => void;
@@ -47,10 +50,12 @@ export function PlateClipThumbs({
   const songCuts = job.scratchSong?.cuts || [];
   const files = clips.flatMap((clip, i) => {
     const stacked = stackedClipFiles(clip);
+    const shotPoster = (clip.shotId && posterByShotId?.[clip.shotId]) || poster;
     return stacked.map((file, n) => ({
       key: `${clip.beatId}-${file}`,
       file,
       beatId: clip.beatId,
+      poster: shotPoster,
       takeLabel: stableClipTakeLabel({ fileName: file, songCuts }),
       preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
     }));
@@ -71,7 +76,7 @@ export function PlateClipThumbs({
         <ClipPlayer
           key={row.key}
           src={mobileClipSrc(job, row.file)}
-          poster={poster}
+          poster={row.poster}
           takeLabel={row.takeLabel}
           onRemove={
             onRemoveTake
