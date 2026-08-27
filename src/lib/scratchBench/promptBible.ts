@@ -753,6 +753,33 @@ function mergeDropdownPresets(sections: ScratchBibleSection[]): ScratchBibleSect
 
 export const SCRATCH_PROMPT_BIBLE = mergeDropdownPresets(BASE_SCRATCH_PROMPT_BIBLE);
 
+/**
+ * Drop the solo lock out of a bible template.
+ *
+ * The bible was written for Scratch, which is one character by design, so most
+ * chips open with "{{name}} alone at {{place}}. Only {{name}} in frame, no one
+ * else appears." Reused on a /m plate that has two or three people on the card,
+ * that lands in the SAME paragraph as the headcount lock — the prompt ends up
+ * saying "Dazza alone", "Only Dazza in frame, no one else appears", "Only
+ * Dazza" AND "Exactly 3 people in frame: Shazza, Ranger Bazza, Dazza". Whatever
+ * the model does with that is wrong, which is why tapping a composition or
+ * atmosphere chip on a group plate looks like it does nothing.
+ *
+ * Only the alone-ness comes out. The camera, pose, wardrobe, props and
+ * face-card lock all stay — those are the reason to tap the chip. The
+ * "no extras" job is already done by the headcount lock in
+ * plateCastStagingNote, so nothing is lost by dropping it here.
+ */
+export function stripBibleSoloLock(template: string): string {
+  return template
+    .replace(/\{\{name\}\} alone at \{\{place\}\}\.\s*/g, "")
+    .replace(/Only \{\{name\}\} in frame, no one else appears\.\s*/g, "")
+    .replace(/Only \{\{name\}\}\.\s*/g, "")
+    .replace(/Do not invent a second person[^.]*\.\s*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function applyBibleTokens(
   template: string,
   opts: { name: string; place: string; cast?: string[] },

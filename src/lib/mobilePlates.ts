@@ -19,6 +19,7 @@ import {
   mobileCandidateFolders,
 } from "./mobilePlateMedia";
 import { candidateLookPrompt } from "./mobileJobReady";
+import { pickCastCardIndexByName } from "./castCardMatch";
 import { plateCastStagingNote, shotSpeakersOnCard } from "./mobilePlateLines";
 import type { CrashStoryScene, CrashStoryShot } from "./crashStoryTypes";
 import type { MobileGenJob } from "./mobileGenJob";
@@ -48,34 +49,26 @@ async function cacheShelfCastByName(
   styleId: ShowStyleId,
   name: string,
 ): Promise<string | null> {
-  const wanted = name.trim().toLowerCase();
-  if (!wanted) return null;
+  if (!name.trim()) return null;
   const rows = await cloudListShowFiles(styleId, "cast").catch(() => []);
   const named = rows
     .map((r) => ({ label: (r.label_name || "").trim().toLowerCase(), filename: r.filename }))
     .filter((r) => r.label && r.filename);
-  const hit =
-    named.find((r) => r.label === wanted) ||
-    named.find((r) => r.label.includes(wanted) || wanted.includes(r.label));
-  if (!hit) return null;
-  return cacheShelfAsset(styleId, "cast", hit.filename);
+  const i = pickCastCardIndexByName(named.map((r) => r.label), name);
+  if (i < 0) return null;
+  return cacheShelfAsset(styleId, "cast", named[i].filename);
 }
 
 function resolveCastKeyByName(
   manifest: Record<string, StyleCardThumbLabel>,
   name: string,
 ): string | null {
-  const lower = name.trim().toLowerCase();
-  if (!lower) return null;
-  for (const [key, meta] of Object.entries(manifest)) {
-    const n = (meta.name || "").trim().toLowerCase();
-    if (n === lower) return key;
-  }
-  for (const [key, meta] of Object.entries(manifest)) {
-    const n = (meta.name || "").trim().toLowerCase();
-    if (n && (n.includes(lower) || lower.includes(n))) return key;
-  }
-  return null;
+  const entries = Object.entries(manifest);
+  const i = pickCastCardIndexByName(
+    entries.map(([, meta]) => meta.name || ""),
+    name,
+  );
+  return i < 0 ? null : entries[i][0];
 }
 
 function uniqueShotSpeakers(
