@@ -75,6 +75,17 @@ export function talkClipClock(sec: number): string {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
+export type TalkClipTake = {
+  key: string;
+  beatId: string;
+  speaker: string;
+  line: string;
+  clipFile: string;
+  voiceFile: string;
+  durationSec: number;
+  clipStatus: MobileClipUnit["clipStatus"] | "empty";
+};
+
 export type TalkClipCell = {
   key: string;
   beatId: string;
@@ -94,7 +105,32 @@ export type TalkClipCell = {
   widthPx: number;
   clipStatus: MobileClipUnit["clipStatus"] | "empty";
   events: TalkTimelineEvent[];
+  /** Every line on this shot, in story order. One box — not one box per line. */
+  takes: TalkClipTake[];
 };
+
+export function talkCellTakes(cell: TalkClipCell): TalkClipTake[] {
+  if (cell.takes?.length) return cell.takes;
+  return [
+    {
+      key: cell.key,
+      beatId: cell.beatId,
+      speaker: cell.speaker,
+      line: cell.line,
+      clipFile: cell.clipFile,
+      voiceFile: cell.voiceFile,
+      durationSec: cell.durationSec,
+      clipStatus: cell.clipStatus,
+    },
+  ];
+}
+
+/** First line that still needs a cook, else the first line with audio. */
+export function talkSendTake(cell: TalkClipCell | null | undefined): TalkClipTake | null {
+  if (!cell) return null;
+  const takes = talkCellTakes(cell).filter((t) => t.beatId && t.voiceFile);
+  return takes.find((t) => !t.clipFile) || takes[0] || null;
+}
 
 export type TalkSceneBand = {
   sceneId: string;
@@ -168,8 +204,10 @@ export function talkAssignActNs(cells: Array<{ events?: TalkTimelineEvent[]; tit
 }
 
 function talkActCellScript(cell: TalkClipCell): string {
-  const bits = [cell.title, cell.speaker, cell.line || "No line yet"].filter(Boolean);
-  return `${bits.join("\n")}\n\n`;
+  const takes = talkCellTakes(cell);
+  return `${takes
+    .map((t) => [cell.title, t.speaker, t.line || "No line yet"].filter(Boolean).join("\n"))
+    .join("\n\n")}\n\n`;
 }
 
 function talkActFromCells(n: number, group: TalkClipCell[], id: string): TalkActScript {
@@ -303,7 +341,12 @@ export function talkClipLayout(
 ): TalkClipCell[] {
   let start = 0;
   return cells.map((cell) => {
-    const durationSec = talkClipDurationSec(measured[cell.key] ?? cell.durationSec);
+    const clipTakes = talkCellTakes(cell).filter((t) => t.clipFile);
+    // A multi-clip shot keeps the summed clock. One video's metadata
+    // must not shrink the box to a single line.
+    const raw =
+      clipTakes.length > 1 ? cell.durationSec : measured[cell.key] ?? cell.durationSec;
+    const durationSec = talkClipDurationSec(raw);
     const widthPx = talkClipWidthPx(durationSec);
     const next = { ...cell, durationSec, startSec: start, widthPx };
     start += durationSec;
@@ -333,35 +376,93 @@ export function talkDeskInnerWidth(cells: TalkClipCell[]): number {
   return cells.reduce((n, cell) => n + cell.widthPx, 0);
 }
 
-function cellFrom(opts: {
+function takeFrom(opts: {
   plate: TalkTimelinePlate;
   clip: MobileClipUnit | null;
+  beatId: string;
   story: CrashStoryDoc | null | undefined;
-}): TalkClipCell | null {
-  const beatId = opts.clip?.beatId || firstRealBeatId(opts.story, opts.plate.shotId);
+}): TalkClipTake | null {
+  const beatId = opts.beatId || opts.clip?.beatId || "";
   if (!beatId && !opts.clip) return null;
   const meta = beatMeta(opts.story, opts.plate.shotId, beatId || opts.clip?.beatId || "");
   const clipFile = clipFileBasename(opts.clip?.clipFile || "");
-  const durationSec = talkClipDurationSec(opts.clip?.durationSec);
   return {
-    key: opts.clip ? `${opts.clip.beatId}:${clipFile || opts.clip.clipStatus}` : `empty:${opts.plate.shotId}`,
+    key: opts.clip ? `${opts.clip.beatId}:${clipFile || opts.clip.clipStatus}` : `empty:${opts.plate.shotId}:${beatId}`,
     beatId: beatId || opts.clip?.beatId || "",
+    speaker: (opts.clip?.speaker || meta.speaker || "").trim(),
+    line: (opts.clip?.line || meta.line || "").trim(),
+    clipFile,
+    voiceFile: (opts.clip?.voiceFile || meta.voiceFile || "").trim(),
+    durationSec: talkClipDurationSec(opts.clip?.durationSec),
+    clipStatus: opts.clip?.clipStatus || "empty",
+  };
+}
+
+function shotDurationSec(takes: TalkClipTake[]): number {
+  const cooked = takes.filter((t) => t.clipFile);
+  if (cooked.length) return cooked.reduce((n, t) => n + t.durationSec, 0);
+  return talkClipDurationSec(undefined);
+}
+
+function shotCellFrom(opts: {
+  plate: TalkTimelinePlate;
+  clips: MobileClipUnit[];
+  story: CrashStoryDoc | null | undefined;
+  allowEmpty: boolean;
+}): TalkClipCell | null {
+  const shotClips = clipsOnPlate(opts.plate, opts.clips, opts.story);
+  if (!shotClips.length && !opts.allowEmpty) return null;
+  const beatIds = storyBeatOrder(opts.story, opts.plate.shotId);
+  const takes: TalkClipTake[] = [];
+  if (beatIds.length) {
+    for (const beatId of beatIds) {
+      const clip = shotClips.find((c) => c.beatId === beatId) || null;
+      const take = takeFrom({ plate: opts.plate, clip, beatId, story: opts.story });
+      if (take) takes.push(take);
+    }
+  } else {
+    for (const clip of shotClips) {
+      const take = takeFrom({
+        plate: opts.plate,
+        clip,
+        beatId: clip.beatId,
+        story: opts.story,
+      });
+      if (take) takes.push(take);
+    }
+  }
+  if (!takes.length && opts.allowEmpty) {
+    const empty = takeFrom({
+      plate: opts.plate,
+      clip: null,
+      beatId: firstRealBeatId(opts.story, opts.plate.shotId),
+      story: opts.story,
+    });
+    if (empty) takes.push(empty);
+  }
+  if (!takes.length) return null;
+  const lead = takes.find((t) => t.clipFile) || takes.find((t) => t.voiceFile) || takes[0];
+  const durationSec = shotDurationSec(takes);
+  return {
+    key: `shot:${opts.plate.shotId}`,
+    beatId: lead.beatId,
     shotId: opts.plate.shotId,
     sceneId: opts.plate.sceneId,
     sceneTitle: opts.plate.sceneTitle || opts.plate.placeName,
     sceneColor: talkSceneColor(opts.plate.sceneId || opts.plate.sceneTitle),
     title: opts.plate.title,
     episodeNo: opts.plate.episodeNo,
-    speaker: (opts.clip?.speaker || meta.speaker || "").trim(),
-    line: (opts.clip?.line || meta.line || "").trim(),
+    speaker: lead.speaker,
+    line: lead.line,
     plateFile: opts.plate.plateFile,
-    clipFile,
-    voiceFile: (opts.clip?.voiceFile || meta.voiceFile || "").trim(),
+    clipFile: lead.clipFile,
+    voiceFile: lead.voiceFile,
     durationSec,
     startSec: 0,
     widthPx: talkClipWidthPx(durationSec),
-    clipStatus: opts.clip?.clipStatus || "empty",
+    clipStatus: lead.clipStatus,
     events: opts.plate.events || [],
+    takes,
   };
 }
 
@@ -381,10 +482,11 @@ function clipsOnPlate(
 }
 
 /**
- * Same scene → shot walk as the talking strip. Leftover untitled stills
- * with no take stay off the desk. A titled SHOT 0N can sit empty so +
- * Add clip lands. Each beat keeps its own still. Width follows that
- * take's duration.
+ * Same scene → shot walk as the talking strip. One box per shot.
+ * Two or three lines on that still stay on that box, in story order.
+ * Leftover untitled stills with no take stay off the desk. A titled
+ * SHOT 0N can sit empty so + Add clip lands. Width is the sum of the
+ * clips on that shot.
  */
 export function talkClipDeskFrom(opts: {
   story: CrashStoryDoc | null | undefined;
@@ -395,20 +497,15 @@ export function talkClipDeskFrom(opts: {
   const clips = opts.clips || [];
   const cells: TalkClipCell[] = [];
 
-  const pushPlate = (plate: TalkTimelinePlate, allowEmpty: boolean) => {
-    const shotClips = clipsOnPlate(plate, clips, opts.story);
-    const units: Array<MobileClipUnit | null> = shotClips.length
-      ? shotClips
-      : allowEmpty
-        ? [null]
-        : [];
-    for (const clip of units) {
-      const cell = cellFrom({ plate, clip, story: opts.story });
-      if (cell) cells.push(cell);
-    }
-  };
-
-  for (const plate of allPlates) pushPlate(plate, plate.episodeNo != null);
+  for (const plate of allPlates) {
+    const cell = shotCellFrom({
+      plate,
+      clips,
+      story: opts.story,
+      allowEmpty: plate.episodeNo != null,
+    });
+    if (cell) cells.push(cell);
+  }
 
   const laid = talkClipLayout(cells);
   return {
