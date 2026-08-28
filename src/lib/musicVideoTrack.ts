@@ -301,6 +301,40 @@ export function cutFromPlateTiming(
   return [...rest, next];
 }
 
+/**
+ * TRACK paints plateTimings, not the cut list. Add-on-stills used to
+ * write a waiting cut and leave the wave empty. Keep any clock already
+ * on the wave — do not even-split the song. Hang each cut that has no
+ * timing yet, first slice only.
+ */
+export function hangMissingPlateTimings(
+  existing: PlateTiming[] | undefined,
+  cuts: Pick<ScratchSongCut, "shotId" | "startSec" | "durationSec">[],
+): PlateTiming[] {
+  const kept = sortPlateTimings(existing || []);
+  const have = new Set(kept.map((t) => t.plateId));
+  const next = [...kept];
+  let sort = next.length;
+  const seen = new Set<string>();
+  for (const c of cuts) {
+    const plateId = (c.shotId || "").trim();
+    if (!plateId || have.has(plateId) || seen.has(plateId)) continue;
+    seen.add(plateId);
+    const startMs = secToMs(Number(c.startSec) || 0);
+    const durSec = Number(c.durationSec);
+    const durMs = secToMs(
+      Number.isFinite(durSec) && durSec > 0 ? durSec : SCRATCH_SONG_SLICE_DEFAULT_SEC,
+    );
+    next.push({
+      plateId,
+      startMs,
+      endMs: Math.max(startMs + 100, startMs + durMs),
+      sortIndex: sort++,
+    });
+  }
+  return next;
+}
+
 export function orderedDoneCutsForStitch(
   song: ScratchSong,
 ): ScratchSongCut[] {

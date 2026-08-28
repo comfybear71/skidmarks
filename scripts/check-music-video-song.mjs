@@ -425,6 +425,7 @@ assert.match(songRoute, /action === "add-plate"/);
   const nextAction = addPlateBlock.search(/\n\s+if \(action === "/);
   const block = nextAction >= 0 ? addPlateBlock.slice(0, nextAction) : addPlateBlock.slice(0, 1200);
   assert.match(block, /syncSongCutsToDesk/);
+  assert.match(block, /hangMissingPlateTimings/, "Add hangs the still on the wave clock");
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
 }
 {

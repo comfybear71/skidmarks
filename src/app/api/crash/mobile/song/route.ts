@@ -28,7 +28,7 @@ import { parkMobileClipFile } from "@/lib/mobileClipPark";
 import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
-import { cutFromPlateTiming, sliceBoundsForPlate } from "@/lib/musicVideoTrack";
+import { cutFromPlateTiming, hangMissingPlateTimings, sliceBoundsForPlate } from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 
 export const runtime = "nodejs";
@@ -413,10 +413,12 @@ export async function POST(req: Request) {
         newCutId: () => newId("cut"),
       });
       const nextWin = nextCutAfter(cuts, song.durationSec);
+      const plateTimings = hangMissingPlateTimings(song.plateTimings, cuts);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,
           cuts,
+          plateTimings,
           songPlateIds: nextIds,
           rowSlices: slices,
           skipShotIds: withoutSkippedSongPlate(skipSongPlateIds(song), shotId),
