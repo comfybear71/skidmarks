@@ -441,7 +441,7 @@ export function removePlateFromSong(opts: {
 export function plateIdsWaitingForTrack(opts: {
   song?: {
     cuts?: { shotId?: string; plateFile?: string }[];
-    plateTimings?: { plateId?: string }[];
+    plateTimings?: { plateId?: string; startMs?: number; endMs?: number }[];
     songPlateIds?: string[];
     skipShotIds?: string[];
   } | null;

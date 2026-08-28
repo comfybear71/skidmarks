@@ -602,7 +602,7 @@ export function applyLandedClipDuration(
  */
 export function hangMissingPlateTimings(
   existing: PlateTiming[] | undefined,
-  cuts: Pick<ScratchSongCut, "shotId" | "startSec" | "durationSec">[],
+  cuts: Array<Pick<ScratchSongCut, "shotId" | "startSec"> & { durationSec?: number }>,
   extraIds: string[] = [],
 ): PlateTiming[] {
   const kept = sortPlateTimings(existing || []).filter((t) => !isLeftoverPlateHang(t));
