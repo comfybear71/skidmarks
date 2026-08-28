@@ -108,15 +108,7 @@ export function PlateClipThumbs({
         beatId: clip.beatId,
         shotId: (clip.shotId || "").trim(),
         poster: shotPoster,
-        startMs: clipHangStartMs(
-          {
-            shotId: clip.shotId,
-            clipFile: file,
-            priorClipFiles: [],
-            hangStartMs: clip.hangStartMs,
-          },
-          { cuts: songCuts, plateTimings },
-        ),
+        startMs: clipHangStartMs(clip, { cuts: songCuts, plateTimings }),
         durationSec: clipTakeDurationSec(clock),
         preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
       });
