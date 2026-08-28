@@ -1048,7 +1048,7 @@ export function muteMvMotionLabel(engine: MuteMvEngine): string {
  * Not `LTX_MAX_DURATION_SEC` (180 safety). H3 official range is 4–15
  * (`minimaxH3.ts`). 25s is LTX, not H3.
  */
-export const MUTE_MV_LTX_DESK_MAX_SEC = 30;
+export const MUTE_MV_LTX_DESK_MAX_SEC = 40;
 
 /** Closed fold under the hole title. Not a TRACK essay. */
 export function muteMvEngineFoldSummary(engine: MuteMvEngine): string {

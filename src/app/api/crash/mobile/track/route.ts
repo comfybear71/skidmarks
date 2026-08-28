@@ -11,7 +11,7 @@ import {
   secToMs,
   songFromTrackDraft,
   slidePlateIntoGap,
-  withPlateDuration,
+  ensurePlateDuration,
   withPlateWindow,
   type LyricCue,
   type MusicVideoTrackDraft,
@@ -19,6 +19,7 @@ import {
   type TrackSectionMarker,
 } from "@/lib/musicVideoTrack";
 import { isMusicVideoSongJob, removePlateFromSong } from "@/lib/musicVideoSong";
+import { clampHangLengthSec } from "@/lib/scratchSongWindow";
 import { keepClipsAfterUnhang } from "@/lib/mobilePlateClips";
 import { parseStockLook, stockLookIsOn } from "@/lib/stockLook";
 import { newId } from "@/lib/types";
@@ -69,7 +70,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-draft — pre-lock peaks/markers/timings on job.trackDraft
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
- *   set-plate-duration — 5 / 10 / 15 chips or typed seconds (7, 9). Followers slide. No cook.
+ *   set-plate-duration — 5–40 slider (10 stays 10). Mints a bar if this still is not hung. Followers slide. No cook.
  *   move-plate — slide this bar into the empty clock on that side. No swap. No cook.
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
@@ -231,14 +232,15 @@ export async function POST(req: Request) {
       const plateId = String(body.plateId || "").trim();
       if (!plateId) return NextResponse.json({ error: "Need plateId" }, { status: 400 });
       const songMs = secToMs(song.durationSec);
-      const durationMs = secToMs(Number(body.durationSec));
+      const durationMs = secToMs(clampHangLengthSec(Number(body.durationSec)));
       const askedStart = Number(body.startSec);
       const plateTimings =
         Number.isFinite(askedStart) && askedStart >= 0
-          ? withPlateWindow(song.plateTimings, plateId, secToMs(askedStart), durationMs, songMs)
-          : withPlateDuration(song.plateTimings, plateId, durationMs, songMs);
+          ? withPlateWindow(song.plateTimings, plateId, secToMs(askedStart), durationMs, songMs) ||
+            ensurePlateDuration(song.plateTimings, plateId, durationMs, songMs)
+          : ensurePlateDuration(song.plateTimings, plateId, durationMs, songMs);
       if (!plateTimings) {
-        return NextResponse.json({ error: "Put that still on the song first." }, { status: 400 });
+        return NextResponse.json({ error: "Need a plate to set the length." }, { status: 400 });
       }
       let cuts = song.cuts || [];
       for (const timing of plateTimings) {

@@ -424,7 +424,7 @@ assert.doesNotMatch(kept, /Mouth stays closed/);
 
 assert.equal(muteMvMotionLabel("h3"), "H3 Image motion", "H3 titles the hole H3");
 assert.equal(muteMvMotionLabel("ltx"), "LTX Image motion", "LTX titles the hole LTX");
-assert.equal(MUTE_MV_LTX_DESK_MAX_SEC, 30, "desk fold says 30s LTX, not the 180 safety ceiling");
+assert.equal(MUTE_MV_LTX_DESK_MAX_SEC, 40, "desk fold says 40s LTX, not the 180 safety ceiling");
 assert.equal(
   muteMvEngineFoldSummary("h3"),
   "H3 · 4–15s · first frame · one move",
@@ -432,7 +432,7 @@ assert.equal(
 );
 assert.equal(
   muteMvEngineFoldSummary("ltx"),
-  "LTX · up to 30s · talking/sing ok · 5s ok",
+  "LTX · up to 40s · talking/sing ok · 5s ok",
   "LTX fold is the matching one-liner",
 );
 const h3Fold = muteMvEngineFoldLines("h3");
@@ -450,9 +450,19 @@ assert.match(h3Fold[4], /Cowboy Bebop/);
 assert.doesNotMatch(h3Fold.join(" "), /Fal Quality|last-frame picker on this desk is/i);
 const ltxFold = muteMvEngineFoldLines("ltx");
 assert.equal(ltxFold.length, 1, "LTX fold stays a matching one-liner");
-assert.match(ltxFold[0], /up to 30s/);
+assert.doesNotMatch(ltxFold[0], /up to 30s/, "fold must not still say 30s is the cap");
+assert.match(ltxFold[0], /up to 40s/);
 assert.match(ltxFold[0], /Talking or singing/);
 assert.match(ltxFold[0], /5s is fine/);
+{
+  const plateUi = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+  const lenUi = readFileSync(join(here, "../src/components/mobile/PlateLenSlider.tsx"), "utf8");
+  assert.match(plateUi, /PlateHangLenControl/, "5–40 slider sits on the plate row with Add · LTX · H3 · Send");
+  assert.match(lenUi, /min=\{HANG_LENGTH_MIN_SEC\}/);
+  assert.match(lenUi, /max=\{HANG_LENGTH_MAX_SEC\}/);
+  assert.match(lenUi, /set-plate-duration/);
+  assert.doesNotMatch(lenUi, /up to 30s/);
+}
 assert.match(motionSrc, /export function muteMvEngineFoldSummary/, "fold copy lives next to the hole title helper");
 assert.match(motionSrc, /export function muteMvEngineFoldLines/);
 assert.equal(

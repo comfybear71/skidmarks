@@ -88,8 +88,11 @@ import {
   tallySongCuts,
 } from "@/lib/musicVideoSong";
 import { CutawayBeatPanel } from "@/components/mobile/CutawayBeatPanel";
+import { PlateHangLenControl } from "@/components/mobile/PlateLenSlider";
 import { requestSongCookStop } from "@/lib/songCutCook";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
+import type { MusicVideoTrackDraft } from "@/lib/musicVideoTrack";
+import type { ScratchSong } from "@/lib/scratchSongWindow";
 
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
   const file =
@@ -1102,6 +1105,8 @@ export function PlateReviewEditor({
               : undefined
           }
           songAdding={Boolean(openShotId && songAddFor === openShotId)}
+          scratchSong={job.scratchSong}
+          trackDraft={job.trackDraft}
           onSendStill={onSendStill}
           sendStillBusy={sendStillBusy}
           sendStillNote={sendStillNote}
@@ -2283,6 +2288,8 @@ function ShotLineEditor({
   onAddCast,
   onAddToSong,
   songAdding,
+  scratchSong,
+  trackDraft,
   onSendStill,
   sendStillBusy,
   sendStillNote,
@@ -2312,6 +2319,8 @@ function ShotLineEditor({
           onAddCast?: () => void;
           onAddToSong?: () => void;
           songAdding?: boolean;
+          scratchSong?: ScratchSong | null;
+          trackDraft?: MusicVideoTrackDraft | null;
           onSendStill?: (shotId: string) => Promise<void>;
           sendStillBusy?: boolean;
           sendStillNote?: string;
@@ -2554,6 +2563,14 @@ function ShotLineEditor({
                 <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
                   {songAdding ? "Adding…" : "Add"}
                 </MobilePrimaryButton>
+                <PlateHangLenControl
+                  jobId={jobId}
+                  shotId={shot.id}
+                  song={scratchSong}
+                  trackDraft={trackDraft}
+                  disabled={songAdding || sendStillBusy}
+                  onJobChange={onJobChange}
+                />
                 <PlateEngineButtons
                   jobId={jobId}
                   shotId={shot.id}
@@ -2613,6 +2630,14 @@ function ShotLineEditor({
         ) : null}
         {styleId === "music_video" ? (
           <>
+          <PlateHangLenControl
+            jobId={jobId}
+            shotId={shot.id}
+            song={scratchSong}
+            trackDraft={trackDraft}
+            disabled={songAdding || sendStillBusy}
+            onJobChange={onJobChange}
+          />
           <PlateEngineButtons
             jobId={jobId}
             shotId={shot.id}
