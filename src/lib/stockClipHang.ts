@@ -2,8 +2,8 @@ import fs from "fs";
 import { execFileSync } from "child_process";
 import { clipFileBasename } from "./mobilePlateClips";
 import { resolveFfmpeg } from "./mobileStitch";
-import { msToSec } from "./musicVideoTrack";
-import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
+import { hangOneClipOnWave, msToSec } from "./musicVideoTrack";
+import type { ScratchSong } from "./scratchSongWindow";
 
 /** Hang this cook on its own still — never stamp the same mp4 onto the next plate. */
 export function clipOwnsHangPlate(clipShotId: string, hangShotId: string): boolean {
@@ -15,8 +15,10 @@ export function clipOwnsHangPlate(clipShotId: string, hangShotId: string): boole
 }
 
 /**
- * Put a finished stock/BYO mp4 on the TRACK cut that already has this
- * shot's clock. Does not invent 15s rows when plateTimings is empty.
+ * Put a finished stock/BYO/Send mp4 on TRACK. First cook on an empty cut
+ * stamps that cut only. A second cook appends (`shotId~tail`) — never
+ * replaces clip 4 or clip 5's clipFile. Does not invent 15s rows when
+ * plateTimings is empty.
  */
 export function hangDoneClipOnTrack(opts: {
   song: ScratchSong | null | undefined;
@@ -26,34 +28,46 @@ export function hangDoneClipOnTrack(opts: {
   newCutId: () => string;
   /** Plate that already owns this mp4 in job.clips. Empty = stock / BYO hang. */
   ownerShotId?: string;
+  durationSec?: number;
 }): ScratchSong | null {
   if (!opts.song) return null;
   const shotId = (opts.shotId || "").trim();
   const clipFile = clipFileBasename(opts.clipFile);
   if (!shotId || !clipFile) return opts.song;
   if (!clipOwnsHangPlate(opts.ownerShotId || "", shotId)) return opts.song;
-  const alreadyOnOther = (opts.song.cuts || []).some((c) => {
-    const other = (c.shotId || "").trim();
-    return (
-      other &&
-      other !== shotId &&
-      c.status === "done" &&
-      clipFileBasename(c.clipFile || "") === clipFile
-    );
-  });
-  if (alreadyOnOther) return opts.song;
+  const cuts = opts.song.cuts || [];
+  if (cuts.some((c) => clipFileBasename(c.clipFile || "") === clipFile)) {
+    return opts.song;
+  }
 
-  const stampCut = (cut: ScratchSongCut): ScratchSongCut =>
-    (cut.shotId || "").trim() === shotId
-      ? { ...cut, clipFile, status: "done", error: "" }
-      : cut;
+  const onShot = cuts.filter((c) => (c.shotId || "").trim() === shotId);
+  const hasDone = onShot.some((c) => clipFileBasename(c.clipFile || ""));
+  if (hasDone) {
+    const hung = hangOneClipOnWave({
+      plateTimings: opts.song.plateTimings,
+      cuts,
+      shotId,
+      plateFile: opts.plateFile,
+      clipFile,
+      durationSec: opts.durationSec,
+      newCutId: opts.newCutId,
+    });
+    if (!hung) return opts.song;
+    return { ...opts.song, cuts: hung.cuts, plateTimings: hung.plateTimings };
+  }
 
-  const cuts = (opts.song.cuts || []).map(stampCut);
+  const empty = onShot.find((c) => !clipFileBasename(c.clipFile || ""));
+  if (empty) {
+    return {
+      ...opts.song,
+      cuts: cuts.map((c) =>
+        c.id === empty.id ? { ...c, clipFile, status: "done" as const, error: "" } : c,
+      ),
+    };
+  }
+
   const timing = (opts.song.plateTimings || []).find((p) => p.plateId === shotId);
   if (!timing) {
-    return { ...opts.song, cuts };
-  }
-  if (cuts.some((c) => (c.shotId || "").trim() === shotId)) {
     return { ...opts.song, cuts };
   }
   const startSec = msToSec(timing.startMs);

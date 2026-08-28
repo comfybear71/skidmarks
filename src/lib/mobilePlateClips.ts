@@ -47,6 +47,61 @@ export function humanOrderedClipName(opts: {
   return title ? `${n}_${who}_${title}.mp4` : `${n}_${who}.mp4`;
 }
 
+/** Every mp4 already on job.clips or song cuts — do not reuse these names. */
+export function takenClipFileNames(opts: {
+  clips?: Array<{ clipFile?: string; priorClipFiles?: string[] }>;
+  cuts?: Array<{ clipFile?: string }>;
+}): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const take = (raw?: string) => {
+    const file = clipFileBasename(raw || "");
+    if (!file || seen.has(file)) return;
+    seen.add(file);
+    out.push(file);
+  };
+  for (const clip of opts.clips || []) {
+    for (const file of stackedClipFiles(clip)) take(file);
+  }
+  for (const cut of opts.cuts || []) take(cut.clipFile);
+  return out;
+}
+
+/**
+ * Next `NN_Who_Title.mp4` that is not already on disk / CLIPS.
+ * Counting done cuts and adding one reused 05_ after a recook parked clip 4
+ * — the new video overwrote clip 5 and then sat in clip 4's slot.
+ */
+export function nextHumanClipName(opts: {
+  speaker: string;
+  title?: string;
+  taken: string[];
+}): string {
+  const used = new Set(opts.taken.map((f) => clipFileBasename(f)).filter(Boolean));
+  let max = 0;
+  for (const file of used) {
+    const m = /^(\d+)_/.exec(file);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  let index = Math.max(max, used.size) + 1;
+  for (let n = 0; n < 10_000; n++) {
+    const name = humanOrderedClipName({
+      index: index + n,
+      speaker: opts.speaker,
+      title: opts.title,
+    });
+    if (!used.has(name)) return name;
+  }
+  return humanOrderedClipName({ index, speaker: opts.speaker, title: opts.title });
+}
+
+/** Unique mp4s on the rail — CLIPS count must match thumbs. */
+export function uniqueClipFileCount(
+  clips: Array<{ clipFile?: string; priorClipFiles?: string[] }>,
+): number {
+  return takenClipFileNames({ clips }).length;
+}
+
 /** Always the mp4 basename — never a /tmp absolute path (those die across Vercel invokes). */
 export function clipFileBasename(clipFile: string): string {
   const raw = (clipFile || "").trim();
@@ -265,16 +320,20 @@ export function uniqueClipsByFile(
     seenBeat.add(clip.beatId);
     const files = stackedClipFiles(clip);
     if (!files.length) continue;
-    const file = files[files.length - 1]!;
-    const prev = best.get(file);
-    if (!prev) {
-      best.set(file, clip);
-      order.push(file);
-      continue;
+    // Every mp4 is its own CLIPS thumb. Keying only the latest file used
+    // to hide clip 4's 5s take when a recook reused clip 5's name.
+    for (const file of files) {
+      const row: MobileClipUnit = { ...clip, clipFile: file, priorClipFiles: [] };
+      const prev = best.get(file);
+      if (!prev) {
+        best.set(file, row);
+        order.push(file);
+        continue;
+      }
+      const clipHung = hung.has(`${file}::${(clip.shotId || "").trim()}`);
+      const prevHung = hung.has(`${file}::${(prev.shotId || "").trim()}`);
+      if (clipHung && !prevHung) best.set(file, row);
     }
-    const clipHung = hung.has(`${file}::${(clip.shotId || "").trim()}`);
-    const prevHung = hung.has(`${file}::${(prev.shotId || "").trim()}`);
-    if (clipHung && !prevHung) best.set(file, clip);
   }
   return order.map((file) => best.get(file)!);
 }

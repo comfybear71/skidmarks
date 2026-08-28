@@ -514,6 +514,7 @@ export async function POST(req: Request) {
                   plateFile:
                     (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim(),
                   clipFile: clipFileBasename(landed.clipFile),
+                  durationSec: landed.durationSec,
                   newCutId: () => newId("cut"),
                   ownerShotId: landed.shotId || "",
                 })
@@ -561,6 +562,7 @@ export async function POST(req: Request) {
                 plateFile:
                   (tick.job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim(),
                 clipFile: clipFileBasename(landed.clipFile),
+                durationSec: landed.durationSec,
                 newCutId: () => newId("cut"),
                 ownerShotId: landed.shotId || "",
               })

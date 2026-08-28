@@ -10,7 +10,7 @@ import {
   mobileCard,
 } from "./MobileUi";
 import { PLATE_TILE_PX, PlateClipThumbs, gatherClipsForStillsRail } from "./PlateClipThumbs";
-import { stackedClipFiles } from "@/lib/mobilePlateClips";
+import { stackedClipFiles, uniqueClipFileCount } from "@/lib/mobilePlateClips";
 import { orderedJobClips } from "@/lib/orderedJobClips";
 import { useMobileAssist } from "./useMobileAssist";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
@@ -355,7 +355,7 @@ export function PlateReviewEditor({
       clips,
       poster,
       posterByShotId,
-      thumbCount: clips.reduce((n, c) => n + stackedClipFiles(c).length, 0),
+      thumbCount: uniqueClipFileCount(clips),
     };
     // displayShot closes over story + shots; list those rather than the fn.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- displayShot is local
