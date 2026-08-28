@@ -61,7 +61,12 @@ export function takenClipFileNames(opts: {
     out.push(file);
   };
   for (const clip of opts.clips || []) {
-    for (const file of stackedClipFiles(clip)) take(file);
+    for (const file of stackedClipFiles({
+      clipFile: clip.clipFile || "",
+      priorClipFiles: clip.priorClipFiles,
+    })) {
+      take(file);
+    }
   }
   for (const cut of opts.cuts || []) take(cut.clipFile);
   return out;
@@ -83,16 +88,16 @@ export function nextHumanClipName(opts: {
     const m = /^(\d+)_/.exec(file);
     if (m) max = Math.max(max, Number(m[1]));
   }
-  let index = Math.max(max, used.size) + 1;
+  const start = Math.max(max, used.size) + 1;
   for (let n = 0; n < 10_000; n++) {
     const name = humanOrderedClipName({
-      index: index + n,
+      index: start + n,
       speaker: opts.speaker,
       title: opts.title,
     });
     if (!used.has(name)) return name;
   }
-  return humanOrderedClipName({ index, speaker: opts.speaker, title: opts.title });
+  return humanOrderedClipName({ index: start, speaker: opts.speaker, title: opts.title });
 }
 
 /** Unique mp4s on the rail — CLIPS count must match thumbs. */

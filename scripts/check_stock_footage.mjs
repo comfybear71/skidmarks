@@ -183,27 +183,23 @@ const fourThenFive = hangDoneClipOnTrack({
   durationSec: 21,
   newCutId: () => "c6",
 });
-assert.equal(
-  fourThenFive?.cuts.find((c) => c.id === "c4")?.clipFile,
-  "04_Jack_5s.mp4",
+assert(
+  fourThenFive?.cuts.find((c) => c.id === "c4")?.clipFile === "04_Jack_5s.mp4",
   "new cook must not overwrite clip 4",
 );
-assert.equal(
-  fourThenFive?.cuts.find((c) => c.id === "c5")?.clipFile,
-  "05_Jack.mp4",
+assert(
+  fourThenFive?.cuts.find((c) => c.id === "c5")?.clipFile === "05_Jack.mp4",
   "new cook must not overwrite clip 5",
 );
-assert.equal(
-  (fourThenFive?.cuts || []).filter((c) => c.clipFile === "06_Jack_21s.mp4").length,
-  1,
+assert(
+  (fourThenFive?.cuts || []).filter((c) => c.clipFile === "06_Jack_21s.mp4").length === 1,
   "new video is a new cut",
 );
-assert.equal(
-  (fourThenFive?.cuts || []).filter((c) => (c.clipFile || "").trim()).length,
-  6,
+assert(
+  (fourThenFive?.cuts || []).filter((c) => (c.clipFile || "").trim()).length === 6,
   "append — five kept plus the new mp4",
 );
-assert.ok(
+assert(
   (fourThenFive?.plateTimings || []).every((t) => t.plateId !== "jack4" || t.endMs === 30000),
   "clip 4's 5s bar stays 5s",
 );
