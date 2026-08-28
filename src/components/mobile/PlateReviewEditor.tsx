@@ -9,7 +9,7 @@ import {
   ShimmerText,
   mobileCard,
 } from "./MobileUi";
-import { PLATE_TILE_PX, PlateClipThumbs, clipsForStillsDesk, clipsUnderPlate } from "./PlateClipThumbs";
+import { PLATE_TILE_PX, PlateClipThumbs, gatherClipsForStillsRail, plateRailLabels } from "./PlateClipThumbs";
 import { stackedClipFiles } from "@/lib/mobilePlateClips";
 import { orderedJobClips } from "@/lib/orderedJobClips";
 import { useMobileAssist } from "./useMobileAssist";
@@ -312,36 +312,14 @@ export function PlateReviewEditor({
     return { ...fromStory, plateFile: "", plateTakes: [], beats };
   };
 
-  /** Full-bleed Clips rail under the plate strip — not trapped in a 160px column. */
+  /** Full-bleed Clips rail under Stills. Every cooked mp4 appends — not just
+   * the open still. TRACK wave stays stills (on/off); no new wave plate. */
   const plateClipRail = useMemo(() => {
-    const focus = (openShotId || "").trim();
-    const deskClips = clipsForStillsDesk(job);
-    const gather = (list: typeof shots) => {
-      const out: MobileClipUnit[] = [];
-      for (const s of list) {
-        const beatIds = displayShot(s.shotId)?.beats.map((b) => b.id) || [];
-        out.push(...clipsUnderPlate(s.shotId, beatIds, deskClips));
-      }
-      return out;
-    };
-    let clips = gather(focus ? shots.filter((s) => s.shotId === focus) : shots);
-    let focused = Boolean(focus && clips.length);
-    if (focus && !clips.length) {
-      clips = gather(shots);
-      focused = false;
-    }
-    const posterRow =
-      (focus ? shots.find((s) => s.shotId === focus) : null) ||
-      shots.find((s) => {
-        const beatIds = displayShot(s.shotId)?.beats.map((b) => b.id) || [];
-        return clipsUnderPlate(s.shotId, beatIds, deskClips).length > 0;
-      });
-    const plated = Boolean(posterRow?.plateFile && posterRow.plateFile !== "__error__");
-    const poster = plated
-      ? `/api/crash/gen/file?name=${encodeURIComponent(posterRow!.plateFile)}`
-      : posterRow
-        ? placeStillUrl(job, posterRow.sceneId)
-        : undefined;
+    const plates = shots.map((s) => ({
+      shotId: s.shotId,
+      beatIds: displayShot(s.shotId)?.beats.map((b) => b.id) || [],
+    }));
+    const clips = gatherClipsForStillsRail(job, plates);
     const posterByShotId: Record<string, string> = {};
     for (const s of shots) {
       if (s.plateFile && s.plateFile !== "__error__") {
@@ -351,16 +329,18 @@ export function PlateReviewEditor({
         if (place) posterByShotId[s.shotId] = place;
       }
     }
-    const focusIdx = focus ? shots.findIndex((s) => s.shotId === focus) : -1;
+    const first = clips.find((c) => (c.shotId || "").trim() && posterByShotId[c.shotId]);
+    const poster = first ? posterByShotId[first.shotId] : undefined;
     return {
       clips,
       poster,
       posterByShotId,
-      focusLabel: focused && focusIdx >= 0 ? `plate ${focusIdx + 1}` : "",
+      plateLabelByShotId: plateRailLabels(shots),
+      thumbCount: clips.reduce((n, c) => n + stackedClipFiles(c).length, 0),
     };
     // displayShot closes over story + shots; list those rather than the fn.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- displayShot is local
-  }, [openShotId, shots, story, job]);
+  }, [shots, story, job]);
 
   const zipClips = useMemo(() => orderedJobClips(job, story), [job, story]);
   const zipHref = zipClips.length
@@ -921,10 +901,10 @@ export function PlateReviewEditor({
       </DeskFold>
       )}
 
-      {!collapsed && zipClips.length ? (
+      {!collapsed && plateClipRail.thumbCount ? (
         <DeskFold
           label="Clips"
-          count={zipClips.length}
+          count={plateClipRail.thumbCount}
           open={clipsOpen}
           onToggle={() => setClipsOpen((v) => !v)}
         >
@@ -948,15 +928,13 @@ export function PlateReviewEditor({
             </div>
           ) : null}
           <div className="m-plate-clips-bleed">
-            {plateClipRail.focusLabel ? (
-              <span className="m-plate-clips-bleed-focus">{plateClipRail.focusLabel}</span>
-            ) : null}
             <div className="m-plate-clip-rail">
               <PlateClipThumbs
                 job={job}
                 clips={plateClipRail.clips}
                 poster={plateClipRail.poster}
                 posterByShotId={plateClipRail.posterByShotId}
+                plateLabelByShotId={plateClipRail.plateLabelByShotId}
                 preload
                 layout="strip"
                 removeDisabled={clipBusy}

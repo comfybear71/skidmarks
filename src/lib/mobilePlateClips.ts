@@ -122,6 +122,9 @@ export function clipsUnderPlate(
  * If we only look at job.clips, a hung mute clip hides the whole dropdown.
  * ✕ must park the song cut too (`planParkDeskClipTake`) or this list
  * draws the file again and the X looks dead.
+ *
+ * TRACK wave is stills (on/off). A cooked mp4 appends here — it is not
+ * a new wave plate.
  */
 export function clipsForStillsDesk(job: {
   clips?: MobileClipUnit[];
@@ -157,6 +160,29 @@ export function clipsForStillsDesk(job: {
     });
   }
   return clips;
+}
+
+/** Every plate's mp4s, left to right — do not filter to the open still. */
+export function gatherClipsForStillsRail(
+  job: Parameters<typeof clipsForStillsDesk>[0],
+  plates: { shotId: string; beatIds?: string[] }[],
+): MobileClipUnit[] {
+  const deskClips = clipsForStillsDesk(job);
+  const out: MobileClipUnit[] = [];
+  for (const p of plates) {
+    out.push(...clipsUnderPlate(p.shotId, p.beatIds || [], deskClips));
+  }
+  return out;
+}
+
+/** STILLS order — plate 1, plate 2, … on each CLIPS thumb. */
+export function plateRailLabels(plates: { shotId: string }[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  plates.forEach((p, i) => {
+    const id = (p.shotId || "").trim();
+    if (id) out[id] = `plate ${i + 1}`;
+  });
+  return out;
 }
 
 /** Drop one take from a clip row — newest remaining take becomes clipFile. */
