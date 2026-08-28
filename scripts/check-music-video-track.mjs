@@ -372,3 +372,27 @@ assert.match(motion, /pickSongSendMotionBody/);
   });
   assert.equal(hung?.id, "cut_mtylzdo", "Send this still, not a later leftover row");
 }
+
+assert.match(trackUi, /m-track-engines/, "engine row sits on the selected still");
+assert.match(trackUi, />\s*LTX\s*</, "LTX is on the selected still");
+assert.match(trackUi, />\s*H3\s*</, "H3 button is on the selected still");
+assert.match(trackUi, />\s*Siray\s*</, "Siray button is on the selected still");
+assert.match(trackUi, />\s*Free\s*</, "Free / stock is on the selected still");
+assert.match(trackUi, /m-track-motion-slot/, "[ ] motion slot is what he edits");
+assert.match(trackUi, /MUTE_MV_SLOT_PLACEHOLDER/, "slot placeholder is stand up, car drives off");
+assert.match(trackUi, /clipEngine/, "Send can pick LTX / H3 / Siray");
+assert.doesNotMatch(trackUi, /Seedance/, "do not fake a Seedance button");
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /action === "clip-poll"/,
+  "H3 / Siray poll on the song route",
+);
+assert.match(
+  readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8"),
+  /buildMuteMvMotionLock/,
+);
+assert.match(
+  readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8"),
+  /styleId === "music_video" \? null/,
+  "+ another line / + cutaway stay off music_video only",
+);

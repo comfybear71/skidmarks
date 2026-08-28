@@ -2467,19 +2467,23 @@ function ShotLineEditor({
             {songAdding ? "Adding…" : "Add"}
           </MobilePrimaryButton>
         ) : null}
-        <AnotherLineButton
-          jobId={jobId}
-          shotId={shot.id}
-          speaker={speakingBeats[0]?.speaker || ""}
-          onAdded={(beat) => onLineAdded?.(beat)}
-        />
-        <AnotherLineButton
-          jobId={jobId}
-          shotId={shot.id}
-          speaker={speakingBeats[0]?.speaker || ""}
-          cutaway
-          onAdded={(beat) => onLineAdded?.(beat)}
-        />
+        {styleId === "music_video" ? null : (
+          <>
+            <AnotherLineButton
+              jobId={jobId}
+              shotId={shot.id}
+              speaker={speakingBeats[0]?.speaker || ""}
+              onAdded={(beat) => onLineAdded?.(beat)}
+            />
+            <AnotherLineButton
+              jobId={jobId}
+              shotId={shot.id}
+              speaker={speakingBeats[0]?.speaker || ""}
+              cutaway
+              onAdded={(beat) => onLineAdded?.(beat)}
+            />
+          </>
+        )}
         </div>
       )}
     </div>
