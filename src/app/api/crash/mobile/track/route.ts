@@ -72,6 +72,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   move-plate — swap this still with the earlier or later slot. No cook.
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
+ *   set-plate-timings — persist a drag-handle stretch. Other stills keep their times. No cook.
  *   remove-plate-timing — take one still off the wave and song list. Park clip if any. Never delete. Do not append.
  */
 /** Cue rows come off the phone — keep only well-formed, ordered pins. */
@@ -326,6 +327,28 @@ export async function POST(req: Request) {
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated, stockLook: look });
+    }
+
+    if (action === "set-plate-timings") {
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
+      }
+      const plateTimings = cleanPlateTimings(body.plateTimings);
+      if (!plateTimings) {
+        return NextResponse.json({ error: "Need plate timings." }, { status: 400 });
+      }
+      let cuts = song.cuts || [];
+      for (const timing of plateTimings) {
+        const plateFile = (job.shots.find((s) => s.shotId === timing.plateId)?.plateFile || "").trim();
+        if (!plateFile || plateFile === "__error__") continue;
+        cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, plateTimings, cuts },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
     }
 
     if (action === "remove-plate-timing") {

@@ -23,6 +23,9 @@ import {
   withoutLyricCue,
   plateTimingForShot,
   cutForHungPlate,
+  resolvePlateTimings,
+  stretchPlateEdge,
+  hitPlateEdge,
   importSectionMarkersFromLyrics,
   lyricCuesFromSectionSheet,
   meaningfulLyricTags,
@@ -466,23 +469,34 @@ function WaveformCanvas({
   playheadMs,
   markers,
   plateTimings,
+  selectedPlateId,
   rangeStartMs,
   rangeEndMs,
   lyricCues,
   onSeek,
   onSelectRange,
+  onStretchLive,
+  onStretchCommit,
 }: {
   peaks: number[];
   durationMs: number;
   playheadMs: number;
   markers: { id: string; label: string; startMs: number; endMs: number }[];
   plateTimings: WavePlateBlock[];
+  selectedPlateId?: string;
   /** The drag you are holding — drawn so you can see what Add to timeline will take. */
   rangeStartMs: number;
   rangeEndMs: number;
   lyricCues: LyricCue[];
   onSeek: (ms: number) => void;
   onSelectRange: (startMs: number, endMs: number) => void;
+  onStretchLive?: (
+    timings: PlateTiming[] | null,
+    clockMs: number,
+    label: string,
+    plateId?: string,
+  ) => void;
+  onStretchCommit?: (timings: PlateTiming[]) => void;
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const drag = useRef<{
@@ -491,7 +505,13 @@ function WaveformCanvas({
     moved: boolean;
     pointerType: string;
   } | null>(null);
+  const stretch = useRef<{
+    plateId: string;
+    edge: "start" | "end";
+    base: WavePlateBlock[];
+  } | null>(null);
   const [cssWidth, setCssWidth] = useState(0);
+  const [hoverEdge, setHoverEdge] = useState(false);
 
   // A fixed-width canvas stretched by CSS is why this looked soft. Draw at the
   // element's real size times the device ratio, and follow it when it changes.
@@ -608,6 +628,12 @@ function WaveformCanvas({
         ctx.fillText(p.label, x0 + 5, laneY + 3);
         ctx.restore();
       }
+      // Visible drag handles — this is how length is set, not a typed box.
+      const selected = p.plateId === selectedPlateId;
+      const grip = selected ? 5 : 3;
+      ctx.fillStyle = selected ? "#fff" : "rgba(255,255,255,0.72)";
+      ctx.fillRect(x0, laneY, grip, laneBoxH);
+      ctx.fillRect(x0 + Math.max(2, bw - grip), laneY, grip, laneBoxH);
     }
 
     // Minute and half-minute ticks, so a 4-minute song reads at a glance.
@@ -646,6 +672,7 @@ function WaveformCanvas({
     rangeEndMs,
     lyricCues,
     cssWidth,
+    selectedPlateId,
   ]);
 
   function msFromEvent(clientX: number): number {
@@ -656,12 +683,63 @@ function WaveformCanvas({
     return Math.round((x / rect.width) * durationMs);
   }
 
+  function xyFromEvent(e: { clientX: number; clientY: number }) {
+    const canvas = ref.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(rect.width, e.clientX - rect.left)),
+      y: Math.max(0, Math.min(rect.height, e.clientY - rect.top)),
+    };
+  }
+
+  function edgeAt(e: { clientX: number; clientY: number }) {
+    const canvas = ref.current;
+    if (!canvas || !durationMs) return null;
+    const { x, y } = xyFromEvent(e);
+    return hitPlateEdge({
+      timings: plateTimings,
+      durationMs,
+      width: canvas.clientWidth || 0,
+      height: canvas.clientHeight || TRACK_WAVE_HEIGHT,
+      x,
+      y,
+    });
+  }
+
+  function applyStretch(ms: number) {
+    const held = stretch.current;
+    if (!held) return null;
+    const next = stretchPlateEdge(held.base, held.plateId, held.edge, ms, durationMs);
+    const row = next.find((t) => t.plateId === held.plateId);
+    const clockMs = held.edge === "start" ? row?.startMs ?? ms : row?.endMs ?? ms;
+    const label = held.base.find((t) => t.plateId === held.plateId)?.label || "";
+    onStretchLive?.(next, clockMs, label, held.plateId);
+    onSeek(clockMs);
+    return next;
+  }
+
   return (
     <canvas
       ref={ref}
       className="m-track-wave"
-      style={{ height: `${TRACK_WAVE_HEIGHT}px` }}
+      style={{
+        height: `${TRACK_WAVE_HEIGHT}px`,
+        cursor: hoverEdge || stretch.current ? "ew-resize" : undefined,
+      }}
       onPointerDown={(e) => {
+        const hit = edgeAt(e);
+        if (hit && onStretchCommit) {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          stretch.current = {
+            plateId: hit.plateId,
+            edge: hit.edge,
+            base: plateTimings.map((t) => ({ ...t })),
+          };
+          drag.current = null;
+          applyStretch(msFromEvent(e.clientX));
+          return;
+        }
         const ms = msFromEvent(e.clientX);
         drag.current = {
           startMs: ms,
@@ -676,6 +754,14 @@ function WaveformCanvas({
         }
       }}
       onPointerMove={(e) => {
+        const hit = stretch.current
+          ? { plateId: stretch.current.plateId, edge: stretch.current.edge }
+          : edgeAt(e);
+        setHoverEdge(Boolean(hit));
+        if (stretch.current) {
+          applyStretch(msFromEvent(e.clientX));
+          return;
+        }
         if (!drag.current) return;
         if (drag.current.pointerType === "touch") {
           if (Math.abs(e.clientX - drag.current.startX) > 8) drag.current.moved = true;
@@ -689,6 +775,13 @@ function WaveformCanvas({
         onSeek(ms);
       }}
       onPointerUp={(e) => {
+        if (stretch.current) {
+          const next = applyStretch(msFromEvent(e.clientX));
+          stretch.current = null;
+          if (next) onStretchCommit?.(next);
+          else onStretchLive?.(null, 0, "");
+          return;
+        }
         const held = drag.current;
         drag.current = null;
         if (!held) return;
@@ -703,6 +796,10 @@ function WaveformCanvas({
       }}
       onPointerCancel={() => {
         drag.current = null;
+        if (stretch.current) {
+          stretch.current = null;
+          onStretchLive?.(null, 0, "");
+        }
       }}
     />
   );
@@ -778,6 +875,8 @@ export function MusicVideoTrack({
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
   const [rangeChosen, setRangeChosen] = useState(false);
+  const [stretchTimings, setStretchTimings] = useState<PlateTiming[] | null>(null);
+  const [stretchReadout, setStretchReadout] = useState("");
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const jobRef = useRef(job);
@@ -851,18 +950,23 @@ export function MusicVideoTrack({
       const title =
         story?.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === row.shotId)?.title ||
         `Plate ${i + 1}`;
-      const timing = plateTimingForShot(song, job.trackDraft, row.shotId);
+      const live = stretchTimings?.find((t) => t.plateId === row.shotId) || null;
+      const timing = live || plateTimingForShot(song, job.trackDraft, row.shotId);
       return { ...row, title, timing };
     });
-  }, [plated, story, song, job.trackDraft]);
+  }, [plated, story, song, job.trackDraft, stretchTimings]);
 
   const savedPlateBlocks = sortPlateTimings(
-    song?.plateTimings || job.trackDraft?.plateTimings || [],
+    resolvePlateTimings(song, job.trackDraft),
   ).map((t) => {
     const row = plateRows.find((p) => p.shotId === t.plateId);
     return { ...t, label: row?.title || t.plateId };
   });
-  const plateBlocks = savedPlateBlocks;
+  const plateBlocks: WavePlateBlock[] = (stretchTimings || savedPlateBlocks).map((t) => {
+    const row = plateRows.find((p) => p.shotId === t.plateId);
+    const saved = savedPlateBlocks.find((b) => b.plateId === t.plateId);
+    return { ...t, label: row?.title || saved?.label || t.plateId };
+  });
   const filmItems = useMemo(() => {
     const hungIds = new Set(plateBlocks.map((b) => b.plateId));
     const hung = plateBlocks.map((block) => {
@@ -888,6 +992,16 @@ export function MusicVideoTrack({
   }, [plateBlocks, plateRows]);
   const picked =
     filmItems.find((item) => item.shotId === pickedId) || filmItems[0] || null;
+  const pickedOnSong = Boolean(
+    picked &&
+      (picked.onSong ||
+        picked.timing ||
+        plateBlocks.some((b) => b.plateId === picked.shotId)),
+  );
+  const pickedClock =
+    picked?.timing ||
+    plateBlocks.find((b) => b.plateId === picked?.shotId) ||
+    null;
   const pickedStory = useMemo(() => {
     const id = (picked?.shotId || "").trim();
     if (!id || !story) return null;
@@ -1309,7 +1423,7 @@ export function MusicVideoTrack({
     const durationSec =
       timing && timing.endMs > timing.startMs
         ? msToSec(timing.endMs - timing.startMs)
-        : Number(lengthDraft) || undefined;
+        : undefined;
     askSongCookNotifyPermission();
     setBusy(`send-${cutId}`);
     paintPlateSend(plateCookNote(shotId));
@@ -1334,22 +1448,21 @@ export function MusicVideoTrack({
       setNote("Drop the song first.");
       return;
     }
-    const typed = Number(lengthDraft);
-    const durSec = Number.isFinite(typed) && typed > 0 ? typed : 15;
-    const typedStart = Number(startDraft);
+    const existing = plateTimingForShot(song, job.trackDraft, shotId);
+    if (existing && existing.endMs > existing.startMs) {
+      setPickedId(shotId);
+      setNote("Already on the song. Pull the handle, then Send.");
+      return;
+    }
+    const clock = resolvePlateTimings(song, job.trackDraft);
+    const next = nextPlateHangWindow(clock);
     const win =
-      Number.isFinite(typedStart) && typedStart >= 0
-        ? { startMs: secToMs(typedStart), endMs: secToMs(typedStart) + secToMs(durSec) }
-        : rangeChosen && rangeEndMs > rangeStartMs
-          ? { startMs: rangeStartMs, endMs: rangeEndMs }
-          : {
-              startMs: nextPlateHangWindow(song.plateTimings).startMs,
-              endMs:
-                nextPlateHangWindow(song.plateTimings).startMs + secToMs(durSec),
-            };
-    await schedulePlate(shotId, win.startMs, win.endMs, plateBlocks.length);
+      rangeChosen && rangeEndMs > rangeStartMs
+        ? { startMs: rangeStartMs, endMs: rangeEndMs }
+        : next;
+    await schedulePlate(shotId, win.startMs, win.endMs, clock.length);
     setPickedId(shotId);
-    setNote("On the song. Send when you like it.");
+    setNote("On the song. Pull the handle, then Send.");
   }
 
   async function sendOneCutBody(cutId: string, shotId: string, targetBeatId: string) {
@@ -1388,23 +1501,29 @@ export function MusicVideoTrack({
   async function sendPlate(shotId: string) {
     setPickedId(shotId);
     const targetBeatId = beatIdForShot(shotId);
-    if (!hungShotIds().has(shotId.trim())) {
-      await songPost("add-plate", { shotId });
+    const timingNow = () =>
+      plateTimingForShot(
+        jobRef.current.scratchSong,
+        jobRef.current.trackDraft,
+        shotId,
+      );
+    // Hang uses the wave clock. Do not add-plate a fresh 15s because he cooked.
+    if (!timingNow()) {
+      await addPlateToTimeline(shotId);
     }
     const hungCut = () =>
       cutForHungPlate({
         cuts: jobRef.current.scratchSong?.cuts,
         shotId,
-        timing: plateTimingForShot(
-          jobRef.current.scratchSong,
-          jobRef.current.trackDraft,
-          shotId,
-        ),
+        timing: timingNow(),
       });
     let cut = hungCut();
     if (!cut?.id) {
-      await addPlateToTimeline(shotId);
-      cut = hungCut();
+      const timing = timingNow();
+      if (timing) {
+        await schedulePlate(shotId, timing.startMs, timing.endMs, timing.sortIndex);
+        cut = hungCut();
+      }
     }
     if (!cut?.id) {
       setNote("Add this still to the song first, then Send.");
@@ -1611,6 +1730,35 @@ export function MusicVideoTrack({
     }
   }
 
+  async function saveStretchedBoxes(next: PlateTiming[]) {
+    if (!song?.fileName) {
+      setNote("Drop the song first.");
+      setStretchTimings(null);
+      setStretchReadout("");
+      return;
+    }
+    setBusy("stretch");
+    setNote("");
+    try {
+      const updated = await trackAction("set-plate-timings", {
+        jobId: job.id,
+        plateTimings: next.map(({ plateId, startMs, endMs, sortIndex }) => ({
+          plateId,
+          startMs,
+          endMs,
+          sortIndex,
+        })),
+      });
+      if (updated) onJobChange(updated);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't stretch that bar");
+    } finally {
+      setStretchTimings(null);
+      setStretchReadout("");
+      setBusy("");
+    }
+  }
+
   async function setPickedLength() {
     if (!picked?.shotId) {
       setNote("Tap a still first.");
@@ -1804,6 +1952,7 @@ export function MusicVideoTrack({
               playheadMs={playheadMs}
               markers={sortedMarkers}
               plateTimings={plateBlocks}
+              selectedPlateId={picked?.shotId || ""}
               rangeStartMs={rangeStartMs}
               rangeEndMs={rangeEndMs}
               lyricCues={lyricCues}
@@ -1816,12 +1965,29 @@ export function MusicVideoTrack({
                 setRangeEndMs(endMs);
                 setRangeChosen(true);
               }}
+              onStretchLive={(timings, clockMs, label, plateId) => {
+                setStretchTimings(timings);
+                if (plateId) setPickedId(plateId);
+                setStretchReadout(
+                  timings && label
+                    ? `${label} · ${formatTrackClockPrecise(clockMs)}`
+                    : "",
+                );
+              }}
+              onStretchCommit={(timings) => {
+                void saveStretchedBoxes(timings);
+              }}
             />
           ) : (
             <div className="m-track-wave-placeholder">
               {busy === "peaks" ? "Reading waveform…" : "Waveform…"}
             </div>
           )}
+          {plateBlocks.length ? (
+            <p className="m-track-stretch-hint">
+              {stretchReadout || "Pull a handle on the bar to lengthen or shorten."}
+            </p>
+          ) : null}
 
           {/* Same order and widths as the coloured bars on the wave.
               Compact still shows the rail so hung clips keep their own thumbs.
@@ -1883,12 +2049,12 @@ export function MusicVideoTrack({
             <div className="m-track-pick">
               <div className="m-track-pick-name">{picked.title}</div>
               <div className="m-track-pick-clock">
-                {picked.timing
-                  ? `${formatTrackClockPrecise(picked.timing.startMs)} – ${formatTrackClockPrecise(picked.timing.endMs)}`
+                {pickedOnSong && pickedClock
+                  ? `${formatTrackClockPrecise(pickedClock.startMs)} – ${formatTrackClockPrecise(pickedClock.endMs)}`
                   : "Not on the song yet"}
               </div>
               <div className="m-track-pick-tools">
-                {picked.onSong || picked.timing ? (
+                {pickedOnSong ? (
                   <>
                     <button
                       type="button"
