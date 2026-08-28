@@ -11,11 +11,14 @@ export function ClipFrameThumb({
   stillSrc,
   className,
   alt = "",
+  onDurationSec,
 }: {
   clipSrc?: string;
   stillSrc?: string;
   className?: string;
   alt?: string;
+  /** Real mp4 length once metadata lands — CLIPS stamp, not the wave start. */
+  onDurationSec?: (sec: number) => void;
 }) {
   const clip = (clipSrc || "").trim();
   const still = (stillSrc || "").trim();
@@ -47,6 +50,7 @@ export function ClipFrameThumb({
             if (v.currentTime > 0) return;
             try {
               const dur = Number.isFinite(v.duration) ? v.duration : 0;
+              if (dur > 0 && dur < 24 * 3600) onDurationSec?.(dur);
               v.currentTime = dur > 0.4 ? 0.35 : 0.05;
             } catch {
               setFrameReady(true);
