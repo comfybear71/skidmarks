@@ -742,6 +742,42 @@ export function hangOneClipOnWave(opts: {
   };
 }
 
+/**
+ * Hang each leftover mp4 in order. Same still, second file gets its own
+ * clock after the last real bar. Already-hung files stay put. No cook.
+ */
+export function hangDoneClipsOnWave(opts: {
+  plateTimings?: PlateTiming[];
+  cuts: ScratchSongCut[];
+  rows: Array<{
+    shotId: string;
+    plateFile: string;
+    clipFile: string;
+    durationSec?: number;
+  }>;
+  newCutId: () => string;
+}): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } {
+  let plateTimings = sortPlateTimings(opts.plateTimings || []).filter(
+    (t) => !isLeftoverPlateHang(t),
+  );
+  let cuts = opts.cuts;
+  for (const row of opts.rows) {
+    const hung = hangOneClipOnWave({
+      plateTimings,
+      cuts,
+      shotId: row.shotId,
+      plateFile: row.plateFile,
+      clipFile: row.clipFile,
+      durationSec: row.durationSec,
+      newCutId: opts.newCutId,
+    });
+    if (!hung) continue;
+    plateTimings = hung.plateTimings;
+    cuts = hung.cuts;
+  }
+  return { plateTimings, cuts };
+}
+
 export type UnhungDoneClip = {
   shotId: string;
   clipFile: string;
