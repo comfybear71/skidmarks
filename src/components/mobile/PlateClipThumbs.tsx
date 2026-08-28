@@ -3,7 +3,14 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { MobileClipUnit } from "@/lib/mobileGenJob";
-import { mobileClipSrc, stackedClipFiles, stableClipTakeLabel } from "@/lib/mobilePlateClips";
+import {
+  clipFileBasename,
+  clipHangStartMs,
+  clipTakeDurationSec,
+  formatClipTakeStamp,
+  mobileClipSrc,
+  stackedClipFiles,
+} from "@/lib/mobilePlateClips";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 
 export {
@@ -23,7 +30,8 @@ export const PLATE_TILE_PX = 160;
  * across the full /m Clips bleed (and Scratch pad). New mp4s append.
  * Default stack kept for callers that want it.
  * Labels are clip 1, clip 2, clip 3 in hang / cook order — never story plate 8.
- * Clock is plateTimings (0:00 / 0:15 / 0:30) or "off". Never a filename tail.
+ * Stamp is mp4 length (`16s` / `5s`), with wave start only beside it
+ * (`0:15 · 5s`). Never start-only — that read as a 15s file. Never a filename tail.
  * Every Generate take stays. Empty pending slots stay hidden.
  * Play opens a body portal — native controls inside the overflow rail
  * sit under the pad on iPhone.
@@ -45,7 +53,7 @@ export function PlateClipThumbs({
     styleId: string;
     folderName: string;
     scratchSong?: {
-      cuts?: { clipFile?: string; shotId?: string }[];
+      cuts?: { clipFile?: string; shotId?: string; durationSec?: number }[];
       plateTimings?: { plateId: string; startMs: number; endMs: number; sortIndex: number }[];
     } | null;
     trackDraft?: {
@@ -75,7 +83,8 @@ export function PlateClipThumbs({
     beatId: string;
     shotId: string;
     poster?: string;
-    takeLabel: string;
+    startMs: number | null;
+    durationSec: number | null;
     preload: boolean;
   }[] = [];
   clips.forEach((clip, i) => {
@@ -84,18 +93,25 @@ export function PlateClipThumbs({
     stacked.forEach((file, n) => {
       if (seenFile.has(file)) return;
       seenFile.add(file);
+      const clock = {
+        fileName: file,
+        shotId: clip.shotId,
+        durationSec:
+          file === clipFileBasename(clip.clipFile || "") ? clip.durationSec : undefined,
+        songCuts,
+        plateTimings,
+      };
       files.push({
         key: `${clip.beatId}-${file}`,
         file,
         beatId: clip.beatId,
         shotId: (clip.shotId || "").trim(),
         poster: shotPoster,
-        takeLabel: stableClipTakeLabel({
-          fileName: file,
-          shotId: clip.shotId,
-          songCuts,
-          plateTimings,
-        }),
+        startMs: clipHangStartMs(
+          { shotId: clip.shotId, clipFile: file, priorClipFiles: [] },
+          { cuts: songCuts, plateTimings },
+        ),
+        durationSec: clipTakeDurationSec(clock),
         preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
       });
     });
@@ -117,7 +133,8 @@ export function PlateClipThumbs({
           <ClipPlayer
             src={mobileClipSrc(job, row.file)}
             poster={row.poster}
-            takeLabel={row.takeLabel}
+            startMs={row.startMs}
+            durationSec={row.durationSec}
             onRemove={
               onRemoveTake
                 ? () => onRemoveTake({ beatId: row.beatId, fileName: row.file })
@@ -126,7 +143,7 @@ export function PlateClipThumbs({
             removeDisabled={removeDisabled}
           />
           <span className="m-plate-clip-plate">{`clip ${i + 1}`}</span>
-          {onHangClip && row.takeLabel === "off" && row.shotId ? (
+          {onHangClip && row.startMs == null && row.shotId ? (
             <button
               type="button"
               className="m-plate-clip-hang"
@@ -158,23 +175,31 @@ const frame: CSSProperties = {
 function ClipPlayer({
   src,
   poster,
-  takeLabel,
+  startMs,
+  durationSec,
   onRemove,
   removeDisabled,
 }: {
   src: string;
   poster?: string;
   preload?: boolean;
-  takeLabel?: string;
+  startMs: number | null;
+  durationSec: number | null;
   onRemove?: () => void;
   removeDisabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [fileSec, setFileSec] = useState<number | null>(null);
+  const takeLabel = formatClipTakeStamp(startMs, fileSec ?? durationSec);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setFileSec(null);
+  }, [src]);
 
   useEffect(() => {
     if (!open) return;
@@ -238,7 +263,11 @@ function ClipPlayer({
             cursor: "zoom-in",
           }}
         >
-          <ClipFrameThumb clipSrc={src} stillSrc={poster} />
+          <ClipFrameThumb
+            clipSrc={src}
+            stillSrc={poster}
+            onDurationSec={(sec) => setFileSec(sec)}
+          />
         </button>
         <button type="button" className="scratch-clip-play" aria-label="Play clip" onClick={() => setOpen(true)}>
           ▶
