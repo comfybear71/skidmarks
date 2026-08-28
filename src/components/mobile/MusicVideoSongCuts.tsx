@@ -47,6 +47,7 @@ import {
   stockLookIsOn,
   type StockLook,
 } from "@/lib/stockLook";
+import { muteMvEngineFoldLines, muteMvEngineFoldSummary } from "@/lib/mobileImageMotion";
 
 function SwipeDropRow({
   children,
@@ -540,6 +541,12 @@ export function MusicVideoSongCuts({
           bears, anything Mixkit / Pexels still has on a Free license. Colour and
           type ride every Support search. Hero / LTX stay off this path.
         </p>
+        <div className="m-free-look-h3">
+          <p className="m-free-look-h3-summary">{muteMvEngineFoldSummary("h3")}</p>
+          {muteMvEngineFoldLines("h3").map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
         <label className="m-free-look-field">
           Theme
           <input

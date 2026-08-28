@@ -295,6 +295,22 @@ assert.match(
   "Free look starts collapsed",
 );
 assert.match(songUi, /set-stock-look/, "Free look still saves through the track action");
+assert.match(
+  songUi,
+  /muteMvEngineFoldSummary\("h3"\)/,
+  "open Free look shows the H3 one-liner",
+);
+assert.match(
+  songUi,
+  /muteMvEngineFoldLines\("h3"\)/,
+  "open Free look shows the H3 desk facts",
+);
+assert.match(songUi, /m-free-look-field>\s*Theme\s*<input/, "Theme stays on Free look");
+assert.match(songUi, /m-free-look-field>\s*Colour\s*<input/, "Colour stays on Free look");
+assert.match(songUi, /m-free-look-field>\s*Type\s*<input/, "Type stays on Free look");
+assert.match(songUi, /Save look/, "Save look stays on Free look");
+assert.match(songUi, /m-free-look-h3/, "H3 material sits in the open Free look fold");
+assert.doesNotMatch(songUi, /\bHang\b/, "Free look does not grow a Hang button");
 assert.ok(
   songUi.indexOf('label="Song list"') < songUi.indexOf('label="Free look"'),
   "Free look is under the Song list fold",

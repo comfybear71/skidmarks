@@ -1178,6 +1178,25 @@ body {
   margin-top: 10px;
 }
 
+.m-free-look-h3 {
+  margin: 10px 0 2px;
+}
+
+.m-free-look-h3-summary {
+  margin: 0 0 6px;
+  color: var(--acid);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.m-free-look-h3 p {
+  margin: 0 0 4px;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .m-track-section-clock {
   margin-left: auto;
   color: var(--acid);
