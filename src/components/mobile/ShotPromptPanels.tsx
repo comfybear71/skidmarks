@@ -6,6 +6,7 @@ import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scra
 import {
   LTX_LIP_SYNC_LEAD,
   MUTE_MV_SLOT_PLACEHOLDER,
+  muteMvMotionLabel,
   type MuteMvEngine,
   type MuteMvMotionLock,
 } from "@/lib/mobileImageMotion";
@@ -231,7 +232,7 @@ export function MuteMvMotionHole({
   return (
     <div className="m-plate-motion-hole" data-engine={engine}>
       <div className="m-plate-motion-label">
-        {engine === "h3" ? "H3 Image motion" : "LTX Image motion"}
+        {muteMvMotionLabel(engine)}
       </div>
       <p className="m-plate-motion-lock">{motionLock.lead}</p>
       <label className="m-plate-motion-slot">

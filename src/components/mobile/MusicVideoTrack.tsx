@@ -72,11 +72,10 @@ import {
   buildMuteMvMotionLock,
   composeMuteMvMotion,
   extractMuteMvMotionSlot,
-  readMvClipEngine,
-  readMvEngine,
   readMvMotionSlot,
   readMvMuteAction,
   readMvNobodyInShot,
+  resolveMvSendEngine,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
 import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
@@ -1587,8 +1586,11 @@ export function MusicVideoTrack({
     try {
       await persistMotionFor(shotId);
       const useH3 =
-        (targetBeatId && readMvEngine(job.id, targetBeatId) === "h3") ||
-        readMvClipEngine(job.id, shotId) === "h3";
+        resolveMvSendEngine({
+          jobId: job.id,
+          shotId,
+          beatId: targetBeatId,
+        }) === "h3";
       if (useH3) {
         await sendI2v(cut.id, shotId, targetBeatId);
         return;

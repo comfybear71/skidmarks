@@ -458,8 +458,12 @@ assert.match(editor, /MuteMvMotionHole/, "LTX / H3 open the 90% lock + [ ] hole"
 assert.match(editor, /setEnginePromptOpen\(true\)/, "tap LTX or H3 opens the motion prompt");
 assert.match(editor, /onOpen=\{\(next\) =>/, "LTX / H3 are openers, not a dead highlight");
 assert.match(panels, /export function MuteMvMotionHole/, "one hole for LTX and H3");
-assert.match(panels, /H3 Image motion/, "H3 opens H3 motion");
-assert.match(panels, /LTX Image motion/, "LTX opens LTX motion");
+assert.match(panels, /muteMvMotionLabel\(engine\)/, "hole title follows LTX vs H3");
+assert.doesNotMatch(
+  panels,
+  /m-plate-motion-label">\s*LTX Image motion/,
+  "hole title is not a hardcoded LTX IMAGE MOTION",
+);
 assert.match(panels, /m-plate-motion-slot/, "[ ] hole is the only edit");
 assert.match(panels, /MUTE_MV_SLOT_PLACEHOLDER/, "hole placeholder is stand up, car drives off");
 assert.match(editor, /writeMvMotionSlot/, "plate [ ] keeps the slot when he switches engine");
@@ -496,8 +500,10 @@ assert.match(editor, /writeMvEngine/, "tap stores the engine for the next Send")
 assert.doesNotMatch(editor, /pickEngine/, "do not put LTX / H3 on CLIPS thumbs");
 assert.doesNotMatch(thumbs, /pickEngine/, "CLIPS / plate-1 thumb is not the engine row");
 assert.doesNotMatch(thumbs, /m-plate-clip-engine/, "CLIPS / plate-1 thumb is not the engine row");
-assert.match(trackUi, /readMvEngine/, "the one Send reads the plate LTX / H3 pick");
-assert.match(trackUi, /readMvClipEngine/, "Send also reads the shot engine pick");
+assert.match(trackUi, /resolveMvSendEngine/, "the one Send reads the same LTX / H3 pick as the hole");
+assert.match(editor, /resolveMvSendEngine/, "hole title uses the live LTX / H3 pick");
+assert.match(editor, /engine=\{mvEngine\}/, "H3 highlight and hole title share one engine");
+assert.doesNotMatch(editor, /engine=\{mvEngine \|\| "ltx"\}/, "do not hard-fallback the hole to LTX");
 assert.match(trackUi, /onBindSendStill/, "plate row Send is the same cook");
 assert.match(trackUi, /clipEngine/, "Send can still run LTX / H3");
 assert.doesNotMatch(trackUi, /Seedance/, "do not fake a Seedance button");
