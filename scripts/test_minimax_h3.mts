@@ -15,6 +15,7 @@ import {
   MINIMAX_H3_OVER_MAX_NOTE,
   refuseMinimaxH3OverMax,
   snapMinimaxH3DurationSec,
+  clampMinimaxH3HangSec,
 } from "../src/lib/minimaxH3.ts";
 
 assert.equal(isMinimaxH3ClipEngineToken("h3"), true);
@@ -37,7 +38,16 @@ assert.equal(isMinimaxH3ShortSec(3), false);
 
 assert.equal(snapMinimaxH3DurationSec(5), 5);
 assert.equal(snapMinimaxH3DurationSec(8), 8);
+assert.equal(snapMinimaxH3DurationSec(7), 7);
+assert.equal(snapMinimaxH3DurationSec(9), 9);
+assert.equal(snapMinimaxH3DurationSec(10), 10);
 assert.equal(snapMinimaxH3DurationSec(15), 15);
+assert.equal(clampMinimaxH3HangSec(7).durationSec, 7);
+assert.equal(clampMinimaxH3HangSec(7).note, "");
+assert.equal(clampMinimaxH3HangSec(9).durationSec, 9);
+assert.equal(clampMinimaxH3HangSec(10).durationSec, 10);
+assert.equal(clampMinimaxH3HangSec(25).durationSec, 15);
+assert.match(clampMinimaxH3HangSec(25).note, /H3 max 15/);
 assert.equal(snapMinimaxH3DurationSec(0), MINIMAX_H3_DEFAULT_SEC);
 assert.equal(snapMinimaxH3DurationSec(Number.NaN), MINIMAX_H3_DEFAULT_SEC);
 assert.equal(snapMinimaxH3DurationSec(2), MINIMAX_H3_MIN_SEC);

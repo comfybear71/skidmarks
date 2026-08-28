@@ -135,6 +135,11 @@ console.log("check-music-video-track-lyrics OK");
   assert.ok(ui.includes("playing && ribbon"), "nothing moves before Play");
   assert.match(ui, /sectionsOpen/, "the section list folds away");
   assert.match(ui, /openSectionId/, "each section row folds");
+  assert.doesNotMatch(
+    ui,
+    /platesOnTrackOpen/,
+    "TRACK does not keep a foldable second stills shelf",
+  );
   assert.match(ui, /m-track-rail-on-wave/, "hung plates sit on the wave");
   assert.doesNotMatch(ui, /m-track-film-len">off</, "off-song ghosts do not copy STILLS");
   assert.match(ui, /<DeskFold/, "long lists share the desk fold");
@@ -738,6 +743,10 @@ console.log("check-music-video-lyric-tags OK");
     /!compact \|\| Boolean\(onCreatePlate\)/,
     "the + stays on the wave before any plate exists",
   );
+  assert.match(ui, /uniquePlacePickOptions/, "ADD PLATE does not list every cloned still");
+  assert.match(ui, /m-plate-pick-name">Empty</, "ADD PLATE can make an empty plate");
+  assert.doesNotMatch(ui, /m-track-film-len">off</, "TRACK has no second stills shelf");
+  assert.match(tree, /uniquePlacePickOptions/);
   assert.match(ui, /if \(compact\) onExpand\?/, "collapsed + opens Plates so the picker is on screen");
   assert.match(tree, /onExpand=\{\(\) => setPlatesOpen\(true\)\}/);
   assert.match(

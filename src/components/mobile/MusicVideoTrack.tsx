@@ -22,6 +22,7 @@ import {
   withLyricCue,
   withoutLyricCue,
   plateTimingForShot,
+  cookDurationFromHungBar,
   cutForHungPlate,
   hangPlateShotId,
   isRealPlateHang,
@@ -66,6 +67,7 @@ import {
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
+import { uniquePlacePickOptions } from "@/lib/mobilePlaceLabels";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
 import { readApiJson } from "@/lib/studioFetchError";
@@ -860,9 +862,9 @@ export function MusicVideoTrack({
   onStart?: (lyrics: string) => void;
   /** Tap a plate — opens its Position and LTX prompts. */
   onOpenPlate?: (shotId: string) => void;
-  /** Collapsed + still needs the add-plate picker — open Plates first. */
+  /** Collapsed ADD PLATE still needs the picker — open Plates first. */
   onExpand?: () => void;
-  /** Cast and places for the + picker — thumbnails built by the tree. */
+  /** Cast and places for the ADD PLATE picker — thumbnails built by the tree. */
   castOptions?: { name: string; faceUrl: string }[];
   placeOptions?: { sceneId: string; name: string; thumbUrl: string }[];
   /** One person, one place, one plate. */
@@ -891,13 +893,14 @@ export function MusicVideoTrack({
   const [openSectionId, setOpenSectionId] = useState("");
   const [playing, setPlaying] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
-  const [pickWho, setPickWho] = useState("");
+  const [pickWho, setPickWho] = useState<string | null>(null);
   const [pickWhere, setPickWhere] = useState("");
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
   const [rangeChosen, setRangeChosen] = useState(false);
   const [stretchTimings, setStretchTimings] = useState<PlateTiming[] | null>(null);
   const [stretchReadout, setStretchReadout] = useState("");
+  const [lenDraft, setLenDraft] = useState("");
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const jobRef = useRef(job);
@@ -990,11 +993,10 @@ export function MusicVideoTrack({
     const saved = savedPlateBlocks.find((b) => b.plateId === t.plateId);
     return { ...t, label: row?.title || saved?.label || t.plateId };
   });
+  // Hung stills sit on the wave. Unhung stills stay in STILLS — TRACK
+  // must not grow a second shelf of JACK GHOST / Plate 5 / off cards.
   const filmItems = useMemo(() => {
-    const hungIds = new Set(
-      plateBlocks.filter((b) => isRealPlateHang(b)).map((b) => b.plateId),
-    );
-    const hung = plateBlocks
+    return plateBlocks
       .filter((block) => isRealPlateHang(block))
       .map((block) => {
         const row = plateRows.find((p) => p.shotId === hangPlateShotId(block.plateId));
@@ -1006,17 +1008,11 @@ export function MusicVideoTrack({
           onSong: true,
         };
       });
-    const waiting = plateRows
-      .filter((row) => !hungIds.has(row.shotId))
-      .map((row) => ({
-        shotId: row.shotId,
-        title: row.title,
-        plateFile: row.plateFile,
-        timing: isRealPlateHang(row.timing) ? row.timing : null,
-        onSong: false,
-      }));
-    return [...hung, ...waiting];
   }, [plateBlocks, plateRows]);
+  const addPlaces = useMemo(
+    () => uniquePlacePickOptions(placeOptions),
+    [placeOptions],
+  );
   const picked =
     filmItems.find((item) => item.shotId === pickedId) || filmItems[0] || null;
   const pickedOnSong = Boolean(picked && isRealPlateHang(picked.timing));
@@ -1025,7 +1021,7 @@ export function MusicVideoTrack({
     plateBlocks.find((b) => b.plateId === picked?.shotId) ||
     null;
   const pickedStory = useMemo(() => {
-    const id = (picked?.shotId || "").trim();
+    const id = hangPlateShotId((picked?.shotId || "").trim());
     if (!id || !story) return null;
     for (const scene of story.scenes || []) {
       const shot = scene.shots.find((sh) => sh.id === id);
@@ -1093,6 +1089,10 @@ export function MusicVideoTrack({
     pickedClock && pickedClock.endMs > pickedClock.startMs
       ? msToSec(pickedClock.endMs - pickedClock.startMs)
       : 0;
+
+  useEffect(() => {
+    if (pickedOnSong && pickedLenSec > 0) setLenDraft(String(pickedLenSec));
+  }, [picked?.shotId, pickedLenSec, pickedOnSong]);
 
   const zipClips = useMemo(() => orderedJobClips(job), [job]);
   const zipHref = zipClips.length
@@ -1447,15 +1447,15 @@ export function MusicVideoTrack({
       jobRef.current.trackDraft,
       shotId,
     );
-    const durationSec =
-      timing && timing.endMs > timing.startMs
-        ? msToSec(timing.endMs - timing.startMs)
-        : undefined;
-    const refuse = refuseMinimaxH3OverMax(durationSec ?? 0);
-    if (refuse) {
-      setNote(refuse);
-      paintPlateSend(refuse);
+    const cook = cookDurationFromHungBar(timing, "h3");
+    if ("error" in cook) {
+      setNote(cook.error);
+      paintPlateSend(cook.error);
       return;
+    }
+    if (cook.note) {
+      setNote(cook.note);
+      paintPlateSend(cook.note);
     }
     askSongCookNotifyPermission();
     setBusy(`send-${cutId}`);
@@ -1465,7 +1465,7 @@ export function MusicVideoTrack({
         cutId,
         beatId: targetBeatId || beatId,
         clipEngine: MINIMAX_H3_ID,
-        ...(durationSec ? { durationSec } : {}),
+        durationSec: cook.durationSec,
         ...songRunEmptyExtras(shotId),
       });
       if (raw.pending) await pollI2v(cutId, shotId, targetBeatId);
@@ -1483,8 +1483,37 @@ export function MusicVideoTrack({
     }
     const existing = plateTimingForShot(song, job.trackDraft, shotId);
     if (existing && isRealPlateHang(existing)) {
-      setPickedId(shotId);
-      setNote("Already on the song. Pull the handle, then Send.");
+      const before = resolvePlateTimings(song, job.trackDraft).filter((t) =>
+        isRealPlateHang(t),
+      ).length;
+      setBusy(`add-${shotId}`);
+      try {
+        const res = await fetch("/api/crash/mobile/song", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "add-plate", jobId: job.id, shotId }),
+        });
+        const raw = (await res.json().catch(() => ({}))) as {
+          job?: MobileGenJob;
+          error?: string;
+        };
+        if (raw.job) onJobChange(raw.job);
+        if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't add that still");
+        const after = resolvePlateTimings(
+          raw.job?.scratchSong,
+          raw.job?.trackDraft,
+        ).filter((t) => isRealPlateHang(t)).length;
+        setPickedId(shotId);
+        setNote(
+          after > before
+            ? "On the song. Pull the handle, then Send."
+            : "Already on the song. Pull the handle, then Send.",
+        );
+      } catch (e) {
+        setNote(e instanceof Error ? e.message : "Couldn't add that still");
+      } finally {
+        setBusy("");
+      }
       return;
     }
     const clock = resolvePlateTimings(song, job.trackDraft);
@@ -1504,6 +1533,21 @@ export function MusicVideoTrack({
       setNote("Add this still to the timeline first.");
       return;
     }
+    const timing = plateTimingForShot(
+      jobRef.current.scratchSong,
+      jobRef.current.trackDraft,
+      shotId,
+    );
+    const cook = cookDurationFromHungBar(timing, "ltx");
+    if ("error" in cook) {
+      setNote(cook.error);
+      paintPlateSend(cook.error);
+      return;
+    }
+    if (cook.note) {
+      setNote(cook.note);
+      paintPlateSend(cook.note);
+    }
     askSongCookNotifyPermission();
     setBusy(`send-${id}`);
     paintPlateSend(plateCookNote(shotId));
@@ -1512,6 +1556,7 @@ export function MusicVideoTrack({
         cutId: id,
         beatId: targetBeatId || beatId,
         clipEngine: "ltx",
+        durationSec: cook.durationSec,
         ...songRunEmptyExtras(shotId),
       });
       await waitForSongCut({
@@ -1565,24 +1610,6 @@ export function MusicVideoTrack({
     if (!cut?.id) {
       setNote("Add this still to the song first, then Send.");
       return;
-    }
-    const useH3Now =
-      resolveMvSendEngine({
-        jobId: job.id,
-        shotId,
-        beatId: targetBeatId,
-      }) === "h3";
-    if (useH3Now) {
-      const hangSec = (() => {
-        const t = timingNow();
-        return t && t.endMs > t.startMs ? msToSec(t.endMs - t.startMs) : 0;
-      })();
-      const refuse = refuseMinimaxH3OverMax(hangSec);
-      if (refuse) {
-        setNote(refuse);
-        paintPlateSend(refuse);
-        return;
-      }
     }
     if (cookLock.current) return;
     cookLock.current = true;
@@ -1807,11 +1834,22 @@ export function MusicVideoTrack({
         durationSec,
       });
       if (updated) onJobChange(updated);
+      setLenDraft(String(durationSec));
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't set that length");
     } finally {
       setBusy("");
     }
+  }
+
+  function commitHungPlateLength() {
+    const sec = Number(lenDraft);
+    if (!Number.isFinite(sec) || sec <= 0) {
+      if (pickedLenSec > 0) setLenDraft(String(pickedLenSec));
+      return;
+    }
+    if (pickedLenSec > 0 && Math.abs(sec - pickedLenSec) < 0.05) return;
+    void setHungPlateLength(sec);
   }
 
   async function dropSong() {
@@ -2055,30 +2093,12 @@ export function MusicVideoTrack({
             </p>
           ) : null}
 
-          {/* + creates a still. Hang is STILLS Add, or Hang on a CLIPS thumb.
-              Off-song ghosts copied STILLS and only confused the desk. */}
-          {!compact || Boolean(onCreatePlate) ? (
-            <div className="m-track-rail">
-              <button
-                type="button"
-                className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
-                onClick={() => {
-                  if (compact) onExpand?.();
-                  setPickOpen((v) => !v);
-                }}
-                aria-expanded={pickOpen}
-                aria-label="Add a still"
-              >
-                +
-              </button>
-            </div>
-          ) : null}
           {picked ? (
             <div className="m-track-pick">
               <div className="m-track-pick-name">{picked.title}</div>
               <div className="m-track-pick-clock">
                 {pickedOnSong && pickedClock
-                  ? `${formatTrackClockPrecise(pickedClock.startMs)} – ${formatTrackClockPrecise(pickedClock.endMs)}`
+                  ? `${formatTrackClockPrecise(pickedClock.startMs)} – ${formatTrackClockPrecise(pickedClock.endMs)} · ${pickedLenSec}s`
                   : "Not on the song yet"}
               </div>
               <div className="m-track-pick-tools">
@@ -2127,6 +2147,25 @@ export function MusicVideoTrack({
                           {sec}
                         </button>
                       ))}
+                      <input
+                        type="number"
+                        min={4}
+                        max={30}
+                        step={1}
+                        inputMode="decimal"
+                        aria-label="Seconds on the song"
+                        value={lenDraft}
+                        disabled={Boolean(busy)}
+                        onChange={(e) => setLenDraft(e.target.value)}
+                        onBlur={() => commitHungPlateLength()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            commitHungPlateLength();
+                          }
+                        }}
+                      />
+                      <span>s</span>
                     </div>
                     {/* Send lives on the JACK GHOST plate row — one cook. */}
                     {doneCutForPlate(picked.shotId)?.id ||
@@ -2173,14 +2212,29 @@ export function MusicVideoTrack({
                   </button>
                 ) : null}
               </div>
-              {pickedOnSong && pickedLenSec > 15 ? (
+              {pickedOnSong && refuseMinimaxH3OverMax(pickedLenSec) ? (
                 <p className="m-track-err">{MINIMAX_H3_OVER_MAX_NOTE}</p>
               ) : null}
             </div>
           ) : null}
 
-          {/* One person, one place, one plate — picked here rather than three
-              scrolls down inside a Locations card. */}
+          {/* STILLS already lists leftover stills. TRACK does not copy them
+              as an off-row, and does not add a second + for the same job. */}
+          {(!compact || Boolean(onCreatePlate)) && !pickOpen ? (
+            <button
+              type="button"
+              className="m-track-btn"
+              onClick={() => {
+                if (compact) onExpand?.();
+                setPickOpen(true);
+              }}
+            >
+              ADD PLATE
+            </button>
+          ) : null}
+
+          {/* New plate only: person / empty / place. Not every current still. */}
+
           {pickOpen ? (
             <div className="m-plate-pick">
               <div className="m-plate-pick-row">
@@ -2200,9 +2254,17 @@ export function MusicVideoTrack({
                     <span className="m-plate-pick-name">{who.name}</span>
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className={`m-plate-pick-cell${pickWho === "" ? " is-on" : ""}`}
+                  onClick={() => setPickWho("")}
+                >
+                  <span className="m-plate-pick-blank" />
+                  <span className="m-plate-pick-name">Empty</span>
+                </button>
               </div>
               <div className="m-plate-pick-row">
-                {placeOptions.map((place) => (
+                {addPlaces.map((place) => (
                   <button
                     type="button"
                     key={place.sceneId}
@@ -2223,24 +2285,34 @@ export function MusicVideoTrack({
                 <MobilePrimaryButton
                   size="chip"
                   disabled={
-                    !pickWho ||
+                    pickWho === null ||
                     !pickWhere ||
                     (!job.folderName && !isMusicVideoSongJob(job))
                   }
                   onClick={() => {
-                    onCreatePlate?.(pickWhere, pickWho);
+                    onCreatePlate?.(pickWhere, pickWho || "");
                     setPickOpen(false);
-                    setPickWho("");
+                    setPickWho(null);
                     setPickWhere("");
                   }}
                 >
                   {job.folderName
-                    ? `Add ${pickWho || "plate"}`
+                    ? pickWho
+                      ? `Add ${pickWho}`
+                      : "Add empty"
                     : isMusicVideoSongJob(job)
                       ? "Start the video & add"
                       : "Lock first"}
                 </MobilePrimaryButton>
-                <button type="button" className="m-track-btn" onClick={() => setPickOpen(false)}>
+                <button
+                  type="button"
+                  className="m-track-btn"
+                  onClick={() => {
+                    setPickOpen(false);
+                    setPickWho(null);
+                    setPickWhere("");
+                  }}
+                >
                   Cancel
                 </button>
               </div>
