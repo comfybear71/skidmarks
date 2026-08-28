@@ -722,6 +722,8 @@ export function MusicVideoTrack({
   castOptions = [],
   placeOptions = [],
   onCreatePlate,
+  onBindSendStill,
+  onSendStillBusy,
 }: {
   job: MobileGenJob;
   story: CrashStoryDoc | null;
@@ -742,6 +744,9 @@ export function MusicVideoTrack({
   placeOptions?: { sceneId: string; name: string; thumbUrl: string }[];
   /** One person, one place, one plate. */
   onCreatePlate?: (sceneId: string, speaker: string) => void;
+  /** Plate-row Send — same cook, not a second generate. */
+  onBindSendStill?: (send: (shotId: string) => Promise<void>) => void;
+  onSendStillBusy?: (busy: boolean) => void;
 }) {
   const song = job.scratchSong;
   const parked = usePendingSong(job.id);
@@ -774,6 +779,7 @@ export function MusicVideoTrack({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const jobRef = useRef(job);
   jobRef.current = job;
+  const sendPlateRef = useRef<(shotId: string) => Promise<void>>(async () => {});
   const cookLock = useRef(false);
   const cookCancel = useRef(false);
   const blobRef = useRef("");
@@ -1188,14 +1194,62 @@ export function MusicVideoTrack({
     return composeMuteMvMotion(motionLock, liveMotionSlot());
   }
 
-  async function persistPickedMotion() {
-    if (!pickedBeatId) return composedMotionBody();
-    const body = composedMotionBody();
-    writeMvMotionSlot(job.id, pickedBeatId, liveMotionSlot());
+  function storyShotFor(shotId: string) {
+    const id = shotId.trim();
+    if (!id || !story) return null;
+    for (const scene of story.scenes || []) {
+      const shot = scene.shots.find((sh) => sh.id === id);
+      if (shot) return shot;
+    }
+    return null;
+  }
+
+  function beatIdForShot(shotId: string) {
+    const shot = storyShotFor(shotId);
+    return (
+      (shot?.beats[0]?.id || "").trim() ||
+      findSongCarrierBeatId(story, song?.fileName, shotId) ||
+      beatId
+    );
+  }
+
+  async function persistMotionFor(shotId: string) {
+    const targetBeatId = beatIdForShot(shotId);
+    if (!targetBeatId) return "";
+    const shot = storyShotFor(shotId);
+    const speaker = (shot?.beats[0]?.speaker || "").trim();
+    const speakers = shot
+      ? shotSpeakersOnCard({
+          shotId: shot.id,
+          title: shot.title,
+          staging: shot.staging,
+          summary: shot.summary,
+          plateFile: shot.plateFile,
+          jobSpeakers: job.speakers || [],
+          beats: shot.beats,
+        })
+      : [];
+    const look =
+      candidateLookPrompt(job.castCandidates || {}, speaker) ||
+      job.roster?.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())
+        ?.appearance ||
+      "";
+    const lock = buildMuteMvMotionLock({
+      styleId: (job.styleId || "music_video") as ShowStyleId,
+      speaker: speaker || shot?.title || "The performer",
+      lookLock: look,
+      shotSpeakers: speakers.length ? speakers : undefined,
+      staging: shot?.staging || "",
+    });
+    const stored = shot?.beats[0]?.imageMotion || "";
+    const live = readMvMotionSlot(job.id, targetBeatId);
+    const slot = live !== null ? live : extractMuteMvMotionSlot(stored, lock);
+    const body = composeMuteMvMotion(lock, slot);
+    writeMvMotionSlot(job.id, targetBeatId, slot);
     const res = await fetch("/api/crash/mobile/beat-motion", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId: job.id, beatId: pickedBeatId, imageMotion: body }),
+      body: JSON.stringify({ jobId: job.id, beatId: targetBeatId, imageMotion: body }),
     });
     const data = (await res.json().catch(() => ({}))) as {
       error?: string;
@@ -1209,17 +1263,22 @@ export function MusicVideoTrack({
     return body;
   }
 
-  async function pollI2v(cutId: string) {
+  async function persistPickedMotion() {
+    if (!picked?.shotId) return "";
+    return persistMotionFor(picked.shotId);
+  }
+
+  async function pollI2v(cutId: string, targetBeatId: string) {
     for (let i = 0; i < 80; i++) {
       if (cookCancel.current || songCookStopRequested(job.id)) return;
-      const raw = await songPost("clip-poll", { cutId, beatId: pickedBeatId || beatId });
+      const raw = await songPost("clip-poll", { cutId, beatId: targetBeatId || beatId });
       if (!raw.pending) return;
       await new Promise((resolve) => setTimeout(resolve, 2500));
     }
     throw new Error("Still cooking. The episode is still there — tap Send again.");
   }
 
-  async function sendI2v(cutId: string, shotId = picked?.shotId || "") {
+  async function sendI2v(cutId: string, shotId: string, targetBeatId: string) {
     const timing = plateTimingForShot(
       jobRef.current.scratchSong,
       jobRef.current.trackDraft,
@@ -1234,12 +1293,12 @@ export function MusicVideoTrack({
     setNote("");
     const raw = await songPost("run", {
       cutId,
-      beatId: pickedBeatId || beatId,
+      beatId: targetBeatId || beatId,
       clipEngine: MINIMAX_H3_ID,
       ...(durationSec ? { durationSec } : {}),
       ...(readMvMuteAction(job.id, shotId) ? { mute: true } : {}),
     });
-    if (raw.pending) await pollI2v(cutId);
+    if (raw.pending) await pollI2v(cutId, targetBeatId);
   }
 
   async function addPlateToTimeline(shotId: string) {
@@ -1265,7 +1324,7 @@ export function MusicVideoTrack({
     setNote("On the song. Send when you like it.");
   }
 
-  async function sendOneCutBody(cutId: string, shotId = picked?.shotId || "") {
+  async function sendOneCutBody(cutId: string, shotId: string, targetBeatId: string) {
     const id = cutId.trim();
     if (!id) {
       setNote("Add this still to the timeline first.");
@@ -1277,7 +1336,7 @@ export function MusicVideoTrack({
     try {
       await songPost("run", {
         cutId: id,
-        beatId: pickedBeatId || beatId,
+        beatId: targetBeatId || beatId,
         clipEngine: "ltx",
         ...(readMvMuteAction(job.id, shotId) ? { mute: true } : {}),
       });
@@ -1296,10 +1355,9 @@ export function MusicVideoTrack({
 
   async function sendPlate(shotId: string) {
     setPickedId(shotId);
+    const targetBeatId = beatIdForShot(shotId);
     if (!hungShotIds().has(shotId.trim())) {
-      await addPlateToTimeline(shotId);
-      setNote("On the song. Send when you like it.");
-      return;
+      await songPost("add-plate", { shotId });
     }
     const hungCut = () =>
       cutForHungPlate({
@@ -1313,11 +1371,11 @@ export function MusicVideoTrack({
       });
     let cut = hungCut();
     if (!cut?.id) {
-      await setPickedLength();
+      await addPlateToTimeline(shotId);
       cut = hungCut();
     }
     if (!cut?.id) {
-      setNote("This still is not on the song yet.");
+      setNote("Add this still to the song first, then Send.");
       return;
     }
     if (cookLock.current) return;
@@ -1325,26 +1383,22 @@ export function MusicVideoTrack({
     cookCancel.current = false;
     clearSongCookStop(job.id);
     try {
-      setMotionSaving(true);
-      try {
-        await persistPickedMotion();
-      } finally {
-        setMotionSaving(false);
-      }
+      await persistMotionFor(shotId);
       const useH3 =
-        readMvClipEngine(job.id, shotId) === "h3" ||
-        (pickedBeatId && readMvEngine(job.id, pickedBeatId) === "h3");
+        (targetBeatId && readMvEngine(job.id, targetBeatId) === "h3") ||
+        readMvClipEngine(job.id, shotId) === "h3";
       if (useH3) {
-        await sendI2v(cut.id, shotId);
+        await sendI2v(cut.id, shotId, targetBeatId);
         return;
       }
-      await sendOneCutBody(cut.id, shotId);
+      await sendOneCutBody(cut.id, shotId, targetBeatId);
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't send that still");
     } finally {
       cookLock.current = false;
     }
   }
+  sendPlateRef.current = sendPlate;
 
   async function dropPlateFromWave(shotId: string) {
     if (!song?.fileName) {
@@ -1387,6 +1441,14 @@ export function MusicVideoTrack({
       setBusy("");
     }
   }
+
+  useEffect(() => {
+    onBindSendStill?.((shotId) => sendPlateRef.current(shotId));
+  }, [onBindSendStill]);
+
+  useEffect(() => {
+    onSendStillBusy?.(busy.startsWith("send-"));
+  }, [busy, onSendStillBusy]);
 
   useEffect(() => {
     if (!song?.fileName) return;
@@ -1811,20 +1873,7 @@ export function MusicVideoTrack({
                     >
                       {busy === `drop-${picked.shotId}` ? "…" : "Off song"}
                     </button>
-                    {cutForHungPlate({
-                      cuts: job.scratchSong?.cuts,
-                      shotId: picked.shotId,
-                      timing: picked.timing,
-                    })?.id ? (
-                      <button
-                        type="button"
-                        className="m-track-btn"
-                        disabled={Boolean(busy) || busy.startsWith("send-")}
-                        onClick={() => void sendPlate(picked.shotId)}
-                      >
-                        {busy.startsWith("send-") ? "Sending…" : "Send"}
-                      </button>
-                    ) : null}
+                    {/* Send lives on the JACK GHOST plate row — one cook. */}
                     {doneCutForPlate(picked.shotId)?.id ||
                     waitingCutForPlate(picked.shotId)?.clipFile ||
                     waitingCutForPlate(picked.shotId)?.status === "error" ? (

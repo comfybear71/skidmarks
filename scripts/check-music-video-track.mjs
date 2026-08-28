@@ -126,7 +126,8 @@ assert.doesNotMatch(trackUi, /How long/, "How long is not on the TRACK pick");
 assert.doesNotMatch(trackUi, /m-track-motion/, "IMAGE MOTION essay is not on the TRACK pick");
 assert.match(trackUi, /startSec/);
 assert.doesNotMatch(trackUi, /Send all/);
-assert.match(trackUi, /"Send"/);
+assert.doesNotMatch(trackUi, /Sending…/, "TRACK pick has no Send — Send sits on the plate row");
+assert.doesNotMatch(trackUi, /void sendPlate\(picked\.shotId\)/, "TRACK does not run Send");
 assert.match(trackUi, /Park this clip/);
 assert.match(trackUi, /requestSongCookStop/);
 assert.match(trackUi, /m-track-film/);
@@ -325,6 +326,13 @@ assert.match(trackUi, /dropPlateFromWave/);
 assert.match(trackUi, /Off song/);
 assert.match(trackRoute, /parkMobileClipFile/);
 assert.match(trackRoute, /songPlateIds/);
+assert.match(trackRoute, /removePlateFromSong/);
+assert.match(trackRoute, /durationSec\?: number/);
+assert.doesNotMatch(
+  trackRoute.slice(trackRoute.indexOf('action === "remove-plate-timing"')),
+  /hangMissingPlateTimings|nextPlateHangWindow|add-plate/,
+  "Off song must not hang or append a new row",
+);
 assert.match(songRoute, /hangCuts/);
 assert.match(
   songRoute,
@@ -392,16 +400,22 @@ assert.match(panels, /m-plate-motion-slot/, "[ ] hole is the only edit");
 assert.match(panels, /MUTE_MV_SLOT_PLACEHOLDER/, "hole placeholder is stand up, car drives off");
 assert.match(editor, /writeMvMotionSlot/, "plate [ ] keeps the slot when he switches engine");
 assert.match(editor, /function PlateEngineButtons/, "LTX / H3 sit on the plate Add row");
-assert.match(editor, /m-plate-add-engines/, "Add | LTX | H3 share one row");
+assert.match(editor, /function PlateSendButton/, "Send sits on the plate Add row");
+assert.match(editor, /m-plate-add-engines/, "Add | LTX | H3 | Send share one row");
 assert.match(editor, />\s*LTX\s*</, "LTX is a real button next to Add");
 assert.match(editor, />\s*H3\s*</, "H3 is a real button next to Add");
+assert.match(editor, /busy \? "Sending…" : "Send"/, "Send is on the same row as Add / LTX / H3");
+assert.match(editor, /onSendStill/, "plate Send uses the one TRACK cook");
+assert.match(editor, /Sending…/, "plate Send shows Sending while the cook runs");
 assert.doesNotMatch(editor, />\s*Siray\s*</, "Siray stays off the plate");
 assert.doesNotMatch(editor, />\s*Free\s*</, "Free stays off the plate");
 assert.match(editor, /writeMvEngine/, "tap stores the engine for the next Send");
 assert.doesNotMatch(editor, /pickEngine/, "do not put LTX / H3 on CLIPS thumbs");
 assert.doesNotMatch(thumbs, /pickEngine/, "CLIPS / plate-1 thumb is not the engine row");
 assert.doesNotMatch(thumbs, /m-plate-clip-engine/, "CLIPS / plate-1 thumb is not the engine row");
-assert.match(trackUi, /readMvEngine/, "TRACK Send reads the plate LTX / H3 pick");
+assert.match(trackUi, /readMvEngine/, "the one Send reads the plate LTX / H3 pick");
+assert.match(trackUi, /readMvClipEngine/, "Send also reads the shot engine pick");
+assert.match(trackUi, /onBindSendStill/, "plate row Send is the same cook");
 assert.match(trackUi, /clipEngine/, "Send can still run LTX / H3");
 assert.doesNotMatch(trackUi, /Seedance/, "do not fake a Seedance button");
 assert.match(mobileCss, /\.m-plate-add-engines/, "Add | LTX | H3 stay on one row");

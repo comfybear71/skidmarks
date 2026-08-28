@@ -43,8 +43,10 @@ import {
   expectedDeskCutCount,
   needsTrackHang,
   plateIdsWaitingForTrack,
+  removePlateFromSong,
   storyShotForSongCut,
 } from "../src/lib/musicVideoSong.ts";
+import { hangMissingPlateTimings } from "../src/lib/musicVideoTrack.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
 import { songCookStorageKey } from "../src/lib/songCutCook.ts";
@@ -580,6 +582,109 @@ assert.deepEqual(
   [],
   "empty leftover ids are not hung",
 );
+{
+  const off = removePlateFromSong({
+    plateId: "jack",
+    plateTimings: [
+      { plateId: "jack", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "invisible", startMs: 15000, endMs: 26500, sortIndex: 1 },
+    ],
+    cuts: [
+      {
+        id: "cut_jack",
+        shotId: "jack",
+        plateFile: "jack.png",
+        startSec: 0,
+        durationSec: 15,
+        status: "done",
+        clipFile: "01_JACK_GHOST.mp4",
+      },
+      {
+        id: "cut_im",
+        shotId: "invisible",
+        plateFile: "im.png",
+        startSec: 15,
+        durationSec: 11.5,
+        status: "pending",
+      },
+    ],
+    songPlateIds: ["jack", "invisible"],
+    rowSlices: [1, 1],
+    jobShots: [
+      { shotId: "jack", plateFile: "jack.png" },
+      { shotId: "invisible", plateFile: "im.png" },
+    ],
+  });
+  assert.deepEqual(
+    off.plateTimings.map((t) => t.plateId),
+    ["invisible"],
+    "Off song takes that still off the wave",
+  );
+  assert.equal(off.plateTimings[0]?.startMs, 15000, "other stills keep their times");
+  assert.equal(off.plateTimings[0]?.endMs, 26500, "do not compact the hole");
+  assert.deepEqual(off.songPlateIds, ["invisible"]);
+  assert.deepEqual(off.skipShotIds, ["jack"]);
+  assert.deepEqual(off.parkedClipFiles, ["01_JACK_GHOST.mp4"]);
+  assert.equal(off.cuts.length, 1);
+  assert.equal(off.cuts[0]?.shotId, "invisible");
+  const waiting = plateIdsWaitingForTrack({
+    song: {
+      plateTimings: off.plateTimings,
+      songPlateIds: [...off.songPlateIds, "jack"],
+      skipShotIds: off.skipShotIds,
+      cuts: off.cuts,
+    },
+    jobShots: [
+      { shotId: "jack", plateFile: "jack.png" },
+      { shotId: "invisible", plateFile: "im.png" },
+    ],
+  });
+  const hungBack = hangMissingPlateTimings(off.plateTimings, off.cuts, waiting);
+  assert.equal(
+    hungBack.some((t) => t.plateId === "jack"),
+    false,
+    "Off song must not append a 15s row at the end",
+  );
+  assert.equal(hungBack[0]?.startMs, 15000, "other clocks stay");
+  assert.equal(
+    needsTrackHang(
+      {
+        plateTimings: off.plateTimings,
+        songPlateIds: [...off.songPlateIds, "jack"],
+        skipShotIds: off.skipShotIds,
+        cuts: [
+          ...off.cuts,
+          { shotId: "jack", plateFile: "jack.png" },
+        ],
+      },
+      [
+        { shotId: "jack", plateFile: "jack.png" },
+        { shotId: "invisible", plateFile: "im.png" },
+      ],
+    ),
+    false,
+    "skipShotIds stops the auto hang from appending a 15s row",
+  );
+}
+{
+  const nameless = removePlateFromSong({
+    plateId: "jack",
+    plateTimings: [{ plateId: "jack", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    cuts: [
+      {
+        id: "cut_file",
+        plateFile: "jack.png",
+        startSec: 0,
+        durationSec: 15,
+        clipFile: "jack.mp4",
+      },
+    ],
+    jobShots: [{ shotId: "jack", plateFile: "jack.png" }],
+  });
+  assert.equal(nameless.cuts.length, 0, "cut with empty shotId still leaves when the file matches");
+  assert.deepEqual(nameless.parkedClipFiles, ["jack.mp4"]);
+  assert.deepEqual(nameless.songPlateIds, []);
+}
 assert.doesNotMatch(
   readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8"),
   /for \(const s of opts\.jobShots/,
