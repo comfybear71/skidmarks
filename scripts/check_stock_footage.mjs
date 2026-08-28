@@ -144,11 +144,13 @@ assert(
 assert(composeStockSearchQuery(null, "ice drop") === "ice drop", "empty look leaves shot query");
 assert(!stockLookIsOn(parseStockLook({})), "blank look is off");
 
-const panel = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../src/components/StockFootagePanel.tsx"),
-  "utf8",
-);
+const here = dirname(fileURLToPath(import.meta.url));
+const panel = readFileSync(join(here, "../src/components/StockFootagePanel.tsx"), "utf8");
 assert(panel.includes("Nobody"), "Nobody sits next to HERO/SUPPORT");
 assert(panel.includes("onNobodyChange"), "Nobody is optional — desk storyboard stays as-is");
+const songUi = readFileSync(join(here, "../src/components/mobile/MusicVideoSongCuts.tsx"), "utf8");
+const trackUi = readFileSync(join(here, "../src/components/mobile/MusicVideoTrack.tsx"), "utf8");
+assert(songUi.includes('label="Free look"'), "free look fold is under Song list");
+assert(!trackUi.includes('label="Free look"'), "free look fold is not on TRACK");
 
 console.log("stock footage checks passed");

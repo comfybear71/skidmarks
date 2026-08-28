@@ -140,6 +140,8 @@ assert.doesNotMatch(trackUi, />Later</);
 assert.doesNotMatch(trackUi, /Hang stills on the wave/);
 assert.doesNotMatch(trackUi, /Plates on the track/);
 assert.doesNotMatch(trackUi, /!compact && picked/);
+assert.doesNotMatch(trackUi, /label="Free look"/, "Free look is not on TRACK — it sits under Song list");
+assert.doesNotMatch(trackUi, /set-stock-look/, "TRACK does not save the free look");
 assert.match(mobileCss, /\.m-track-film-cell/);
 assert.match(mobileCss, /\.m-track-pick-len/);
 assert.match(trackRoute, /set-plate-timing/);

@@ -284,6 +284,22 @@ assert.match(songUi, /runOneCut/);
 assert.doesNotMatch(songUi, /Send next/);
 assert.doesNotMatch(songUi, /Music video — song cuts/);
 assert.match(songUi, /Song list/);
+assert.match(songUi, /label="Free look"/, "Free look sits under Song list on music video");
+assert.match(
+  songUi,
+  /const \[freeLookOpen, setFreeLookOpen\] = useState\(false\)/,
+  "Free look starts collapsed",
+);
+assert.match(songUi, /set-stock-look/, "Free look still saves through the track action");
+assert.ok(
+  songUi.indexOf('label="Song list"') < songUi.indexOf('label="Free look"'),
+  "Free look is under the Song list fold",
+);
+assert.doesNotMatch(
+  editor,
+  /label="Free look"/,
+  "Free look is not on the plate row / stills editor",
+);
 assert.match(songUi, /Stop send/);
 assert.match(songUi, /redo-cut/);
 assert.doesNotMatch(songUi, /visibilitychange/);

@@ -83,13 +83,6 @@ import type { ShowStyleId } from "@/lib/showStylePresets";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 import { DeskFold, MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
-import {
-  EMPTY_STOCK_LOOK,
-  parseStockLook,
-  stockLookFoldLabel,
-  stockLookIsOn,
-  type StockLook,
-} from "@/lib/stockLook";
 
 import {
   askSongCookNotifyPermission,
@@ -893,8 +886,6 @@ export function MusicVideoTrack({
   const [motionSaving, setMotionSaving] = useState(false);
   const [startDraft, setStartDraft] = useState("0");
   const [lengthDraft, setLengthDraft] = useState("15");
-  const [freeLookOpen, setFreeLookOpen] = useState(() => stockLookIsOn(job.stockLook));
-  const [freeLook, setFreeLook] = useState<StockLook>(() => parseStockLook(job.stockLook));
   const [openSectionId, setOpenSectionId] = useState("");
   const [playing, setPlaying] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
@@ -1190,27 +1181,6 @@ export function MusicVideoTrack({
         .catch(() => undefined);
     }
   }, [audioSrc, parked?.file, peaks.length, busy, decodeAndSave, song?.fileName, song?.waveformPeaks, job.trackDraft?.songFile]);
-
-  useEffect(() => {
-    setFreeLook(parseStockLook(job.stockLook));
-  }, [job.stockLook?.theme, job.stockLook?.colour, job.stockLook?.types]);
-
-  async function saveFreeLook(next: StockLook) {
-    setFreeLook(next);
-    setBusy("look");
-    setNote("");
-    try {
-      const updated = await trackAction("set-stock-look", {
-        jobId: job.id,
-        stockLook: next,
-      });
-      if (updated) onJobChange(updated);
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't save the free look");
-    } finally {
-      setBusy("");
-    }
-  }
 
   async function saveMarkers(next: typeof markers) {
     setBusy("markers");
@@ -2453,71 +2423,6 @@ export function MusicVideoTrack({
                   );
                 })}
               </ul>
-            </DeskFold>
-          ) : null}
-
-          {!compact ? (
-            <DeskFold
-              label="Free look"
-              count={stockLookFoldLabel(freeLook)}
-              open={freeLookOpen}
-              onToggle={() => setFreeLookOpen((v) => !v)}
-            >
-              <p className="m-track-lyric-hint">
-                One topic for the whole free film — nature, space, first world war, polar
-                bears, anything Mixkit / Pexels still has on a Free license. Colour and
-                type ride every Support search. Hero / LTX stay off this path.
-              </p>
-              <label className="m-free-look-field">
-                Theme
-                <input
-                  value={freeLook.theme}
-                  placeholder="nature · space · first world war · polar bears"
-                  disabled={Boolean(busy)}
-                  onChange={(e) => setFreeLook((cur) => ({ ...cur, theme: e.target.value }))}
-                  onBlur={(e) => void saveFreeLook({ ...freeLook, theme: e.target.value })}
-                />
-              </label>
-              <label className="m-free-look-field">
-                Colour
-                <input
-                  value={freeLook.colour}
-                  placeholder="green forest · black sky · mud brown grain"
-                  disabled={Boolean(busy)}
-                  onChange={(e) => setFreeLook((cur) => ({ ...cur, colour: e.target.value }))}
-                  onBlur={(e) => void saveFreeLook({ ...freeLook, colour: e.target.value })}
-                />
-              </label>
-              <label className="m-free-look-field">
-                Type
-                <input
-                  value={freeLook.types}
-                  placeholder="aerial river · stars nebula · trenches archival"
-                  disabled={Boolean(busy)}
-                  onChange={(e) => setFreeLook((cur) => ({ ...cur, types: e.target.value }))}
-                  onBlur={(e) => void saveFreeLook({ ...freeLook, types: e.target.value })}
-                />
-              </label>
-              <div className="m-free-look-actions">
-                <button
-                  type="button"
-                  className="m-track-btn"
-                  disabled={Boolean(busy)}
-                  onClick={() => void saveFreeLook(freeLook)}
-                >
-                  {busy === "look" ? "…" : "Save look"}
-                </button>
-                {stockLookIsOn(freeLook) ? (
-                  <button
-                    type="button"
-                    className="m-track-btn"
-                    disabled={Boolean(busy)}
-                    onClick={() => void saveFreeLook(EMPTY_STOCK_LOOK)}
-                  >
-                    Clear
-                  </button>
-                ) : null}
-              </div>
             </DeskFold>
           ) : null}
 
