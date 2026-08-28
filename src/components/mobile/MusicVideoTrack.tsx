@@ -22,6 +22,7 @@ import {
   withLyricCue,
   withoutLyricCue,
   plateTimingForShot,
+  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   cutForHungPlate,
   hangPlateShotId,
@@ -69,6 +70,7 @@ import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
+import { peekAddPlateInFlight, runAddPlateInFlight } from "@/lib/addPlateInFlight";
 import { readApiJson } from "@/lib/studioFetchError";
 import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { muteMvEmptyFrame, muteMvPadNames, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
@@ -893,6 +895,11 @@ export function MusicVideoTrack({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const jobRef = useRef(job);
   jobRef.current = job;
+  function takeSongJob(next: MobileGenJob | null | undefined) {
+    if (!next) return;
+    jobRef.current = next;
+    onJobChange(next);
+  }
   const sendPlateRef = useRef<(shotId: string) => Promise<void>>(async () => {});
   const sendNoteRef = useRef(onSendStillNote);
   sendNoteRef.current = onSendStillNote;
@@ -1243,7 +1250,7 @@ export function MusicVideoTrack({
         job?: MobileGenJob;
         error?: string;
       };
-      if (raw.job) onJobChange(raw.job);
+      takeSongJob(raw.job);
       if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't add those stills");
       setNote("On the song. Tap a still, set start and length, then Send.");
     } catch (e) {
@@ -1495,13 +1502,26 @@ export function MusicVideoTrack({
   }
 
   async function addPlateToTimeline(shotId: string) {
-    if (!song?.fileName) {
-      setNote("Drop the song first.");
-      return;
+    try {
+      const added = await runAddPlateInFlight(job.id, shotId, () =>
+        addPlateToTimelineBody(shotId),
+      );
+      takeSongJob(added);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't add that still");
     }
-    const existing = plateTimingForShot(song, job.trackDraft, shotId);
+  }
+
+  async function addPlateToTimelineBody(shotId: string): Promise<MobileGenJob | null> {
+    const live = jobRef.current;
+    const liveSong = live.scratchSong;
+    if (!liveSong?.fileName) {
+      setNote("Drop the song first.");
+      return null;
+    }
+    const existing = plateTimingForShot(liveSong, live.trackDraft, shotId);
     if (existing && isRealPlateHang(existing)) {
-      const before = resolvePlateTimings(song, job.trackDraft).filter((t) =>
+      const before = resolvePlateTimings(liveSong, live.trackDraft).filter((t) =>
         isRealPlateHang(t),
       ).length;
       setBusy(`add-${shotId}`);
@@ -1515,8 +1535,8 @@ export function MusicVideoTrack({
           job?: MobileGenJob;
           error?: string;
         };
-        if (raw.job) onJobChange(raw.job);
         if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't add that still");
+        takeSongJob(raw.job);
         const after = resolvePlateTimings(
           raw.job?.scratchSong,
           raw.job?.trackDraft,
@@ -1527,14 +1547,12 @@ export function MusicVideoTrack({
             ? "On the song. Pull the handle, then Send."
             : "Already on the song. Pull the handle, then Send.",
         );
-      } catch (e) {
-        setNote(e instanceof Error ? e.message : "Couldn't add that still");
+        return raw.job || null;
       } finally {
         setBusy("");
       }
-      return;
     }
-    const clock = resolvePlateTimings(song, job.trackDraft);
+    const clock = resolvePlateTimings(liveSong, live.trackDraft);
     const next = nextPlateHangWindow(clock);
     const win =
       rangeChosen && rangeEndMs > rangeStartMs
@@ -1543,12 +1561,14 @@ export function MusicVideoTrack({
     await schedulePlate(shotId, win.startMs, win.endMs, clock.length);
     setPickedId(shotId);
     setNote("On the song. Pull the handle, then Send.");
+    return jobRef.current;
   }
 
   async function sendOneCutBody(cutId: string, shotId: string, targetBeatId: string) {
     const id = cutId.trim();
     if (!id) {
-      setNote("Add this still to the timeline first.");
+      setNote(ADD_STILL_THEN_SEND);
+      paintPlateSend(ADD_STILL_THEN_SEND);
       return;
     }
     const timing = plateTimingForShot(
@@ -1603,13 +1623,11 @@ export function MusicVideoTrack({
         jobRef.current.trackDraft,
         shotId,
       );
-    // Hung mp4s already have a clock. Add is only for a still with no clip.
+    // Add hangs the still. Send cooks that bar. Do not Add / hang / cook here.
     if (!isRealPlateHang(timingNow())) {
-      if (hungClipFileForPlate(jobRef.current, shotId)) {
-        await hangStillsOnWave();
-      } else {
-        await addPlateToTimeline(shotId);
-      }
+      setNote(ADD_STILL_THEN_SEND);
+      paintPlateSend(ADD_STILL_THEN_SEND);
+      return;
     }
     const hungCut = () =>
       cutForHungPlate({
@@ -1620,13 +1638,14 @@ export function MusicVideoTrack({
     let cut = hungCut();
     if (!cut?.id) {
       const timing = timingNow();
-      if (timing) {
+      if (timing && isRealPlateHang(timing)) {
         await schedulePlate(shotId, timing.startMs, timing.endMs, timing.sortIndex);
         cut = hungCut();
       }
     }
     if (!cut?.id) {
-      setNote("Add this still to the song first, then Send.");
+      setNote(ADD_STILL_THEN_SEND);
+      paintPlateSend(ADD_STILL_THEN_SEND);
       return;
     }
     if (cookLock.current) return;
@@ -1785,7 +1804,7 @@ export function MusicVideoTrack({
   }
 
   async function schedulePlate(shotId: string, startMs: number, endMs: number, sortIndex: number) {
-    if (!song?.fileName) {
+    if (!jobRef.current.scratchSong?.fileName) {
       setNote("Start the video and attach the song before timing plates.");
       return;
     }
@@ -1799,7 +1818,7 @@ export function MusicVideoTrack({
         endMs,
         sortIndex,
       });
-      if (updated) onJobChange(updated);
+      takeSongJob(updated);
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't schedule that plate");
     } finally {

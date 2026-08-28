@@ -3399,6 +3399,13 @@ span.scratch-history-blob {
   gap: 8px;
 }
 
+.m-plate-add-then-send {
+  margin: 0;
+  color: var(--chrome-dim);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .m-plate-engine-pair {
   display: flex;
   flex-wrap: wrap;
