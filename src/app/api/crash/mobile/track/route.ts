@@ -100,6 +100,7 @@ export async function POST(req: Request) {
     endMs?: number;
     sortIndex?: number;
     direction?: string;
+    durationSec?: number;
     lyricCues?: LyricCue[];
     stockLook?: unknown;
   };
