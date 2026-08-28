@@ -3348,9 +3348,10 @@ span.scratch-history-blob {
 .m-track-pick-len {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 8px 0;
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin: 0;
+  height: 22px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -3358,40 +3359,37 @@ span.scratch-history-blob {
   color: var(--chrome-dim);
 }
 
-.m-track-pick-len input {
-  width: 4.6rem;
-  padding: 6px 8px;
+.m-track-len-slider {
+  width: 5.5rem;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--acid);
+}
+
+.m-track-pick-len input[type="number"] {
+  width: 2.3rem;
+  padding: 2px 4px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--panel);
   color: var(--chrome);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
+  -moz-appearance: textfield;
 }
 
-.m-track-len-chip {
-  min-width: 2.75rem;
-  min-height: 2.4rem;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--panel);
-  color: var(--chrome);
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.m-track-len-chip.is-on {
-  border-color: var(--acid);
-  color: var(--acid);
+.m-track-pick-len input[type="number"]::-webkit-inner-spin-button,
+.m-track-pick-len input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 .m-track-pick-tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
 }
 
 .m-plate-add-engines {
