@@ -275,8 +275,9 @@ assert.doesNotMatch(
   /HANG_LENGTH_CHIPS_SEC\.map\(\(sec\) =>/,
   "chips are not mapped to buttons",
 );
-assert.match(trackUi, /MINIMAX_H3_OVER_MAX_NOTE/);
-assert.match(trackUi, /refuseMinimaxH3OverMax/);
+assert.doesNotMatch(trackUi, /MINIMAX_H3_OVER_MAX_NOTE/);
+assert.doesNotMatch(trackUi, /refuseMinimaxH3OverMax/);
+assert.doesNotMatch(trackUi, /H3 max 15 — use LTX for 25/);
 assert.match(
   readFileSync(join(here, "../src/lib/minimaxH3.ts"), "utf8"),
   /H3 max 15/,

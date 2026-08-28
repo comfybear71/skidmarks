@@ -84,7 +84,7 @@ import {
   resolveMvSendEngine,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
-import { MINIMAX_H3_ID, MINIMAX_H3_OVER_MAX_NOTE, refuseMinimaxH3OverMax } from "@/lib/minimaxH3";
+import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
 import { clampHangLengthSec } from "@/lib/scratchSongWindow";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { ClipFrameThumb } from "./ClipFrameThumb";
@@ -2183,9 +2183,6 @@ export function MusicVideoTrack({
                   </button>
                 ) : null}
               </div>
-              {pickedOnSong && refuseMinimaxH3OverMax(pickedLenSec) ? (
-                <p className="m-track-err">{MINIMAX_H3_OVER_MAX_NOTE}</p>
-              ) : null}
             </div>
           ) : null}
 
