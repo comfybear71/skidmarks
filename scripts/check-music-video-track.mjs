@@ -34,6 +34,7 @@ import {
   plateSlicePx,
   secToMs,
   hungBarDurationSec,
+  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   ensurePlateDuration,
   sliceBoundsForPlate,
@@ -186,7 +187,7 @@ assert.equal(hungBarDurationSec({ startMs: 0, endMs: 500 }), undefined);
   assert.match(twentyFive.note, /H3 max 15/);
   const missing = cookDurationFromHungBar(null, "h3");
   assert.ok("error" in missing);
-  assert.equal(missing.error, "Hang the still on the song first.");
+  assert.equal(missing.error, ADD_STILL_THEN_SEND);
   const tenLtx = cookDurationFromHungBar({ startMs: 0, endMs: 10000 }, "ltx");
   assert.ok(!("error" in tenLtx));
   assert.equal(tenLtx.durationSec, 10, "10s bar cooks 10 — do not invent 15");
@@ -1646,10 +1647,16 @@ assert.doesNotMatch(mobileCss, /\.m-plate-add-then-send/, "no lecture chrome und
     /if \(!isRealPlateHang\(timingNow\(\)\)\)/,
     "Send checks the hung bar before cooking",
   );
+  assert.match(sendPlateFn, /ADD_STILL_THEN_SEND/, "unhung Send shows the desk rule on the plate");
   assert.doesNotMatch(
     sendPlateFn,
-    /Add this still to the song first/,
-    "Send must not say he skipped Add after a hang",
+    /await addPlateToTimeline/,
+    "Send must not Add the still onto the song",
+  );
+  assert.doesNotMatch(
+    sendPlateFn,
+    /await hangStillsOnWave/,
+    "Send must not auto-hang leftover mp4s",
   );
 }
 assert.match(trackUi, /function takeSongJob/, "Add / schedule write the job onto jobRef");
