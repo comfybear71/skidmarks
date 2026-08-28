@@ -1,5 +1,6 @@
 import { voiceNamesMatch } from "./voiceNameMatch";
 import { emptyHandsStillLock, joPhoneStagingExtra } from "./mobileImageMotion";
+import { isEmptyStageStaging } from "./emptyStagePlate";
 import type { ShowStyleId } from "./showStylePresets";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
 
@@ -161,6 +162,48 @@ export function speakersAlreadyInPlate(opts: {
     .filter((b) => !(emptyCard && packDialogueSpeaker(b.voiceFile || "")))
     .map((b) => b.speaker.trim())
     .filter(Boolean);
+}
+
+/**
+ * People actually in the mute still. Position / summary / Cast — not the
+ * plate title. Music-video plates are titled with the singer; that is not
+ * "on the pad".
+ */
+export function muteMvPadNames(opts: {
+  roster: string[];
+  staging?: string;
+  summary?: string;
+  castNames?: string[];
+}): string[] {
+  const words = [opts.staging, opts.summary, ...(opts.castNames || [])]
+    .filter(Boolean)
+    .join(" ");
+  if (!words.trim()) return [];
+  return rosterNamedOnPlate(opts.roster, words);
+}
+
+/**
+ * Support B-roll, Nobody tap, empty-stage boilerplate, or picture words
+ * that name no roster person. Empty Position on a titled JACK plate is
+ * unknown — keep the person lock until he taps Nobody or Support.
+ */
+export function muteMvEmptyFrame(opts: {
+  footageRole?: string | null;
+  nobodyInShot?: boolean;
+  staging?: string;
+  summary?: string;
+  castNames?: string[];
+  padNames?: string[];
+}): boolean {
+  if (opts.footageRole === "support") return true;
+  if (opts.nobodyInShot) return true;
+  if (isEmptyStageStaging(opts.staging || "")) return true;
+  const picture = [opts.staging, opts.summary, ...(opts.castNames || [])]
+    .map((s) => (s || "").trim())
+    .filter(Boolean)
+    .join(" ");
+  if (!picture) return false;
+  return (opts.padNames || []).length === 0;
 }
 
 /** Unique faces for composite / Image motion — spoken roster + Cast: names. */

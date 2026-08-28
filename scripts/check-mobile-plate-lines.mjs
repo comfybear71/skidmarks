@@ -8,6 +8,8 @@ import {
   speakerMentionedOnPlate,
   speakersAlreadyInPlate,
   shotSpeakersOnCard,
+  muteMvPadNames,
+  muteMvEmptyFrame,
   rosterNamedOnPlate,
   leftoverHydrateSpeakers,
   dropLeftoverHydrateBeats,
@@ -363,5 +365,61 @@ const turkeys = {
   beats: [{ id: "beat_t", speaker: "Bush Turkeys", voiceFile: "" }],
 };
 assert.deepEqual(shotSpeakersOnCard(turkeys), []);
+
+assert.deepEqual(
+  muteMvPadNames({
+    roster: ["JACK GHOST"],
+    staging: "car from behind on the road toward the city",
+  }),
+  [],
+  "car Position does not put JACK on the pad",
+);
+assert.deepEqual(
+  muteMvPadNames({
+    roster: ["JACK GHOST"],
+    staging: "JACK GHOST three-quarter at the road",
+  }),
+  ["JACK GHOST"],
+);
+assert.deepEqual(
+  muteMvPadNames({
+    roster: ["JACK GHOST"],
+    staging: "",
+  }),
+  [],
+  "title-only / empty Position is not on the pad",
+);
+assert.equal(
+  muteMvEmptyFrame({ footageRole: "support", padNames: ["JACK GHOST"] }),
+  true,
+  "Support is B-roll — no person lock",
+);
+assert.equal(
+  muteMvEmptyFrame({ nobodyInShot: true, padNames: ["JACK GHOST"] }),
+  true,
+  "Nobody tap drops the name even on HERO",
+);
+assert.equal(
+  muteMvEmptyFrame({
+    footageRole: "hero",
+    staging: "car from behind on the road toward the city",
+    padNames: [],
+  }),
+  true,
+  "HERO car still with nobody in Position is empty",
+);
+assert.equal(
+  muteMvEmptyFrame({ footageRole: "hero", staging: "", padNames: [] }),
+  false,
+  "empty Position on a titled JACK plate stays unknown — do not guess",
+);
+assert.equal(
+  muteMvEmptyFrame({
+    footageRole: "hero",
+    staging: "JACK GHOST three-quarter at the road",
+    padNames: ["JACK GHOST"],
+  }),
+  false,
+);
 
 console.log("check-mobile-plate-lines: ok");
