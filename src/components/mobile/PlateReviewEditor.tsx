@@ -78,6 +78,7 @@ import {
   writeMvNobodyInShot,
   type MuteMvEngine,
 } from "@/lib/mobileImageMotion";
+import { collectMinimaxH3LastStills, type MinimaxH3LastStill } from "@/lib/minimaxH3";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 import { isEmptyStageStaging } from "@/lib/emptyStagePlate";
 import { talkNextShotTitle } from "@/lib/talkClipTimeline";
@@ -1142,6 +1143,16 @@ export function PlateReviewEditor({
           sendStillBusy={sendStillBusy}
           sendStillNote={sendStillNote}
           onJobChange={onJobChange}
+          siblingPlates={[
+            ...(story?.scenes || []).flatMap((sc) =>
+              sc.shots
+                .filter((s) => s.id !== openShotId)
+                .map((s) => ({ fileName: s.plateFile, title: s.title })),
+            ),
+            ...shots
+              .filter((s) => s.shotId !== openShotId)
+              .map((s) => ({ fileName: s.plateFile, title: s.shotId })),
+          ]}
           onShotMeta={(patch) => {
             if (!openShotId) return;
             setStory((cur) => {
@@ -2325,6 +2336,7 @@ function ShotLineEditor({
   sendStillBusy,
   sendStillNote,
   onJobChange,
+  siblingPlates,
   onShotMeta,
 }: {
   styleId: string;
@@ -2356,6 +2368,7 @@ function ShotLineEditor({
           sendStillBusy?: boolean;
           sendStillNote?: string;
           onJobChange?: (job: MobileGenJob) => void;
+          siblingPlates?: { fileName?: string; title?: string }[];
           onShotMeta?: (patch: {
             footageRole?: ShotFootageRole;
             stockQuery?: string;
@@ -2406,6 +2419,12 @@ function ShotLineEditor({
     );
   }
   if (!shot) return null;
+
+  const h3LastStills = collectMinimaxH3LastStills({
+    firstFile: shot.plateFile,
+    takes: shot.plateTakes,
+    otherPlates: siblingPlates,
+  });
 
   const speakingBeats = plateLineBeats({
     shotId: shot.id,
@@ -2522,6 +2541,7 @@ function ShotLineEditor({
             folderName={folderName}
             jobId={jobId}
             shotId={shot.id}
+            h3LastStills={h3LastStills}
             enginePromptOpen={
               styleId === "music_video" &&
               (enginePromptOpen || muteAction)
@@ -2634,6 +2654,7 @@ function ShotLineEditor({
                   shotId={shot.id}
                   beatId={shot.beats[0]?.id || ""}
                   engine={mvEngine}
+                  h3LastStills={h3LastStills}
                 />
               ) : null}
               {onAddCast ? (
@@ -2735,11 +2756,13 @@ function EmptyMvMotionHole({
   shotId,
   beatId,
   engine,
+  h3LastStills,
 }: {
   jobId: string;
   shotId: string;
   beatId: string;
   engine: MuteMvEngine;
+  h3LastStills?: MinimaxH3LastStill[];
 }) {
   const muteLock = useMemo(
     () =>
@@ -2771,6 +2794,9 @@ function EmptyMvMotionHole({
         setMuteSlot(next);
         writeMvMotionSlot(jobId, beatId, next);
       }}
+      jobId={jobId}
+      shotId={shotId}
+      h3LastStills={h3LastStills}
     />
   );
 }
@@ -2960,6 +2986,7 @@ function BeatLineEditor({
   folderName,
   jobId,
   shotId,
+  h3LastStills,
   enginePromptOpen,
   mvEngine,
   jobVoices,
@@ -2981,6 +3008,7 @@ function BeatLineEditor({
   folderName: string;
   jobId: string;
   shotId: string;
+  h3LastStills?: MinimaxH3LastStill[];
   enginePromptOpen?: boolean;
   mvEngine?: MuteMvEngine;
   jobVoices?: Record<string, JobSpeakerVoice>;
@@ -3537,6 +3565,9 @@ function BeatLineEditor({
           disabled={saving}
           mute={Boolean(muteOn)}
           singingBody={motionBody}
+          jobId={jobId}
+          shotId={shotId}
+          h3LastStills={h3LastStills}
         />
       ) : songDesk ? null : (
       <LtxImageMotionPanel

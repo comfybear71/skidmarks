@@ -25,7 +25,10 @@ import {
   MINIMAX_H3_ID,
   MINIMAX_H3_LABEL,
   MINIMAX_H3_MODEL,
+  parseMinimaxH3Resolution,
   snapMinimaxH3DurationSec,
+  withMinimaxH3CameraCommand,
+  type MinimaxH3Resolution,
 } from "./minimaxH3";
 import {
   minimaxDownloadUrl,
@@ -96,6 +99,8 @@ export async function submitScratchMinimaxClip(opts: {
   beatId: string;
   durationSec?: number;
   endPlateFile?: string;
+  resolution?: MinimaxH3Resolution | string;
+  camera?: string;
   emptyFrame?: boolean;
   nobodyInShot?: boolean;
 }): Promise<{
@@ -141,18 +146,22 @@ export async function submitScratchMinimaxClip(opts: {
   const speaker = emptyFrame ? "" : (beat.speaker || "").trim();
   const line = (beat.text || "").trim();
   const durationSec = snapMinimaxH3DurationSec(opts.durationSec ?? 5);
-  const prompt = [
-    buildSirayI2vPrompt({
-      speaker,
-      motion,
-      staging: storyShot.staging || "",
-      imageOnly: true,
-    }),
-    "Silent picture. Do not sing. Do not invent music or speech. Mouth stays closed.",
-    endPath ? "The last frame is the second attached still. Travel from the first still to that last still. No hard cut to a new face." : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const resolution = parseMinimaxH3Resolution(opts.resolution);
+  const prompt = withMinimaxH3CameraCommand(
+    [
+      buildSirayI2vPrompt({
+        speaker,
+        motion,
+        staging: storyShot.staging || "",
+        imageOnly: true,
+      }),
+      "Silent picture. Do not sing. Do not invent music or speech. Mouth stays closed.",
+      endPath ? "The last frame is the second attached still. Travel from the first still to that last still. No hard cut to a new face." : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    opts.camera,
+  );
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
     ? (job.clips || []).map((c) =>
@@ -194,6 +203,7 @@ export async function submitScratchMinimaxClip(opts: {
       firstImageUrl: await fileToSirayVideoDataUrl(platePath),
       lastImageUrl: endPath ? await fileToSirayVideoDataUrl(endPath) : undefined,
       durationSec,
+      resolution,
     });
     const task: ScratchClipTask = {
       taskId,

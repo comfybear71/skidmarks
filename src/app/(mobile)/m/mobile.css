@@ -3459,6 +3459,88 @@ span.scratch-history-blob {
   line-height: 1.4;
 }
 
+.m-plate-h3-caps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.m-plate-h3-caps-label,
+.m-plate-h3-caps-note {
+  margin: 0;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.m-plate-h3-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.m-plate-h3-chip {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.m-plate-h3-chip.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+.m-plate-h3-chip:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.m-plate-h3-lasts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.m-plate-h3-last {
+  display: flex;
+  flex-direction: column;
+  width: 72px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome-dim);
+  font-size: 10px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.m-plate-h3-last.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+.m-plate-h3-last-thumb {
+  display: block;
+  width: 72px;
+  height: 48px;
+  background-size: cover;
+  background-position: center;
+}
+
+.m-plate-h3-last span {
+  padding: 3px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .m-plate-motion-lock {
   margin: 0;
   color: var(--chrome-dim);

@@ -480,7 +480,7 @@ assert.equal(muteMvMotionLabel("ltx"), "LTX Image motion", "LTX titles the hole 
 assert.equal(MUTE_MV_LTX_DESK_MAX_SEC, 40, "desk fold says 40s LTX, not the 180 safety ceiling");
 assert.equal(
   muteMvEngineFoldSummary("h3"),
-  "H3 · 4–15s · first frame · one move",
+  "H3 · 4–15s · first+last · camera · 768P/2K",
   "H3 fold stays a one-liner until he taps",
 );
 assert.equal(
@@ -489,18 +489,18 @@ assert.equal(
   "LTX fold is the matching one-liner",
 );
 const h3Fold = muteMvEngineFoldLines("h3");
-assert.equal(h3Fold.length, 5, "H3 tap opens the five desk facts");
+assert.equal(h3Fold.length, 6, "H3 tap opens the real API set");
 assert.match(h3Fold[0], /4–15s/);
-assert.match(h3Fold[0], /No 25s/);
-assert.match(h3Fold[0], /Use LTX for 25/);
-assert.match(h3Fold[1], /first frame/);
-assert.match(h3Fold[1], /No last-frame picker on this desk/);
-assert.match(h3Fold[2], /hold \/ push \/ track \/ pedestal/);
-assert.match(h3Fold[2], /write it in \[ \]/);
-assert.match(h3Fold[3], /No song into H3/);
-assert.match(h3Fold[3], /mouths shut/);
-assert.match(h3Fold[4], /Cowboy Bebop/);
-assert.doesNotMatch(h3Fold.join(" "), /Fal Quality|last-frame picker on this desk is/i);
+assert.match(h3Fold[1], /First \+ last frame/);
+assert.match(h3Fold[2], /no drone field/);
+assert.match(h3Fold[2], /Pedestal up/);
+assert.match(h3Fold[3], /Truck L\/R/);
+assert.match(h3Fold[3], /Pedestal up\/down/);
+assert.match(h3Fold[4], /768P or 2K/);
+assert.match(h3Fold[4], /No 1080P/);
+assert.match(h3Fold[4], /No song into H3/);
+assert.match(h3Fold[5], /Last-only/);
+assert.doesNotMatch(h3Fold.join(" "), /Cowboy Bebop|No last-frame picker on this desk/i);
 const ltxFold = muteMvEngineFoldLines("ltx");
 assert.equal(ltxFold.length, 1, "LTX fold stays a matching one-liner");
 assert.doesNotMatch(ltxFold[0], /up to 30s/, "fold must not still say 30s is the cap");
