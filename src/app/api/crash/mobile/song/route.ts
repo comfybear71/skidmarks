@@ -13,7 +13,7 @@ import { MINIMAX_H3_ID, refuseMinimaxH3OverMax, snapMinimaxH3DurationSec } from 
 import { sirayConfigured } from "@/lib/sirayClient";
 import { minimaxVideoConfigured } from "@/lib/minimaxVideo";
 import { clipOwnsHangPlate, hangDoneClipOnTrack } from "@/lib/stockClipHang";
-import { clipFileBasename, stackedClipFiles } from "@/lib/mobilePlateClips";
+import { clipFileBasename, keepClipsAfterUnhang, stackedClipFiles } from "@/lib/mobilePlateClips";
 import { newId } from "@/lib/types";
 import {
   clampSongWindow,
@@ -46,8 +46,8 @@ import {
   withoutPlateParkedCuts,
   withoutSongPlateAt,
   withoutSongRowSliceAt,
-  withSkippedSongPlate,
   withoutSkippedSongPlate,
+  removePlateFromSong,
 } from "@/lib/musicVideoSong";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
@@ -93,7 +93,7 @@ export const maxDuration = 900;
  *     the list at 1 × 15s. Already hung + extra mp4 → hang that file after
  *     the last bar. Waiting 0/3 cuts do not block. No cook.
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
- *   skip-plate — take one list row off. Plate card stays.
+ *   skip-plate — unhang that list row. Clip file stays. Never park. X on CLIPS parks.
  *   List edits clear stuck cooks first — a hung LTX must not lock Add forever.
  */
 export async function POST(req: Request) {
@@ -893,11 +893,45 @@ export async function POST(req: Request) {
       const nextIds = withoutSongPlateAt(onList, listIndex);
       const nextSlices = withoutSongRowSliceAt(songDeskRowSlices(song, onList), listIndex);
       const stillOnList = nextIds.includes(shotId);
+      if (!stillOnList) {
+        const next = removePlateFromSong({
+          plateId: shotId,
+          plateTimings: song.plateTimings,
+          cuts: song.cuts,
+          songPlateIds: onList,
+          rowSlices: songDeskRowSlices(song, onList),
+          skipShotIds: song.skipShotIds,
+          jobShots: job.shots,
+        });
+        const clips = keepClipsAfterUnhang({
+          clips: job.clips || [],
+          removedCuts: next.keptCuts,
+          shots: job.shots,
+          hangStartMs: next.hangStartMs,
+        });
+        const nextWin = nextCutAfter(next.cuts, song.durationSec);
+        const updated = await patchMobileGenJob(jobId, {
+          clips,
+          scratchSong: {
+            ...song,
+            cuts: next.cuts,
+            plateTimings: next.plateTimings,
+            songPlateIds: next.songPlateIds,
+            rowSlices: next.rowSlices,
+            skipShotIds: next.skipShotIds,
+            sliceStartSec: nextWin.startSec,
+            sliceDurationSec: nextWin.durationSec,
+          },
+          error: "",
+        });
+        return NextResponse.json({ ok: true, job: updated });
+      }
       const plateFileByShotId: Record<string, string> = {};
       for (const s of job.shots) {
         const f = (s.plateFile || "").trim();
         if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
       }
+      const keptDone = (song.cuts || []).filter((c) => (c.clipFile || "").trim());
       const cuts = syncSongCutsToDesk({
         songPlateIds: nextIds,
         rowSlices: nextSlices,
@@ -906,6 +940,14 @@ export async function POST(req: Request) {
         songSec: song.durationSec,
         newCutId: () => newId("cut"),
       });
+      const cutFiles = new Set(cuts.map((c) => (c.clipFile || "").trim()).filter(Boolean));
+      for (const c of keptDone) {
+        const file = (c.clipFile || "").trim();
+        if (file && !cutFiles.has(file)) {
+          cuts.push(c);
+          cutFiles.add(file);
+        }
+      }
       const nextWin = nextCutAfter(cuts, song.durationSec);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
@@ -913,9 +955,7 @@ export async function POST(req: Request) {
           cuts,
           songPlateIds: nextIds,
           rowSlices: nextSlices,
-          skipShotIds: stillOnList
-            ? skipSongPlateIds(song)
-            : withSkippedSongPlate(skipSongPlateIds(song), shotId),
+          skipShotIds: skipSongPlateIds(song),
           sliceStartSec: nextWin.startSec,
           sliceDurationSec: nextWin.durationSec,
         },

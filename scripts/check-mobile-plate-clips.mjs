@@ -543,6 +543,14 @@ assert.doesNotMatch(css, /\.m-plate-clip-engines/, "no engine chrome on the CLIP
   assert.equal(onlyOnCut[0].clipFile, "04_Gothic_town.mp4");
   assert.equal(onlyOnCut[0].shotId, "car");
   assert.equal(onlyOnCut[0].durationSec, 4);
+  const stamped = keepClipsAfterUnhang({
+    clips: [
+      { ...clip, beatId: "b2", shotId: "car", clipFile: "02_Gothic_Town_Car.mp4", priorClipFiles: [] },
+    ],
+    removedCuts: [{ id: "c2", shotId: "car", clipFile: "02_Gothic_Town_Car.mp4", startSec: 15, durationSec: 5 }],
+    hangStartMs: 15000,
+  });
+  assert.equal(stamped[0].hangStartMs, 15000, "Off song stamps 0:15 so clip 2 stays clip 2");
 }
 
 assert.match(thumbs, /onRemoveTake/, "CLIPS X still parks the mp4");

@@ -1216,7 +1216,7 @@ assert.doesNotMatch(
 assert.match(trackUi, /remove-plate-timing/);
 assert.match(trackUi, /dropPlateFromWave/);
 assert.match(trackUi, /Off song/);
-assert.match(trackUi, /Off the wave\. Clip stays/);
+assert.match(trackUi, /Off the wave\. Clip stays\. X on CLIPS parks/);
 assert.doesNotMatch(songLib, /the route can park them/);
 assert.match(trackRoute, /keepClipsAfterUnhang/);
 assert.doesNotMatch(

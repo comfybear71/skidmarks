@@ -92,6 +92,8 @@ export type MobileClipUnit = {
   error: string;
   /** Seconds this take runs — talking desk sizes the box from this, not a square thumb. */
   durationSec?: number;
+  /** Song-clock ms after Off song. TRACK no longer has this bar. */
+  hangStartMs?: number;
   speaker?: string;
   line?: string;
   voiceFile?: string;

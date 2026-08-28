@@ -793,6 +793,7 @@ assert.match(
   assert.deepEqual(off.songPlateIds, ["invisible"]);
   assert.deepEqual(off.skipShotIds, ["jack"]);
   assert.deepEqual(off.keptClipFiles, ["01_JACK_GHOST.mp4"]);
+  assert.equal(off.hangStartMs, 0);
   assert.equal(off.keptCuts.length, 1);
   assert.equal(off.cuts.length, 1);
   assert.equal(off.cuts[0]?.shotId, "invisible");
@@ -928,6 +929,7 @@ assert.match(
       { beatId: "b4", shotId: "car", sceneId: "s", clipFile: "04_Gothic_town.mp4", clipStatus: "done", error: "" },
     ],
     removedCuts: offExtra.keptCuts,
+    hangStartMs: offExtra.hangStartMs,
   });
   assert.deepEqual(
     clips.map((c) => c.clipFile),
@@ -948,6 +950,89 @@ assert.match(
   );
   assert.equal(rail.length, 4, "CLIPS rail stays at 4 after Off song");
   assert.ok(rail.some((c) => c.clipFile === "04_Gothic_town.mp4"));
+}
+{
+  const offClip2 = removePlateFromSong({
+    plateId: "car",
+    plateTimings: [
+      { plateId: "jack", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+      { plateId: "jack2", startMs: 20000, endMs: 25000, sortIndex: 2 },
+    ],
+    cuts: [
+      {
+        id: "c1",
+        shotId: "jack",
+        plateFile: "jack.png",
+        startSec: 0,
+        durationSec: 16,
+        status: "done",
+        clipFile: "01_Jack.mp4",
+      },
+      {
+        id: "c2",
+        shotId: "car",
+        plateFile: "car.png",
+        startSec: 15,
+        durationSec: 5,
+        status: "done",
+        clipFile: "02_Gothic_Town_Car.mp4",
+      },
+      {
+        id: "c3",
+        shotId: "jack2",
+        plateFile: "jack2.png",
+        startSec: 20,
+        durationSec: 5,
+        status: "done",
+        clipFile: "03_Look.mp4",
+      },
+    ],
+    songPlateIds: ["jack", "car", "jack2"],
+    jobShots: [
+      { shotId: "jack", plateFile: "jack.png" },
+      { shotId: "car", plateFile: "car.png" },
+      { shotId: "jack2", plateFile: "jack2.png" },
+    ],
+  });
+  assert.deepEqual(
+    offClip2.plateTimings.map((t) => t.plateId),
+    ["jack", "jack2"],
+    "0:15 bar leaves TRACK",
+  );
+  assert.equal(offClip2.hangStartMs, 15000);
+  assert.deepEqual(offClip2.keptClipFiles, ["02_Gothic_Town_Car.mp4"]);
+  const clips2 = keepClipsAfterUnhang({
+    clips: [
+      { beatId: "b1", shotId: "jack", sceneId: "s", clipFile: "01_Jack.mp4", clipStatus: "done", error: "" },
+      { beatId: "b2", shotId: "car", sceneId: "s", clipFile: "02_Gothic_Town_Car.mp4", clipStatus: "done", error: "" },
+      { beatId: "b3", shotId: "jack2", sceneId: "s", clipFile: "03_Look.mp4", clipStatus: "done", error: "" },
+    ],
+    removedCuts: offClip2.keptCuts,
+    hangStartMs: offClip2.hangStartMs,
+  });
+  const rail2 = gatherClipsForStillsRail(
+    {
+      clips: clips2,
+      shots: [
+        { shotId: "jack", sceneId: "s" },
+        { shotId: "car", sceneId: "s" },
+        { shotId: "jack2", sceneId: "s" },
+      ],
+      scratchSong: {
+        cuts: offClip2.cuts,
+        plateTimings: offClip2.plateTimings,
+        skipShotIds: offClip2.skipShotIds,
+      },
+    },
+    [{ shotId: "jack" }, { shotId: "car" }, { shotId: "jack2" }],
+  );
+  assert.deepEqual(
+    rail2.map((c) => c.clipFile),
+    ["01_Jack.mp4", "02_Gothic_Town_Car.mp4", "03_Look.mp4"],
+    "unhung gothic car stays clip 2 at 0:15, not a leftover clip 4",
+  );
+  assert.equal(clips2.find((c) => c.clipFile === "02_Gothic_Town_Car.mp4")?.hangStartMs, 15000);
 }
 assert.doesNotMatch(
   readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8"),
@@ -985,8 +1070,11 @@ assert.doesNotMatch(
   const skipBlock = songRoute.slice(songRoute.indexOf('action === "skip-plate"'));
   const nextAction = skipBlock.search(/\n\s+if \(action === "/);
   const block = nextAction >= 0 ? skipBlock.slice(0, nextAction) : skipBlock.slice(0, 1200);
+  assert.match(block, /removePlateFromSong/);
+  assert.match(block, /keepClipsAfterUnhang/);
   assert.match(block, /syncSongCutsToDesk/);
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
+  assert.doesNotMatch(block, /parkMobileClipFile/);
 }
 assert.match(songUi, /expectedDeskCutCount/);
 assert.match(songUi, /Fixed cut order so the list matches the song clock/);
