@@ -93,7 +93,11 @@ import { CutawayBeatPanel } from "@/components/mobile/CutawayBeatPanel";
 import { PlateHangLenControl } from "@/components/mobile/PlateLenSlider";
 import { requestSongCookStop } from "@/lib/songCutCook";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
-import type { MusicVideoTrackDraft } from "@/lib/musicVideoTrack";
+import {
+  cookDurationFromHungBar,
+  plateTimingForShot,
+  type MusicVideoTrackDraft,
+} from "@/lib/musicVideoTrack";
 import type { ScratchSong } from "@/lib/scratchSongWindow";
 
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
@@ -2348,6 +2352,15 @@ function ShotLineEditor({
   const [muteAction, setMuteAction] = useState(
     () => leftoverCutaway || Boolean(shot?.id && readMvMuteAction(jobId, shot.id)),
   );
+  const h3HangNote = useMemo(() => {
+    if (styleId !== "music_video" || mvEngine !== "h3" || !shot?.id) return "";
+    const cook = cookDurationFromHungBar(
+      plateTimingForShot(scratchSong, trackDraft, shot.id),
+      "h3",
+    );
+    if ("error" in cook) return "";
+    return cook.note;
+  }, [mvEngine, scratchSong, shot?.id, styleId, trackDraft]);
 
   useEffect(() => {
     setEnginePromptOpen(false);
@@ -2685,6 +2698,11 @@ function ShotLineEditor({
         )}
         </div>
       )}
+      {h3HangNote && !sendStillBusy ? (
+        <p className="m-track-err" role="status">
+          {h3HangNote}
+        </p>
+      ) : null}
       {sendStillNote ? (
         <p
           className={sendStillBusy ? "m-song-cook-note" : "m-track-err"}

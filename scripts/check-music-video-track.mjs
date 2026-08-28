@@ -179,7 +179,12 @@ assert.equal(hungBarDurationSec({ startMs: 0, endMs: 500 }), undefined);
   assert.match(overLtx.note, /LTX max 40/);
   const fortyH3 = cookDurationFromHungBar({ startMs: 0, endMs: 40000 }, "h3");
   assert.ok(!("error" in fortyH3));
-  assert.equal(fortyH3.durationSec, 15, "H3 stays 4–15");
+  assert.equal(fortyH3.durationSec, 15, "H3 API max is 15 — do not invent a 40s cook");
+  assert.match(fortyH3.note, /H3 max 15 — cooking 15/);
+  const twelveH3 = cookDurationFromHungBar({ startMs: 0, endMs: 12000 }, "h3");
+  assert.ok(!("error" in twelveH3));
+  assert.equal(twelveH3.durationSec, 12, "12s bar cooks 12");
+  assert.equal(twelveH3.note, "");
 }
 
 const stitched = orderedDoneCutsForStitch({
@@ -278,8 +283,19 @@ assert.doesNotMatch(
 assert.match(trackUi, /MINIMAX_H3_OVER_MAX_NOTE/);
 assert.match(trackUi, /refuseMinimaxH3OverMax/);
 assert.match(
+  trackUi,
+  /=== "h3" &&\s+refuseMinimaxH3OverMax/,
+  "H3 max note only when H3 is the send engine — a 40s LTX bar must not lie",
+);
+assert.match(trackUi, /H3 cooking \$\{cook\.durationSec\}s/);
+assert.match(
   readFileSync(join(here, "../src/lib/minimaxH3.ts"), "utf8"),
-  /H3 max 15/,
+  /H3 max 15 — cooking 15/,
+);
+assert.doesNotMatch(
+  readFileSync(join(here, "../src/lib/minimaxH3.ts"), "utf8"),
+  /use LTX for 25/,
+  "25s chip leftover is gone — slider is 5–40",
 );
 assert.doesNotMatch(mobileCss, /\.m-track-len-chip/, "chip chrome is gone");
 assert.match(mobileCss, /\.m-track-len-slider/);
@@ -307,7 +323,13 @@ assert.equal(clampHangLengthSec(50), 40);
 assert.equal(clampHangLengthSec(3), 5);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
-  /refuseMinimaxH3OverMax/,
+  /cookDurationFromHungBar\(timing, "h3"\)/,
+  "H3 Send follows the hung bar, not body.durationSec",
+);
+assert.doesNotMatch(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /snapMinimaxH3DurationSec\(asked\)/,
+  "H3 run must not snap a client duration and ignore the slider",
 );
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
@@ -1579,6 +1601,8 @@ assert.match(editor, /busy \? "Sending…" : "Send"/, "Send is on the same row a
 assert.match(editor, /onSendStill/, "plate Send uses the one TRACK cook");
 assert.match(editor, /Sending…/, "plate Send shows Sending while the cook runs");
 assert.match(editor, /sendStillNote/, "plate card can show a cook line under Send");
+assert.match(editor, /h3HangNote/, "H3 plate row shows min(bar, 15) when the slider is over 15");
+assert.match(editor, /cookDurationFromHungBar\(/, "plate H3 note reads the hung bar");
 assert.match(
   editor,
   /sendStillBusy \? "m-song-cook-note" : "m-track-err"/,

@@ -1413,6 +1413,26 @@ export function MusicVideoTrack({
   }
 
   function plateCookNote(shotId: string, stillGoing = false) {
+    const useH3 =
+      resolveMvSendEngine({
+        jobId: job.id,
+        shotId,
+        beatId: beatIdForShot(shotId),
+      }) === "h3";
+    if (useH3) {
+      const cook = cookDurationFromHungBar(
+        plateTimingForShot(
+          jobRef.current.scratchSong,
+          jobRef.current.trackDraft,
+          shotId,
+        ),
+        "h3",
+      );
+      if (!("error" in cook)) {
+        const cap = cook.note || `H3 cooking ${cook.durationSec}s`;
+        return stillGoing ? `${cap}. Still going.` : cap;
+      }
+    }
     const mute = readMvMuteAction(job.id, shotId);
     if (mute) {
       return stillGoing
@@ -2183,7 +2203,13 @@ export function MusicVideoTrack({
                   </button>
                 ) : null}
               </div>
-              {pickedOnSong && refuseMinimaxH3OverMax(pickedLenSec) ? (
+              {pickedOnSong &&
+              resolveMvSendEngine({
+                jobId: job.id,
+                shotId: picked.shotId,
+                beatId: beatIdForShot(picked.shotId),
+              }) === "h3" &&
+              refuseMinimaxH3OverMax(pickedLenSec) ? (
                 <p className="m-track-err">{MINIMAX_H3_OVER_MAX_NOTE}</p>
               ) : null}
             </div>

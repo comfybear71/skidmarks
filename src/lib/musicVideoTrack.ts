@@ -476,8 +476,9 @@ export function hungBarDurationSec(
 }
 
 /**
- * Send uses this clock. H3 4–15 (7 and 9 stay 7 and 9). LTX 5–40.
- * A 10s bar cooks 10. A 40s bar cooks 40. Never invent 15.
+ * Send uses this clock. H3 follows the hung bar up to the API max 15
+ * (7 and 9 stay 7 and 9). A 40s bar cooks 15 and says so — do not invent 40.
+ * LTX 5–40. A 10s bar cooks 10. A 40s bar cooks 40. Never invent 15.
  */
 export function cookDurationFromHungBar(
   timing: { startMs?: number; endMs?: number } | null | undefined,

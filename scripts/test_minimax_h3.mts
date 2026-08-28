@@ -59,6 +59,8 @@ assert.equal(refuseMinimaxH3OverMax(15), null);
 assert.equal(refuseMinimaxH3OverMax(4), null);
 assert.equal(refuseMinimaxH3OverMax(25), MINIMAX_H3_OVER_MAX_NOTE);
 assert.equal(refuseMinimaxH3OverMax(25.1), MINIMAX_H3_OVER_MAX_NOTE);
-assert.equal(MINIMAX_H3_OVER_MAX_NOTE, "H3 max 15 — use LTX for 25");
+assert.equal(MINIMAX_H3_OVER_MAX_NOTE, "H3 max 15 — cooking 15");
+assert.equal(clampMinimaxH3HangSec(40).durationSec, 15);
+assert.equal(clampMinimaxH3HangSec(40).note, MINIMAX_H3_OVER_MAX_NOTE);
 
 console.log("minimax h3 tokens + duration snap: ok");

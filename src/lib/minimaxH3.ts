@@ -64,8 +64,8 @@ export function clampMinimaxH3HangSec(sec: number): { durationSec: number; note:
   return { durationSec, note: "" };
 }
 
-/** Do not send 25 to MiniMax. Say so — do not snap and pretend it cooked 25. */
-export const MINIMAX_H3_OVER_MAX_NOTE = "H3 max 15 — use LTX for 25";
+/** Slider can be 16–40. H3 API is 4–15. Send cooks 15 and says so. */
+export const MINIMAX_H3_OVER_MAX_NOTE = "H3 max 15 — cooking 15";
 
 export function refuseMinimaxH3OverMax(sec: number): string | null {
   if (Number.isFinite(sec) && sec > MINIMAX_H3_MAX_SEC) return MINIMAX_H3_OVER_MAX_NOTE;

@@ -9,7 +9,7 @@ import {
   submitScratchMinimaxClip,
 } from "@/lib/minimaxScratchClip";
 import { parseScratchClipEngine } from "@/lib/sirayI2v";
-import { MINIMAX_H3_ID, refuseMinimaxH3OverMax, snapMinimaxH3DurationSec } from "@/lib/minimaxH3";
+import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
 import { sirayConfigured } from "@/lib/sirayClient";
 import { minimaxVideoConfigured } from "@/lib/minimaxVideo";
 import { clipOwnsHangPlate, hangDoneClipOnTrack } from "@/lib/stockClipHang";
@@ -62,6 +62,7 @@ import {
   hangUnhungDoneClips,
   listUnhungDoneClips,
   sliceBoundsForPlate,
+  cookDurationFromHungBar,
 } from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 
@@ -394,15 +395,12 @@ export async function POST(req: Request) {
           if (!minimaxVideoConfigured()) {
             return NextResponse.json({ error: "H3 is not on this Studio." }, { status: 400 });
           }
-          const asked = Number(body.durationSec ?? bounds.durationSec);
-          if (!Number.isFinite(asked) || asked <= 0) {
-            return NextResponse.json(
-              { error: "Hang the still on the song first." },
-              { status: 400 },
-            );
+          const timing = (song.plateTimings || []).find((p) => p.plateId === shotId);
+          const cook = cookDurationFromHungBar(timing, "h3");
+          if ("error" in cook) {
+            return NextResponse.json({ error: cook.error }, { status: 400 });
           }
-          const refuse = refuseMinimaxH3OverMax(asked);
-          const durationSec = snapMinimaxH3DurationSec(asked);
+          const durationSec = cook.durationSec;
           const drawn = await submitScratchMinimaxClip({
             job,
             story,
@@ -421,7 +419,7 @@ export async function POST(req: Request) {
             backend: "minimax-h3",
             clipEngine: MINIMAX_H3_ID,
             durationSec,
-            ...(refuse ? { note: refuse } : {}),
+            ...(cook.note ? { note: cook.note } : {}),
           });
         }
         if (clipPick !== "ltx" && clipPick !== "grok") {
