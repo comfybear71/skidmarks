@@ -49,6 +49,21 @@ export function snapMinimaxH3DurationSec(sec: number): number {
   return Math.max(MINIMAX_H3_MIN_SEC, Math.min(MINIMAX_H3_MAX_SEC, Math.round(sec)));
 }
 
+/** Hung bar → H3 seconds. 7 and 9 stay 7 and 9. Never swap a real hang for the 5s default. */
+export function clampMinimaxH3HangSec(sec: number): { durationSec: number; note: string } {
+  const durationSec = snapMinimaxH3DurationSec(sec);
+  if (!Number.isFinite(sec) || sec <= 0) {
+    return { durationSec, note: `H3 needs a hung length — cooking ${durationSec}` };
+  }
+  if (sec > MINIMAX_H3_MAX_SEC) {
+    return { durationSec, note: `H3 max ${MINIMAX_H3_MAX_SEC} — cooking ${durationSec}` };
+  }
+  if (sec < MINIMAX_H3_MIN_SEC) {
+    return { durationSec, note: `H3 min ${MINIMAX_H3_MIN_SEC} — cooking ${durationSec}` };
+  }
+  return { durationSec, note: "" };
+}
+
 /** Do not send 25 to MiniMax. Say so — do not snap and pretend it cooked 25. */
 export const MINIMAX_H3_OVER_MAX_NOTE = "H3 max 15 — use LTX for 25";
 

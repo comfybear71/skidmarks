@@ -22,6 +22,7 @@ import {
   withLyricCue,
   withoutLyricCue,
   plateTimingForShot,
+  cookDurationFromHungBar,
   cutForHungPlate,
   hangPlateShotId,
   isRealPlateHang,
@@ -899,6 +900,7 @@ export function MusicVideoTrack({
   const [rangeChosen, setRangeChosen] = useState(false);
   const [stretchTimings, setStretchTimings] = useState<PlateTiming[] | null>(null);
   const [stretchReadout, setStretchReadout] = useState("");
+  const [lenDraft, setLenDraft] = useState("");
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const jobRef = useRef(job);
@@ -1087,6 +1089,10 @@ export function MusicVideoTrack({
     pickedClock && pickedClock.endMs > pickedClock.startMs
       ? msToSec(pickedClock.endMs - pickedClock.startMs)
       : 0;
+
+  useEffect(() => {
+    if (pickedOnSong && pickedLenSec > 0) setLenDraft(String(pickedLenSec));
+  }, [picked?.shotId, pickedLenSec, pickedOnSong]);
 
   const zipClips = useMemo(() => orderedJobClips(job), [job]);
   const zipHref = zipClips.length
@@ -1440,15 +1446,15 @@ export function MusicVideoTrack({
       jobRef.current.trackDraft,
       shotId,
     );
-    const durationSec =
-      timing && timing.endMs > timing.startMs
-        ? msToSec(timing.endMs - timing.startMs)
-        : undefined;
-    const refuse = refuseMinimaxH3OverMax(durationSec ?? 0);
-    if (refuse) {
-      setNote(refuse);
-      paintPlateSend(refuse);
+    const cook = cookDurationFromHungBar(timing, "h3");
+    if ("error" in cook) {
+      setNote(cook.error);
+      paintPlateSend(cook.error);
       return;
+    }
+    if (cook.note) {
+      setNote(cook.note);
+      paintPlateSend(cook.note);
     }
     askSongCookNotifyPermission();
     setBusy(`send-${cutId}`);
@@ -1458,7 +1464,7 @@ export function MusicVideoTrack({
         cutId,
         beatId: targetBeatId || beatId,
         clipEngine: MINIMAX_H3_ID,
-        ...(durationSec ? { durationSec } : {}),
+        durationSec: cook.durationSec,
         ...songRunEmptyExtras(shotId),
       });
       if (raw.pending) await pollI2v(cutId, shotId, targetBeatId);
@@ -1526,6 +1532,21 @@ export function MusicVideoTrack({
       setNote("Add this still to the timeline first.");
       return;
     }
+    const timing = plateTimingForShot(
+      jobRef.current.scratchSong,
+      jobRef.current.trackDraft,
+      shotId,
+    );
+    const cook = cookDurationFromHungBar(timing, "ltx");
+    if ("error" in cook) {
+      setNote(cook.error);
+      paintPlateSend(cook.error);
+      return;
+    }
+    if (cook.note) {
+      setNote(cook.note);
+      paintPlateSend(cook.note);
+    }
     askSongCookNotifyPermission();
     setBusy(`send-${id}`);
     paintPlateSend(plateCookNote(shotId));
@@ -1534,6 +1555,7 @@ export function MusicVideoTrack({
         cutId: id,
         beatId: targetBeatId || beatId,
         clipEngine: "ltx",
+        durationSec: cook.durationSec,
         ...songRunEmptyExtras(shotId),
       });
       await waitForSongCut({
@@ -1587,24 +1609,6 @@ export function MusicVideoTrack({
     if (!cut?.id) {
       setNote("Add this still to the song first, then Send.");
       return;
-    }
-    const useH3Now =
-      resolveMvSendEngine({
-        jobId: job.id,
-        shotId,
-        beatId: targetBeatId,
-      }) === "h3";
-    if (useH3Now) {
-      const hangSec = (() => {
-        const t = timingNow();
-        return t && t.endMs > t.startMs ? msToSec(t.endMs - t.startMs) : 0;
-      })();
-      const refuse = refuseMinimaxH3OverMax(hangSec);
-      if (refuse) {
-        setNote(refuse);
-        paintPlateSend(refuse);
-        return;
-      }
     }
     if (cookLock.current) return;
     cookLock.current = true;
@@ -1855,11 +1859,22 @@ export function MusicVideoTrack({
         durationSec,
       });
       if (updated) onJobChange(updated);
+      setLenDraft(String(durationSec));
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't set that length");
     } finally {
       setBusy("");
     }
+  }
+
+  function commitHungPlateLength() {
+    const sec = Number(lenDraft);
+    if (!Number.isFinite(sec) || sec <= 0) {
+      if (pickedLenSec > 0) setLenDraft(String(pickedLenSec));
+      return;
+    }
+    if (pickedLenSec > 0 && Math.abs(sec - pickedLenSec) < 0.05) return;
+    void setHungPlateLength(sec);
   }
 
   async function dropSong() {
@@ -2108,7 +2123,7 @@ export function MusicVideoTrack({
               <div className="m-track-pick-name">{picked.title}</div>
               <div className="m-track-pick-clock">
                 {pickedOnSong && pickedClock
-                  ? `${formatTrackClockPrecise(pickedClock.startMs)} – ${formatTrackClockPrecise(pickedClock.endMs)}`
+                  ? `${formatTrackClockPrecise(pickedClock.startMs)} – ${formatTrackClockPrecise(pickedClock.endMs)} · ${pickedLenSec}s`
                   : "Not on the song yet"}
               </div>
               <div className="m-track-pick-tools">
@@ -2157,6 +2172,25 @@ export function MusicVideoTrack({
                           {sec}
                         </button>
                       ))}
+                      <input
+                        type="number"
+                        min={4}
+                        max={30}
+                        step={1}
+                        inputMode="decimal"
+                        aria-label="Seconds on the song"
+                        value={lenDraft}
+                        disabled={Boolean(busy)}
+                        onChange={(e) => setLenDraft(e.target.value)}
+                        onBlur={() => commitHungPlateLength()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            commitHungPlateLength();
+                          }
+                        }}
+                      />
+                      <span>s</span>
                     </div>
                     {/* Send lives on the JACK GHOST plate row — one cook. */}
                     {doneCutForPlate(picked.shotId)?.id ||
@@ -2203,7 +2237,7 @@ export function MusicVideoTrack({
                   </button>
                 ) : null}
               </div>
-              {pickedOnSong && pickedLenSec > 15 ? (
+              {pickedOnSong && refuseMinimaxH3OverMax(pickedLenSec) ? (
                 <p className="m-track-err">{MINIMAX_H3_OVER_MAX_NOTE}</p>
               ) : null}
             </div>

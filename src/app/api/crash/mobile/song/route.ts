@@ -15,7 +15,13 @@ import { minimaxVideoConfigured } from "@/lib/minimaxVideo";
 import { clipOwnsHangPlate, hangDoneClipOnTrack } from "@/lib/stockClipHang";
 import { clipFileBasename, stackedClipFiles } from "@/lib/mobilePlateClips";
 import { newId } from "@/lib/types";
-import { nextCutAfter, songWindowLabel, type ScratchSongCut } from "@/lib/scratchSongSlice";
+import {
+  clampSongWindow,
+  nextCutAfter,
+  SCRATCH_SONG_SLICE_MAX_SEC,
+  songWindowLabel,
+  type ScratchSongCut,
+} from "@/lib/scratchSongSlice";
 import {
   beatForSongCut,
   findSongCarrierBeatId,
@@ -391,17 +397,13 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "H3 is not on this Studio." }, { status: 400 });
           }
           const asked = Number(body.durationSec ?? bounds.durationSec);
-          const refuse = refuseMinimaxH3OverMax(asked);
-          if (refuse) {
-            const latest = (await readMobileGenJob(jobId)) || job;
-            const failed = await failScratchSongCutRun({
-              jobId,
-              job: latest,
-              cutId: cut.id,
-              message: refuse,
-            });
-            return NextResponse.json({ error: refuse, job: failed }, { status: 400 });
+          if (!Number.isFinite(asked) || asked <= 0) {
+            return NextResponse.json(
+              { error: "Hang the still on the song first." },
+              { status: 400 },
+            );
           }
+          const refuse = refuseMinimaxH3OverMax(asked);
           const durationSec = snapMinimaxH3DurationSec(asked);
           const drawn = await submitScratchMinimaxClip({
             job,
@@ -421,6 +423,7 @@ export async function POST(req: Request) {
             backend: "minimax-h3",
             clipEngine: MINIMAX_H3_ID,
             durationSec,
+            ...(refuse ? { note: refuse } : {}),
           });
         }
         if (clipPick !== "ltx" && clipPick !== "grok") {
@@ -444,6 +447,13 @@ export async function POST(req: Request) {
             clipEngine: clipPick,
           });
         }
+        const asked = Number(body.durationSec ?? bounds.durationSec);
+        const slice = clampSongWindow(
+          bounds.startSec,
+          asked,
+          song.durationSec,
+          SCRATCH_SONG_SLICE_MAX_SEC,
+        );
         const updated = await runScratchLtxClip({
           job,
           story,
@@ -451,8 +461,8 @@ export async function POST(req: Request) {
           sceneId,
           beatId,
           plateFile: cut.plateFile,
-          sliceStartSec: bounds.startSec,
-          sliceDurationSec: bounds.durationSec,
+          sliceStartSec: slice.startSec,
+          sliceDurationSec: slice.durationSec,
           cutId: cut.id,
           mute: body.mute === true,
           emptyFrame: body.emptyFrame === true,
