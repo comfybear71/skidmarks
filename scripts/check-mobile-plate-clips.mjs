@@ -15,6 +15,7 @@ import {
   stableClipTakeLabel,
 } from "../src/lib/mobilePlateClips.ts";
 import { parkMobileClipFile } from "../src/lib/mobileClipPark.ts";
+import { extraTakeHangPlateId } from "../src/lib/musicVideoTrack.ts";
 
 const clip = {
   beatId: "beat-1",
@@ -326,6 +327,26 @@ assert.deepEqual(clipRailLabels(stuiesThree.length), ["clip 1", "clip 2", "clip 
 assert.equal(clipHangStartMs(stuiesThree[1], {
   plateTimings: [{ plateId: "plate-8", startMs: 15000, endMs: 30000, sortIndex: 1 }],
 }), 15000);
+
+const leftoverClock = clipHangStartMs(
+  { shotId: "jack3", clipFile: "04_Jack_stand.mp4", priorClipFiles: [] },
+  {
+    cuts: [
+      { shotId: "jack3", clipFile: "03_Jack_5.mp4" },
+      { shotId: extraTakeHangPlateId("jack3", "04_Jack_stand.mp4"), clipFile: "04_Jack_stand.mp4" },
+    ],
+    plateTimings: [
+      { plateId: "jack3", startMs: 20000, endMs: 25000, sortIndex: 0 },
+      {
+        plateId: extraTakeHangPlateId("jack3", "04_Jack_stand.mp4"),
+        startMs: 25000,
+        endMs: 33000,
+        sortIndex: 1,
+      },
+    ],
+  },
+);
+assert.equal(leftoverClock, 25000, "leftover take uses its own bar — not the 0:20 first take");
 
 /** Two different mp4s on the same still (both used to say plate 9). */
 const twoOnNine = gatherClipsForStillsRail(
