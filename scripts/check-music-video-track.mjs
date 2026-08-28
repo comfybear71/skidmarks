@@ -520,7 +520,7 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(jackGhost?.plateTimings[3]?.startMs, 25000, "clip 4 after last hung end — not another 0:20");
   assert.equal(jackGhost?.plateTimings[3]?.endMs, 30000, "real 5s, not a fake 15");
   assert.equal(jackGhost?.cuts.length, 4, "do not delete clip 3");
-  assert.equal(listUnhungDoneClips({
+  assert.deepEqual(listUnhungDoneClips({
     clips: [
       { shotId: "jack3", clipFile: "clip4.mp4", priorClipFiles: ["clip3.mp4"], clipStatus: "done", durationSec: 5 },
     ],
