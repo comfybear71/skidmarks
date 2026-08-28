@@ -22,7 +22,6 @@ import {
   withLyricCue,
   withoutLyricCue,
   plateTimingForShot,
-  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   cutForHungPlate,
   hangPlateShotId,
@@ -1549,8 +1548,7 @@ export function MusicVideoTrack({
   async function sendOneCutBody(cutId: string, shotId: string, targetBeatId: string) {
     const id = cutId.trim();
     if (!id) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
+      setNote("Add this still to the timeline first.");
       return;
     }
     const timing = plateTimingForShot(
@@ -1605,11 +1603,13 @@ export function MusicVideoTrack({
         jobRef.current.trackDraft,
         shotId,
       );
-    // Add hangs the still. Send cooks that bar. Do not Add / hang / cook here.
+    // Hung mp4s already have a clock. Add is only for a still with no clip.
     if (!isRealPlateHang(timingNow())) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
-      return;
+      if (hungClipFileForPlate(jobRef.current, shotId)) {
+        await hangStillsOnWave();
+      } else {
+        await addPlateToTimeline(shotId);
+      }
     }
     const hungCut = () =>
       cutForHungPlate({
@@ -1620,14 +1620,13 @@ export function MusicVideoTrack({
     let cut = hungCut();
     if (!cut?.id) {
       const timing = timingNow();
-      if (timing && isRealPlateHang(timing)) {
+      if (timing) {
         await schedulePlate(shotId, timing.startMs, timing.endMs, timing.sortIndex);
         cut = hungCut();
       }
     }
     if (!cut?.id) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
+      setNote("Add this still to the song first, then Send.");
       return;
     }
     if (cookLock.current) return;

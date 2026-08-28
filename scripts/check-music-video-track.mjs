@@ -34,7 +34,6 @@ import {
   plateSlicePx,
   secToMs,
   hungBarDurationSec,
-  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   ensurePlateDuration,
   sliceBoundsForPlate,
@@ -163,8 +162,6 @@ assert.equal(hungBarDurationSec({ startMs: 0, endMs: 500 }), undefined);
   assert.match(twentyFive.note, /H3 max 15/);
   const missing = cookDurationFromHungBar(null, "h3");
   assert.ok("error" in missing);
-  assert.equal(missing.error, ADD_STILL_THEN_SEND);
-  assert.equal(ADD_STILL_THEN_SEND, "Add this still to the song first, then Send.");
   const tenLtx = cookDurationFromHungBar({ startMs: 0, endMs: 10000 }, "ltx");
   assert.ok(!("error" in tenLtx));
   assert.equal(tenLtx.durationSec, 10, "10s bar cooks 10 — do not invent 15");
@@ -1597,30 +1594,6 @@ assert.match(editor, /writeMvMotionSlot/, "plate [ ] keeps the slot when he swit
 assert.match(editor, /function PlateEngineButtons/, "LTX / H3 sit on the plate Add row");
 assert.match(editor, /function PlateSendButton/, "Send sits on the plate Add row");
 assert.match(editor, /m-plate-add-engines/, "Add | LTX | H3 | Send share one row");
-assert.match(editor, /ADD_STILL_THEN_SEND/, "plate shows Add this still to the song first, then Send");
-assert.match(editor, /m-plate-add-then-send/, "desk rule sits under Add | LTX | H3 | Send");
-assert.match(mobileCss, /\.m-plate-add-then-send/, "desk rule has its own line under the buttons");
-{
-  const sendPlateFn =
-    trackUi.match(/async function sendPlate\([\s\S]*?sendPlateRef\.current = sendPlate/)?.[0] || "";
-  assert.match(sendPlateFn, /ADD_STILL_THEN_SEND/, "Send without a hung bar shows the desk rule");
-  assert.match(
-    sendPlateFn,
-    /if \(!isRealPlateHang\(timingNow\(\)\)\)/,
-    "Send checks the hung bar before cooking",
-  );
-  assert.doesNotMatch(
-    sendPlateFn,
-    /await addPlateToTimeline/,
-    "Send must not Add the still onto the song",
-  );
-  assert.doesNotMatch(
-    sendPlateFn,
-    /await hangStillsOnWave/,
-    "Send must not auto-hang leftover mp4s",
-  );
-  assert.doesNotMatch(sendPlateFn, /hungClipFileForPlate/, "Send does not file-first hang");
-}
 assert.match(editor, /onClick=\{onAddToSong\}/, "plate-row Add next to LTX is onAddToSong");
 assert.match(editor, />\s*LTX\s*</, "LTX is a real button next to Add");
 assert.match(editor, />\s*H3\s*</, "H3 is a real button next to Add");
