@@ -22,6 +22,8 @@ import {
   isRealPlateHang,
   clipFileOnWave,
   hitPlateEdge,
+  firstUnusedLyricHangStartMs,
+  singingHangStartMs,
   nextPlateHangWindow,
   resolvePlateTimings,
   stretchPlateEdge,
@@ -553,6 +555,33 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(next20.startMs, 15000);
   assert.equal(next20.endMs, 35000, "TRACK Add hangs the slider 20s — not 15");
 
+  const silverCues = [
+    { lineIndex: 0, atMs: 31000 },
+    { lineIndex: 1, atMs: 81000 },
+  ];
+  const thirtyIntro = [{ plateId: "intro", startMs: 0, endMs: 30000, sortIndex: 0 }];
+  assert.equal(firstUnusedLyricHangStartMs(silverCues, thirtyIntro), 31000);
+  assert.equal(
+    firstUnusedLyricHangStartMs(silverCues, [
+      ...thirtyIntro,
+      { plateId: "jack", startMs: 31000, endMs: 46000, sortIndex: 1 },
+    ]),
+    81000,
+    "Jack already on Silver yields wheels",
+  );
+  assert.equal(singingHangStartMs({ singing: false, lyricCues: silverCues, plateTimings: thirtyIntro }), null);
+  assert.equal(singingHangStartMs({ singing: true, lyricCues: silverCues, plateTimings: thirtyIntro }), 31000);
+  const singingWin = nextPlateHangWindow(thirtyIntro, { singing: true, lyricCues: silverCues });
+  assert.equal(singingWin.startMs, 31000, "TRACK first Add of a singing still uses Silver 0:31");
+  assert.equal(singingWin.endMs, 46000);
+  const muteWin = nextPlateHangWindow(thirtyIntro, { singing: false, lyricCues: silverCues });
+  assert.equal(muteWin.startMs, 30000, "mute / support still hangs in the gap after intro");
+  const jackHeld = [{ plateId: "jack", startMs: 31000, endMs: 46000, sortIndex: 0 }];
+  const introFront = nextPlateHangWindow(jackHeld, { durationSec: 30, singing: false });
+  assert.equal(introFront.startMs, 0, "30s intro sits at 0 — does not push Jack");
+  assert.equal(introFront.endMs, 30000);
+  assert.equal(jackHeld[0]?.startMs, 31000);
+
   const resized = withPlateDuration(
     [
       { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
@@ -563,8 +592,8 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     180000,
   );
   assert.equal(resized?.[0].endMs, 8000);
-  assert.equal(resized?.[1].startMs, 8000);
-  assert.equal(resized?.[1].endMs, 23000);
+  assert.equal(resized?.[1].startMs, 15000, "other plate keeps 0:15 — song does not slide");
+  assert.equal(resized?.[1].endMs, 30000);
   assert.equal(withPlateDuration([], "missing", 8000, 180000), null);
   const minted = ensurePlateDuration([], "fresh", 10000, 180000);
   assert.equal(minted?.[0].plateId, "fresh");
@@ -607,7 +636,7 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     180000,
   );
   assert.equal(five?.[0].endMs, 5000);
-  assert.equal(five?.[1].startMs, 5000);
+  assert.equal(five?.[1].startMs, 15000, "other plate keeps its song time");
   const twentyFive = withPlateDuration(
     [{ plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 }],
     "a",
@@ -695,6 +724,14 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     ],
     "known mp4 length else 15",
   );
+
+  const jackOnSilver = hangMissingPlateTimings(
+    [{ plateId: "jack", startMs: 31000, endMs: 46000, sortIndex: 0 }],
+    [{ shotId: "intro", startSec: 0, durationSec: 30 }],
+  );
+  assert.equal(jackOnSilver.find((t) => t.plateId === "jack")?.startMs, 31000, "Jack stays 0:31");
+  assert.equal(jackOnSilver.find((t) => t.plateId === "intro")?.startMs, 0, "intro sits on the front");
+  assert.equal(jackOnSilver.find((t) => t.plateId === "intro")?.endMs, 30000);
 
   const twoTakes = hangOneClipOnWave({
     plateTimings: [{ plateId: "plate-9", startMs: 0, endMs: 15000, sortIndex: 0 }],
@@ -869,6 +906,40 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   });
   assert.equal(noFile.hung, false, "still with no mp4 is not a silent hang");
   assert.equal(tallyPending(noFile.cuts).parked, 3);
+
+  const leftoverAtLyric = addPlateFileFirstHang({
+    shotId: "jack",
+    plateFile: "jack.png",
+    plateTimings: [{ plateId: "intro", startMs: 0, endMs: 30000, sortIndex: 0 }],
+    cuts: [
+      {
+        id: "intro1",
+        shotId: "intro",
+        plateFile: "car.png",
+        startSec: 0,
+        durationSec: 30,
+        clipFile: "01_Intro.mp4",
+        status: "done",
+      },
+    ],
+    clips: [
+      { shotId: "intro", clipFile: "01_Intro.mp4", clipStatus: "done", durationSec: 30 },
+      { shotId: "jack", clipFile: "03_Jack.mp4", clipStatus: "done", durationSec: 8 },
+    ],
+    singing: true,
+    lyricCues: [
+      { lineIndex: 0, atMs: 31000 },
+      { lineIndex: 1, atMs: 81000 },
+    ],
+    newCutId: () => "cut-silver",
+  });
+  assert.equal(leftoverAtLyric.hung, true);
+  assert.equal(leftoverAtLyric.plateTimings[0]?.startMs, 0, "intro 0:00–0:30 stays");
+  assert.equal(leftoverAtLyric.plateTimings[0]?.endMs, 30000);
+  assert.equal(leftoverAtLyric.plateTimings[1]?.plateId, "jack");
+  assert.equal(leftoverAtLyric.plateTimings[1]?.startMs, 31000, "singing leftover at Silver 0:31, not after 0:30");
+  assert.equal(leftoverAtLyric.plateTimings[1]?.endMs, 39000, "8s file length — not a 15s invent");
+  assert.equal(leftoverAtLyric.cuts.find((c) => c.clipFile === "03_Jack.mp4")?.startSec, 31);
 
   function tallyPending(cuts) {
     const tally = { parked: 0, done: 0 };
@@ -1515,9 +1586,10 @@ assert.match(
 assert.match(songRoute, /addPlateFileFirstHang/, "ADD hangs an existing mp4");
 assert.match(
   songRoute.slice(songRoute.indexOf('action === "add-plate"')),
-  /fileFirst\.hung/,
-  "Open→Add must not fall through to a 4th WAITING cook when the file exists",
+  /lyricCues/,
+  "Add singing hang reads lyric pins",
 );
+assert.match(trackUi, /singingHangForShot/, "TRACK Add knows No lips OFF");
 assert.match(
   songRoute.slice(songRoute.indexOf('action === "add-plate"')),
   /applyAddPlateOnSong/,
@@ -1557,9 +1629,9 @@ assert.doesNotMatch(
   "hang-plates must not overwrite another cut's clipFile",
 );
 assert.match(
-  songRoute.slice(songRoute.indexOf('action === "add-plate"')),
+  songLib,
   /alreadyHung/,
-  "STILLS ADD alreadyHung lives on add-plate — second bar after last end, not the same 0:20",
+  "STILLS ADD alreadyHung lives on applyAddPlateOnSong — second bar after last end",
 );
 
 console.log("check-music-video-track: ok");

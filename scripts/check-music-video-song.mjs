@@ -40,6 +40,7 @@ import {
   songCutUsesSpokenLine,
   syncSongCutsToDesk,
   applyAddPlateOnSong,
+  addPlateIsSingingHang,
   addPlateHangDurationSec,
   songCutsOrderBroken,
   expectedDeskCutCount,
@@ -291,7 +292,7 @@ assert.match(songUi, /\{n\} × 15s/);
 assert.match(songUi, /shortPlateLabel/);
 assert.match(songUi, /deskRowAllDone/);
 assert.match(songRoute, /Still with no mp4 hangs at body\.durationSec \(slider 5–40\)/);
-assert.match(songRoute, /leftover mp4 file-first hangs after the last hung bar/);
+assert.match(songRoute, /leftover mp4 file-first hangs in a gap or at 0/);
 assert.match(songUi, /runOneCut/);
 assert.doesNotMatch(songUi, /Send next/);
 assert.doesNotMatch(songUi, /Music video — song cuts/);
@@ -988,6 +989,8 @@ assert.doesNotMatch(
   assert.doesNotMatch(block, /syncSongCutsToDesk/, "Add must not rebuild the desk as WAITING 15s");
   assert.match(block, /job\.clips/, "Add reads leftover rendered mp4s, not only waiting cuts");
   assert.match(block, /durationSec: body\.durationSec/, "add-plate hangs the slider seconds");
+  assert.match(block, /lyricCues/, "singing Add reads lyric pins");
+  assert.match(block, /addPlateIsSingingHang/, "No lips OFF is the singing hang");
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
   assert.doesNotMatch(block, /cookDurationFromHungBar/, "Add must not cook from the hung bar");
   assert.doesNotMatch(block, /MINIMAX_H3_MAX_SEC/, "Add must not clamp TRACK to H3 15");
@@ -1277,6 +1280,86 @@ assert.doesNotMatch(
     0,
     "slider Add does not cook",
   );
+}
+{
+  assert.equal(addPlateIsSingingHang({}), true, "No lips OFF is singing");
+  assert.equal(addPlateIsSingingHang({ mute: true }), false);
+  assert.equal(addPlateIsSingingHang({ support: true }), false);
+  const sung = applyAddPlateOnSong({
+    shotId: "jack_ghost",
+    plateFile: "jack.png",
+    plateTimings: [{ plateId: "intro", startMs: 0, endMs: 30000, sortIndex: 0 }],
+    cuts: [],
+    clips: [],
+    songPlateIds: ["intro"],
+    rowSlices: [1],
+    songSec: 320,
+    durationSec: 20,
+    singing: true,
+    lyricCues: [
+      { lineIndex: 0, atMs: 31000 },
+      { lineIndex: 1, atMs: 81000 },
+    ],
+    newCutId: () => "cut_lyric",
+  });
+  assert.equal(sung.plateTimings[0]?.startMs, 0, "intro stays at 0");
+  assert.equal(sung.plateTimings[0]?.endMs, 30000, "intro is not shoved");
+  assert.equal(sung.plateTimings[1]?.plateId, "jack_ghost");
+  assert.equal(sung.plateTimings[1]?.startMs, 31000, "Jack hangs at Silver 0:31, not after 0:30");
+  assert.equal(sung.plateTimings[1]?.endMs, 51000, "slider 20s on the lyric pin");
+  assert.equal(
+    sung.cuts.filter((c) => c.status === "pending").length,
+    0,
+    "lyric Add does not cook",
+  );
+  const afterLastWouldBeWheels = applyAddPlateOnSong({
+    shotId: "jack",
+    plateFile: "jack.png",
+    singing: true,
+    lyricCues: [
+      { lineIndex: 0, atMs: 31000 },
+      { lineIndex: 1, atMs: 81000 },
+    ],
+    plateTimings: [
+      { plateId: "intro", startMs: 0, endMs: 30000, sortIndex: 0 },
+      { plateId: "clip20", startMs: 30000, endMs: 50000, sortIndex: 1 },
+      { plateId: "more", startMs: 50000, endMs: 81000, sortIndex: 2 },
+    ],
+    cuts: [],
+    clips: [],
+    songPlateIds: ["intro", "clip20", "more"],
+    rowSlices: [1, 1, 1],
+    songSec: 180,
+    durationSec: 15,
+    newCutId: () => "cut_silver",
+  });
+  const jackBar = afterLastWouldBeWheels.plateTimings.find((t) => t.plateId === "jack");
+  assert.equal(jackBar?.startMs, 31000, "30s at the start must not shove Jack to wheels 1:21");
+  assert.equal(afterLastWouldBeWheels.plateTimings[0]?.startMs, 0);
+  assert.equal(afterLastWouldBeWheels.plateTimings[0]?.endMs, 30000, "intro stays");
+  assert.equal(afterLastWouldBeWheels.plateTimings[2]?.startMs, 50000);
+  assert.equal(afterLastWouldBeWheels.plateTimings[2]?.endMs, 81000);
+  const introOnFront = applyAddPlateOnSong({
+    shotId: "intro2",
+    plateFile: "car.png",
+    singing: false,
+    lyricCues: [
+      { lineIndex: 0, atMs: 31000 },
+      { lineIndex: 1, atMs: 81000 },
+    ],
+    plateTimings: [{ plateId: "jack", startMs: 31000, endMs: 46000, sortIndex: 0 }],
+    cuts: [],
+    clips: [],
+    songPlateIds: ["jack"],
+    rowSlices: [1],
+    songSec: 180,
+    durationSec: 30,
+    newCutId: () => "cut_front",
+  });
+  assert.equal(introOnFront.plateTimings.find((t) => t.plateId === "jack")?.startMs, 31000);
+  assert.equal(introOnFront.plateTimings.find((t) => t.plateId === "jack")?.endMs, 46000);
+  assert.equal(introOnFront.plateTimings.find((t) => t.plateId === "intro2")?.startMs, 0);
+  assert.equal(introOnFront.plateTimings.find((t) => t.plateId === "intro2")?.endMs, 30000);
   assert.match(
     songLib,
     /const durMs = secToMs\(addPlateHangDurationSec\(opts\.durationSec\)\)/,

@@ -84,6 +84,7 @@ import { talkNextShotTitle } from "@/lib/talkClipTimeline";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { episodeJobShots } from "@/lib/mobileScratch";
 import {
+  addPlateIsSingingHang,
   cutsForPlate,
   isMusicVideoSongJob,
   songCutTallyLine,
@@ -575,6 +576,23 @@ export function PlateReviewEditor({
       setActionError("Drop the song mp3 first.");
       return;
     }
+    const storyShot = displayShot(shotId);
+    const padNames = muteMvPadNames({
+      roster: job.speakers || [],
+      staging: storyShot?.staging,
+      summary: storyShot?.summary,
+      castNames: storyShot?.castNames,
+    });
+    const empty = muteMvEmptyFrame({
+      footageRole: storyShot?.footageRole,
+      nobodyInShot: storyShot?.nobodyInShot || readMvNobodyInShot(job.id, shotId),
+      staging: storyShot?.staging,
+      summary: storyShot?.summary,
+      castNames: storyShot?.castNames,
+      padNames,
+    });
+    const leftoverCutaway = (storyShot?.beats || []).some((b) => b.kind === "cutaway");
+    const mute = leftoverCutaway || readMvMuteAction(job.id, shotId);
     setSongAddFor(shotId);
     setActionError("");
     try {
@@ -586,6 +604,15 @@ export function PlateReviewEditor({
           jobId: job.id,
           shotId,
           durationSec: readHangLengthDraft(job.id, shotId),
+          singing: addPlateIsSingingHang({
+            mute,
+            emptyFrame: empty,
+            nobodyInShot: empty || readMvNobodyInShot(job.id, shotId) || Boolean(storyShot?.nobodyInShot),
+            support: isSupportShot(storyShot),
+          }),
+          mute,
+          emptyFrame: empty,
+          support: isSupportShot(storyShot),
         }),
       });
       const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);

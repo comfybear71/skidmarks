@@ -11,8 +11,11 @@ import {
   isRealPlateHang,
   listUnhungDoneClips,
   msToSec,
+  nextPlateHangStartMs,
   secToMs,
+  singingHangStartMs,
   sortPlateTimings,
+  type LyricCue,
 } from "./musicVideoTrack";
 import { addPlateHangDurationSec } from "./hangLengthDraft";
 import {
@@ -180,14 +183,22 @@ export function syncSongCutsToDesk(opts: {
   return next;
 }
 
+/** No lips OFF on a person plate. Mute / support / empty sit in a gap or at 0. */
+export function addPlateIsSingingHang(opts: {
+  mute?: boolean;
+  emptyFrame?: boolean;
+  nobodyInShot?: boolean;
+  support?: boolean;
+}): boolean {
+  return !opts.mute && !opts.emptyFrame && !opts.nobodyInShot && !opts.support;
+}
+
 /**
- * Plate-row / STILLS Add. File-first leftover of the OPEN shot after the
- * last hung bar, at the cooked mp4 length. Keeps every other done clipFile
- * and every other real plateTiming. Does not rebuild the desk as 15s
- * WAITING slices. Empty still (no mp4) hangs after the last end — no
- * waiting cook. alreadyHung + no leftover file still writes another bar
- * after the last end (extraStillHangPlateId) at durationSec (slider 5–40).
- * Does not cook. Does not clamp to H3's 15.
+ * Plate-row / STILLS Add. File-first leftover of the OPEN shot in a gap
+ * or at 0, at the cooked mp4 length — unless this is a singing first hang
+ * (No lips OFF) with lyric pins: then startMs is the unused lyric cue
+ * (Silver lines 0:31), not max(endMs) after intro clips.
+ * Other bars keep their times. Slider durationSec stays (5–40).
  */
 export function applyAddPlateOnSong(opts: {
   shotId: string;
@@ -207,6 +218,8 @@ export function applyAddPlateOnSong(opts: {
   songSec: number;
   /** Plate slider seconds. Still-only hang uses this. Leftover mp4 keeps file length. */
   durationSec?: number;
+  singing?: boolean;
+  lyricCues?: LyricCue[];
   newCutId: () => string;
 }): {
   cuts: ScratchSongCut[];
@@ -241,6 +254,8 @@ export function applyAddPlateOnSong(opts: {
     cuts: opts.cuts,
     clips: opts.clips,
     skipShotIds: skipForHang,
+    singing: opts.singing,
+    lyricCues: opts.lyricCues,
     newCutId: opts.newCutId,
   });
   if (fileFirst.hung) {
@@ -258,8 +273,15 @@ export function applyAddPlateOnSong(opts: {
     (t) => hangPlateShotId(t.plateId) === shotId && isRealPlateHang(t),
   );
   const kept = sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t));
-  const startMs = kept.length ? Math.max(...kept.map((t) => t.endMs)) : 0;
   const durMs = secToMs(addPlateHangDurationSec(opts.durationSec));
+  const lyricStart = !alreadyHung
+    ? singingHangStartMs({
+        singing: opts.singing,
+        lyricCues: opts.lyricCues,
+        plateTimings: kept,
+      })
+    : null;
+  const startMs = lyricStart != null ? lyricStart : nextPlateHangStartMs(kept, durMs);
   const hangId = alreadyHung ? extraStillHangPlateId(shotId, kept) : shotId;
   if (!hangId) {
     return {
