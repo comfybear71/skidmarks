@@ -46,7 +46,12 @@ import {
 } from "@/lib/musicVideoTrack";
 import { decodeWaveformPeaks } from "@/lib/decodeWaveformPeaks";
 import { clearPendingSong, songChipName } from "@/lib/musicVideoStart";
-import { findSongCarrierBeatId, isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong";
+import {
+  findSongCarrierBeatId,
+  isMusicVideoSongJob,
+  musicVideoCreditLine,
+  needsTrackHang,
+} from "@/lib/musicVideoSong";
 
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
@@ -979,6 +984,32 @@ export function MusicVideoTrack({
       setBusy("");
     }
   }
+
+  useEffect(() => {
+    if (!song?.fileName) return;
+    if (!needsTrackHang(song)) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/crash/mobile/song", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "hang-plates", jobId: job.id }),
+        });
+        const raw = (await res.json().catch(() => ({}))) as {
+          job?: MobileGenJob;
+          error?: string;
+        };
+        if (cancelled) return;
+        if (raw.job) onJobChange(raw.job);
+      } catch {
+        /* wave stays as-is; Add still hangs */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [job.id, onJobChange, song]);
 
   useEffect(() => {
     if (lyricImportTried.current) return;

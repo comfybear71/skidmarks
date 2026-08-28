@@ -187,5 +187,10 @@ assert.match(
   /hangMissingPlateTimings/,
   "Add on a still must write the TRACK clock, not only a waiting cut",
 );
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /action === "hang-plates"/,
+);
+assert.match(trackUi, /hang-plates/);
 
 console.log("check-music-video-track: ok");

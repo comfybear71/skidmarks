@@ -34,6 +34,8 @@ import {
   syncSongCutsToDesk,
   songCutsOrderBroken,
   expectedDeskCutCount,
+  needsTrackHang,
+  storyShotForSongCut,
 } from "../src/lib/musicVideoSong.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
@@ -268,7 +270,10 @@ assert.match(songUi, /\{n\} × 15s/);
 assert.match(songUi, /shortPlateLabel/);
 assert.match(songUi, /deskRowAllDone/);
 assert.match(songRoute, /put a plate on the list at 1 × 15s/);
-assert.match(songUi, /cookPendingSongCuts/);
+assert.match(songUi, /runOneCut/);
+assert.match(songUi, /Send next/);
+assert.doesNotMatch(songUi, /cookPendingSongCuts/);
+assert.doesNotMatch(songUi, /Generate cuts/);
 assert.doesNotMatch(songUi, /m-song-cut-chip/);
 const songCss = readFileSync(join(here, "../src/app/(mobile)/m/mobile.css"), "utf8");
 assert.match(songCss, /\.m-swipe-drop-action/);
@@ -278,7 +283,7 @@ assert.match(songUi, /m-song-plate-line/);
 assert.match(songUi, /--row-progress/);
 assert.doesNotMatch(songUi, /Cooking/);
 assert.doesNotMatch(songUi, /cooking \$\{/);
-assert.match(songUi, /Working…/);
+assert.match(songUi, /Sending…/);
 assert.match(songUi, /SongCookAlertBanner/);
 assert.match(songUi, /askSongCookNotifyPermission/);
 assert.match(songUi, /is-error/);
@@ -419,7 +424,38 @@ assert.match(songUi, /Plate clocks are the song/);
 assert.match(songRoute, /Do not rebuild them as 1 × 15s/);
 assert.match(songRoute, /syncSongCutsToDesk/);
 assert.match(songRoute, /Keep done clips/);
+assert.match(songRoute, /action === "hang-plates"/);
 assert.match(songRoute, /action === "add-plate"/);
+assert.match(songRoute, /storyShotForSongCut/);
+assert.equal(
+  needsTrackHang({
+    cuts: [{ shotId: "a" }, { shotId: "b" }],
+    plateTimings: [{ plateId: "a" }],
+  }),
+  true,
+);
+assert.equal(
+  needsTrackHang({
+    cuts: [{ shotId: "a" }],
+    plateTimings: [{ plateId: "a" }],
+  }),
+  false,
+);
+{
+  const found = storyShotForSongCut({
+    story: {
+      scenes: [
+        {
+          id: "scene_1",
+          shots: [{ id: "story_shot", plateFile: "jack.png", title: "JACK GHOST" }],
+        },
+      ],
+    },
+    jobShots: [{ shotId: "cut_shot", plateFile: "jack.png" }],
+    cut: { shotId: "cut_shot", plateFile: "jack.png" },
+  });
+  assert.equal(found?.shot.id, "story_shot");
+}
 {
   const addPlateBlock = songRoute.slice(songRoute.indexOf('action === "add-plate"'));
   const nextAction = addPlateBlock.search(/\n\s+if \(action === "/);

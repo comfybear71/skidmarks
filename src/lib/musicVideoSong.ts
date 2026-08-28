@@ -2,7 +2,7 @@
  * /m Music video song desk — plate runs of 15s, reuse a plate later.
  * Clock math lives in scratchSongWindow (phone-safe).
  */
-import type { CrashStoryDoc } from "./crashStoryTypes";
+import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import {
   formatSongClock,
   remainingSongWindows,
@@ -299,6 +299,50 @@ export function shortPlateLabel(
   const line = full.split(/\n/)[0]?.trim() || full.trim();
   if (line.length <= 42) return line;
   return `${line.slice(0, 41)}…`;
+}
+
+/** TRACK wave is plateTimings. Waiting cuts with no clock are off the rail. */
+export function needsTrackHang(song?: {
+  cuts?: { shotId?: string }[];
+  plateTimings?: { plateId?: string }[];
+} | null): boolean {
+  const have = new Set(
+    (song?.plateTimings || []).map((t) => (t.plateId || "").trim()).filter(Boolean),
+  );
+  return (song?.cuts || []).some((c) => {
+    const id = (c.shotId || "").trim();
+    return Boolean(id && !have.has(id));
+  });
+}
+
+/**
+ * Run used to look up the cut's shotId only. A still on the song list
+ * (job.shots + plateFile) then said "not on this episode" when story_json
+ * used a different id for the same file.
+ */
+export function storyShotForSongCut(opts: {
+  story: CrashStoryDoc | null | undefined;
+  jobShots: { shotId: string; plateFile?: string }[];
+  cut: { shotId?: string; plateFile?: string };
+}): { sceneId: string; shot: CrashStoryShot } | null {
+  const story = opts.story;
+  if (!story?.scenes?.length) return null;
+  const cutShotId = (opts.cut.shotId || "").trim();
+  const jobFile = (
+    opts.jobShots.find((s) => s.shotId === cutShotId)?.plateFile || ""
+  ).trim();
+  const files = [(opts.cut.plateFile || "").trim(), jobFile].filter(Boolean);
+  for (const scene of story.scenes) {
+    const shot = scene.shots.find((sh) => sh.id === cutShotId);
+    if (shot) return { sceneId: scene.id, shot };
+  }
+  for (const file of files) {
+    for (const scene of story.scenes) {
+      const shot = scene.shots.find((sh) => (sh.plateFile || "").trim() === file);
+      if (shot) return { sceneId: scene.id, shot };
+    }
+  }
+  return null;
 }
 
 export function songOrdinal(n: number): string {

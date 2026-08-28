@@ -7,6 +7,8 @@ import { nextCutAfter, songWindowLabel, type ScratchSongCut } from "@/lib/scratc
 import {
   findSongCarrierBeatId,
   isMusicVideoSongJob,
+  needsTrackHang,
+  storyShotForSongCut,
   plateSliceWindows,
   clearStuckSongCooks,
   rebuildSongCutsFromDesk,
@@ -45,6 +47,7 @@ export const maxDuration = 900;
  *   run — one LTX slice. Client polls the job if the phone drops.
  *   stitch — rejected. Finish is ordered unstitched mp4s.
  *   remove-stitch — park a leftover joined mp4 if one exists.
+ *   hang-plates — write missing plateTimings from waiting cuts. No cook.
  *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row).
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
@@ -275,14 +278,17 @@ export async function POST(req: Request) {
       if (!cut) {
         return NextResponse.json({ error: "Need plate clocks on the song first." }, { status: 400 });
       }
-      const shotId =
-        (cut.shotId || "").trim() ||
-        job.shots.find((s) => s.plateFile === cut.plateFile)?.shotId ||
-        job.shots[0]?.shotId ||
-        "";
-      const scene = story.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId));
-      const storyShot = scene?.shots.find((sh) => sh.id === shotId);
-      if (!scene || !storyShot) {
+      const found = storyShotForSongCut({
+        story,
+        jobShots: job.shots,
+        cut,
+      });
+      const storyShot = found?.shot;
+      const scene = found
+        ? story.scenes.find((sc) => sc.id === found.sceneId)
+        : undefined;
+      const shotId = (storyShot?.id || "").trim();
+      if (!scene || !storyShot || !shotId) {
         return NextResponse.json({ error: "That plate is not on this episode." }, { status: 400 });
       }
       const trumpetBlock = forgottenTrumpetLtxBlockReason({
@@ -360,6 +366,22 @@ export async function POST(req: Request) {
         },
         { status: 410 },
       );
+    }
+
+    if (action === "hang-plates") {
+      const song = job.scratchSong;
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
+      }
+      if (!needsTrackHang(song)) {
+        return NextResponse.json({ ok: true, job });
+      }
+      const plateTimings = hangMissingPlateTimings(song.plateTimings, song.cuts || []);
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, plateTimings },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
     }
 
     if (action === "add-plate") {
