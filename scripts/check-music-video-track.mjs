@@ -397,7 +397,7 @@ assert.match(editor, /function PlateSendButton/, "Send sits on the plate Add row
 assert.match(editor, /m-plate-add-engines/, "Add | LTX | H3 | Send share one row");
 assert.match(editor, />\s*LTX\s*</, "LTX is a real button next to Add");
 assert.match(editor, />\s*H3\s*</, "H3 is a real button next to Add");
-assert.match(editor, />\s*Send\s*</, "Send is on the same row as Add / LTX / H3");
+assert.match(editor, /busy \? "Sending…" : "Send"/, "Send is on the same row as Add / LTX / H3");
 assert.match(editor, /onSendStill/, "plate Send uses the one TRACK cook");
 assert.match(editor, /Sending…/, "plate Send shows Sending while the cook runs");
 assert.doesNotMatch(editor, />\s*Siray\s*</, "Siray stays off the plate");
