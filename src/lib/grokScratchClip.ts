@@ -12,6 +12,7 @@ import path from "path";
 import { resolveGenOrPackPlate } from "./crashActivePack";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
 import { rememberClipTake } from "./mobilePlateClips";
+import { probeDurationSeconds } from "./mediaDuration";
 import { CRASH_DIR } from "./paths";
 import { stripLtxLipSyncLead } from "./mobileImageMotion";
 import { patchMobileGenJob, readMobileGenJob, type MobileClipUnit, type MobileGenJob } from "./mobileGenJob";
@@ -220,9 +221,16 @@ export async function finishScratchGrokClip(opts: {
     /* clip still usable this request */
   }
   const live = (await readMobileGenJob(jobId)) || opts.job;
+  const fileSec = probeDurationSeconds(localMp4);
   const next = (live.clips || []).map((c) =>
     c.beatId === task.beatId
-      ? { ...c, ...rememberClipTake(c, localMp4), clipStatus: "done" as const, error: "" }
+      ? {
+          ...c,
+          ...rememberClipTake(c, localMp4),
+          clipStatus: "done" as const,
+          error: "",
+          ...(fileSec ? { durationSec: fileSec } : {}),
+        }
       : c,
   );
   const job = (await patchMobileGenJob(jobId, { clips: next, scratchClip: null, error: "" }))!;

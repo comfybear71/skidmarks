@@ -691,6 +691,11 @@ assert.match(
   "hang-plates stays explicit — leftover / X'd files stay off until Add or Hang",
 );
 assert.match(
+  songRoute,
+  /5s file wins over a 15s cook window/,
+  "explicit hang uses the 5s car, not a invented 15s end bar",
+);
+assert.match(
   readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8"),
   /listUnhungDoneClips/,
   "leftover same-still take is a hang, not a new plate",

@@ -77,7 +77,7 @@ export const maxDuration = 900;
  *   clip-poll — one H3 / Siray tick until the mp4 lands.
  *   stitch — rejected. Finish is ordered unstitched mp4s.
  *   remove-stitch — park a leftover joined mp4 if one exists.
- *   hang-plates — explicit Put stills / Hang only. Not on TRACK open or job GET. Hang done clipFiles on the wave (next gap, known length else 15). Extra take on the same still goes after the last hung end. Leftover 0.5s is not a hang. Stills with no mp4 stay off — Add those. X'd leftovers stay off until he taps Add or Hang on that take. No leftover job.shots. No cook.
+ *   hang-plates — explicit Put stills / Hang only. Not on TRACK open or job GET. Hang done clipFiles on the wave (next gap, known mp4/clip/cut length else 15 — 5s file wins over a 15s cook window). Extra take on the same still goes after the last hung end. Leftover 0.5s is not a hang. Stills with no mp4 stay off — Add those. X'd leftovers stay off until he taps Add or Hang on that take. No leftover job.shots. No cook.
  *   hang-clip — hang one existing mp4 (same still, second take gets its own clock). File first. No cook.
  *   redo-cut — park that clip, leave the still, wait for Send again.
  *   add-plate — put a plate on the list at 1 × 15s. Already hung + extra mp4 → hang that file after the last bar. Do not stack a second take at the same clock. No cook.

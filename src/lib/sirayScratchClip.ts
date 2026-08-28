@@ -215,9 +215,16 @@ export async function finishScratchSirayClip(opts: {
     /* clip still usable this request */
   }
   const live = (await readMobileGenJob(jobId)) || opts.job;
+  const fileSec = probeDurationSeconds(localMp4);
   const next = (live.clips || []).map((c) =>
     c.beatId === task.beatId
-      ? { ...c, ...rememberClipTake(c, localMp4), clipStatus: "done" as const, error: "" }
+      ? {
+          ...c,
+          ...rememberClipTake(c, localMp4),
+          clipStatus: "done" as const,
+          error: "",
+          ...(fileSec ? { durationSec: fileSec } : {}),
+        }
       : c,
   );
   const job = (await patchMobileGenJob(jobId, { clips: next, scratchClip: null, error: "" }))!;

@@ -381,6 +381,8 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(hangClipDurationMs(0.5), 15000);
   assert.equal(hangClipDurationMs(8.2), 8200);
   assert.equal(hangClipDurationMs(undefined), 15000);
+  assert.equal(hangClipDurationMs(5, 15), 5000, "5s file wins over 15s cook window");
+  assert.equal(hangClipDurationMs(15, 5), 5000, "order does not invent 15");
 
   const piled = hangMissingPlateTimings(
     [
@@ -690,6 +692,42 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     "X'd leftover mp4 stays off the wave until he taps Add or Hang",
   );
   assert.equal(xdCarLeftOff.plateTimings.length, 2, "open must not invent a 15s end bar");
+
+  const clip2FiveNotFifteen = hangUnhungDoneClips({
+    plateTimings: [{ plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    cuts: [
+      {
+        id: "c2",
+        shotId: "car",
+        plateFile: "2.png",
+        startSec: 15,
+        durationSec: 15,
+        clipFile: "02_car.mp4",
+        status: "done",
+      },
+    ],
+    clips: [
+      { shotId: "car", clipFile: "02_car.mp4", clipStatus: "done", durationSec: 5 },
+    ],
+    plateFileFor: () => "2.png",
+    newCutId: () => "c-car",
+  });
+  assert.equal(clip2FiveNotFifteen.plateTimings.length, 2, "explicit hang only — one new bar");
+  assert.equal(clip2FiveNotFifteen.plateTimings[1]?.startMs, 15000, "next gap after 0:15");
+  assert.equal(
+    clip2FiveNotFifteen.plateTimings[1]?.endMs,
+    20000,
+    "clip 2 is the 5s car — do not invent a 15s end bar",
+  );
+  assert.equal(
+    listUnhungDoneClips({
+      clips: [{ shotId: "car", clipFile: "02_car.mp4", clipStatus: "done", durationSec: 5 }],
+      cuts: [{ shotId: "car", clipFile: "02_car.mp4", status: "done", durationSec: 15, startSec: 15 }],
+      plateTimings: [{ plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    })[0]?.durationSec,
+    5,
+    "listUnhungDoneClips keeps the 5s file, not the 15s window",
+  );
 
   const stillsStayOff = hangMissingPlateTimings(
     [{ plateId: "plate_1", startMs: 0, endMs: 15000, sortIndex: 0 }],
