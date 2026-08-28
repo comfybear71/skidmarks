@@ -22,6 +22,11 @@ import {
   withLtxLipSyncLead,
   buildScratchPadLtxMotion,
   pickLtxMotionBody,
+  pickSongSendMotionBody,
+  songSendNeedsRecook,
+  songStoredMotionUsable,
+  looksLikePlatePositionPrompt,
+  buildScratchSongLtxMotion,
 } from "../src/lib/mobileImageMotion.ts";
 
 assert.match(LTX_LIP_SYNC_LEAD, /dication is perfect/);
@@ -312,6 +317,70 @@ assert.equal(
   storedMotionReinventsLook(
     'Use the provided start image as the first frame. Nuggets, a front on off this character is prominent, mouth and head move naturally while speaking.',
   ),
+  true,
+);
+
+const jackStandUp =
+  "Use the provided start image as the first frame. JACK GHOST, Male singer in deep noir shadow, face mostly silhouetted under a wide-brimmed black fedora and dark suit is prominent, empty hands, no phone. He stands up from the crouch, rising from elbows on knees to standing, same fedora, same dark suit, same silhouette as the start image. Face stays hidden in the hat shadow. Do not light the eyes or cheeks. Do not reveal a face. The vintage car already in the start image speeds off down the road toward the distant gothic city. Same car. No new vehicles. Only JACK GHOST in frame, no one else appears. Props and background stay exactly as the start image, nothing new enters frame. No new objects. No readable text or signage. Background stays as the start image. No dialogue. Mouth stays closed. Not singing. Not lip-sync. Camera holds, no cuts. Same person and objects as the start image. No new people enter the frame.";
+assert.equal(
+  looksLikePlatePositionPrompt(jackStandUp),
+  true,
+  "gold Only NAME in frame looks like Position — song Send must still keep the box",
+);
+assert.equal(songStoredMotionUsable(jackStandUp, []), true);
+assert.equal(songStoredMotionUsable(jackStandUp, ["Comfy"]), true);
+assert.equal(songStoredMotionUsable(`${jackStandUp} Comfy walks in`, ["Comfy"]), false);
+const jackSinging = buildScratchSongLtxMotion({
+  styleId: "music_video",
+  speaker: "JACK GHOST",
+  lookLock: "Male singer in deep noir shadow",
+  startSec: 0,
+});
+assert.match(jackSinging, /Cyan mouth line moves/);
+const sendBody = pickSongSendMotionBody({
+  stored: jackStandUp,
+  storedUsable: songStoredMotionUsable(jackStandUp, []),
+  singing: true,
+  singingDefault: jackSinging,
+  speakingDefault: "talk",
+});
+assert.match(sendBody, /stands up from the crouch/);
+assert.match(sendBody, /vintage car already in the start image speeds off/);
+assert.doesNotMatch(sendBody, /Cyan mouth line moves/);
+assert.equal(
+  pickSongSendMotionBody({
+    stored: "",
+    storedUsable: false,
+    singing: true,
+    singingDefault: jackSinging,
+    speakingDefault: "talk",
+  }),
+  jackSinging,
+);
+assert.equal(
+  songSendNeedsRecook({
+    existingClipFile: "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+    lastSent: jackSinging,
+    nextSent: sendBody,
+  }),
+  true,
+  "changed box + old singing mp4 must recook",
+);
+assert.equal(
+  songSendNeedsRecook({
+    existingClipFile: "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+    lastSent: sendBody,
+    nextSent: sendBody,
+  }),
+  false,
+  "same words + file already hung = do not recook",
+);
+assert.equal(
+  songSendNeedsRecook({
+    existingClipFile: "",
+    lastSent: "",
+    nextSent: sendBody,
+  }),
   true,
 );
 

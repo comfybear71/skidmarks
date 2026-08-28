@@ -279,6 +279,27 @@ export function plateTimingForShot(
   return (draft?.plateTimings || []).find((p) => p.plateId === id) || null;
 }
 
+/**
+ * The cut on this still's wave clock. Same shotId later on the song list
+ * (180s leftover row) is not this still — Send must not cook that instead.
+ */
+export function cutForHungPlate(opts: {
+  cuts: ScratchSongCut[] | undefined;
+  shotId: string;
+  timing?: PlateTiming | null;
+}): ScratchSongCut | undefined {
+  const id = (opts.shotId || "").trim();
+  if (!id) return undefined;
+  const mine = (opts.cuts || []).filter((c) => (c.shotId || "").trim() === id);
+  if (!mine.length) return undefined;
+  if (opts.timing && opts.timing.endMs > opts.timing.startMs) {
+    const startSec = msToSec(opts.timing.startMs);
+    const hit = mine.find((c) => Math.abs(Number(c.startSec || 0) - startSec) < 0.26);
+    if (hit) return hit;
+  }
+  return mine[0];
+}
+
 /** LTX slice bounds — this cut's clock wins. Plate timings follow the song
  * up to the LTX safety ceiling. The old 15s rows still cap at 30s. */
 export function sliceBoundsForPlate(opts: {
