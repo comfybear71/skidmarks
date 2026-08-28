@@ -416,6 +416,38 @@ export function withPlateDuration(
 }
 
 /**
+ * After the mp4 lands — the wave uses the real clip length.
+ * He does not type How long first. Followers keep their length and slide.
+ */
+export function applyLandedClipDuration(
+  song: ScratchSong,
+  opts: { cutId?: string; plateId?: string; durationSec: number },
+): ScratchSong {
+  const durationSec = Number(opts.durationSec);
+  if (!Number.isFinite(durationSec) || durationSec <= 0) return song;
+  const cutId = (opts.cutId || "").trim();
+  const cuts = (song.cuts || []).map((c) =>
+    cutId && c.id === cutId ? { ...c, durationSec } : c,
+  );
+  const plateId =
+    (opts.plateId || "").trim() ||
+    (cutId ? (cuts.find((c) => c.id === cutId)?.shotId || "").trim() : "");
+  const plateTimings = plateId
+    ? withPlateDuration(
+        song.plateTimings,
+        plateId,
+        secToMs(durationSec),
+        secToMs(song.durationSec),
+      )
+    : null;
+  return {
+    ...song,
+    cuts,
+    plateTimings: plateTimings || song.plateTimings,
+  };
+}
+
+/**
  * TRACK paints plateTimings, not the cut list. Add-on-stills used to
  * write a waiting cut and leave the wave empty. Keep any clock already
  * on the wave — do not even-split the song. Hang each cut that has no

@@ -13,7 +13,7 @@ import {
   planBinFailedEpisodeClips,
   planDismissEpisodeClip,
 } from "@/lib/mobileEpisodeClips";
-import { planParkDeskClipTake, type DeskClipParkPlan } from "@/lib/parkDeskClip";
+import { planParkDeskClipTake } from "@/lib/parkDeskClip";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
 import { readMobileStory } from "@/lib/mobileStoryStore";
 import { isOffEpisodeDeskShot } from "@/lib/mobileScratch";
@@ -67,7 +67,9 @@ export async function GET(req: Request) {
 /**
  * POST { jobId, action }
  *   remove-clip — park one playable take (✕ on the /m player). File goes to
- *     _cleared/, not deleted. Scratch pad still uses /scratch remove-clip.
+ *     _cleared/, not deleted. Music video also clears the matching song cut
+ *     so the Clips rail does not draw the file again. Scratch pad still
+ *     uses /scratch remove-clip.
  *   dismiss — bin a failed Generate with no mp4 (pink error, no player).
  *     Prior takes stay.
  *   bin-failed — dismiss every failed episode-desk clip. Scratch/campaign
@@ -102,18 +104,47 @@ export async function POST(req: Request) {
     const isEpisode = (clip: { shotId: string }) =>
       !isOffEpisodeDeskShot(job, clip.shotId, story);
 
+    if (action === "remove-clip") {
+      const plan = planParkDeskClipTake({
+        clips: job.clips || [],
+        song: job.scratchSong,
+        beatId: body.beatId || "",
+        fileName: body.fileName || "",
+        isEpisode,
+      });
+      if (isEpisodeClipPlanError(plan)) {
+        return NextResponse.json({ error: plan.error }, { status: plan.status });
+      }
+      const parked: string[] = [];
+      for (const file of plan.filesToPark) {
+        const moved = parkMobileClipFile(file);
+        if (moved) parked.push(moved);
+      }
+      const deskClips = plan.next.filter((c) => isEpisode(c));
+      const failed = clipQueueError(deskClips);
+      const patch: Partial<MobileGenJob> = {
+        clips: plan.next,
+        error: failed,
+      };
+      if (plan.nextSong) patch.scratchSong = plan.nextSong;
+      const stillRunning = deskClips.some((c) => c.clipStatus === "running");
+      if (job.phase === "error" && plan.clearedEpisodeErrors && !stillRunning) {
+        patch.phase = "review";
+      }
+      const updated = await patchMobileGenJob(jobId, patch);
+      return NextResponse.json({
+        ok: true,
+        job: updated || { ...job, ...patch },
+        parked: parked.length ? parked : null,
+        parkedIn: parked.length ? "_cleared/" : null,
+        stoppedCook: plan.stoppedCook,
+      });
+    }
+
     const plan =
-      action === "remove-clip"
-        ? planParkDeskClipTake({
-            clips: job.clips || [],
-            song: job.scratchSong,
-            beatId: body.beatId || "",
-            fileName: body.fileName || "",
-            isEpisode,
-          })
-        : action === "dismiss"
-          ? planDismissEpisodeClip(job.clips || [], body.beatId || "", isEpisode)
-          : planBinFailedEpisodeClips(job.clips || [], isEpisode);
+      action === "dismiss"
+        ? planDismissEpisodeClip(job.clips || [], body.beatId || "", isEpisode)
+        : planBinFailedEpisodeClips(job.clips || [], isEpisode);
     if (isEpisodeClipPlanError(plan)) {
       return NextResponse.json({ error: plan.error }, { status: plan.status });
     }
@@ -130,10 +161,6 @@ export async function POST(req: Request) {
       clips: plan.next,
       error: failed,
     };
-    const deskPark = plan as DeskClipParkPlan;
-    if (action === "remove-clip" && deskPark.nextSong?.fileName) {
-      patch.scratchSong = deskPark.nextSong;
-    }
     const stillRunning = deskClips.some((c) => c.clipStatus === "running");
     if (job.phase === "error" && plan.clearedEpisodeErrors && !stillRunning) {
       patch.phase = "review";

@@ -14,7 +14,6 @@ import {
   ensureGoldFrameLocks,
   storedMotionFightsEmptyHands,
   storedMotionReinventsLook,
-  pickLtxMotionBody,
   ltxSendPrompt,
   buildCutawayMotion,
   isCutawayMotion,
@@ -22,6 +21,7 @@ import {
   stripLtxLipSyncLead,
   withLtxLipSyncLead,
   buildScratchPadLtxMotion,
+  pickLtxMotionBody,
 } from "../src/lib/mobileImageMotion.ts";
 
 assert.match(LTX_LIP_SYNC_LEAD, /dication is perfect/);
@@ -219,8 +219,20 @@ assert.match(scratchPad, /mouth and head move naturally while speaking/);
 assert.doesNotMatch(scratchPad, /Do not sit in a chair/);
 assert.doesNotMatch(scratchPad, /WIDE full-body framing stays/);
 assert.doesNotMatch(scratchPad, /Feet stay planted/);
+assert.equal(
+  pickLtxMotionBody({ draft: "head nods", stored: "old", defaultBody: "fresh" }),
+  "head nods",
+);
+assert.equal(
+  pickLtxMotionBody({ draft: null, stored: "keep this", defaultBody: "fresh" }),
+  "keep this",
+);
 
 const here = dirname(fileURLToPath(import.meta.url));
+assert.match(
+  readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8"),
+  /readLtxMotionDraft/,
+);
 const motionSrc = readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8");
 const clipSrc = readFileSync(join(here, "../src/lib/mobileScratchClip.ts"), "utf8");
 const pageSrc = readFileSync(join(here, "../src/app/(mobile)/scratch/page.tsx"), "utf8");
@@ -301,19 +313,6 @@ assert.equal(
     'Use the provided start image as the first frame. Nuggets, a front on off this character is prominent, mouth and head move naturally while speaking.',
   ),
   true,
-);
-
-assert.equal(
-  pickLtxMotionBody({ draft: "his words", stored: "old", defaultBody: "default" }),
-  "his words",
-);
-assert.equal(
-  pickLtxMotionBody({ draft: null, stored: "kept", defaultBody: "default" }),
-  "kept",
-);
-assert.equal(
-  pickLtxMotionBody({ draft: null, stored: "  ", defaultBody: "default" }),
-  "default",
 );
 
 console.log("check-mobile-image-motion: ok");

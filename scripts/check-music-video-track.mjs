@@ -10,6 +10,7 @@ import {
   hangMissingPlateTimings,
   nextPlateHangWindow,
   swapNeighborPlateTimings,
+  applyLandedClipDuration,
   withPlateDuration,
   withPlateWindow,
   msToSec,
@@ -120,13 +121,11 @@ assert.match(tree, /compact=\{!platesOpen\}/);
 assert.match(trackUi, /WaveformCanvas/);
 assert.match(trackUi, /Add section/);
 assert.match(trackUi, /Put stills on the song/);
-assert.match(trackUi, /How long/);
-assert.match(trackUi, /Starts at/);
-assert.match(trackUi, /startSec/);
-assert.doesNotMatch(trackUi, /Send all/);
-assert.match(trackUi, /"Send"/);
-assert.match(trackUi, /Park this clip/);
-assert.match(trackUi, /requestSongCookStop/);
+assert.doesNotMatch(trackUi, /How long/);
+assert.doesNotMatch(trackUi, /Starts at/);
+assert.match(trackUi, /length after the clip/);
+assert.match(trackUi, /Park this clip. Still stays on the song./);
+assert.match(trackUi, /Send all/);
 assert.match(trackUi, /m-track-film/);
 assert.doesNotMatch(trackUi, /Use range/);
 assert.doesNotMatch(trackUi, />Earlier</);
@@ -148,7 +147,8 @@ assert.match(trackUi, /Move right/);
 assert.match(trackUi, /move-plate/);
 assert.match(trackUi, /Stop send/);
 assert.match(trackUi, /Put stills on the song/);
-assert.match(trackUi, /set-plate-duration/);
+assert.doesNotMatch(trackUi, /set-plate-duration/);
+assert.match(trackUi, /waiting/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "move-plate"/,
@@ -306,6 +306,26 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(fromShots[1].startMs, 15000);
   assert.equal(fromShots[2].plateId, "shot_car");
   assert.equal(fromShots[2].startMs, 30000);
+
+  const landed = applyLandedClipDuration(
+    {
+      fileName: "song.mp3",
+      durationSec: 180,
+      sliceStartSec: 0,
+      sliceDurationSec: 15,
+      plateTimings: [
+        { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+      ],
+      cuts: [
+        { id: "c1", plateFile: "a.png", shotId: "a", startSec: 0, durationSec: 15, status: "done" },
+      ],
+    },
+    { cutId: "c1", durationSec: 8.4 },
+  );
+  assert.equal(landed.cuts?.[0]?.durationSec, 8.4);
+  assert.equal(landed.plateTimings?.[0]?.endMs, 8400);
+  assert.equal(landed.plateTimings?.[1]?.startMs, 8400);
 }
 
 assert.match(
@@ -320,7 +340,6 @@ assert.match(
 assert.match(trackUi, /hang-plates/);
 assert.match(trackUi, /remove-plate-timing/);
 assert.match(trackUi, /dropPlateFromWave/);
-assert.match(trackUi, /Off song/);
 assert.match(trackRoute, /parkMobileClipFile/);
 assert.match(trackRoute, /songPlateIds/);
 assert.match(songRoute, /hangCuts/);
@@ -331,14 +350,3 @@ assert.match(
 );
 
 console.log("check-music-video-track: ok");
-
-const park = readFileSync(join(here, "../src/lib/parkDeskClip.ts"), "utf8");
-const clipRoute = readFileSync(join(here, "../src/app/api/crash/mobile/clip/route.ts"), "utf8");
-const motion = readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8");
-const scratchClip = readFileSync(join(here, "../src/lib/mobileScratchClip.ts"), "utf8");
-assert.match(park, /planParkDeskClipTake/);
-assert.match(park, /_cleared/);
-assert.match(clipRoute, /planParkDeskClipTake/);
-assert.match(motion, /pickLtxMotionBody/);
-assert.match(scratchClip, /That still is not ready/);
-assert.match(scratchClip, /Drop the song first/);

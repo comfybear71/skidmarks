@@ -453,9 +453,9 @@ export async function POST(req: Request) {
         }
       }
       if (!job) {
-        return NextResponse.json({ error: "Couldn't add that still." }, { status: 500 });
+        return NextResponse.json({ error: "Job not found" }, { status: 404 });
       }
-      const jobShots = job.shots;
+      const jobShots = job.shots || [];
       const onList = songDeskPlateIds(song);
       const slices = withSongRowSlice(songDeskRowSlices(song, onList));
       const nextIds = withSongPlate(onList, shotId);

@@ -72,8 +72,8 @@ import {
   songCutTallyLine,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
-import { requestSongCookStop } from "@/lib/songCutCook";
 import { CutawayBeatPanel } from "@/components/mobile/CutawayBeatPanel";
+import { requestSongCookStop } from "@/lib/songCutCook";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
@@ -2614,9 +2614,14 @@ function BeatLineEditor({
   // Bible already ran on Draw — keep this shut unless they need Redo still.
   const [positionOpen, setPositionOpen] = useState(false);
   const [positionDraft, setPositionDraft] = useState<string | null>(null);
-  const [motionDraft, setMotionDraft] = useState<string | null>(() =>
+  const [motionDraft, setMotionDraftState] = useState<string | null>(() =>
     readLtxMotionDraft(jobId, beat.id),
   );
+  const setMotionDraft = (v: string | null) => {
+    if (v === null) clearLtxMotionDraft(jobId, beat.id);
+    else writeLtxMotionDraft(jobId, beat.id, v);
+    setMotionDraftState(v);
+  };
   const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
   const [bibleActiveIds, setBibleActiveIds] = useState<string[]>(() =>
     (positionBibleIds || []).filter(Boolean),
@@ -2799,7 +2804,6 @@ function BeatLineEditor({
 
   const emptiedPhoneMotionRef = useRef("");
   useEffect(() => {
-    if (styleId === "music_video") return;
     if (motionDraft !== null) return;
     if ((storedMotion || "").trim()) return;
     if (!storedMotionNeedsRebuild(storedMotion, positionBody)) return;
@@ -2811,7 +2815,7 @@ function BeatLineEditor({
     void persistMotion(next).catch(() => {
       emptiedPhoneMotionRef.current = "";
     });
-  }, [beat.id, defaultMotionBody, motionDraft, persistMotion, positionBody, storedMotion, styleId]);
+  }, [beat.id, defaultMotionBody, motionDraft, persistMotion, positionBody, storedMotion]);
 
   const motionAssist = useMobileAssist(
     "image_motion",
@@ -3071,20 +3075,14 @@ function BeatLineEditor({
         open={ltxOpen}
         onToggle={() => setLtxOpen((open) => !open)}
         body={motionBody}
-        onChange={(v) => {
-          writeLtxMotionDraft(jobId, beat.id, v);
-          setMotionDraft(v);
-        }}
+        onChange={(v) => setMotionDraft(v)}
         keepDisabled={saving}
         keeping={saving}
         onKeep={() => {
           setSaving(true);
           setError("");
           void persistMotion(motionBody)
-            .then(() => {
-              clearLtxMotionDraft(jobId, beat.id);
-              setMotionDraft(null);
-            })
+            .then(() => setMotionDraft(null))
             .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep Image motion"))
             .finally(() => setSaving(false));
         }}

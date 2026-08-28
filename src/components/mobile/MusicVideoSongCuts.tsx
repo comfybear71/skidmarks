@@ -13,6 +13,9 @@ import {
   SCRATCH_SONG_DIRECT_POST_MAX_BYTES,
 } from "@/lib/scratchSongDrop";
 import {
+  songWindowLabel,
+} from "@/lib/scratchSongWindow";
+import {
   clampPlateSliceCount,
   cutsForDeskRow,
   deskRowAllDone,
@@ -27,15 +30,20 @@ import {
   songDeskPlateIds,
   songDeskRowSlices,
   songOrdinal,
+  songCutTallyLine,
+  tallySongCuts,
 } from "@/lib/musicVideoSong";
 import {
   askSongCookNotifyPermission,
+  clearSongCookStop,
+  pendingSongCuts,
   requestSongCookStop,
   setSongCookFlag,
   songCookFlagOn,
   songCookStopRequested,
   waitForSongCut,
 } from "@/lib/songCutCook";
+import { SongCookAlertBanner } from "./SongCookAlertBanner";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
 import { mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
 import { attachParkedSongToBeat } from "./MusicVideoStart";
@@ -227,6 +235,7 @@ export function MusicVideoSongCuts({
     if (cookLock.current) return;
     cookLock.current = true;
     cookCancel.current = false;
+    clearSongCookStop(job.id);
     askSongCookNotifyPermission();
     setBusy(`send-${id}`);
     setNote("");
@@ -246,16 +255,25 @@ export function MusicVideoSongCuts({
     }
   }
 
+  async function runNextCut() {
+    const next = pendingSongCuts(job).find((c) => c.status !== "running") || pendingSongCuts(job)[0];
+    if (!next?.id) {
+      setNote("Add a plate to the song first.");
+      return;
+    }
+    await runOneCut(next.id);
+  }
+
   async function stopStuckCook() {
     cookCancel.current = true;
     cookLock.current = false;
-    requestSongCookStop(job.id);
+    setSongCookFlag(job.id, false);
     setBusy("unstick");
     setNote("");
     try {
       await songAction("unstick-all");
       setSongCookFlag(job.id, false);
-      setNote("Stopped. Tap a still, then Send when you like the order.");
+      setNote("Stopped send. Move plates, then Send when you like the order.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't stop that hung clip");
     } finally {
@@ -265,6 +283,9 @@ export function MusicVideoSongCuts({
   }
 
   async function redoCut(cutId: string) {
+    requestSongCookStop(job.id);
+    cookCancel.current = true;
+    cookLock.current = false;
     setBusy(`redo-${cutId}`);
     setNote("");
     try {
@@ -352,11 +373,52 @@ export function MusicVideoSongCuts({
       return { unit, listIndex, shotId };
     })
     .filter((row): row is { unit: MobileShotUnit; listIndex: number; shotId: string } => Boolean(row));
+  const tally = tallySongCuts(cuts);
   const runningCut = cuts.find((c) => c.status === "running");
+  const label = song?.fileName
+    ? songWindowLabel(song.durationSec, cuts)
+    : "Drop the song, then Add plates. − / + sets the length.";
+  const progress =
+    song?.fileName && cuts.length ? songCutTallyLine(tally) : "";
+  const progressPct = cuts.length ? Math.round((tally.done / cuts.length) * 100) : 0;
+  const phoneDriving = workingNow || songCookFlagOn(job.id);
 
   return (
     <div className="scratch-song">
+      <div className="scratch-song-title">Music video — song cuts</div>
+      <p className="scratch-song-clock">{label}</p>
+      {song?.fileName ? (
+        beatId ? (
+          <a
+            className="scratch-song-mp3"
+            href={
+              `/api/crash/mobile/beat-audio?styleId=${encodeURIComponent(job.styleId)}` +
+              `&folderName=${encodeURIComponent(job.folderName || job.id)}` +
+              `&beatId=${encodeURIComponent(beatId)}` +
+              `&fileName=${encodeURIComponent(song.fileName)}`
+            }
+          >
+            Song · {song.fileName}
+          </a>
+        ) : (
+          <p className="scratch-song-mp3">Song · {song.fileName}</p>
+        )
+      ) : null}
+      {progress ? <p className="scratch-song-parked">{progress}</p> : null}
+      <SongCookAlertBanner cuts={cuts} cooking={phoneDriving} showGoing={false} />
       {note ? <p className="scratch-song-parked">{note}</p> : null}
+      {cuts.length ? (
+        <div
+          className="m-song-progress"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progressPct}
+          aria-label="Song cut progress"
+        >
+          <div className="m-song-progress-fill" style={{ width: `${progressPct}%` }} />
+        </div>
+      ) : null}
       {!song?.fileName ? (
         <label className="scratch-song-hint" style={{ display: "block" }}>
           Drop the song mp3
@@ -374,8 +436,8 @@ export function MusicVideoSongCuts({
       ) : null}
       {song?.fileName && deskPlates.length ? (
         <DeskFold
-          label="Song list"
-          count={deskPlates.length}
+          label="Song cuts"
+          count={progress || deskPlates.length}
           open={cutsOpen}
           onToggle={() => setCutsOpen((v) => !v)}
         >
@@ -453,11 +515,11 @@ export function MusicVideoSongCuts({
                         const done = mine.find((c) => c.status === "done" && c.clipFile);
                         const fail = mine.find((c) => c.status === "error");
                         const redo = fail || done;
-                        if (!redo?.id || workingNow) return null;
+                        if (!redo?.id) return null;
                         return (
                           <button
                             type="button"
-                            disabled={Boolean(busy)}
+                            disabled={busy === `redo-${redo.id}`}
                             onClick={() => void redoCut(redo.id)}
                           >
                             {busy === `redo-${redo.id}` ? "…" : "Redo"}
@@ -497,6 +559,18 @@ export function MusicVideoSongCuts({
         </DeskFold>
       ) : null}
       <div className="scratch-song-actions">
+        <MobilePrimaryButton
+          size="chip"
+          tone="ghost"
+          disabled={Boolean(busy) || !cuts.length || !pendingSongCuts(job).length}
+          onClick={() => void runNextCut()}
+        >
+          {workingNow
+            ? runningCut
+              ? `Sending ${tally.done + 1}/${tally.total}`
+              : "Sending…"
+            : "Send next"}
+        </MobilePrimaryButton>
         {stuckCook ||
         workingNow ||
         songCookFlagOn(job.id) ||
