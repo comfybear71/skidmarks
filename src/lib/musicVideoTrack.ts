@@ -550,21 +550,84 @@ export function cutFromPlateTiming(
   return [...rest, next];
 }
 
-/** Next empty clock after the last hung still. Do not invent a 15s row when that plate already has in/out. */
-export function nextPlateHangStartMs(existing: PlateTiming[] | undefined): number {
-  const kept = sortPlateTimings(existing || []);
-  if (!kept.length) return 0;
-  return Math.max(...kept.map((t) => t.endMs));
+/**
+ * First hole that fits this length, counting from 0. Jack at 0:31 stays
+ * 0:31 when 30s of intro sits on the front. Packed bars fall through to
+ * the open end. Does not invent a 15s row when that plate already has in/out.
+ * Does not move existing bars.
+ */
+export function nextPlateHangStartMs(
+  existing: PlateTiming[] | undefined,
+  durationMs?: number,
+): number {
+  const asked = Math.round(Number(durationMs));
+  const dur = Math.max(
+    MIN_PLATE_BOX_MS,
+    Number.isFinite(asked) && asked > 0 ? asked : secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC),
+  );
+  const hung = sortPlateTimings(existing || [])
+    .filter((t) => isRealPlateHang(t))
+    .sort((a, b) => a.startMs - b.startMs || a.sortIndex - b.sortIndex);
+  if (!hung.length) return 0;
+  let cursor = 0;
+  for (const t of hung) {
+    if (t.startMs - cursor >= dur) return cursor;
+    cursor = Math.max(cursor, t.endMs);
+  }
+  return cursor;
+}
+
+const LYRIC_HANG_MATCH_MS = 400;
+
+/**
+ * First unused lyric pin. Silver lines at 0:31 stays 0:31 while intro
+ * clips occupy 0:00–0:30. A hang that already starts on a pin yields
+ * the next pin. Does not move other bars.
+ */
+export function firstUnusedLyricHangStartMs(
+  cues: LyricCue[] | undefined,
+  plateTimings?: PlateTiming[],
+): number | null {
+  const pins = [...(cues || [])]
+    .filter((c) => Number.isFinite(c.atMs) && c.atMs >= 0)
+    .sort((a, b) => a.atMs - b.atMs || a.lineIndex - b.lineIndex);
+  if (!pins.length) return null;
+  const starts = sortPlateTimings(plateTimings || [])
+    .filter((t) => isRealPlateHang(t))
+    .map((t) => t.startMs);
+  for (const cue of pins) {
+    const taken = starts.some((ms) => Math.abs(ms - cue.atMs) <= LYRIC_HANG_MATCH_MS);
+    if (!taken) return Math.round(cue.atMs);
+  }
+  return null;
+}
+
+/** Singing Add (No lips OFF). Null when mute/support or the sheet has no pins. */
+export function singingHangStartMs(opts: {
+  singing?: boolean;
+  lyricCues?: LyricCue[];
+  plateTimings?: PlateTiming[];
+}): number | null {
+  if (!opts.singing) return null;
+  return firstUnusedLyricHangStartMs(opts.lyricCues, opts.plateTimings);
 }
 
 export function nextPlateHangWindow(
   existing: PlateTiming[] | undefined,
-  durationSec?: number,
+  durationOrOpts?: number | { singing?: boolean; lyricCues?: LyricCue[]; durationSec?: number },
 ): { startMs: number; endMs: number } {
-  const startMs = nextPlateHangStartMs(existing);
+  const opts = typeof durationOrOpts === "object" && durationOrOpts ? durationOrOpts : undefined;
+  const durationSec = typeof durationOrOpts === "number" ? durationOrOpts : opts?.durationSec;
+  const lyric = singingHangStartMs({
+    singing: opts?.singing,
+    lyricCues: opts?.lyricCues,
+    plateTimings: existing,
+  });
+  const durMs = secToMs(addPlateHangDurationSec(durationSec));
+  const startMs = lyric ?? nextPlateHangStartMs(existing, durMs);
   return {
     startMs,
-    endMs: startMs + secToMs(addPlateHangDurationSec(durationSec)),
+    endMs: startMs + durMs,
   };
 }
 
@@ -572,9 +635,8 @@ const PLATE_DURATION_MIN_MS = 1000;
 const PLATE_DURATION_MAX_MS = secToMs(LTX_MAX_DURATION_SEC);
 
 /**
- * Where this still sits, and how long it covers. Not stuck at 15s.
- * Later stills keep their length and slide. Earlier stills stay put
- * unless this one jumps in front of them — then the clock reorders.
+ * Where this still sits, and how long it covers. Other stills keep their
+ * song times — plates must not push the song back.
  */
 export function withPlateWindow(
   existing: PlateTiming[] | undefined,
@@ -601,30 +663,10 @@ export function withPlateWindow(
   const next = sorted.map((t) => ({ ...t }));
   next[i] = { ...next[i]!, startMs: start, endMs: start + dur };
   next.sort((a, b) => a.startMs - b.startMs || a.sortIndex - b.sortIndex);
-  const ni = next.findIndex((t) => t.plateId === id);
-  let cursor = next[ni]!.endMs;
-  for (let j = ni + 1; j < next.length; j++) {
-    const keep = Math.max(PLATE_DURATION_MIN_MS, next[j]!.endMs - next[j]!.startMs);
-    if (cursor >= song) {
-      next[j] = {
-        ...next[j]!,
-        startMs: Math.max(0, song - PLATE_DURATION_MIN_MS),
-        endMs: song,
-      };
-      cursor = song;
-      continue;
-    }
-    next[j] = {
-      ...next[j]!,
-      startMs: cursor,
-      endMs: Math.min(song, cursor + keep),
-    };
-    cursor = next[j]!.endMs;
-  }
   return next.map((t, sortIndex) => ({ ...t, sortIndex }));
 }
 
-/** How long this still covers. Followers keep their length and slide. Not stuck at 15s. */
+/** How long this still covers. Other bars keep their song times. Not stuck at 15s. */
 export function withPlateDuration(
   existing: PlateTiming[] | undefined,
   plateId: string,
@@ -639,8 +681,8 @@ export function withPlateDuration(
 
 /**
  * Same as withPlateDuration when the still is already on the wave.
- * If it is not hung yet, mint a bar after the last end at this length
- * so Send has a clock (10s stays 10).
+ * If it is not hung yet, mint a bar in a gap or at 0 at this length
+ * so Send has a clock (10s stays 10). Does not slide later bars.
  */
 export function ensurePlateDuration(
   existing: PlateTiming[] | undefined,
@@ -652,8 +694,8 @@ export function ensurePlateDuration(
   if (!id) return null;
   const resized = withPlateDuration(existing, id, durationMs, songMs);
   if (resized) return resized;
-  const startMs = nextPlateHangStartMs(existing);
   const dur = Math.max(PLATE_DURATION_MIN_MS, Math.round(Number(durationMs) || 0));
+  const startMs = nextPlateHangStartMs(existing, dur);
   const seed: PlateTiming[] = [
     ...sortPlateTimings(existing || []),
     {
@@ -668,7 +710,7 @@ export function ensurePlateDuration(
 
 /**
  * After the mp4 lands — the wave uses the real clip length.
- * He does not type How long first. Followers keep their length and slide.
+ * He does not type How long first. Other bars keep their song times.
  */
 export function applyLandedClipDuration(
   song: ScratchSong,
@@ -817,10 +859,10 @@ function upsertClipHangCut(
 
 /**
  * File first — hang this mp4 on the wave. Same still, second take gets its
- * own clock (`shotId~tail`). Next gap after the last hung end. Known length
+ * own clock (`shotId~tail`). Gap from 0, or a lyric pin. Known length
  * else 15. Does not cook. Does not invent 15s when this file already has
- * a real in/out. Overlap with a hung bar (two takes both at 0:20) slides
- * to the cursor — do not stack another 0:20.
+ * a real in/out. Does not move other bars. Overlap with a hung bar
+ * (two takes both at 0:20) uses the next gap — do not stack another 0:20.
  */
 export function hangOneClipOnWave(opts: {
   plateTimings?: PlateTiming[];
@@ -829,6 +871,8 @@ export function hangOneClipOnWave(opts: {
   plateFile: string;
   clipFile: string;
   durationSec?: number;
+  /** Singing first hang — lyric pin. Extra takes omit this and sit in a gap. */
+  preferStartMs?: number;
   newCutId: () => string;
 }): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } | null {
   const shotId = (opts.shotId || "").trim();
@@ -862,15 +906,17 @@ export function hangOneClipOnWave(opts: {
   }
   const cutForFile = (opts.cuts || []).find((c) => hangClipBasename(c.clipFile || "") === clipFile);
   const durMs = hangClipDurationMs(opts.durationSec, cutForFile?.durationSec);
+  const lyricStart = Number(opts.preferStartMs);
+  const useLyric = Number.isFinite(lyricStart) && lyricStart >= 0;
   const askedStart =
     cutForFile && Number(cutForFile.durationSec) > MIN_PLATE_BOX_MS / 1000
       ? secToMs(Number(cutForFile.startSec) || 0)
       : 0;
-  const cursor = existing.length ? Math.max(...existing.map((t) => t.endMs)) : 0;
+  const gapStart = nextPlateHangStartMs(existing, durMs);
   const overlaps = existing.some(
     (t) => askedStart < t.endMs && askedStart + durMs > t.startMs,
   );
-  const startMs = !askedStart || overlaps ? cursor : askedStart;
+  const startMs = useLyric ? lyricStart : !askedStart || overlaps ? gapStart : askedStart;
   const timing: PlateTiming = {
     plateId,
     startMs,
@@ -1021,9 +1067,9 @@ function impliedHungClipFiles(opts: {
 }
 
 /**
- * File first — hang every unhung done mp4 at the next gap after the last
- * hung end. Same still, second take → after 0:25, not another 0:20.
- * Waiting 0/3 cuts do not block. Does not cook.
+ * File first — hang every unhung done mp4 in a gap or at 0. Same still,
+ * second take → next gap, not another 0:20. Waiting 0/3 cuts do not
+ * block. Does not cook. Does not move existing bars.
  * Call only from explicit Add / Hang / Put stills — never on TRACK open.
  */
 export function hangUnhungDoneClips(opts: {
@@ -1069,9 +1115,9 @@ export function hangUnhungDoneClips(opts: {
 
 /**
  * STILLS ADD / plate-row Add / Open→Add: if this still already has an
- * unhung mp4, hang that file after the last bar. Cut + plateTiming
- * together. Does not mint a waiting cook. hung=false when there is no
- * leftover file (caller may queue a still with no clip).
+ * unhung mp4, hang that file in a gap or on the unused lyric pin.
+ * Cut + plateTiming together. Does not mint a waiting cook. hung=false
+ * when there is no leftover file (caller may queue a still with no clip).
  */
 export function addPlateFileFirstHang(opts: {
   shotId: string;
@@ -1086,6 +1132,8 @@ export function addPlateFileFirstHang(opts: {
     durationSec?: number;
   }>;
   skipShotIds?: string[];
+  singing?: boolean;
+  lyricCues?: LyricCue[];
   newCutId: () => string;
 }): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[]; hung: boolean } {
   const shotId = hangPlateShotId(opts.shotId);
@@ -1102,22 +1150,43 @@ export function addPlateFileFirstHang(opts: {
       hung: false,
     };
   }
-  const hung = hangUnhungDoneClips({
-    plateTimings: opts.plateTimings,
-    cuts: opts.cuts,
-    clips: opts.clips,
-    skipShotIds: opts.skipShotIds,
-    plateFileFor: (id) => (id === shotId ? (opts.plateFile || "").trim() : ""),
-    newCutId: opts.newCutId,
-    onlyShotId: shotId,
-  });
-  return { ...hung, hung: true };
+  const alreadyOnWave = (opts.plateTimings || []).some(
+    (t) => hangPlateShotId(t.plateId) === shotId && isRealPlateHang(t),
+  );
+  let plateTimings = opts.plateTimings;
+  let cuts = opts.cuts;
+  let first = true;
+  for (const row of leftover) {
+    const lyricStart =
+      first && !alreadyOnWave
+        ? singingHangStartMs({
+            singing: opts.singing,
+            lyricCues: opts.lyricCues,
+            plateTimings,
+          })
+        : null;
+    first = false;
+    const hung = hangOneClipOnWave({
+      plateTimings,
+      cuts,
+      shotId: row.shotId,
+      plateFile: (opts.plateFile || row.plateFile || "").trim(),
+      clipFile: row.clipFile,
+      durationSec: row.durationSec,
+      ...(lyricStart != null ? { preferStartMs: lyricStart } : {}),
+      newCutId: opts.newCutId,
+    });
+    if (!hung) continue;
+    plateTimings = hung.plateTimings;
+    cuts = hung.cuts;
+  }
+  return { plateTimings: plateTimings || [], cuts, hung: true };
 }
 
 /**
  * Both Add buttons (STILLS + plate-row) share this. File first: leftover
- * mp4 after the last hung end. Then hang the still if it has no unique slot.
- * Waiting 0/3 cuts do not block. Does not cook.
+ * mp4 in a gap or at 0. Then hang the still if it has no unique slot.
+ * Waiting 0/3 cuts do not block. Does not cook. Does not slide Jack.
  */
 export function addPlateHangOnTrack(opts: {
   plateTimings?: PlateTiming[];
@@ -1174,7 +1243,6 @@ export function hangMissingPlateTimings(
   const next = [...kept];
   let sort = next.length;
   const seen = new Set<string>();
-  let cursor = next.length ? Math.max(...next.map((t) => t.endMs)) : 0;
   for (const c of cuts) {
     const plateId = (c.shotId || "").trim();
     if (!plateId || have.has(plateId) || seen.has(plateId)) continue;
@@ -1185,7 +1253,7 @@ export function hangMissingPlateTimings(
     const overlaps = next.some(
       (t) => askedStart < t.endMs && askedStart + durMs > t.startMs,
     );
-    const startMs = !askedStart || overlaps ? cursor : askedStart;
+    const startMs = !askedStart || overlaps ? nextPlateHangStartMs(next, durMs) : askedStart;
     const endMs = Math.max(startMs + 100, startMs + durMs);
     next.push({
       plateId,
@@ -1193,7 +1261,6 @@ export function hangMissingPlateTimings(
       endMs,
       sortIndex: sort++,
     });
-    cursor = Math.max(cursor, endMs);
   }
   for (const raw of extraIds) {
     const plateId = (raw || "").trim();
@@ -1201,13 +1268,13 @@ export function hangMissingPlateTimings(
     seen.add(plateId);
     have.add(plateId);
     const durMs = secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC);
+    const startMs = nextPlateHangStartMs(next, durMs);
     next.push({
       plateId,
-      startMs: cursor,
-      endMs: Math.max(cursor + 100, cursor + durMs),
+      startMs,
+      endMs: Math.max(startMs + 100, startMs + durMs),
       sortIndex: sort++,
     });
-    cursor += durMs;
   }
   return next;
 }

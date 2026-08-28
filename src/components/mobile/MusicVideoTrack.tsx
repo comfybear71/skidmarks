@@ -62,7 +62,9 @@ import {
   hasStuckSongCook,
   musicVideoCreditLine,
   needsDoneClipHang,
+  addPlateIsSingingHang,
 } from "@/lib/musicVideoSong";
+import { isSupportShot } from "@/lib/stockFootage";
 
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
@@ -1331,6 +1333,17 @@ export function MusicVideoTrack({
     return muteLockEmptyFrame(job.id, storyShotFor(shotId), job.speakers || []);
   }
 
+  function singingHangForShot(shotId: string): boolean {
+    const shot = storyShotFor(shotId);
+    const empty = sendEmptyFrameFor(shotId);
+    return addPlateIsSingingHang({
+      mute: readMvMuteAction(job.id, shotId),
+      emptyFrame: empty,
+      nobodyInShot: empty || readMvNobodyInShot(job.id, shotId) || Boolean(shot?.nobodyInShot),
+      support: isSupportShot(shot),
+    });
+  }
+
   function songRunEmptyExtras(shotId: string): Record<string, unknown> {
     const empty = sendEmptyFrameFor(shotId);
     return {
@@ -1495,6 +1508,10 @@ export function MusicVideoTrack({
             jobId: job.id,
             shotId,
             durationSec: readHangLengthDraft(job.id, shotId),
+            singing: singingHangForShot(shotId),
+            mute: readMvMuteAction(job.id, shotId) || sendEmptyFrameFor(shotId),
+            emptyFrame: sendEmptyFrameFor(shotId),
+            support: isSupportShot(storyShotFor(shotId)),
           }),
         });
         const raw = (await res.json().catch(() => ({}))) as {
@@ -1521,7 +1538,11 @@ export function MusicVideoTrack({
       return;
     }
     const clock = resolvePlateTimings(song, job.trackDraft);
-    const next = nextPlateHangWindow(clock, readHangLengthDraft(job.id, shotId));
+    const next = nextPlateHangWindow(clock, {
+      durationSec: readHangLengthDraft(job.id, shotId),
+      singing: singingHangForShot(shotId),
+      lyricCues: song.lyricCues || job.trackDraft?.lyricCues,
+    });
     const win =
       rangeChosen && rangeEndMs > rangeStartMs
         ? { startMs: rangeStartMs, endMs: rangeEndMs }

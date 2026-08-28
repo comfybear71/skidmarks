@@ -41,6 +41,7 @@ import {
   skipSongPlateIds,
   syncSongCutsToDesk,
   applyAddPlateOnSong,
+  addPlateIsSingingHang,
   withRowSliceAt,
   withoutPlateParkedCuts,
   withoutSongPlateAt,
@@ -64,6 +65,7 @@ import {
   sliceBoundsForPlate,
 } from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
+import { findStoryShot, isSupportShot } from "@/lib/stockFootage";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -83,14 +85,15 @@ export const maxDuration = 900;
  *   hang-plates — explicit Put stills / Hang only. Not on TRACK open or job GET. Hang done clipFiles on the wave (next gap, known mp4/clip/cut length else 15 — 5s file wins over a 15s cook window). Extra take on the same still goes after the last hung end. Leftover 0.5s is not a hang. Stills with no mp4 stay off — Add those. X'd leftovers stay off until he taps Add or Hang on that take. No leftover job.shots. No cook.
  *   hang-clip — hang one existing mp4 (same still, second take gets its own clock). File first. No cook.
  *   redo-cut — park that clip, leave the still, wait for Send again.
- *   add-plate — leftover mp4 file-first hangs after the last hung bar
- *     (applyAddPlateOnSong → addPlateFileFirstHang). No waiting cook on
- *     siblings. Still with no mp4 hangs at body.durationSec (slider 5–40).
- *     Already hung + extra mp4 → hang that file after the last bar at
- *     render length. alreadyHung + no leftover → another still bar after
- *     the last end (extraStillHangPlateId) at the slider seconds. No cook.
- *     fileFirst.hung / alreadyHung live there. No desk rebuild. Does not
- *     clamp the TRACK bar to H3's 15.
+ *   add-plate — leftover mp4 file-first hangs in a gap or at 0
+ *     (applyAddPlateOnSong → addPlateFileFirstHang). Singing first hang
+ *     (No lips OFF) uses the unused lyric cue so intro clips do not shove
+ *     Silver lines off 0:31. No waiting cook on siblings. Still with no mp4 hangs at body.durationSec (slider 5–40). Already hung + extra
+ *     mp4 → hang that file in a gap at render length. alreadyHung + no
+ *     leftover → another still bar (extraStillHangPlateId) at the slider
+ *     seconds. Other bars keep their times. No cook. fileFirst.hung /
+ *     alreadyHung live there. No desk rebuild. Does not clamp the TRACK
+ *     bar to H3's 15.
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
  *   List edits clear stuck cooks first — a hung LTX must not lock Add forever.
@@ -110,6 +113,8 @@ export async function POST(req: Request) {
     mute?: boolean;
     emptyFrame?: boolean;
     nobodyInShot?: boolean;
+    singing?: boolean;
+    support?: boolean;
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -734,10 +739,17 @@ export async function POST(req: Request) {
       }
       const livePlate =
         (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim();
+      const storyShot = findStoryShot(story, shotId);
+      const singing = addPlateIsSingingHang({
+        mute: body.mute === true,
+        emptyFrame: body.emptyFrame === true,
+        nobodyInShot: body.nobodyInShot === true,
+        support: body.support === true || isSupportShot(storyShot),
+      });
       // applyAddPlateOnSong → addPlateFileFirstHang. fileFirst.hung /
-      // alreadyHung live there. alreadyHung + no leftover writes another
-      // still bar after the last end. Keep done clips. No desk rebuild —
-      // that minted WAITING 15s on the 0:15 car when skip hid car~6ir.
+      // alreadyHung live there. Singing first hang uses lyricCues
+      // startMs (0:31 Silver lines), not max(endMs) after intro clips.
+      // Other bars keep their times. Keep done clips. Slider duration stays.
       const added = applyAddPlateOnSong({
         shotId,
         plateFile: livePlate,
@@ -749,6 +761,8 @@ export async function POST(req: Request) {
         rowSlices: song.rowSlices,
         songSec: song.durationSec,
         durationSec: body.durationSec,
+        singing,
+        lyricCues: song.lyricCues || job.trackDraft?.lyricCues,
         newCutId: () => newId("cut"),
       });
       const nextWin = nextCutAfter(added.cuts, song.durationSec);
