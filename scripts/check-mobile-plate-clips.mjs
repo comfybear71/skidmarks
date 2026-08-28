@@ -323,6 +323,64 @@ assert.deepEqual(
 );
 assert.deepEqual(clipRailLabels(twoOnNine.length), ["clip 1", "clip 2"]);
 assert.notEqual(twoOnNine[0].clipFile, twoOnNine[1].clipFile);
+
+/** Screenshots: clip 3 + clip 4 both say 0:20 until the leftover owns its own bar. */
+const jackCuts = [
+  { clipFile: "01_jack.mp4", shotId: "jack1" },
+  { clipFile: "02_car.mp4", shotId: "car" },
+  { clipFile: "03_stand.mp4", shotId: "jack" },
+];
+const jackTimings = [
+  { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
+  { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+  { plateId: "jack", startMs: 20000, endMs: 25000, sortIndex: 2 },
+];
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "03_stand.mp4",
+    shotId: "jack",
+    songCuts: jackCuts,
+    plateTimings: jackTimings,
+  }),
+  "0:20",
+);
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "04_crouch.mp4",
+    shotId: "jack",
+    songCuts: jackCuts,
+    plateTimings: jackTimings,
+  }),
+  "off",
+  "leftover take must not steal the 3rd bar's 0:20",
+);
+const afterHangCuts = [
+  ...jackCuts,
+  { clipFile: "04_crouch.mp4", shotId: "jack~04crouch" },
+];
+const afterHangTimings = [
+  ...jackTimings,
+  { plateId: "jack~04crouch", startMs: 25000, endMs: 30000, sortIndex: 3 },
+];
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "03_stand.mp4",
+    shotId: "jack",
+    songCuts: afterHangCuts,
+    plateTimings: afterHangTimings,
+  }),
+  "0:20",
+);
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "04_crouch.mp4",
+    shotId: "jack",
+    songCuts: afterHangCuts,
+    plateTimings: afterHangTimings,
+  }),
+  "0:25",
+  "hung leftover stamps 0:25, not another 0:20",
+);
 assert.equal(
   clipHangStartMs(twoOnNine[0], {
     cuts: [

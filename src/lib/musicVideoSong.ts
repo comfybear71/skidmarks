@@ -3,12 +3,9 @@
  * Clock math lives in scratchSongWindow (phone-safe).
  */
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
-import { clipFileBasename, stackedClipFiles } from "./mobilePlateClips";
 import {
-  clipFileOnWave,
-  hangDoneClipsOnWave,
-  hangPlateShotId,
   isLeftoverPlateHang,
+  listUnhungDoneClips,
 } from "./musicVideoTrack";
 import {
   formatSongClock,
@@ -563,111 +560,6 @@ export function doneClipRowsForHang(opts: {
   return order.map((id) => byShot.get(id)!);
 }
 
-type DoneClipHangSource = {
-  shotId?: string;
-  clipFile?: string;
-  priorClipFiles?: string[];
-  clipStatus?: string;
-  status?: string;
-  durationSec?: number;
-  plateFile?: string;
-};
-
-/**
- * One row per rendered mp4 that is not on the wave. Two cooks from one
- * still (clip 3 + clip 4 both stamped 0:20) are two rows. Off-song skip
- * stays off. File first — no stills without an mp4.
- */
-export function doneClipFilesNeedingHang(opts: {
-  song?: {
-    cuts?: DoneClipHangSource[];
-    plateTimings?: { plateId?: string; startMs?: number; endMs?: number }[];
-    skipShotIds?: string[];
-  } | null;
-  clips?: DoneClipHangSource[];
-  jobShots?: { shotId: string; plateFile?: string }[];
-}): DoneClipHangRow[] {
-  const jobShots = opts.jobShots || [];
-  const skipped = new Set(skipSongPlateIds({ skipShotIds: opts.song?.skipShotIds }));
-  const clock = {
-    cuts: opts.song?.cuts,
-    plateTimings: opts.song?.plateTimings as
-      | { plateId: string; startMs: number; endMs: number; sortIndex: number }[]
-      | undefined,
-  };
-  const plateFileFor = (shotId: string, cutFile?: string) =>
-    realPlateStillFile(shotId, jobShots, cutFile ? { plateFile: cutFile } : undefined);
-  const seen = new Set<string>();
-  const rows: DoneClipHangRow[] = [];
-  const push = (
-    shotRaw: string,
-    fileRaw: string,
-    plateFile: string,
-    durationSec?: number,
-  ) => {
-    const shotId = hangPlateShotId(shotRaw);
-    const clipFile = clipFileBasename(fileRaw);
-    if (!shotId || !clipFile || skipped.has(shotId) || seen.has(clipFile)) return;
-    if (clipFileOnWave(clock, clipFile)) return;
-    seen.add(clipFile);
-    rows.push({
-      shotId,
-      clipFile,
-      plateFile: plateFile || plateFileFor(shotId),
-      durationSec:
-        Number(durationSec) > MIN_LEFTOVER_SEC ? Number(durationSec) : durationSec,
-    });
-  };
-
-  for (const clip of opts.clips || []) {
-    if (clip.clipStatus && clip.clipStatus !== "done") continue;
-    const files = stackedClipFiles({
-      clipFile: clip.clipFile || "",
-      priorClipFiles: clip.priorClipFiles,
-    });
-    for (const file of files) {
-      push(
-        clip.shotId || "",
-        file,
-        plateFileFor(hangPlateShotId(clip.shotId || "")),
-        clip.durationSec,
-      );
-    }
-  }
-  for (const cut of opts.song?.cuts || []) {
-    if (cut.status && cut.status !== "done") continue;
-    const shotId = shotIdForSongCut(cut, jobShots);
-    push(shotId, cut.clipFile || "", plateFileFor(shotId, cut.plateFile), cut.durationSec);
-  }
-  return rows;
-}
-
-/** Hang leftover rendered takes after the last real bar. No cook. */
-export function hangLeftoverDoneClipsOnWave(opts: {
-  plateTimings?: { plateId: string; startMs: number; endMs: number; sortIndex: number }[];
-  cuts: ScratchSongCut[];
-  clips?: DoneClipHangSource[];
-  jobShots?: { shotId: string; plateFile?: string }[];
-  skipShotIds?: string[];
-  newCutId: () => string;
-}): { plateTimings: { plateId: string; startMs: number; endMs: number; sortIndex: number }[]; cuts: ScratchSongCut[] } {
-  const rows = doneClipFilesNeedingHang({
-    song: {
-      cuts: opts.cuts,
-      plateTimings: opts.plateTimings,
-      skipShotIds: opts.skipShotIds,
-    },
-    clips: opts.clips,
-    jobShots: opts.jobShots,
-  });
-  return hangDoneClipsOnWave({
-    plateTimings: opts.plateTimings,
-    cuts: opts.cuts,
-    rows,
-    newCutId: opts.newCutId,
-  });
-}
-
 /** Done mp4 with no real hang (missing clock or 0.5s leftover). */
 export function plateIdsNeedingDoneClipHang(opts: {
   song?: {
@@ -681,7 +573,13 @@ export function plateIdsNeedingDoneClipHang(opts: {
     plateTimings?: { plateId?: string; startMs?: number; endMs?: number }[];
     skipShotIds?: string[];
   } | null;
-  clips?: DoneClipHangSource[];
+  clips?: {
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }[];
   jobShots?: { shotId: string; plateFile?: string }[];
 }): string[] {
   const have = new Set(
@@ -712,11 +610,24 @@ export function needsDoneClipHang(
     skipShotIds?: string[];
   } | null,
   jobShots?: { shotId: string; plateFile?: string }[],
-  clips?: DoneClipHangSource[],
+  clips?: {
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }[],
 ): boolean {
+  if (plateIdsNeedingDoneClipHang({ song, clips, jobShots }).length > 0) return true;
   return (
-    plateIdsNeedingDoneClipHang({ song, clips, jobShots }).length > 0 ||
-    doneClipFilesNeedingHang({ song, clips, jobShots }).length > 0
+    listUnhungDoneClips({
+      clips,
+      cuts: song?.cuts,
+      plateTimings: song?.plateTimings as
+        | { plateId: string; startMs: number; endMs: number; sortIndex: number }[]
+        | undefined,
+      skipShotIds: song?.skipShotIds,
+    }).length > 0
   );
 }
 
