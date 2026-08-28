@@ -7,10 +7,9 @@ import {
   TRACK_ACID,
   TRACK_SECTION_LABELS,
   formatTrackClock,
-  formatTrackClockPrecise,
   msToSec,
-  secToMs,
   nextPlateHangWindow,
+  storedClipDurationSec,
   evenLineStartMs,
   evenLyricHoldMs,
   evenLyricIndexAt,
@@ -742,8 +741,6 @@ export function MusicVideoTrack({
   const [marqueeOpen, setMarqueeOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [pickedId, setPickedId] = useState("");
-  const [startDraft, setStartDraft] = useState("0");
-  const [lengthDraft, setLengthDraft] = useState("15");
   const [freeLookOpen, setFreeLookOpen] = useState(() => stockLookIsOn(job.stockLook));
   const [freeLook, setFreeLook] = useState<StockLook>(() => parseStockLook(job.stockLook));
   const [openSectionId, setOpenSectionId] = useState("");
@@ -861,23 +858,22 @@ export function MusicVideoTrack({
   }, [plateBlocks, plateRows]);
   const picked =
     filmItems.find((item) => item.shotId === pickedId) || filmItems[0] || null;
+  const pickedClipSec = picked
+    ? storedClipDurationSec({
+        clips: job.clips,
+        cuts: song?.cuts,
+        shotId: picked.shotId,
+      }) ??
+      (picked.timing && picked.timing.endMs > picked.timing.startMs
+        ? msToSec(picked.timing.endMs - picked.timing.startMs)
+        : null)
+    : null;
 
   useEffect(() => {
     if (pickedId && filmItems.some((item) => item.shotId === pickedId)) return;
     const first = filmItems[0]?.shotId || "";
     if (first) setPickedId(first);
   }, [filmItems, pickedId]);
-
-  useEffect(() => {
-    if (picked?.timing) {
-      setStartDraft(String(msToSec(picked.timing.startMs)));
-      setLengthDraft(String(msToSec(picked.timing.endMs - picked.timing.startMs)));
-      return;
-    }
-    if (picked) {
-      setStartDraft(String(msToSec(nextPlateHangWindow(song?.plateTimings).startMs)));
-    }
-  }, [picked?.shotId, picked?.timing?.endMs, picked?.timing?.startMs, picked, song?.plateTimings]);
 
   const zipClips = useMemo(() => orderedJobClips(job), [job]);
   const zipHref = zipClips.length
@@ -1118,22 +1114,14 @@ export function MusicVideoTrack({
       setNote("Drop the song first.");
       return;
     }
-    const typed = Number(lengthDraft);
-    const durSec = Number.isFinite(typed) && typed > 0 ? typed : 15;
-    const typedStart = Number(startDraft);
+    const existing = plateTimingForShot(song, job.trackDraft, shotId);
     const win =
-      Number.isFinite(typedStart) && typedStart >= 0
-        ? { startMs: secToMs(typedStart), endMs: secToMs(typedStart) + secToMs(durSec) }
-        : rangeChosen && rangeEndMs > rangeStartMs
-          ? { startMs: rangeStartMs, endMs: rangeEndMs }
-          : {
-              startMs: nextPlateHangWindow(song.plateTimings).startMs,
-              endMs:
-                nextPlateHangWindow(song.plateTimings).startMs + secToMs(durSec),
-            };
+      existing && existing.endMs > existing.startMs
+        ? { startMs: existing.startMs, endMs: existing.endMs }
+        : nextPlateHangWindow(song.plateTimings);
     await schedulePlate(shotId, win.startMs, win.endMs, plateBlocks.length);
     setPickedId(shotId);
-    setNote("On the song. Set how long, then Send.");
+    setNote("On the song. Send when you like — length lands with the clip.");
   }
 
   async function sendOneCutBody(cutId: string) {
@@ -1162,27 +1150,20 @@ export function MusicVideoTrack({
 
   async function sendPlate(shotId: string) {
     if (!hungShotIds().has(shotId.trim())) {
-      await addPlateToTimeline(shotId);
-      setNote("On the song. Set start and how long, then Send.");
+      setNote("Add this still to the timeline first.");
       return;
     }
-    const hungCut = () =>
-      cutForHungPlate({
-        cuts: jobRef.current.scratchSong?.cuts,
+    const cut = cutForHungPlate({
+      cuts: jobRef.current.scratchSong?.cuts,
+      shotId,
+      timing: plateTimingForShot(
+        jobRef.current.scratchSong,
+        jobRef.current.trackDraft,
         shotId,
-        timing: plateTimingForShot(
-          jobRef.current.scratchSong,
-          jobRef.current.trackDraft,
-          shotId,
-        ),
-      });
-    let cut = hungCut();
+      ),
+    });
     if (!cut?.id) {
-      await setPickedLength();
-      cut = hungCut();
-    }
-    if (!cut?.id) {
-      setNote("Set where it starts and how long, then Send.");
+      setNote("Add this still to the timeline first.");
       return;
     }
     if (cookLock.current) return;
@@ -1346,42 +1327,6 @@ export function MusicVideoTrack({
       if (updated) onJobChange(updated);
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't schedule that plate");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function setPickedLength() {
-    if (!picked?.shotId) {
-      setNote("Tap a still first.");
-      return;
-    }
-    if (!picked.onSong && !picked.timing) {
-      await addPlateToTimeline(picked.shotId);
-      return;
-    }
-    const durationSec = Number(lengthDraft);
-    const startSec = Number(startDraft);
-    if (!Number.isFinite(startSec) || startSec < 0) {
-      setNote("Type where this still starts on the song.");
-      return;
-    }
-    if (!Number.isFinite(durationSec) || durationSec <= 0) {
-      setNote("Type how many seconds this still covers.");
-      return;
-    }
-    setBusy(`len-${picked.shotId}`);
-    setNote("");
-    try {
-      const updated = await trackAction("set-plate-duration", {
-        jobId: job.id,
-        plateId: picked.shotId,
-        startSec,
-        durationSec,
-      });
-      if (updated) onJobChange(updated);
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't set that length");
     } finally {
       setBusy("");
     }
@@ -1623,45 +1568,14 @@ export function MusicVideoTrack({
             <div className="m-track-pick">
               <div className="m-track-pick-name">{picked.title}</div>
               <div className="m-track-pick-clock">
-                {picked.timing
-                  ? `${formatTrackClockPrecise(picked.timing.startMs)} – ${formatTrackClockPrecise(picked.timing.endMs)}`
-                  : "Not on the song yet"}
+                {hungClipFileForPlate(job, picked.shotId)
+                  ? pickedClipSec != null && pickedClipSec > 0
+                    ? `Clip is ${pickedClipSec}s`
+                    : "Clip is on"
+                  : picked.onSong || picked.timing
+                    ? "On the song — length after the clip"
+                    : "Not on the song yet"}
               </div>
-              <label className="m-track-pick-len">
-                Starts at
-                <input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  inputMode="decimal"
-                  value={startDraft}
-                  disabled={Boolean(busy)}
-                  onChange={(e) => setStartDraft(e.target.value)}
-                />
-                seconds
-              </label>
-              <label className="m-track-pick-len">
-                How long
-                <input
-                  type="number"
-                  min={1}
-                  max={180}
-                  step={0.5}
-                  inputMode="decimal"
-                  value={lengthDraft}
-                  disabled={Boolean(busy)}
-                  onChange={(e) => setLengthDraft(e.target.value)}
-                />
-                seconds
-                <button
-                  type="button"
-                  className="m-track-btn"
-                  disabled={Boolean(busy)}
-                  onClick={() => void setPickedLength()}
-                >
-                  Set
-                </button>
-              </label>
               <div className="m-track-pick-tools">
                 {picked.onSong || picked.timing ? (
                   <>

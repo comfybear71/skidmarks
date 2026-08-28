@@ -12,6 +12,7 @@ import {
   swapNeighborPlateTimings,
   withPlateDuration,
   withPlateWindow,
+  storedClipDurationSec,
   msToSec,
   orderedDoneCutsForStitch,
   plateRailBox,
@@ -121,9 +122,10 @@ assert.match(tree, /compact=\{!platesOpen\}/);
 assert.match(trackUi, /WaveformCanvas/);
 assert.match(trackUi, /Add section/);
 assert.match(trackUi, /Put stills on the song/);
-assert.match(trackUi, /How long/);
-assert.match(trackUi, /Starts at/);
-assert.match(trackUi, /startSec/);
+assert.doesNotMatch(trackUi, /How long/);
+assert.doesNotMatch(trackUi, /Starts at/);
+assert.match(trackUi, /Clip is/);
+assert.match(trackUi, /length after the clip/);
 assert.doesNotMatch(trackUi, /Send all/);
 assert.match(trackUi, /"Send"/);
 assert.match(trackUi, /Park this clip/);
@@ -149,7 +151,7 @@ assert.match(trackUi, /Move right/);
 assert.match(trackUi, /move-plate/);
 assert.match(trackUi, /Stop send/);
 assert.match(trackUi, /Put stills on the song/);
-assert.match(trackUi, /set-plate-duration/);
+assert.doesNotMatch(trackUi, /set-plate-duration/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "move-plate"/,
@@ -198,6 +200,10 @@ assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /startSec\?: number/,
 );
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
+  /durationSec\?: number/,
+);
 
 const first = plateRailBox(0, 15000, 60000);
 assert.equal(first.leftPct, 0);
@@ -208,6 +214,22 @@ assert.ok(Math.abs(late.widthPct - (15500 / 267500) * 100) < 0.0001);
 
 assert.equal(formatTrackClockPrecise(247500), "4:07.5");
 assert.equal(formatTrackClockPrecise(0), "0:00.0");
+assert.equal(storedClipDurationSec({ clips: [], shotId: "a" }), null);
+assert.equal(
+  storedClipDurationSec({
+    clips: [{ shotId: "a", clipFile: "a.mp4", durationSec: 24 }],
+    shotId: "a",
+  }),
+  24,
+);
+assert.equal(
+  storedClipDurationSec({
+    clips: [{ shotId: "a", clipFile: "", durationSec: 24 }],
+    cuts: [{ shotId: "a", clipFile: "a.mp4", durationSec: 24.04 }],
+    shotId: "a",
+  }),
+  24,
+);
 
 {
   const hung = hangMissingPlateTimings(
