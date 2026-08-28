@@ -546,7 +546,7 @@ assert.doesNotMatch(css, /\.m-plate-clip-engines/, "no engine chrome on the CLIP
 }
 
 assert.match(thumbs, /onRemoveTake/, "CLIPS X still parks the mp4");
-assert.match(thumbs, /File parks in _cleared_/);
+assert.match(thumbs, /File parks in _cleared\//);
 assert.match(editor, /action: "remove-clip"/);
 assert.match(clipRoute, /planParkDeskClipTake/);
 const trackUi = fs.readFileSync(
