@@ -20,8 +20,10 @@ import {
   beatForSongCut,
   findSongCarrierBeatId,
   isMusicVideoSongJob,
-  needsTrackHang,
+  needsDoneClipHang,
   plateIdsWaitingForTrack,
+  plateIdsNeedingDoneClipHang,
+  doneClipRowsForHang,
   shotIdForSongCut,
   storyShotForSongCut,
   plateSliceWindows,
@@ -66,7 +68,7 @@ export const maxDuration = 900;
  *   clip-poll — one H3 / Siray tick until the mp4 lands.
  *   stitch — rejected. Finish is ordered unstitched mp4s.
  *   remove-stitch — park a leftover joined mp4 if one exists.
- *   hang-plates — write missing plateTimings for song-list / cut stills. No leftover job.shots. No cook.
+ *   hang-plates — hang done clipFiles on the wave (next gap, known length else 15). Leftover 0.5s is not a hang. Stills with no mp4 stay off — Add those. No leftover job.shots. No cook.
  *   redo-cut — park that clip, leave the still, wait for Send again.
  *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row).
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
@@ -573,18 +575,40 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
       }
       const jobShots = job.shots || [];
-      const cuts = (song.cuts || []).map((c) => {
+      let cuts = (song.cuts || []).map((c) => {
         const shotId = shotIdForSongCut(c, jobShots);
         return shotId && shotId !== (c.shotId || "").trim() ? { ...c, shotId } : c;
       });
-      if (!needsTrackHang({ ...song, cuts }, jobShots)) {
+      const songNow = { ...song, cuts };
+      if (!needsDoneClipHang(songNow, jobShots, job.clips || [])) {
         return NextResponse.json({ ok: true, job });
       }
-      const extraIds = plateIdsWaitingForTrack({ song: { ...song, cuts }, jobShots });
-      const hangCuts = cuts.filter((c) =>
-        extraIds.includes(shotIdForSongCut(c, jobShots)),
-      );
-      const plateTimings = hangMissingPlateTimings(song.plateTimings, hangCuts, extraIds);
+      const needIds = plateIdsNeedingDoneClipHang({
+        song: songNow,
+        clips: job.clips || [],
+        jobShots,
+      });
+      const rows = doneClipRowsForHang({
+        cuts,
+        clips: job.clips || [],
+        jobShots,
+        skipShotIds: song.skipShotIds,
+      }).filter((row) => needIds.includes(row.shotId));
+      const hangCuts = rows.map((row) => ({
+        shotId: row.shotId,
+        startSec: 0,
+        durationSec: row.durationSec,
+      }));
+      const plateTimings = hangMissingPlateTimings(song.plateTimings, hangCuts, []);
+      for (const row of rows) {
+        const timing = plateTimings.find((x) => x.plateId === row.shotId);
+        if (!timing) continue;
+        cuts = cutFromPlateTiming(cuts, timing, row.plateFile, () => newId("cut")).map((c) =>
+          (c.shotId || "").trim() === row.shotId
+            ? { ...c, clipFile: row.clipFile, status: "done" as const, error: "" }
+            : c,
+        );
+      }
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: { ...song, cuts, plateTimings },
         error: "",

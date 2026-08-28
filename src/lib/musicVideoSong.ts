@@ -3,6 +3,7 @@
  * Clock math lives in scratchSongWindow (phone-safe).
  */
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
+import { isLeftoverPlateHang } from "./musicVideoTrack";
 import {
   formatSongClock,
   remainingSongWindows,
@@ -449,7 +450,10 @@ export function plateIdsWaitingForTrack(opts: {
   const jobShots = opts.jobShots || [];
   const skipped = new Set(skipSongPlateIds(opts.song));
   const have = new Set(
-    (opts.song?.plateTimings || []).map((t) => (t.plateId || "").trim()).filter(Boolean),
+    (opts.song?.plateTimings || [])
+      .filter((x) => !isLeftoverPlateHang(x))
+      .map((x) => (x.plateId || "").trim())
+      .filter(Boolean),
   );
   const want: string[] = [];
   const push = (id: string, cut?: { plateFile?: string }) => {
@@ -465,11 +469,158 @@ export function plateIdsWaitingForTrack(opts: {
   return want;
 }
 
+export type DoneClipHangRow = {
+  shotId: string;
+  clipFile: string;
+  plateFile: string;
+  durationSec?: number;
+};
+
+const MIN_LEFTOVER_SEC = 0.5;
+
+/**
+ * File first — done mp4s on cuts or job.clips. Off-song skip stays off.
+ * Order follows job.shots so plate 1, then 8, then 9.
+ */
+export function doneClipRowsForHang(opts: {
+  cuts?: {
+    shotId?: string;
+    plateFile?: string;
+    clipFile?: string;
+    status?: string;
+    durationSec?: number;
+  }[];
+  clips?: {
+    shotId?: string;
+    clipFile?: string;
+    clipStatus?: string;
+    durationSec?: number;
+  }[];
+  jobShots?: { shotId: string; plateFile?: string }[];
+  skipShotIds?: string[];
+}): DoneClipHangRow[] {
+  const jobShots = opts.jobShots || [];
+  const skipped = new Set(skipSongPlateIds({ skipShotIds: opts.skipShotIds }));
+  const byShot = new Map<string, DoneClipHangRow>();
+  const takeFile = (raw?: string) => (raw || "").trim().split(/[\\/]/).pop() || "";
+  const plateFileFor = (shotId: string, cutFile?: string) =>
+    realPlateStillFile(shotId, jobShots, cutFile ? { plateFile: cutFile } : undefined);
+
+  for (const clip of opts.clips || []) {
+    const shotId = (clip.shotId || "").trim();
+    const clipFile = takeFile(clip.clipFile);
+    if (!shotId || !clipFile || skipped.has(shotId)) continue;
+    if (clip.clipStatus && clip.clipStatus !== "done") continue;
+    const prev = byShot.get(shotId);
+    const durationSec =
+      Number(clip.durationSec) > MIN_LEFTOVER_SEC
+        ? Number(clip.durationSec)
+        : prev && Number(prev.durationSec) > MIN_LEFTOVER_SEC
+          ? prev.durationSec
+          : clip.durationSec;
+    byShot.set(shotId, {
+      shotId,
+      clipFile,
+      plateFile: plateFileFor(shotId),
+      durationSec,
+    });
+  }
+  for (const cut of opts.cuts || []) {
+    const shotId = shotIdForSongCut(cut, jobShots);
+    const clipFile = takeFile(cut.clipFile);
+    if (!shotId || !clipFile || skipped.has(shotId)) continue;
+    if (cut.status && cut.status !== "done") continue;
+    const prev = byShot.get(shotId);
+    const cutDur = Number(cut.durationSec);
+    const prevDur = Number(prev?.durationSec);
+    byShot.set(shotId, {
+      shotId,
+      clipFile: prev?.clipFile || clipFile,
+      plateFile: plateFileFor(shotId, cut.plateFile) || prev?.plateFile || "",
+      durationSec:
+        prevDur > MIN_LEFTOVER_SEC
+          ? prev?.durationSec
+          : cutDur > MIN_LEFTOVER_SEC
+            ? cut.durationSec
+            : prev?.durationSec ?? cut.durationSec,
+    });
+  }
+
+  const order: string[] = [];
+  for (const s of jobShots) {
+    const id = (s.shotId || "").trim();
+    if (id && byShot.has(id) && !order.includes(id)) order.push(id);
+  }
+  for (const id of byShot.keys()) {
+    if (!order.includes(id)) order.push(id);
+  }
+  return order.map((id) => byShot.get(id)!);
+}
+
+/** Done mp4 with no real hang (missing clock or 0.5s leftover). */
+export function plateIdsNeedingDoneClipHang(opts: {
+  song?: {
+    cuts?: {
+      shotId?: string;
+      plateFile?: string;
+      clipFile?: string;
+      status?: string;
+      durationSec?: number;
+    }[];
+    plateTimings?: { plateId?: string; startMs?: number; endMs?: number }[];
+    skipShotIds?: string[];
+  } | null;
+  clips?: {
+    shotId?: string;
+    clipFile?: string;
+    clipStatus?: string;
+    durationSec?: number;
+  }[];
+  jobShots?: { shotId: string; plateFile?: string }[];
+}): string[] {
+  const have = new Set(
+    (opts.song?.plateTimings || [])
+      .filter((x) => (x.plateId || "").trim() && !isLeftoverPlateHang(x))
+      .map((x) => (x.plateId || "").trim()),
+  );
+  return doneClipRowsForHang({
+    cuts: opts.song?.cuts,
+    clips: opts.clips,
+    jobShots: opts.jobShots,
+    skipShotIds: opts.song?.skipShotIds,
+  })
+    .map((row) => row.shotId)
+    .filter((id) => !have.has(id));
+}
+
+export function needsDoneClipHang(
+  song?: {
+    cuts?: {
+      shotId?: string;
+      plateFile?: string;
+      clipFile?: string;
+      status?: string;
+      durationSec?: number;
+    }[];
+    plateTimings?: { plateId?: string; startMs?: number; endMs?: number }[];
+    skipShotIds?: string[];
+  } | null,
+  jobShots?: { shotId: string; plateFile?: string }[],
+  clips?: {
+    shotId?: string;
+    clipFile?: string;
+    clipStatus?: string;
+    durationSec?: number;
+  }[],
+): boolean {
+  return plateIdsNeedingDoneClipHang({ song, clips, jobShots }).length > 0;
+}
+
 /** TRACK wave is plateTimings. Waiting stills with no clock are off the rail. */
 export function needsTrackHang(
   song?: {
     cuts?: { shotId?: string; plateFile?: string }[];
-    plateTimings?: { plateId?: string }[];
+    plateTimings?: { plateId?: string; startMs?: number; endMs?: number }[];
     songPlateIds?: string[];
     skipShotIds?: string[];
   } | null,

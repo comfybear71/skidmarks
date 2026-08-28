@@ -7,7 +7,10 @@ import {
   evenPlateTimings,
   formatTrackClock,
   formatTrackClockPrecise,
+  hangClipDurationMs,
   hangMissingPlateTimings,
+  isLeftoverPlateHang,
+  isRealPlateHang,
   hitPlateEdge,
   nextPlateHangWindow,
   resolvePlateTimings,
@@ -272,8 +275,8 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(hung[0].plateId, "shot_already");
   assert.equal(hung[0].startMs, 4000, "do not move a clock already on the wave");
   assert.equal(hung[1].plateId, "shot_new");
-  assert.equal(hung[1].startMs, 15000);
-  assert.equal(hung[1].endMs, 30000);
+  assert.equal(hung[1].startMs, 19000, "next gap after the real hang, not a piled 0:00");
+  assert.equal(hung[1].endMs, 34000);
 
   const sevenCuts = [
     "shot_2uhu0p1",
@@ -365,6 +368,64 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   );
   assert.equal(jumped?.find((t) => t.plateId === "a")?.startMs, 40000);
   assert.equal(jumped?.find((t) => t.plateId === "b")?.startMs, 15000);
+
+  assert.equal(isLeftoverPlateHang({ startMs: 0, endMs: 500 }), true);
+  assert.equal(isRealPlateHang({ startMs: 0, endMs: 500 }), false);
+  assert.equal(isRealPlateHang({ startMs: 0, endMs: 15000 }), true);
+  assert.equal(hangClipDurationMs(0.5), 15000);
+  assert.equal(hangClipDurationMs(8.2), 8200);
+  assert.equal(hangClipDurationMs(undefined), 15000);
+
+  const piled = hangMissingPlateTimings(
+    [
+      { plateId: "plate_1", startMs: 0, endMs: 500, sortIndex: 0 },
+      { plateId: "plate_8", startMs: 0, endMs: 500, sortIndex: 1 },
+      { plateId: "plate_9", startMs: 0, endMs: 500, sortIndex: 2 },
+    ],
+    [
+      { shotId: "plate_1", startSec: 0, durationSec: 0.5 },
+      { shotId: "plate_8", startSec: 0, durationSec: 0.5 },
+      { shotId: "plate_9", startSec: 0, durationSec: 0.5 },
+    ],
+  );
+  assert.deepEqual(
+    piled.map((x) => [x.plateId, x.startMs, x.endMs]),
+    [
+      ["plate_1", 0, 15000],
+      ["plate_8", 15000, 30000],
+      ["plate_9", 30000, 45000],
+    ],
+    "three 0:00 leftovers sequence at 15s each",
+  );
+
+  const knownLen = hangMissingPlateTimings(
+    [],
+    [
+      { shotId: "plate_1", startSec: 0, durationSec: 12 },
+      { shotId: "plate_8", startSec: 0, durationSec: 8 },
+      { shotId: "plate_9", startSec: 0 },
+    ],
+  );
+  assert.deepEqual(
+    knownLen.map((x) => [x.plateId, x.startMs, x.endMs]),
+    [
+      ["plate_1", 0, 12000],
+      ["plate_8", 12000, 20000],
+      ["plate_9", 20000, 35000],
+    ],
+    "known mp4 length else 15",
+  );
+
+  const stillsStayOff = hangMissingPlateTimings(
+    [{ plateId: "plate_1", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    [],
+    [],
+  );
+  assert.deepEqual(
+    stillsStayOff.map((x) => x.plateId),
+    ["plate_1"],
+    "hang-plates must not invent 15s for off stills with no mp4",
+  );
 
   const fromShots = hangMissingPlateTimings(
     [{ plateId: "shot_2uhu0p1", startMs: 0, endMs: 15000, sortIndex: 0 }],
@@ -461,6 +522,16 @@ assert.match(
   /leftover job\.shots/,
   "hang-plates must not take every leftover shot row",
 );
+assert.match(songRoute, /needsDoneClipHang/);
+assert.match(songRoute, /doneClipRowsForHang/);
+assert.match(
+  songRoute.slice(songRoute.indexOf('action === "hang-plates"')),
+  /hangMissingPlateTimings\(song\.plateTimings, hangCuts, \[\]\)/,
+  "hang-plates must not invent 15s for off stills with no mp4",
+);
+assert.match(trackUi, /needsDoneClipHang/);
+assert.match(trackUi, /hungClipFileForPlate\(job, picked\.shotId\) \? null/);
+assert.match(trackUi, /isRealPlateHang/);
 
 console.log("check-music-video-track: ok");
 

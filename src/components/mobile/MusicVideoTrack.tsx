@@ -23,6 +23,7 @@ import {
   withoutLyricCue,
   plateTimingForShot,
   cutForHungPlate,
+  isRealPlateHang,
   resolvePlateTimings,
   stretchPlateEdge,
   hitPlateEdge,
@@ -58,7 +59,7 @@ import {
   hasStuckSongCook,
   isMusicVideoSongJob,
   musicVideoCreditLine,
-  needsTrackHang,
+  needsDoneClipHang,
 } from "@/lib/musicVideoSong";
 
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
@@ -977,46 +978,47 @@ export function MusicVideoTrack({
 
   const savedPlateBlocks = sortPlateTimings(
     resolvePlateTimings(song, job.trackDraft),
-  ).map((t) => {
-    const row = plateRows.find((p) => p.shotId === t.plateId);
-    return { ...t, label: row?.title || t.plateId };
-  });
+  )
+    .filter((x) => isRealPlateHang(x))
+    .map((x) => {
+      const row = plateRows.find((p) => p.shotId === x.plateId);
+      return { ...x, label: row?.title || x.plateId };
+    });
   const plateBlocks: WavePlateBlock[] = (stretchTimings || savedPlateBlocks).map((t) => {
     const row = plateRows.find((p) => p.shotId === t.plateId);
     const saved = savedPlateBlocks.find((b) => b.plateId === t.plateId);
     return { ...t, label: row?.title || saved?.label || t.plateId };
   });
   const filmItems = useMemo(() => {
-    const hungIds = new Set(plateBlocks.map((b) => b.plateId));
-    const hung = plateBlocks.map((block) => {
-      const row = plateRows.find((p) => p.shotId === block.plateId);
-      return {
-        shotId: block.plateId,
-        title: row?.title || block.label,
-        plateFile: row?.plateFile || "",
-        timing: row?.timing || block,
-        onSong: true,
-      };
-    });
+    const hungIds = new Set(
+      plateBlocks.filter((b) => isRealPlateHang(b)).map((b) => b.plateId),
+    );
+    const hung = plateBlocks
+      .filter((block) => isRealPlateHang(block))
+      .map((block) => {
+        const row = plateRows.find((p) => p.shotId === block.plateId);
+        return {
+          shotId: block.plateId,
+          title: row?.title || block.label,
+          plateFile: row?.plateFile || "",
+          timing: row?.timing || block,
+          onSong: true,
+        };
+      });
     const waiting = plateRows
       .filter((row) => !hungIds.has(row.shotId))
       .map((row) => ({
         shotId: row.shotId,
         title: row.title,
         plateFile: row.plateFile,
-        timing: row.timing,
-        onSong: Boolean(row.timing),
+        timing: isRealPlateHang(row.timing) ? row.timing : null,
+        onSong: false,
       }));
     return [...hung, ...waiting];
   }, [plateBlocks, plateRows]);
   const picked =
     filmItems.find((item) => item.shotId === pickedId) || filmItems[0] || null;
-  const pickedOnSong = Boolean(
-    picked &&
-      (picked.onSong ||
-        picked.timing ||
-        plateBlocks.some((b) => b.plateId === picked.shotId)),
-  );
+  const pickedOnSong = Boolean(picked && isRealPlateHang(picked.timing));
   const pickedClock =
     picked?.timing ||
     plateBlocks.find((b) => b.plateId === picked?.shotId) ||
@@ -1478,7 +1480,7 @@ export function MusicVideoTrack({
       return;
     }
     const existing = plateTimingForShot(song, job.trackDraft, shotId);
-    if (existing && existing.endMs > existing.startMs) {
+    if (existing && isRealPlateHang(existing)) {
       setPickedId(shotId);
       setNote("Already on the song. Pull the handle, then Send.");
       return;
@@ -1536,9 +1538,13 @@ export function MusicVideoTrack({
         jobRef.current.trackDraft,
         shotId,
       );
-    // Hang uses the wave clock. Do not add-plate a fresh 15s because he cooked.
-    if (!timingNow()) {
-      await addPlateToTimeline(shotId);
+    // Hung mp4s already have a clock. Add is only for a still with no clip.
+    if (!isRealPlateHang(timingNow())) {
+      if (hungClipFileForPlate(jobRef.current, shotId)) {
+        await hangStillsOnWave();
+      } else {
+        await addPlateToTimeline(shotId);
+      }
     }
     const hungCut = () =>
       cutForHungPlate({
@@ -1665,7 +1671,7 @@ export function MusicVideoTrack({
 
   useEffect(() => {
     if (!song?.fileName) return;
-    if (!needsTrackHang(song, job.shots)) return;
+    if (!needsDoneClipHang(song, job.shots, job.clips || [])) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -1687,7 +1693,7 @@ export function MusicVideoTrack({
     return () => {
       cancelled = true;
     };
-  }, [job.id, job.shots, onJobChange, song]);
+  }, [job.clips, job.id, job.shots, onJobChange, song]);
 
   useEffect(() => {
     if (lyricImportTried.current) return;
@@ -1870,7 +1876,7 @@ export function MusicVideoTrack({
             cooking={songCookFlagOn(job.id)}
           />
           <div className="m-track-stop-row">
-            {needsTrackHang(song, job.shots) && song?.fileName ? (
+            {needsDoneClipHang(song, job.shots, job.clips || []) && song?.fileName ? (
               <MobilePrimaryButton
                 size="chip"
                 disabled={busy === "hang"}
@@ -2204,7 +2210,7 @@ export function MusicVideoTrack({
                       </>
                     ) : null}
                   </>
-                ) : (
+                ) : hungClipFileForPlate(job, picked.shotId) ? null : (
                   <button
                     type="button"
                     className="m-track-btn"

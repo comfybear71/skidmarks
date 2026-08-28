@@ -55,6 +55,39 @@ export function resolvePlateTimings(
 
 export const MIN_PLATE_BOX_MS = 500;
 
+/**
+ * 0.5s leftover is not a hang. Presence-only rows (plateId, no times)
+ * are already listed — do not treat those as leftover.
+ */
+export function isLeftoverPlateHang(
+  t: { startMs?: number; endMs?: number } | null | undefined,
+): boolean {
+  if (!t) return false;
+  const start = Number(t.startMs);
+  const end = Number(t.endMs);
+  return Number.isFinite(start) && Number.isFinite(end) && end - start <= MIN_PLATE_BOX_MS;
+}
+
+/** On the wave with a real width — leftover 0.5s does not count. */
+export function isRealPlateHang(
+  t: { startMs?: number; endMs?: number } | null | undefined,
+): boolean {
+  if (!t) return false;
+  const start = Number(t.startMs);
+  const end = Number(t.endMs);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
+  return end - start > MIN_PLATE_BOX_MS;
+}
+
+/** Known mp4 length, else 15s. Leftover 0.5s is not a length. */
+export function hangClipDurationMs(durationSec?: number): number {
+  const sec = Number(durationSec);
+  if (Number.isFinite(sec) && sec > MIN_PLATE_BOX_MS / 1000) {
+    return secToMs(sec);
+  }
+  return secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC);
+}
+
 export type PlateBoxEdge = "start" | "end";
 
 export type MusicVideoTrackDraft = {
@@ -561,38 +594,43 @@ export function applyLandedClipDuration(
 
 /**
  * TRACK paints plateTimings, not the cut list. Add-on-stills used to
- * write a waiting cut and leave the wave empty. Keep any clock already
- * on the wave — do not even-split the song. Hang each cut that has no
- * timing yet, first slice only.
+ * write a waiting cut and leave the wave empty. Keep any real clock
+ * already on the wave — leftover 0.5s is not a clock. Hang each cut
+ * that has no real timing yet. Three 0:00 clips sequence at the next
+ * gap (duration = known mp4 length else 15). extraIds is Add on a
+ * still with no clip — hang-plates must not pass those.
  */
 export function hangMissingPlateTimings(
   existing: PlateTiming[] | undefined,
   cuts: Pick<ScratchSongCut, "shotId" | "startSec" | "durationSec">[],
   extraIds: string[] = [],
 ): PlateTiming[] {
-  const kept = sortPlateTimings(existing || []);
+  const kept = sortPlateTimings(existing || []).filter((t) => !isLeftoverPlateHang(t));
   const have = new Set(kept.map((t) => t.plateId));
   const next = [...kept];
   let sort = next.length;
   const seen = new Set<string>();
+  let cursor = next.length ? Math.max(...next.map((t) => t.endMs)) : 0;
   for (const c of cuts) {
     const plateId = (c.shotId || "").trim();
     if (!plateId || have.has(plateId) || seen.has(plateId)) continue;
     seen.add(plateId);
     have.add(plateId);
-    const startMs = secToMs(Number(c.startSec) || 0);
-    const durSec = Number(c.durationSec);
-    const durMs = secToMs(
-      Number.isFinite(durSec) && durSec > 0 ? durSec : SCRATCH_SONG_SLICE_DEFAULT_SEC,
+    const durMs = hangClipDurationMs(c.durationSec);
+    const askedStart = secToMs(Number(c.startSec) || 0);
+    const overlaps = next.some(
+      (t) => askedStart < t.endMs && askedStart + durMs > t.startMs,
     );
+    const startMs = !askedStart || overlaps ? cursor : askedStart;
+    const endMs = Math.max(startMs + 100, startMs + durMs);
     next.push({
       plateId,
       startMs,
-      endMs: Math.max(startMs + 100, startMs + durMs),
+      endMs,
       sortIndex: sort++,
     });
+    cursor = Math.max(cursor, endMs);
   }
-  let cursor = next.length ? Math.max(...next.map((t) => t.endMs)) : 0;
   for (const raw of extraIds) {
     const plateId = (raw || "").trim();
     if (!plateId || have.has(plateId) || seen.has(plateId)) continue;
