@@ -686,6 +686,7 @@ export function MusicVideoTrack({
   canStart = false,
   onStart,
   onOpenPlate,
+  onExpand,
   castOptions = [],
   placeOptions = [],
   onCreatePlate,
@@ -702,6 +703,8 @@ export function MusicVideoTrack({
   onStart?: (lyrics: string) => void;
   /** Tap a plate — opens its Position and LTX prompts. */
   onOpenPlate?: (shotId: string) => void;
+  /** Collapsed + still needs the add-plate picker — open Plates first. */
+  onExpand?: () => void;
   /** Cast and places for the + picker — thumbnails built by the tree. */
   castOptions?: { name: string; faceUrl: string }[];
   placeOptions?: { sceneId: string; name: string; thumbUrl: string }[];
@@ -1168,8 +1171,10 @@ export function MusicVideoTrack({
           )}
 
           {/* Same order and widths as the coloured bars on the wave.
-              Compact still shows the rail so hung clips keep their own thumbs. */}
-          {(plateBlocks.length || !compact) ? (
+              Compact still shows the rail so hung clips keep their own thumbs.
+              + stays up even with no plates yet — that is how a band
+              member gets onto the song. */}
+          {(plateBlocks.length || !compact || Boolean(onCreatePlate)) ? (
             <div className="m-track-rail">
               <div
                 className={`m-track-rail-scroll${plateBlocks.length ? " m-track-rail-align" : ""}`}
@@ -1229,7 +1234,10 @@ export function MusicVideoTrack({
               <button
                 type="button"
                 className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
-                onClick={() => setPickOpen((v) => !v)}
+                onClick={() => {
+                  if (compact) onExpand?.();
+                  setPickOpen((v) => !v);
+                }}
                 aria-expanded={pickOpen}
                 aria-label="Add a plate"
               >
@@ -1241,7 +1249,7 @@ export function MusicVideoTrack({
 
           {/* One person, one place, one plate — picked here rather than three
               scrolls down inside a Locations card. */}
-          {!compact && pickOpen ? (
+          {pickOpen ? (
             <div className="m-plate-pick">
               <div className="m-plate-pick-row">
                 {castOptions.map((who) => (
@@ -1632,7 +1640,7 @@ export function MusicVideoTrack({
 
           {/* Same UI before and after Start: this is a button in it, not a
               different screen in front of it. */}
-          {!compact && canStart ? (
+          {canStart ? (
             <MobilePrimaryButton disabled={startBusy} onClick={() => onStart?.(job.lyrics || "")}>
               {startBusy ? "Starting…" : "Start the video"}
             </MobilePrimaryButton>

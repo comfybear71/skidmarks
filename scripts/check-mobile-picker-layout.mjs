@@ -66,6 +66,12 @@ assert.match(undoRow, /Undo/);
 assert.match(undoRow, /More/);
 assert.doesNotMatch(undoRow, /\{extra/, "Undo / More row must not include extra");
 assert.match(tree, /\{extra \? <div className="m-picker-extra">\{extra\}<\/div> : null\}/);
+{
+  const extraLine = tree.indexOf('{extra ? <div className="m-picker-extra">{extra}</div> : null}');
+  const takesGate = tree.lastIndexOf("takes.length || error", extraLine);
+  const takesGateEnd = tree.indexOf(") : null}", takesGate);
+  assert.ok(extraLine > takesGateEnd, "plate chips must show even when the place has no take strip yet");
+}
 
 assert.match(css, /\.m-picker-extra/);
 assert.match(css, /\.m-place-lock-still/);
