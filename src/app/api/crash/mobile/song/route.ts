@@ -726,13 +726,14 @@ export async function POST(req: Request) {
         (t) => hangPlateShotId(t.plateId) === shotId && isRealPlateHang(t),
       );
       if (alreadyHung) {
+        const hungShots = job.shots || [];
         const hung = hangUnhungDoneClips({
           plateTimings: song.plateTimings,
           cuts: song.cuts || [],
           clips: job.clips || [],
           skipShotIds: song.skipShotIds,
           plateFileFor: (id) =>
-            (job.shots.find((s) => s.shotId === id)?.plateFile || "").trim(),
+            (hungShots.find((s) => s.shotId === id)?.plateFile || "").trim(),
           newCutId: () => newId("cut"),
           onlyShotId: shotId,
         });
