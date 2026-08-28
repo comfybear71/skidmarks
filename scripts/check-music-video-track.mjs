@@ -663,6 +663,34 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(hangClip3.plateTimings[3]?.endMs, 30000);
   assert.equal(hangClip3.cuts.find((c) => c.clipFile === "04_crouch.mp4")?.shotId, "jack");
 
+  const xdCarLeftOff = {
+    clips: [
+      { shotId: "car", clipFile: "01_car.mp4", clipStatus: "done", durationSec: 5 },
+      { shotId: "jack", clipFile: "02_jack.mp4", clipStatus: "done", durationSec: 5 },
+      {
+        shotId: "car",
+        clipFile: "03_car_xd.mp4",
+        priorClipFiles: ["01_car.mp4"],
+        clipStatus: "done",
+        durationSec: 15,
+      },
+    ],
+    cuts: [
+      { shotId: "car", clipFile: "01_car.mp4", status: "done", durationSec: 5 },
+      { shotId: "jack", clipFile: "02_jack.mp4", status: "done", durationSec: 5 },
+    ],
+    plateTimings: [
+      { plateId: "car", startMs: 0, endMs: 5000, sortIndex: 0 },
+      { plateId: "jack", startMs: 5000, endMs: 10000, sortIndex: 1 },
+    ],
+  };
+  assert.deepEqual(
+    listUnhungDoneClips(xdCarLeftOff).map((r) => r.clipFile),
+    ["03_car_xd.mp4"],
+    "X'd leftover mp4 stays off the wave until he taps Add or Hang",
+  );
+  assert.equal(xdCarLeftOff.plateTimings.length, 2, "open must not invent a 15s end bar");
+
   const stillsStayOff = hangMissingPlateTimings(
     [{ plateId: "plate_1", startMs: 0, endMs: 15000, sortIndex: 0 }],
     [],
@@ -751,6 +779,16 @@ assert.match(
   /action === "hang-plates"/,
 );
 assert.match(trackUi, /hang-plates/);
+assert.match(
+  trackUi,
+  /async function hangStillsOnWave\([\s\S]*?action: "hang-plates"/,
+  "Put stills / Hang is the only hang-plates POST",
+);
+assert.doesNotMatch(
+  trackUi,
+  /if \(!needsDoneClipHang\(song, job\.shots, job\.clips \|\| \[\]\)\) return;[\s\S]{0,500}action: "hang-plates"/,
+  "TRACK / job open must not auto-hang leftover or X'd clips",
+);
 assert.match(trackUi, /remove-plate-timing/);
 assert.match(trackUi, /dropPlateFromWave/);
 assert.match(trackUi, /Off song/);

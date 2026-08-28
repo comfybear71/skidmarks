@@ -809,6 +809,7 @@ export function listUnhungDoneClips(opts: {
 /**
  * File first — hang every unhung done mp4 at the next gap after the last
  * hung end. Same still, second take → 0:25 not another 0:20. Does not cook.
+ * Call only from explicit Add / Hang / Put stills — never on TRACK open.
  */
 export function hangUnhungDoneClips(opts: {
   plateTimings?: PlateTiming[];

@@ -1241,6 +1241,7 @@ export function MusicVideoTrack({
     }
   }
 
+  /** He taps Put stills / Hang. TRACK open must not POST hang-plates. */
   async function hangStillsOnWave() {
     if (!song?.fileName) {
       setNote("Drop the song first.");
@@ -1669,32 +1670,6 @@ export function MusicVideoTrack({
   useEffect(() => {
     onSendStillBusy?.(busy.startsWith("send-"));
   }, [busy, onSendStillBusy]);
-
-  useEffect(() => {
-    if (!song?.fileName) return;
-    if (!needsDoneClipHang(song, job.shots, job.clips || [])) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/crash/mobile/song", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "hang-plates", jobId: job.id }),
-        });
-        const raw = (await res.json().catch(() => ({}))) as {
-          job?: MobileGenJob;
-          error?: string;
-        };
-        if (cancelled) return;
-        if (raw.job) onJobChange(raw.job);
-      } catch {
-        /* wave stays as-is; Add still hangs */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [job.clips, job.id, job.shots, onJobChange, song]);
 
   useEffect(() => {
     if (lyricImportTried.current) return;
