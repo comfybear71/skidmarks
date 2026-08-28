@@ -1273,6 +1273,8 @@ assert.match(editor, /addPlateToSong/);
   const end = editor.indexOf("\n  const songReady", start);
   const fn = start >= 0 && end > start ? editor.slice(start, end) : "";
   assert.match(fn, /action: "add-plate"/, "plate-row Add next to LTX posts add-plate");
+  assert.match(fn, /runAddPlateInFlight/, "plate-row Add shares the in-flight hang with Send");
+  assert.doesNotMatch(fn, /fetchStory/, "Add hang does not wait on a story GET");
   assert.doesNotMatch(fn, /action: "run"/, "plate-row Add must not queue a cook");
   assert.doesNotMatch(fn, /generate/, "plate-row Add must not generate");
 }

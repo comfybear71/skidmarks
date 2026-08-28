@@ -93,8 +93,8 @@ import { CutawayBeatPanel } from "@/components/mobile/CutawayBeatPanel";
 import { PlateHangLenControl } from "@/components/mobile/PlateLenSlider";
 import { requestSongCookStop } from "@/lib/songCutCook";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
+import { runAddPlateInFlight } from "@/lib/addPlateInFlight";
 import {
-  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   plateTimingForShot,
   type MusicVideoTrackDraft,
@@ -582,19 +582,20 @@ export function PlateReviewEditor({
     setSongAddFor(shotId);
     setActionError("");
     try {
-      const res = await fetch("/api/crash/mobile/song", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "add-plate",
-          jobId: job.id,
-          shotId,
-        }),
+      const added = await runAddPlateInFlight(job.id, shotId, async () => {
+        const res = await fetch("/api/crash/mobile/song", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "add-plate",
+            jobId: job.id,
+            shotId,
+          }),
+        });
+        const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+        return data.job || null;
       });
-      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
-      if (data.job) onJobChange?.(data.job);
-      const fresh = await fetchStory(job.styleId, job.folderName);
-      if (fresh) setStory(fresh);
+      if (added) onJobChange?.(added);
     } catch (e) {
       setActionError(studioFetchError(e, "Couldn't add this plate to the song"));
     } finally {
@@ -2699,21 +2700,12 @@ function ShotLineEditor({
         )}
         </div>
       )}
-      {styleId === "music_video" && onAddToSong ? (
-        <p
-          className={
-            sendStillNote === ADD_STILL_THEN_SEND ? "m-track-err" : "m-plate-add-then-send"
-          }
-        >
-          {ADD_STILL_THEN_SEND}
-        </p>
-      ) : null}
       {h3HangNote && !sendStillBusy ? (
         <p className="m-track-err" role="status">
           {h3HangNote}
         </p>
       ) : null}
-      {sendStillNote && sendStillNote !== ADD_STILL_THEN_SEND ? (
+      {sendStillNote ? (
         <p
           className={sendStillBusy ? "m-song-cook-note" : "m-track-err"}
           role="status"

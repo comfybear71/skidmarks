@@ -34,7 +34,6 @@ import {
   plateSlicePx,
   secToMs,
   hungBarDurationSec,
-  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   ensurePlateDuration,
   sliceBoundsForPlate,
@@ -47,6 +46,30 @@ import {
   HANG_LENGTH_MAX_SEC,
   HANG_LENGTH_MIN_SEC,
 } from "../src/lib/scratchSongWindow.ts";
+import {
+  peekAddPlateInFlight,
+  runAddPlateInFlight,
+} from "../src/lib/addPlateInFlight.ts";
+
+{
+  let n = 0;
+  const first = runAddPlateInFlight("job_a", "shot_a", async () => {
+    n += 1;
+    await new Promise((r) => setTimeout(r, 20));
+    return { id: "job_a" };
+  });
+  const second = peekAddPlateInFlight("job_a", "shot_a");
+  const joined = runAddPlateInFlight("job_a", "shot_a", async () => {
+    n += 1;
+    return { id: "nope" };
+  });
+  assert.equal(second, first, "Send peeks the same in-flight Add");
+  assert.equal(joined, first, "second Add joins the in-flight hang");
+  const got = await first;
+  assert.equal(got?.id, "job_a");
+  assert.equal(n, 1, "one hang write — Send does not start a second Add");
+  assert.equal(peekAddPlateInFlight("job_a", "shot_a"), undefined, "clears when Add lands");
+}
 
 const here = dirname(fileURLToPath(import.meta.url));
 const tree = readFileSync(join(here, "../src/components/mobile/StudioTree.tsx"), "utf8");
@@ -163,8 +186,7 @@ assert.equal(hungBarDurationSec({ startMs: 0, endMs: 500 }), undefined);
   assert.match(twentyFive.note, /H3 max 15/);
   const missing = cookDurationFromHungBar(null, "h3");
   assert.ok("error" in missing);
-  assert.equal(missing.error, ADD_STILL_THEN_SEND);
-  assert.equal(ADD_STILL_THEN_SEND, "Add this still to the song first, then Send.");
+  assert.equal(missing.error, "Hang the still on the song first.");
   const tenLtx = cookDurationFromHungBar({ startMs: 0, endMs: 10000 }, "ltx");
   assert.ok(!("error" in tenLtx));
   assert.equal(tenLtx.durationSec, 10, "10s bar cooks 10 — do not invent 15");
@@ -1584,8 +1606,19 @@ assert.match(panels, /muteMvEngineFoldLines\(engine\)/, "one tap opens the engin
 assert.doesNotMatch(trackUi, /m-plate-motion-fold/, "engine fold is not a TRACK essay");
 assert.doesNotMatch(trackUi, /muteMvEngineFold/, "fold copy does not live on the wave");
 assert.doesNotMatch(trackUi, /Cowboy Bebop/, "Cowboy Bebop lock is on the hole, not TRACK");
-assert.doesNotMatch(panels, /endPlateFile/, "/m hole has no last-frame picker");
-assert.doesNotMatch(editor, /endPlateFile/, "/m plate editor has no last-frame picker");
+assert.match(panels, /h3LastStills/, "/m hole can pick an H3 last frame");
+assert.match(panels, /MINIMAX_H3_CAMERAS/, "H3 camera chips sit on the plate hole");
+assert.match(panels, /MINIMAX_H3_RESOLUTIONS/, "768P / 2K sit on the plate hole");
+assert.match(editor, /h3LastStills/, "/m plate editor passes last-frame stills");
+assert.match(editor, /collectMinimaxH3LastStills/, "last-frame choices come from other stills");
+assert.doesNotMatch(trackUi, /MINIMAX_H3_CAMERAS/, "camera chips are not a TRACK essay");
+assert.doesNotMatch(trackUi, /m-plate-h3-caps/, "H3 capability bar is on the plate, not TRACK");
+assert.match(trackUi, /endPlateFile: lastStill/, "H3 Send posts optional last_frame");
+assert.match(trackUi, /h3Camera:/, "H3 Send posts the picked camera id");
+assert.match(trackUi, /resolution: readMvH3Resolution/, "H3 Send posts 768P or 2K");
+assert.match(songRoute, /endPlateFile: body.endPlateFile/, "song run hands last_frame to H3");
+assert.match(songRoute, /camera: body.h3Camera/, "song run hands the camera id to H3");
+assert.match(songRoute, /resolution: body.resolution/, "song run hands 768P/2K to H3");
 assert.doesNotMatch(
   panels,
   /m-plate-motion-label">\s*LTX Image motion/,
@@ -1597,13 +1630,17 @@ assert.match(editor, /writeMvMotionSlot/, "plate [ ] keeps the slot when he swit
 assert.match(editor, /function PlateEngineButtons/, "LTX / H3 sit on the plate Add row");
 assert.match(editor, /function PlateSendButton/, "Send sits on the plate Add row");
 assert.match(editor, /m-plate-add-engines/, "Add | LTX | H3 | Send share one row");
-assert.match(editor, /ADD_STILL_THEN_SEND/, "plate shows Add this still to the song first, then Send");
-assert.match(editor, /m-plate-add-then-send/, "desk rule sits under Add | LTX | H3 | Send");
-assert.match(mobileCss, /\.m-plate-add-then-send/, "desk rule has its own line under the buttons");
+assert.doesNotMatch(
+  editor,
+  /Add this still to the song first, then Send/,
+  "plate must not lecture Add first after he already hung",
+);
+assert.doesNotMatch(mobileCss, /\.m-plate-add-then-send/, "no lecture chrome under Add | Send");
 {
   const sendPlateFn =
     trackUi.match(/async function sendPlate\([\s\S]*?sendPlateRef\.current = sendPlate/)?.[0] || "";
-  assert.match(sendPlateFn, /ADD_STILL_THEN_SEND/, "Send without a hung bar shows the desk rule");
+  assert.match(sendPlateFn, /peekAddPlateInFlight/, "Send waits for an in-flight Add");
+  assert.match(sendPlateFn, /takeSongJob\(await pendingAdd\)/, "Send takes the Add job before looking");
   assert.match(
     sendPlateFn,
     /if \(!isRealPlateHang\(timingNow\(\)\)\)/,
@@ -1611,15 +1648,31 @@ assert.match(mobileCss, /\.m-plate-add-then-send/, "desk rule has its own line u
   );
   assert.doesNotMatch(
     sendPlateFn,
-    /await addPlateToTimeline/,
-    "Send must not Add the still onto the song",
+    /Add this still to the song first/,
+    "Send must not say he skipped Add after a hang",
   );
-  assert.doesNotMatch(
-    sendPlateFn,
-    /await hangStillsOnWave/,
-    "Send must not auto-hang leftover mp4s",
+}
+assert.match(trackUi, /function takeSongJob/, "Add / schedule write the job onto jobRef");
+assert.match(trackUi, /runAddPlateInFlight/, "TRACK Add shares the in-flight hang with Send");
+assert.match(editor, /runAddPlateInFlight/, "plate-row Add shares the in-flight hang with Send");
+{
+  const start = editor.indexOf("async function addPlateToSong");
+  const end = editor.indexOf("\n  const songReady", start);
+  const fn = start >= 0 && end > start ? editor.slice(start, end) : "";
+  assert.match(fn, /action: "add-plate"/, "plate-row Add posts add-plate");
+  assert.doesNotMatch(fn, /fetchStory/, "Add hang does not wait on a story GET");
+}
+{
+  const addPlateBlock = songRoute.slice(songRoute.indexOf('action === "add-plate"'));
+  const nextAction = addPlateBlock.search(/\n\s+if \(action === "/);
+  const block = nextAction >= 0 ? addPlateBlock.slice(0, nextAction) : addPlateBlock.slice(0, 1800);
+  assert.match(
+    songRoute,
+    /if \(action !== "add-plate"\) \{\s*story = await readMobileStory/,
+    "hang-only Add skips the unused story GET",
   );
-  assert.doesNotMatch(sendPlateFn, /hungClipFileForPlate/, "Send does not file-first hang");
+  const hangPath = block.slice(block.indexOf("applyAddPlateOnSong"));
+  assert.doesNotMatch(hangPath, /readMobileStory/, "file-first hang does not read story");
 }
 assert.match(editor, /onClick=\{onAddToSong\}/, "plate-row Add next to LTX is onAddToSong");
 assert.match(editor, />\s*LTX\s*</, "LTX is a real button next to Add");

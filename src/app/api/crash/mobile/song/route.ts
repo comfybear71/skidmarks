@@ -110,6 +110,9 @@ export async function POST(req: Request) {
     mute?: boolean;
     emptyFrame?: boolean;
     nobodyInShot?: boolean;
+    endPlateFile?: string;
+    resolution?: string;
+    h3Camera?: string;
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -120,7 +123,11 @@ export async function POST(req: Request) {
   if (!isMusicVideoSongJob(job)) {
     return NextResponse.json({ error: "Song cuts on /m are Music video only." }, { status: 400 });
   }
-  const story = await readMobileStory(job.styleId, job.folderName);
+  // Hang-only Add already has the still — skip the story GET (Neon on Vercel).
+  let story!: Awaited<ReturnType<typeof readMobileStory>>;
+  if (action !== "add-plate") {
+    story = await readMobileStory(job.styleId, job.folderName);
+  }
 
   try {
     if (action === "assign") {
@@ -408,6 +415,9 @@ export async function POST(req: Request) {
             sceneId,
             beatId,
             durationSec,
+            endPlateFile: body.endPlateFile,
+            resolution: body.resolution,
+            camera: body.h3Camera,
             emptyFrame: body.emptyFrame === true,
             nobodyInShot: body.nobodyInShot === true,
           });
@@ -708,13 +718,14 @@ export async function POST(req: Request) {
             { status: 400 },
           );
         }
+        const storyDoc = await readMobileStory(job.styleId, job.folderName);
         const placeName =
           job.scenes.find((sc) => sc.id === shot?.sceneId)?.placeName ||
-          story.scenes.find((sc) => sc.id === shot?.sceneId)?.placeName ||
+          storyDoc.scenes.find((sc) => sc.id === shot?.sceneId)?.placeName ||
           "";
         const landed = await landEpisodePlateStill({
           job,
-          story,
+          story: storyDoc,
           shotId,
           fileName: copied,
           staging: emptyStageFarOutStaging(placeName),

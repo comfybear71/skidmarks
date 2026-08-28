@@ -22,7 +22,6 @@ import {
   withLyricCue,
   withoutLyricCue,
   plateTimingForShot,
-  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   cutForHungPlate,
   hangPlateShotId,
@@ -80,13 +79,21 @@ import {
   composeMuteMvMotion,
   extractMuteMvMotionSlot,
   imageMotionLooksMuteLock,
+  readMvH3Camera,
+  readMvH3LastFrame,
+  readMvH3Resolution,
   readMvMotionSlot,
   readMvMuteAction,
   readMvNobodyInShot,
   resolveMvSendEngine,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
-import { MINIMAX_H3_ID, MINIMAX_H3_OVER_MAX_NOTE, refuseMinimaxH3OverMax } from "@/lib/minimaxH3";
+import {
+  MINIMAX_H3_ID,
+  MINIMAX_H3_OVER_MAX_NOTE,
+  refuseMinimaxH3OverMax,
+  withMinimaxH3CameraCommand,
+} from "@/lib/minimaxH3";
 import { clampHangLengthSec } from "@/lib/scratchSongWindow";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { ClipFrameThumb } from "./ClipFrameThumb";
@@ -1397,6 +1404,15 @@ export function MusicVideoTrack({
         startSec: cut?.startSec,
       });
     }
+    if (
+      resolveMvSendEngine({
+        jobId: job.id,
+        shotId,
+        beatId: targetBeatId,
+      }) === "h3"
+    ) {
+      body = withMinimaxH3CameraCommand(body, readMvH3Camera(job.id, shotId));
+    }
     const res = await fetch("/api/crash/mobile/beat-motion", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1486,11 +1502,17 @@ export function MusicVideoTrack({
     setBusy(`send-${cutId}`);
     paintPlateSend(plateCookNote(shotId));
     try {
+      const lastStill = readMvH3LastFrame(job.id, shotId);
       const raw = await songPost("run", {
         cutId,
         beatId: targetBeatId || beatId,
         clipEngine: MINIMAX_H3_ID,
         durationSec: cook.durationSec,
+        resolution: readMvH3Resolution(job.id, shotId),
+        ...(lastStill ? { endPlateFile: lastStill } : {}),
+        ...(readMvH3Camera(job.id, shotId)
+          ? { h3Camera: readMvH3Camera(job.id, shotId) }
+          : {}),
         ...songRunEmptyExtras(shotId),
       });
       if (raw.pending) await pollI2v(cutId, shotId, targetBeatId);
@@ -1567,8 +1589,6 @@ export function MusicVideoTrack({
   async function sendOneCutBody(cutId: string, shotId: string, targetBeatId: string) {
     const id = cutId.trim();
     if (!id) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
       return;
     }
     const timing = plateTimingForShot(
@@ -1623,11 +1643,21 @@ export function MusicVideoTrack({
         jobRef.current.trackDraft,
         shotId,
       );
-    // Add hangs the still. Send cooks that bar. Do not Add / hang / cook here.
+    const pendingAdd = peekAddPlateInFlight(job.id, shotId);
+    if (pendingAdd) {
+      try {
+        takeSongJob(await pendingAdd);
+      } catch {
+        return;
+      }
+    }
+    // Hung mp4s already have a clock. Add is only for a still with no clip.
     if (!isRealPlateHang(timingNow())) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
-      return;
+      if (hungClipFileForPlate(jobRef.current, shotId)) {
+        await hangStillsOnWave();
+      } else {
+        await addPlateToTimeline(shotId);
+      }
     }
     const hungCut = () =>
       cutForHungPlate({
@@ -1638,14 +1668,12 @@ export function MusicVideoTrack({
     let cut = hungCut();
     if (!cut?.id) {
       const timing = timingNow();
-      if (timing && isRealPlateHang(timing)) {
+      if (isRealPlateHang(timing)) {
         await schedulePlate(shotId, timing.startMs, timing.endMs, timing.sortIndex);
         cut = hungCut();
       }
     }
     if (!cut?.id) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
       return;
     }
     if (cookLock.current) return;
