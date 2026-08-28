@@ -53,7 +53,7 @@ export const maxDuration = 900;
  *   run — one LTX slice. Client polls the job if the phone drops.
  *   stitch — rejected. Finish is ordered unstitched mp4s.
  *   remove-stitch — park a leftover joined mp4 if one exists.
- *   hang-plates — write missing plateTimings from waiting cuts. No cook.
+ *   hang-plates — write missing plateTimings for song-list / cut stills. No leftover job.shots. No cook.
  *   redo-cut — park that clip, leave the still, wait for Send again.
  *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row).
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
@@ -405,7 +405,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, job });
       }
       const extraIds = plateIdsWaitingForTrack({ song: { ...song, cuts }, jobShots });
-      const plateTimings = hangMissingPlateTimings(song.plateTimings, cuts, extraIds);
+      const hangCuts = cuts.filter((c) =>
+        extraIds.includes(shotIdForSongCut(c, jobShots)),
+      );
+      const plateTimings = hangMissingPlateTimings(song.plateTimings, hangCuts, extraIds);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: { ...song, cuts, plateTimings },
         error: "",
@@ -445,12 +448,19 @@ export async function POST(req: Request) {
           staging: emptyStageFarOutStaging(placeName),
         });
         job = landed.job;
+        if (!job) {
+          return NextResponse.json({ error: "Couldn't add that still." }, { status: 500 });
+        }
       }
+      if (!job) {
+        return NextResponse.json({ error: "Couldn't add that still." }, { status: 500 });
+      }
+      const jobShots = job.shots;
       const onList = songDeskPlateIds(song);
       const slices = withSongRowSlice(songDeskRowSlices(song, onList));
       const nextIds = withSongPlate(onList, shotId);
       const plateFileByShotId: Record<string, string> = {};
-      for (const s of job.shots) {
+      for (const s of jobShots) {
         const f = (s.plateFile || "").trim();
         if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
       }
@@ -464,14 +474,14 @@ export async function POST(req: Request) {
         newCutId: () => newId("cut"),
       });
       const nextWin = nextCutAfter(cuts, song.durationSec);
-      const plateTimings = hangMissingPlateTimings(
-        song.plateTimings,
-        cuts,
-        plateIdsWaitingForTrack({
-          song: { ...song, cuts, songPlateIds: nextIds },
-          jobShots: job.shots,
-        }),
+      const extraIds = plateIdsWaitingForTrack({
+        song: { ...song, cuts, songPlateIds: nextIds },
+        jobShots,
+      });
+      const hangCuts = cuts.filter((c) =>
+        extraIds.includes(shotIdForSongCut(c, jobShots)),
       );
+      const plateTimings = hangMissingPlateTimings(song.plateTimings, hangCuts, extraIds);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,

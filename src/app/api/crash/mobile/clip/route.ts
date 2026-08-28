@@ -13,7 +13,7 @@ import {
   planBinFailedEpisodeClips,
   planDismissEpisodeClip,
 } from "@/lib/mobileEpisodeClips";
-import { planParkDeskClipTake } from "@/lib/parkDeskClip";
+import { planParkDeskClipTake, type DeskClipParkPlan } from "@/lib/parkDeskClip";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
 import { readMobileStory } from "@/lib/mobileStoryStore";
 import { isOffEpisodeDeskShot } from "@/lib/mobileScratch";
@@ -130,8 +130,9 @@ export async function POST(req: Request) {
       clips: plan.next,
       error: failed,
     };
-    if (action === "remove-clip" && "nextSong" in plan && plan.nextSong) {
-      patch.scratchSong = plan.nextSong;
+    const deskPark = plan as DeskClipParkPlan;
+    if (action === "remove-clip" && deskPark.nextSong?.fileName) {
+      patch.scratchSong = deskPark.nextSong;
     }
     const stillRunning = deskClips.some((c) => c.clipStatus === "running");
     if (job.phase === "error" && plan.clearedEpisodeErrors && !stillRunning) {
