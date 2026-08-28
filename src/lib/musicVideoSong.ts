@@ -301,18 +301,59 @@ export function shortPlateLabel(
   return `${line.slice(0, 41)}…`;
 }
 
-/** TRACK wave is plateTimings. Waiting cuts with no clock are off the rail. */
-export function needsTrackHang(song?: {
-  cuts?: { shotId?: string }[];
-  plateTimings?: { plateId?: string }[];
-} | null): boolean {
+export function shotIdForSongCut(
+  cut: { shotId?: string; plateFile?: string },
+  jobShots: { shotId: string; plateFile?: string }[] = [],
+): string {
+  const id = (cut.shotId || "").trim();
+  if (id) return id;
+  const file = (cut.plateFile || "").trim();
+  if (!file) return "";
+  return (
+    jobShots.find((s) => (s.plateFile || "").trim() === file)?.shotId || ""
+  ).trim();
+}
+
+/** Shot ids that have a still but no TRACK clock. */
+export function plateIdsWaitingForTrack(opts: {
+  song?: {
+    cuts?: { shotId?: string; plateFile?: string }[];
+    plateTimings?: { plateId?: string }[];
+    songPlateIds?: string[];
+  } | null;
+  jobShots?: { shotId: string; plateFile?: string }[];
+}): string[] {
   const have = new Set(
-    (song?.plateTimings || []).map((t) => (t.plateId || "").trim()).filter(Boolean),
+    (opts.song?.plateTimings || []).map((t) => (t.plateId || "").trim()).filter(Boolean),
   );
-  return (song?.cuts || []).some((c) => {
-    const id = (c.shotId || "").trim();
-    return Boolean(id && !have.has(id));
-  });
+  const want: string[] = [];
+  const push = (id: string) => {
+    const clean = id.trim();
+    if (!clean || have.has(clean) || want.includes(clean)) return;
+    want.push(clean);
+  };
+  for (const c of opts.song?.cuts || []) {
+    push(shotIdForSongCut(c, opts.jobShots || []));
+  }
+  for (const id of opts.song?.songPlateIds || []) push(id);
+  for (const s of opts.jobShots || []) {
+    const file = (s.plateFile || "").trim();
+    if (!file || file === "__error__") continue;
+    push(s.shotId);
+  }
+  return want;
+}
+
+/** TRACK wave is plateTimings. Waiting stills with no clock are off the rail. */
+export function needsTrackHang(
+  song?: {
+    cuts?: { shotId?: string; plateFile?: string }[];
+    plateTimings?: { plateId?: string }[];
+    songPlateIds?: string[];
+  } | null,
+  jobShots?: { shotId: string; plateFile?: string }[],
+): boolean {
+  return plateIdsWaitingForTrack({ song, jobShots }).length > 0;
 }
 
 /**

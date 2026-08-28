@@ -338,6 +338,7 @@ export function cutFromPlateTiming(
 export function hangMissingPlateTimings(
   existing: PlateTiming[] | undefined,
   cuts: Pick<ScratchSongCut, "shotId" | "startSec" | "durationSec">[],
+  extraIds: string[] = [],
 ): PlateTiming[] {
   const kept = sortPlateTimings(existing || []);
   const have = new Set(kept.map((t) => t.plateId));
@@ -348,6 +349,7 @@ export function hangMissingPlateTimings(
     const plateId = (c.shotId || "").trim();
     if (!plateId || have.has(plateId) || seen.has(plateId)) continue;
     seen.add(plateId);
+    have.add(plateId);
     const startMs = secToMs(Number(c.startSec) || 0);
     const durSec = Number(c.durationSec);
     const durMs = secToMs(
@@ -359,6 +361,21 @@ export function hangMissingPlateTimings(
       endMs: Math.max(startMs + 100, startMs + durMs),
       sortIndex: sort++,
     });
+  }
+  let cursor = next.length ? Math.max(...next.map((t) => t.endMs)) : 0;
+  for (const raw of extraIds) {
+    const plateId = (raw || "").trim();
+    if (!plateId || have.has(plateId) || seen.has(plateId)) continue;
+    seen.add(plateId);
+    have.add(plateId);
+    const durMs = secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC);
+    next.push({
+      plateId,
+      startMs: cursor,
+      endMs: Math.max(cursor + 100, cursor + durMs),
+      sortIndex: sort++,
+    });
+    cursor += durMs;
   }
   return next;
 }
