@@ -459,7 +459,9 @@ export function cutFromPlateTiming(
 ): ScratchSongCut[] {
   const startSec = msToSec(timing.startMs);
   const durationSec = msToSec(timing.endMs - timing.startMs);
-  const existing = cuts.find((c) => c.shotId === timing.plateId);
+  const onSlot = cuts.filter((c) => (c.shotId || "").trim() === timing.plateId);
+  const empty = onSlot.find((c) => !(c.clipFile || "").trim());
+  const existing = empty || onSlot[0];
   const next: ScratchSongCut = {
     id: existing?.id || newCutId(),
     plateFile,
@@ -470,7 +472,9 @@ export function cutFromPlateTiming(
     status: existing?.status || "pending",
     error: existing?.error || "",
   };
-  const rest = cuts.filter((c) => c.shotId !== timing.plateId);
+  // Keep other done mp4s on this still. Filtering every shotId used to
+  // drop previous clip 2 when leftover hang wrote this slot again.
+  const rest = existing ? cuts.filter((c) => c.id !== existing.id) : cuts;
   return [...rest, next];
 }
 
@@ -669,8 +673,10 @@ function upsertClipHangCut(
   const startSec = msToSec(timing.startMs);
   const durationSec = msToSec(timing.endMs - timing.startMs);
   const byFile = cuts.findIndex((c) => hangClipBasename(c.clipFile || "") === file);
-  const bySlot = cuts.findIndex((c) => (c.shotId || "").trim() === timing.plateId);
-  const idx = byFile >= 0 ? byFile : bySlot;
+  const byEmpty = cuts.findIndex(
+    (c) => (c.shotId || "").trim() === timing.plateId && !hangClipBasename(c.clipFile || ""),
+  );
+  const idx = byFile >= 0 ? byFile : byEmpty;
   const prev = idx >= 0 ? cuts[idx] : undefined;
   const next: ScratchSongCut = {
     id: prev?.id || newCutId(),
@@ -710,7 +716,12 @@ export function hangOneClipOnWave(opts: {
   if (clipFileOnWave({ cuts: opts.cuts, plateTimings: existing }, clipFile)) {
     return { plateTimings: existing, cuts: opts.cuts };
   }
-  const shotTaken = existing.some((t) => t.plateId === shotId);
+  const otherOwnsShot = (opts.cuts || []).some((c) => {
+    if ((c.shotId || "").trim() !== shotId) return false;
+    const owned = hangClipBasename(c.clipFile || "");
+    return Boolean(owned) && owned !== clipFile;
+  });
+  const shotTaken = existing.some((t) => t.plateId === shotId) || otherOwnsShot;
   const plateId = shotTaken ? extraTakeHangPlateId(shotId, clipFile) : shotId;
   if (!plateId || existing.some((t) => t.plateId === plateId)) {
     return { plateTimings: existing, cuts: opts.cuts };

@@ -8,6 +8,7 @@ import {
   formatTrackClock,
   formatTrackClockPrecise,
   clipFileOnWave,
+  cutFromPlateTiming,
   extraTakeHangPlateId,
   hangClipDurationMs,
   hangMissingPlateTimings,
@@ -639,6 +640,68 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     hangClip4.cuts.find((c) => c.clipFile === "04_crouch.mp4")?.shotId,
     extraTakeHangPlateId("jack", "04_crouch.mp4"),
   );
+  assert.equal(
+    hangClip4.cuts.find((c) => c.clipFile === "02_car.mp4")?.shotId,
+    "car",
+    "leftover hang must not drop previous clip 2 (0:15 car)",
+  );
+  assert.equal(hangClip4.cuts.find((c) => c.clipFile === "02_car.mp4")?.startSec, 15);
+
+  const siblings = cutFromPlateTiming(
+    [
+      {
+        id: "c2",
+        shotId: "car",
+        plateFile: "2.png",
+        startSec: 15,
+        durationSec: 5,
+        clipFile: "02_car.mp4",
+        status: "done",
+      },
+      {
+        id: "c2b",
+        shotId: "car",
+        plateFile: "2.png",
+        startSec: 20,
+        durationSec: 5,
+        clipFile: "02b_other.mp4",
+        status: "done",
+      },
+    ],
+    { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+    "2.png",
+    () => "n",
+  );
+  assert.ok(
+    siblings.some((c) => c.clipFile === "02_car.mp4") &&
+      siblings.some((c) => c.clipFile === "02b_other.mp4"),
+    "cutFromPlateTiming must keep both done clipFiles on the same still",
+  );
+
+  const leftoverOntoCar = hangOneClipOnWave({
+    plateTimings: [],
+    cuts: [
+      {
+        id: "c2",
+        shotId: "car",
+        plateFile: "2.png",
+        startSec: 15,
+        durationSec: 5,
+        clipFile: "02_car.mp4",
+        status: "done",
+      },
+    ],
+    shotId: "car",
+    plateFile: "2.png",
+    clipFile: "04_crouch.mp4",
+    durationSec: 5,
+    newCutId: () => "c4",
+  });
+  assert.ok(
+    leftoverOntoCar?.cuts.some((c) => c.clipFile === "02_car.mp4"),
+    "file-first hang must not replace another clip's file",
+  );
+  assert.ok(leftoverOntoCar?.cuts.some((c) => c.clipFile === "04_crouch.mp4"));
 
   const stuiesCutsClip4Hung = stuiesCutsClip3Hung.map((c) =>
     c.clipFile === "03_stand.mp4" ? { ...c, clipFile: "04_crouch.mp4" } : c,
@@ -791,6 +854,14 @@ assert.match(
   songRoute.slice(songRoute.indexOf('action === "hang-plates"')),
   /hangUnhungDoneClips/,
   "hang-plates also places a second take after the last hung end",
+);
+assert.doesNotMatch(
+  songRoute.slice(
+    songRoute.indexOf('action === "hang-plates"'),
+    songRoute.indexOf('action === "hang-clip"'),
+  ),
+  /clipFile: row\.clipFile/,
+  "hang-plates must not overwrite another cut's clipFile",
 );
 assert.match(
   songRoute.slice(songRoute.indexOf('action === "add-plate"')),

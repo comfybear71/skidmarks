@@ -532,6 +532,49 @@ assert.equal(expectedDeskCutCount([4, 2]), 6);
   assert.equal(fixed[1].status, "done");
   assert.equal(songCutsOrderBroken(fixed, ["s1", "s2"], [1, 1]), false);
 }
+{
+  // Previous clip 2 at 0:15 / 5s must survive Add leftover (rebuilt 15s slices).
+  const keptCar = syncSongCutsToDesk({
+    songPlateIds: ["jack1", "car", "jack"],
+    rowSlices: [1, 1, 1],
+    cuts: [
+      {
+        id: "c1",
+        status: "done",
+        clipFile: "01_jack.mp4",
+        plateFile: "1.png",
+        shotId: "jack1",
+        startSec: 0,
+        durationSec: 15,
+      },
+      {
+        id: "c2",
+        status: "done",
+        clipFile: "02_car.mp4",
+        plateFile: "2.png",
+        shotId: "car",
+        startSec: 15,
+        durationSec: 5,
+      },
+      {
+        id: "c3",
+        status: "done",
+        clipFile: "03_stand.mp4",
+        plateFile: "3.png",
+        shotId: "jack",
+        startSec: 20,
+        durationSec: 5,
+      },
+    ],
+    plateFileByShotId: { jack1: "1.png", car: "2.png", jack: "3.png" },
+    songSec: 180,
+    newCutId: () => "n",
+  });
+  assert.ok(
+    keptCar.some((c) => c.clipFile === "02_car.mp4"),
+    "Add must not drop the 0:15 car clipFile",
+  );
+}
 assert.match(songUi, /songCutsOrderBroken/);
 assert.match(songUi, /Fixed cut order/);
 assert.match(songUi, /Plate clocks are the song/);

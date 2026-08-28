@@ -617,15 +617,9 @@ export async function POST(req: Request) {
         durationSec: row.durationSec,
       }));
       let plateTimings = hangMissingPlateTimings(song.plateTimings, hangCuts, []);
-      for (const row of rows) {
-        const timing = plateTimings.find((x) => x.plateId === row.shotId);
-        if (!timing) continue;
-        cuts = cutFromPlateTiming(cuts, timing, row.plateFile, () => newId("cut")).map((c) =>
-          (c.shotId || "").trim() === row.shotId
-            ? { ...c, clipFile: row.clipFile, status: "done" as const, error: "" }
-            : c,
-        );
-      }
+      // File first. Do not run cutFromPlateTiming here — that collapse
+      // dropped a hung done clipFile (previous clip 2) when leftover hang
+      // wrote the same shotId again.
       const extra = hangUnhungDoneClips({
         plateTimings,
         cuts,
