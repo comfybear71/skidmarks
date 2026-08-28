@@ -1589,8 +1589,6 @@ export function MusicVideoTrack({
   async function sendOneCutBody(cutId: string, shotId: string, targetBeatId: string) {
     const id = cutId.trim();
     if (!id) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
       return;
     }
     const timing = plateTimingForShot(
