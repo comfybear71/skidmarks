@@ -13,7 +13,7 @@ import { MINIMAX_H3_ID, refuseMinimaxH3OverMax, snapMinimaxH3DurationSec } from 
 import { sirayConfigured } from "@/lib/sirayClient";
 import { minimaxVideoConfigured } from "@/lib/minimaxVideo";
 import { clipOwnsHangPlate, hangDoneClipOnTrack } from "@/lib/stockClipHang";
-import { clipFileBasename, stackedClipFiles } from "@/lib/mobilePlateClips";
+import { clipFileBasename, keepClipsAfterUnhang, stackedClipFiles } from "@/lib/mobilePlateClips";
 import { newId } from "@/lib/types";
 import {
   clampSongWindow,
@@ -48,6 +48,7 @@ import {
   withoutSongRowSliceAt,
   withSkippedSongPlate,
   withoutSkippedSongPlate,
+  removePlateFromSong,
 } from "@/lib/musicVideoSong";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
@@ -893,6 +894,39 @@ export async function POST(req: Request) {
       const nextIds = withoutSongPlateAt(onList, listIndex);
       const nextSlices = withoutSongRowSliceAt(songDeskRowSlices(song, onList), listIndex);
       const stillOnList = nextIds.includes(shotId);
+      if (!stillOnList) {
+        const next = removePlateFromSong({
+          plateId: shotId,
+          plateTimings: song.plateTimings,
+          cuts: song.cuts,
+          songPlateIds: onList,
+          rowSlices: songDeskRowSlices(song, onList),
+          skipShotIds: song.skipShotIds,
+          jobShots: job.shots,
+        });
+        const clips = keepClipsAfterUnhang({
+          clips: job.clips || [],
+          removedCuts: next.keptCuts,
+          shots: job.shots,
+          hangStartMs: next.hangStartMs,
+        });
+        const nextWin = nextCutAfter(next.cuts, song.durationSec);
+        const updated = await patchMobileGenJob(jobId, {
+          clips,
+          scratchSong: {
+            ...song,
+            cuts: next.cuts,
+            plateTimings: next.plateTimings,
+            songPlateIds: next.songPlateIds,
+            rowSlices: next.rowSlices,
+            skipShotIds: next.skipShotIds,
+            sliceStartSec: nextWin.startSec,
+            sliceDurationSec: nextWin.durationSec,
+          },
+          error: "",
+        });
+        return NextResponse.json({ ok: true, job: updated });
+      }
       const plateFileByShotId: Record<string, string> = {};
       for (const s of job.shots) {
         const f = (s.plateFile || "").trim();

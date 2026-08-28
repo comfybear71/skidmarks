@@ -1241,6 +1241,7 @@ assert.match(trackUi, /Off song/);
 assert.match(trackUi, /Off the wave\. Clip stays/);
 assert.doesNotMatch(songLib, /the route can park them/);
 assert.match(trackRoute, /keepClipsAfterUnhang/);
+assert.match(trackRoute, /hangStartMs: next.hangStartMs/);
 assert.doesNotMatch(
   trackRoute.slice(trackRoute.indexOf('action === "remove-plate-timing"')),
   /parkMobileClipFile/,

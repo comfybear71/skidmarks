@@ -378,6 +378,7 @@ export async function POST(req: Request) {
         clips: job.clips || [],
         removedCuts: next.keptCuts,
         shots: job.shots,
+        hangStartMs: next.hangStartMs,
       });
       const updated = await patchMobileGenJob(jobId, {
         clips,

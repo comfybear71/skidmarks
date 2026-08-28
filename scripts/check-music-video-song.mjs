@@ -793,6 +793,7 @@ assert.match(
   assert.deepEqual(off.songPlateIds, ["invisible"]);
   assert.deepEqual(off.skipShotIds, ["jack"]);
   assert.deepEqual(off.keptClipFiles, ["01_JACK_GHOST.mp4"]);
+  assert.equal(off.hangStartMs, 0);
   assert.equal(off.keptCuts.length, 1);
   assert.equal(off.cuts.length, 1);
   assert.equal(off.cuts[0]?.shotId, "invisible");
@@ -986,6 +987,8 @@ assert.doesNotMatch(
   const nextAction = skipBlock.search(/\n\s+if \(action === "/);
   const block = nextAction >= 0 ? skipBlock.slice(0, nextAction) : skipBlock.slice(0, 1200);
   assert.match(block, /syncSongCutsToDesk/);
+  assert.match(block, /removePlateFromSong/);
+  assert.match(block, /keepClipsAfterUnhang/);
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
 }
 assert.match(songUi, /expectedDeskCutCount/);

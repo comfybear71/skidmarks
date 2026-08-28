@@ -397,6 +397,96 @@ assert.notEqual(twoOnNine[0].clipFile, twoOnNine[1].clipFile);
   );
 }
 
+{
+  const carFile = "hclip_20260828171311843_6ir.mp4";
+  const hiddenCar = gatherClipsForStillsRail(
+    {
+      clips: [
+        {
+          ...clip,
+          beatId: "beat_vja3qn8",
+          shotId: "shot_1j8xafx",
+          clipFile: "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+          priorClipFiles: [],
+          durationSec: 16,
+        },
+        {
+          ...clip,
+          beatId: "beat_90r69q8",
+          shotId: "shot_yrqzrfa",
+          clipFile: carFile,
+          priorClipFiles: [],
+          durationSec: 5,
+          hangStartMs: 15000,
+        },
+        {
+          ...clip,
+          beatId: "beat_issyz0c",
+          shotId: "shot_m5yoorl",
+          clipFile: "hclip_20260828173708551_dzd.mp4",
+          priorClipFiles: ["hclip_20260828172801335_kl0.mp4"],
+          durationSec: 5,
+        },
+      ],
+      shots: [
+        { shotId: "shot_1j8xafx", sceneId: "s" },
+        { shotId: "shot_m5yoorl", sceneId: "s" },
+      ],
+      scratchSong: {
+        cuts: [
+          {
+            id: "cut_clip1_jack",
+            shotId: "shot_1j8xafx",
+            clipFile: "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+            status: "done",
+          },
+          {
+            id: "cut_clip3_road",
+            shotId: "shot_m5yoorl",
+            clipFile: "hclip_20260828173708551_dzd.mp4",
+            status: "done",
+          },
+        ],
+        plateTimings: [
+          { plateId: "shot_1j8xafx", startMs: 0, endMs: 15000, sortIndex: 0 },
+          { plateId: "shot_m5yoorl", startMs: 20000, endMs: 25000, sortIndex: 1 },
+        ],
+        skipShotIds: ["shot_yrqzrfa~1713118436ir"],
+      },
+    },
+    [{ shotId: "shot_1j8xafx" }, { shotId: "shot_m5yoorl" }],
+  );
+  assert.equal(hiddenCar.length, 3, "leftover car still paints when the still left the strip");
+  assert.equal(hiddenCar[1]?.clipFile, carFile, "car is clip 2");
+  assert.equal(
+    clipHangStartMs(hiddenCar[1], {
+      cuts: [
+        { shotId: "shot_1j8xafx", clipFile: "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4" },
+        { shotId: "shot_m5yoorl", clipFile: "hclip_20260828173708551_dzd.mp4" },
+      ],
+      plateTimings: [
+        { plateId: "shot_1j8xafx", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "shot_m5yoorl", startMs: 20000, endMs: 25000, sortIndex: 1 },
+      ],
+    }),
+    15000,
+  );
+  assert.equal(
+    stableClipTakeLabel({
+      fileName: carFile,
+      shotId: "shot_yrqzrfa",
+      durationSec: 5,
+      hangStartMs: 15000,
+      plateTimings: [
+        { plateId: "shot_1j8xafx", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "shot_m5yoorl", startMs: 20000, endMs: 25000, sortIndex: 1 },
+      ],
+    }),
+    "0:15 · 5s",
+    "0:15 stamp without a TRACK bar",
+  );
+}
+
 /** Screenshot after #398: start stamps 0:00 / 0:15 / 0:20 / 0:20. Files are 16s, 5s, 5s, 5s. */
 const stuiesLengths = [
   {
@@ -530,10 +620,14 @@ assert.doesNotMatch(css, /\.m-plate-clip-engines/, "no engine chrome on the CLIP
     clips: [
       { ...clip, beatId: "b4", shotId: "car", clipFile: "04_Gothic_town.mp4", priorClipFiles: [] },
     ],
-    removedCuts: [{ id: "c4", shotId: extraId, clipFile: "04_Gothic_town.mp4", durationSec: 4 }],
+    removedCuts: [
+      { id: "c4", shotId: extraId, clipFile: "04_Gothic_town.mp4", durationSec: 4, startSec: 15 },
+    ],
+    hangStartMs: 15000,
   });
   assert.equal(already.length, 1, "file already on job.clips stays one row");
   assert.equal(already[0].clipFile, "04_Gothic_town.mp4");
+  assert.equal(already[0].hangStartMs, 15000, "unhang stamps 0:15 on the kept row");
   const onlyOnCut = keepClipsAfterUnhang({
     clips: [],
     removedCuts: [{ id: "c4", shotId: extraId, clipFile: "04_Gothic_town.mp4", durationSec: 4 }],
@@ -545,6 +639,7 @@ assert.doesNotMatch(css, /\.m-plate-clip-engines/, "no engine chrome on the CLIP
   assert.equal(onlyOnCut[0].durationSec, 4);
 }
 
+assert.match(thumbs, /hangStartMs: clip.hangStartMs/, "unhung car keeps the 0:15 stamp");
 assert.match(thumbs, /onRemoveTake/, "CLIPS X still parks the mp4");
 assert.match(thumbs, /File parks in _cleared\//);
 assert.match(editor, /action: "remove-clip"/);

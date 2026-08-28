@@ -92,6 +92,11 @@ export type MobileClipUnit = {
   error: string;
   /** Seconds this take runs — talking desk sizes the box from this, not a square thumb. */
   durationSec?: number;
+  /**
+   * Wave start kept after Off song / TRACK X. Stamp `0:15 · 5s` on CLIPS
+   * without putting a bar back on the wave. Older jobs omit this.
+   */
+  hangStartMs?: number;
   speaker?: string;
   line?: string;
   voiceFile?: string;

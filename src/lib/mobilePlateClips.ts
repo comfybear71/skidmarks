@@ -78,6 +78,7 @@ type ClipTakeClockOpts = {
   fileName: string;
   shotId?: string;
   durationSec?: number;
+  hangStartMs?: number;
   songCuts?: { clipFile?: string; shotId?: string; durationSec?: number }[];
   plateTimings?: PlateTiming[];
 };
@@ -96,28 +97,33 @@ type ClipClockDraft = { plateTimings?: PlateTiming[] } | null;
  * Missing hang → null (stamp "off"). Never invent 15s.
  */
 export function clipHangStartMs(
-  clip: Pick<MobileClipUnit, "shotId" | "clipFile" | "priorClipFiles">,
+  clip: Pick<MobileClipUnit, "shotId" | "clipFile" | "priorClipFiles" | "hangStartMs">,
   song?: ClipClockSong,
   draft?: ClipClockDraft,
 ): number | null {
   const timings = sortPlateTimings(resolvePlateTimings(song, draft));
-  if (!timings.length) return null;
-  const clock = {
-    cuts: song?.cuts,
-    plateTimings: timings,
-  };
-  const stacked = stackedClipFiles(clip);
-  const file = stacked.at(-1) || clipFileBasename(clip.clipFile || "");
-  const owned = file ? clipHangTiming(clock, file) : null;
-  if (owned) return owned.startMs;
-  const shotHit = timings.find((t) => t.plateId === (clip.shotId || "").trim());
-  if (shotHit && isRealPlateHang(shotHit)) {
-    const onShot = (song?.cuts || []).filter(
-      (c) =>
-        (c.shotId || "").trim() === (clip.shotId || "").trim() &&
-        clipFileBasename(c.clipFile || ""),
-    );
-    if (!onShot.length) return shotHit.startMs;
+  if (timings.length) {
+    const clock = {
+      cuts: song?.cuts,
+      plateTimings: timings,
+    };
+    const stacked = stackedClipFiles(clip);
+    const file = stacked.at(-1) || clipFileBasename(clip.clipFile || "");
+    const owned = file ? clipHangTiming(clock, file) : null;
+    if (owned) return owned.startMs;
+    const shotHit = timings.find((t) => t.plateId === (clip.shotId || "").trim());
+    if (shotHit && isRealPlateHang(shotHit)) {
+      const onShot = (song?.cuts || []).filter(
+        (c) =>
+          (c.shotId || "").trim() === (clip.shotId || "").trim() &&
+          clipFileBasename(c.clipFile || ""),
+      );
+      if (!onShot.length) return shotHit.startMs;
+    }
+  }
+  const stamped = Number(clip.hangStartMs);
+  if (Number.isFinite(stamped) && stamped >= 0) {
+    return Math.round(stamped);
   }
   return null;
 }
@@ -142,7 +148,12 @@ export function clipTakeDurationSec(opts: ClipTakeClockOpts): number | null {
   const cutDur = positiveClipSec(cut?.durationSec);
   if (cutDur != null) return cutDur;
   const startMs = clipHangStartMs(
-    { shotId: opts.shotId || "", clipFile: file, priorClipFiles: [] },
+    {
+      shotId: opts.shotId || "",
+      clipFile: file,
+      priorClipFiles: [],
+      hangStartMs: opts.hangStartMs,
+    },
     { cuts: opts.songCuts, plateTimings: opts.plateTimings },
   );
   if (startMs == null) return null;
@@ -173,7 +184,12 @@ export function stableClipTakeLabel(opts: ClipTakeClockOpts): string {
   const file = clipFileBasename(opts.fileName);
   if (!file) return "";
   const startMs = clipHangStartMs(
-    { shotId: opts.shotId || "", clipFile: file, priorClipFiles: [] },
+    {
+      shotId: opts.shotId || "",
+      clipFile: file,
+      priorClipFiles: [],
+      hangStartMs: opts.hangStartMs,
+    },
     { cuts: opts.songCuts, plateTimings: opts.plateTimings },
   );
   return formatClipTakeStamp(startMs, clipTakeDurationSec(opts));
@@ -326,7 +342,8 @@ export function clipsForStillsDesk(job: {
   return uniqueClipsByFile(clips, job.scratchSong);
 }
 
-/** Every plate's mp4s — hang clock first, then cook order. Not STILLS 1…8…9. */
+/** Every cooked mp4 — hang clock first, then cook order. Not STILLS 1…8…9.
+ * A leftover whose still left the strip (Off song / shotId~tail) still paints. */
 export function gatherClipsForStillsRail(
   job: Parameters<typeof clipsForStillsDesk>[0],
   plates: { shotId: string; beatIds?: string[] }[],
@@ -342,6 +359,12 @@ export function gatherClipsForStillsRail(
       matched.push(clip);
       break;
     }
+  }
+  for (const clip of deskClips) {
+    if (seenBeat.has(clip.beatId)) continue;
+    if (!stackedClipFiles(clip).length) continue;
+    seenBeat.add(clip.beatId);
+    matched.push(clip);
   }
   return orderClipsOnSongClock(
     uniqueClipsByFile(matched, job.scratchSong),
@@ -362,14 +385,31 @@ export function keepClipsAfterUnhang(opts: {
     shotId?: string;
     clipFile?: string;
     durationSec?: number;
+    startSec?: number;
   }[];
   shots?: { shotId: string; sceneId?: string }[];
+  hangStartMs?: number | null;
 }): MobileClipUnit[] {
   const have = new Set(opts.clips.flatMap((c) => stackedClipFiles(c)));
   const next = [...opts.clips];
+  const stampMs = (cut: { startSec?: number }) => {
+    if (opts.hangStartMs != null && Number.isFinite(opts.hangStartMs)) {
+      return Math.round(opts.hangStartMs);
+    }
+    if (Number.isFinite(Number(cut.startSec))) return Math.round(Number(cut.startSec) * 1000);
+    return undefined;
+  };
   for (const cut of opts.removedCuts) {
     const file = clipFileBasename(cut.clipFile || "");
-    if (!file || have.has(file)) continue;
+    if (!file) continue;
+    const hangStartMs = stampMs(cut);
+    if (have.has(file)) {
+      const i = next.findIndex((c) => stackedClipFiles(c).includes(file));
+      if (i >= 0 && hangStartMs != null) {
+        next[i] = { ...next[i]!, hangStartMs };
+      }
+      continue;
+    }
     const shot = hangPlateShotId((cut.shotId || "").trim());
     const sceneId =
       (opts.shots || []).find((s) => (s.shotId || "").trim() === shot)?.sceneId || "";
@@ -381,6 +421,7 @@ export function keepClipsAfterUnhang(opts: {
       clipStatus: "done",
       error: "",
       ...(cut.durationSec != null ? { durationSec: cut.durationSec } : {}),
+      ...(hangStartMs != null ? { hangStartMs } : {}),
     });
     have.add(file);
   }

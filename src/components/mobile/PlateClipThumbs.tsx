@@ -98,6 +98,7 @@ export function PlateClipThumbs({
         shotId: clip.shotId,
         durationSec:
           file === clipFileBasename(clip.clipFile || "") ? clip.durationSec : undefined,
+        hangStartMs: clip.hangStartMs,
         songCuts,
         plateTimings,
       };
@@ -108,7 +109,12 @@ export function PlateClipThumbs({
         shotId: (clip.shotId || "").trim(),
         poster: shotPoster,
         startMs: clipHangStartMs(
-          { shotId: clip.shotId, clipFile: file, priorClipFiles: [] },
+          {
+            shotId: clip.shotId,
+            clipFile: file,
+            priorClipFiles: [],
+            hangStartMs: clip.hangStartMs,
+          },
           { cuts: songCuts, plateTimings },
         ),
         durationSec: clipTakeDurationSec(clock),
