@@ -470,7 +470,14 @@ export function cutFromPlateTiming(
     status: existing?.status || "pending",
     error: existing?.error || "",
   };
-  const rest = cuts.filter((c) => c.shotId !== timing.plateId);
+  const keepFile = hangClipBasename(existing?.clipFile || "");
+  // Other mp4s on this still stay. Replacing the slot used to drop take 2
+  // from cuts, then CLIPS lost that file.
+  const rest = cuts.filter((c) => {
+    if (c.shotId !== timing.plateId) return true;
+    const file = hangClipBasename(c.clipFile || "");
+    return Boolean(file) && file !== keepFile;
+  });
   return [...rest, next];
 }
 
@@ -670,7 +677,23 @@ function upsertClipHangCut(
   const durationSec = msToSec(timing.endMs - timing.startMs);
   const byFile = cuts.findIndex((c) => hangClipBasename(c.clipFile || "") === file);
   const bySlot = cuts.findIndex((c) => (c.shotId || "").trim() === timing.plateId);
-  const idx = byFile >= 0 ? byFile : bySlot;
+  const fileSlot = byFile >= 0 ? (cuts[byFile]?.shotId || "").trim() : "";
+  const parent = hangPlateShotId(timing.plateId);
+  const firstOnParent = cuts.find(
+    (c) => (c.shotId || "").trim() === parent && hangClipBasename(c.clipFile || ""),
+  );
+  const fileIsFirstOnParent =
+    Boolean(firstOnParent) && hangClipBasename(firstOnParent?.clipFile || "") === file;
+  // Second take on the same still moves plate-9 → plate-9~tail.
+  // Do not steal the file that already owns another still's bar (car at 0:15).
+  const stealFile =
+    byFile >= 0 &&
+    (!fileSlot ||
+      fileSlot === timing.plateId ||
+      (hangPlateShotId(fileSlot) === parent && !fileIsFirstOnParent));
+  const emptySlot =
+    bySlot >= 0 && !hangClipBasename(cuts[bySlot]?.clipFile || "");
+  const idx = stealFile ? byFile : emptySlot ? bySlot : -1;
   const prev = idx >= 0 ? cuts[idx] : undefined;
   const next: ScratchSongCut = {
     id: prev?.id || newCutId(),

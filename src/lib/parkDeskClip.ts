@@ -108,10 +108,12 @@ export function planParkDeskClipTake(opts: {
   if (wantFile) matchedFiles.add(wantFile);
   for (const cut of targetCuts) {
     const file = cutFile(cut);
-    if (file) matchedFiles.add(file);
+    if (file && (!wantFile || file === wantFile)) matchedFiles.add(file);
   }
-  for (const clip of targetClips) {
-    for (const file of stackedClipFiles(clip)) matchedFiles.add(file);
+  if (!wantFile) {
+    for (const clip of targetClips) {
+      for (const file of stackedClipFiles(clip)) matchedFiles.add(file);
+    }
   }
 
   const targetShots = new Set<string>();

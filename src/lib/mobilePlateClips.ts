@@ -4,6 +4,7 @@ import { mobileMediaFolder } from "./mobileJobFolder";
 import {
   clipHangTiming,
   formatTrackClock,
+  hangPlateShotId,
   isRealPlateHang,
   msToSec,
   resolvePlateTimings,
@@ -225,9 +226,15 @@ export function clipsUnderPlate(
   const want = new Set(beatIds.filter(Boolean));
   const seen = new Set<string>();
   const out: MobileClipUnit[] = [];
+  const plate = (shotId || "").trim();
   for (const clip of clips) {
     if (seen.has(clip.beatId)) continue;
-    if (clip.shotId === shotId || want.has(clip.beatId)) {
+    const clipShot = (clip.shotId || "").trim();
+    if (
+      clipShot === plate ||
+      hangPlateShotId(clipShot) === plate ||
+      want.has(clip.beatId)
+    ) {
       seen.add(clip.beatId);
       out.push(clip);
     }
@@ -267,9 +274,18 @@ export function uniqueClipsByFile(
       order.push(file);
       continue;
     }
-    const clipHung = hung.has(`${file}::${(clip.shotId || "").trim()}`);
-    const prevHung = hung.has(`${file}::${(prev.shotId || "").trim()}`);
-    if (clipHung && !prevHung) best.set(file, clip);
+    const clipShot = (clip.shotId || "").trim();
+    const prevShot = (prev.shotId || "").trim();
+    const clipHung =
+      hung.has(`${file}::${clipShot}`) || hung.has(`${file}::${hangPlateShotId(clipShot)}`);
+    const prevHung =
+      hung.has(`${file}::${prevShot}`) || hung.has(`${file}::${hangPlateShotId(prevShot)}`);
+    const clipPrimary = Boolean(clipShot) && hangPlateShotId(clipShot) === clipShot;
+    const prevPrimary = Boolean(prevShot) && hangPlateShotId(prevShot) === prevShot;
+    // Prefer the real plate id so the STILLS rail can still match. A hang
+    // rewrite to shotId~tail must not hide this mp4 from CLIPS.
+    if (clipPrimary && !prevPrimary) best.set(file, clip);
+    else if (clipHung && !prevHung && clipPrimary === prevPrimary) best.set(file, clip);
   }
   return order.map((file) => best.get(file)!);
 }
@@ -299,17 +315,23 @@ export function clipsForStillsDesk(job: {
   trackDraft?: { plateTimings?: PlateTiming[] } | null;
 }): MobileClipUnit[] {
   const clips = [...(job.clips || [])];
-  const seenShot = new Set(
-    clips.filter((c) => clipFileBasename(c.clipFile || "")).map((c) => (c.shotId || "").trim()),
+  const seenKey = new Set(
+    clips.flatMap((c) =>
+      stackedClipFiles(c).map((f) => `${f}::${hangPlateShotId(c.shotId || "") || (c.shotId || "").trim()}`),
+    ),
   );
   for (const cut of job.scratchSong?.cuts || []) {
-    const shotId = (cut.shotId || "").trim();
+    const rawShot = (cut.shotId || "").trim();
+    const shotId = hangPlateShotId(rawShot) || rawShot;
     const file = clipFileBasename(cut.clipFile || "");
-    if (!shotId || !file || cut.status !== "done" || seenShot.has(shotId)) continue;
-    seenShot.add(shotId);
-    const shot = (job.shots || []).find((s) => s.shotId === shotId);
+    const key = `${file}::${shotId}`;
+    if (!rawShot || !file || cut.status !== "done" || seenKey.has(key)) continue;
+    seenKey.add(key);
+    const shot = (job.shots || []).find(
+      (s) => s.shotId === shotId || s.shotId === rawShot,
+    );
     clips.push({
-      beatId: cut.id || `cut:${shotId}`,
+      beatId: cut.id || `cut:${rawShot}`,
       shotId,
       sceneId: shot?.sceneId || "",
       clipFile: file,
@@ -329,14 +351,22 @@ export function gatherClipsForStillsRail(
   const deskClips = clipsForStillsDesk(job);
   const matched: MobileClipUnit[] = [];
   const seenBeat = new Set<string>();
+  const push = (clip: MobileClipUnit) => {
+    if (seenBeat.has(clip.beatId) || !stackedClipFiles(clip).length) return;
+    seenBeat.add(clip.beatId);
+    matched.push(clip);
+  };
   for (const clip of deskClips) {
+    let hit = false;
     for (const p of plates) {
       if (!clipsUnderPlate(p.shotId, p.beatIds || [], [clip]).length) continue;
-      if (seenBeat.has(clip.beatId)) break;
-      seenBeat.add(clip.beatId);
-      matched.push(clip);
+      push(clip);
+      hit = true;
       break;
     }
+    // Extra-take hang (shotId~tail) used to vanish here. A done mp4 stays
+    // on CLIPS even when the wave rewrote its cut onto a hang slot.
+    if (!hit) push(clip);
   }
   return orderClipsOnSongClock(
     uniqueClipsByFile(matched, job.scratchSong),

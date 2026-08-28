@@ -290,4 +290,65 @@ assert.equal(xHung.next.every((c) => !stackedClipFiles(c).includes("01_JACK_GHOS
 assert.equal(xHung.nextSong.cuts.find((c) => c.id === "c4")?.status, "pending");
 assert.deepEqual(xHung.filesToPark, ["01_JACK_GHOST.mp4"]);
 
+/** X one take on a stacked row must leave the other mp4 on CLIPS. */
+const stackedTakes = clip({
+  beatId: "beat-jack",
+  shotId: "jack",
+  clipFile: "04_crouch.mp4",
+  priorClipFiles: ["03_stand.mp4"],
+  clipStatus: "done",
+});
+const carTake = clip({
+  beatId: "beat-car",
+  shotId: "car",
+  clipFile: "02_car.mp4",
+  clipStatus: "done",
+});
+const xOneTake = planParkDeskClipTake({
+  clips: [stackedTakes, carTake],
+  song: {
+    fileName: "song.mp3",
+    durationSec: 60,
+    sliceStartSec: 0,
+    sliceDurationSec: 15,
+    plateTimings: [
+      { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 0 },
+      { plateId: "jack", startMs: 20000, endMs: 25000, sortIndex: 1 },
+    ],
+    cuts: [
+      {
+        id: "c-car",
+        plateFile: "car.png",
+        shotId: "car",
+        startSec: 15,
+        durationSec: 5,
+        clipFile: "02_car.mp4",
+        status: "done",
+        error: "",
+      },
+      {
+        id: "c-jack",
+        plateFile: "jack.png",
+        shotId: "jack",
+        startSec: 20,
+        durationSec: 5,
+        clipFile: "04_crouch.mp4",
+        status: "done",
+        error: "",
+      },
+    ],
+  },
+  beatId: "beat-jack",
+  fileName: "04_crouch.mp4",
+});
+assert.equal(isEpisodeClipPlanError(xOneTake), false);
+assert.deepEqual(stackedClipFiles(xOneTake.next.find((c) => c.beatId === "beat-jack")), [
+  "03_stand.mp4",
+]);
+assert.equal(xOneTake.next.find((c) => c.beatId === "beat-car")?.clipFile, "02_car.mp4");
+assert.equal(xOneTake.nextSong.cuts.find((c) => c.id === "c-car")?.clipFile, "02_car.mp4");
+assert.equal(xOneTake.nextSong.cuts.find((c) => c.id === "c-car")?.status, "done");
+assert.ok(!xOneTake.filesToPark.includes("02_car.mp4"));
+assert.ok(!xOneTake.filesToPark.includes("03_stand.mp4"));
+
 console.log("check-mobile-episode-clips: ok");

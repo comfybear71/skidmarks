@@ -620,11 +620,12 @@ export async function POST(req: Request) {
       for (const row of rows) {
         const timing = plateTimings.find((x) => x.plateId === row.shotId);
         if (!timing) continue;
-        cuts = cutFromPlateTiming(cuts, timing, row.plateFile, () => newId("cut")).map((c) =>
-          (c.shotId || "").trim() === row.shotId
-            ? { ...c, clipFile: row.clipFile, status: "done" as const, error: "" }
-            : c,
-        );
+        cuts = cutFromPlateTiming(cuts, timing, row.plateFile, () => newId("cut")).map((c) => {
+          if ((c.shotId || "").trim() !== row.shotId) return c;
+          const file = clipFileBasename(c.clipFile || "");
+          if (file && file !== row.clipFile) return c;
+          return { ...c, clipFile: row.clipFile, status: "done" as const, error: "" };
+        });
       }
       const extra = hangUnhungDoneClips({
         plateTimings,

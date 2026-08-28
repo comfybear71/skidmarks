@@ -3,6 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  extraTakeHangPlateId,
+  hangUnhungDoneClips,
+} from "../src/lib/musicVideoTrack.ts";
+import {
   clearClipRowTakes,
   clipFileBasename,
   dropClipTakeFromRow,
@@ -479,5 +483,102 @@ assert.match(css, /\.m-plate-clip-hang/);
 assert.match(css, /touch-action: pan-x pan-y/);
 assert.match(css, /width: calc\(100% \+ 32px\)/);
 assert.doesNotMatch(css, /\.m-plate-clip-engines/, "no engine chrome on the CLIPS thumb");
+
+/** Screenshot: CLIPS 4 → 3 after #399 auto-hang. Car at 0:15 must stay a thumb. */
+const stuiesFourJob = {
+  clips: [
+    { ...clip, beatId: "b1", shotId: "jack1", clipFile: "01_jack.mp4", priorClipFiles: [] },
+    { ...clip, beatId: "b2", shotId: "car", clipFile: "02_car.mp4", priorClipFiles: [] },
+    { ...clip, beatId: "b3", shotId: "jack", clipFile: "03_stand.mp4", priorClipFiles: [] },
+    { ...clip, beatId: "b4", shotId: "jack", clipFile: "04_crouch.mp4", priorClipFiles: [] },
+  ],
+  shots: [
+    { shotId: "jack1", sceneId: "scene-1" },
+    { shotId: "car", sceneId: "scene-1" },
+    { shotId: "jack", sceneId: "scene-1" },
+  ],
+  scratchSong: {
+    cuts: [
+      { id: "c1", shotId: "jack1", clipFile: "01_jack.mp4", status: "done", durationSec: 15 },
+      { id: "c2", shotId: "car", clipFile: "02_car.mp4", status: "done", durationSec: 5 },
+      { id: "c3", shotId: "jack", clipFile: "03_stand.mp4", status: "done", durationSec: 5 },
+    ],
+    plateTimings: [
+      { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+      { plateId: "jack", startMs: 20000, endMs: 25000, sortIndex: 2 },
+    ],
+  },
+};
+const platesThree = [{ shotId: "jack1" }, { shotId: "car" }, { shotId: "jack" }];
+const beforeHang = gatherClipsForStillsRail(stuiesFourJob, platesThree);
+assert.deepEqual(
+  beforeHang.flatMap((c) => stackedClipFiles(c)),
+  ["01_jack.mp4", "02_car.mp4", "03_stand.mp4", "04_crouch.mp4"],
+  "CLIPS 4 before hang",
+);
+const hungLeftover = hangUnhungDoneClips({
+  plateTimings: stuiesFourJob.scratchSong.plateTimings,
+  cuts: stuiesFourJob.scratchSong.cuts,
+  clips: stuiesFourJob.clips,
+  plateFileFor: () => "still.png",
+  newCutId: () => "c4",
+});
+assert.equal(
+  hungLeftover.cuts.find((c) => c.clipFile === "04_crouch.mp4")?.shotId,
+  extraTakeHangPlateId("jack", "04_crouch.mp4"),
+);
+assert.equal(hungLeftover.cuts.find((c) => c.clipFile === "02_car.mp4")?.shotId, "car");
+const afterHang = gatherClipsForStillsRail(
+  {
+    ...stuiesFourJob,
+    scratchSong: {
+      cuts: hungLeftover.cuts,
+      plateTimings: hungLeftover.plateTimings,
+    },
+  },
+  platesThree,
+);
+assert.deepEqual(
+  afterHang.flatMap((c) => stackedClipFiles(c)),
+  ["01_jack.mp4", "02_car.mp4", "03_stand.mp4", "04_crouch.mp4"],
+  "hang leftover must not drop the 0:15 car from CLIPS",
+);
+assert.equal(afterHang.length, 4);
+assert.deepEqual(clipRailLabels(afterHang.length), ["clip 1", "clip 2", "clip 3", "clip 4"]);
+
+/** Cut-only car (no job.clips row) + extra-take hang must still draw the car. */
+const carOnlyCut = gatherClipsForStillsRail(
+  {
+    clips: [
+      { ...clip, beatId: "b1", shotId: "jack1", clipFile: "01_jack.mp4", priorClipFiles: [] },
+      { ...clip, beatId: "b3", shotId: "jack", clipFile: "03_stand.mp4", priorClipFiles: [] },
+      { ...clip, beatId: "b4", shotId: "jack", clipFile: "04_crouch.mp4", priorClipFiles: [] },
+    ],
+    shots: stuiesFourJob.shots,
+    scratchSong: {
+      cuts: [
+        { id: "c1", shotId: "jack1", clipFile: "01_jack.mp4", status: "done" },
+        { id: "c2", shotId: "car~02car", clipFile: "02_car.mp4", status: "done" },
+        { id: "c3", shotId: "jack", clipFile: "03_stand.mp4", status: "done" },
+        {
+          id: "c4",
+          shotId: extraTakeHangPlateId("jack", "04_crouch.mp4"),
+          clipFile: "04_crouch.mp4",
+          status: "done",
+        },
+      ],
+      plateTimings: [
+        ...stuiesFourJob.scratchSong.plateTimings,
+        { plateId: "car~02car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+      ],
+    },
+  },
+  platesThree,
+);
+assert.ok(
+  carOnlyCut.flatMap((c) => stackedClipFiles(c)).includes("02_car.mp4"),
+  "stolen/rewritten car cut still appears on CLIPS",
+);
 
 console.log("check-mobile-plate-clips: ok");

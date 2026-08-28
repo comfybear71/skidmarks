@@ -665,6 +665,24 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(hangClip3.plateTimings[3]?.endMs, 30000);
   assert.equal(hangClip3.cuts.find((c) => c.clipFile === "04_crouch.mp4")?.shotId, "jack");
 
+  /** Hanging leftover must not steal the car cut onto a ~tail slot. */
+  const stealCar = hangOneClipOnWave({
+    plateTimings: stuiesThreeBars,
+    cuts: stuiesCutsClip3Hung,
+    shotId: "car",
+    plateFile: "2.png",
+    clipFile: "02_car.mp4",
+    durationSec: 5,
+    newCutId: () => "c2b",
+  });
+  assert.equal(stealCar?.cuts.find((c) => c.clipFile === "02_car.mp4")?.shotId, "car");
+  assert.equal(stealCar?.cuts.filter((c) => c.clipFile === "02_car.mp4").length, 1);
+  assert.deepEqual(
+    stealCar?.plateTimings.map((t) => t.plateId),
+    ["jack1", "car", "jack"],
+    "already-hung car stays on its 0:15 bar — no extra 15s hang",
+  );
+
   const stillsStayOff = hangMissingPlateTimings(
     [{ plateId: "plate_1", startMs: 0, endMs: 15000, sortIndex: 0 }],
     [],
@@ -791,6 +809,11 @@ assert.match(
   songRoute.slice(songRoute.indexOf('action === "hang-plates"')),
   /hangUnhungDoneClips/,
   "hang-plates also places a second take after the last hung end",
+);
+assert.match(
+  songRoute.slice(songRoute.indexOf('action === "hang-plates"')),
+  /if \(file && file !== row\.clipFile\) return c/,
+  "hang-plates must not overwrite another take's clipFile on the same still",
 );
 assert.match(
   songRoute.slice(songRoute.indexOf('action === "add-plate"')),
