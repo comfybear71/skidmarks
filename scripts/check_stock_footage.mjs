@@ -4,7 +4,7 @@ import {
   stockSearchLinks,
   stockSearchQuery,
 } from "../src/lib/stockFootage.ts";
-import { hangDoneClipOnTrack } from "../src/lib/stockClipHang.ts";
+import { clipOwnsHangPlate, hangDoneClipOnTrack } from "../src/lib/stockClipHang.ts";
 import {
   composeStockSearchQuery,
   parseStockLook,
@@ -77,6 +77,43 @@ const noClock = hangDoneClipOnTrack({
 });
 assert(noClock?.cuts?.[0]?.clipFile === "stock.mp4", "stamps existing cut");
 assert((noClock?.plateTimings || []).length === 0, "does not invent timings");
+
+assert(clipOwnsHangPlate("shot_a", "shot_a"), "same still can hang");
+assert(clipOwnsHangPlate("", "shot_b"), "stock hang has no owner shot");
+assert(!clipOwnsHangPlate("shot_a", "shot_b"), "do not hang this cook on the next still");
+
+const cloned = hangDoneClipOnTrack({
+  song: hung,
+  shotId: "shot_b",
+  plateFile: "other.jpg",
+  clipFile: "01_stock_Seed.mp4",
+  newCutId: () => "cut_2",
+});
+assert(
+  (cloned?.cuts || []).filter((c) => c.clipFile === "01_stock_Seed.mp4").length === 1,
+  "same mp4 does not land on a second plate",
+);
+
+const otherOwner = hangDoneClipOnTrack({
+  song: {
+    fileName: "song.mp3",
+    durationSec: 100,
+    sliceStartSec: 0,
+    sliceDurationSec: 15,
+    plateTimings: [{ plateId: "shot_b", startMs: 9000, endMs: 18000, sortIndex: 1 }],
+    cuts: [],
+  },
+  shotId: "shot_b",
+  plateFile: "other.jpg",
+  clipFile: "01_JACK_GHOST.mp4",
+  newCutId: () => "cut_x",
+  ownerShotId: "shot_a",
+});
+assert(
+  (otherOwner?.cuts || []).every((c) => c.clipFile !== "01_JACK_GHOST.mp4"),
+  "owner still wins — do not attach to the next still",
+);
+
 
 const ww1 = parseStockLook({
   theme: "first world war",

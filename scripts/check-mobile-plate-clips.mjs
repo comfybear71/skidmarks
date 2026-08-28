@@ -7,6 +7,7 @@ import {
   clipFileBasename,
   dropClipTakeFromRow,
   gatherClipsForStillsRail,
+  uniqueClipsByFile,
   plateRailLabels,
   rememberClipTake,
   stackedClipFiles,
@@ -114,6 +115,73 @@ assert.deepEqual(plateRailLabels([{ shotId: "shot-1" }, { shotId: "shot-2" }]), 
   "shot-2": "plate 2",
 });
 
+const jackDup = gatherClipsForStillsRail(
+  {
+    clips: [
+      {
+        ...clip,
+        beatId: "beat-crouch",
+        shotId: "plate-crouch",
+        clipFile: "01_JACK_GHOST.mp4",
+        priorClipFiles: [],
+      },
+    ],
+    shots: [
+      { shotId: "plate-crouch", sceneId: "scene-1" },
+      { shotId: "plate-car", sceneId: "scene-1" },
+    ],
+    scratchSong: {
+      cuts: [
+        { id: "c1", shotId: "plate-crouch", clipFile: "", status: "pending", startSec: 0 },
+        { id: "c2", shotId: "plate-crouch", clipFile: "", status: "pending", startSec: 15 },
+        { id: "c3", shotId: "plate-crouch", clipFile: "", status: "pending", startSec: 30 },
+        {
+          id: "c4",
+          shotId: "plate-car",
+          clipFile: "01_JACK_GHOST.mp4",
+          status: "done",
+          startSec: 45,
+        },
+      ],
+    },
+  },
+  [
+    { shotId: "plate-crouch", beatIds: ["beat-crouch"] },
+    { shotId: "plate-car" },
+  ],
+);
+assert.equal(jackDup.length, 1, "one cook is one CLIPS thumb");
+assert.equal(jackDup[0].shotId, "plate-car", "keep the hung plate, not the leftover still");
+assert.deepEqual(stackedClipFiles(jackDup[0]), ["01_JACK_GHOST.mp4"]);
+
+const sharedBeat = gatherClipsForStillsRail(
+  {
+    clips: [
+      {
+        ...clip,
+        beatId: "shared",
+        shotId: "shot-2",
+        clipFile: "jack.mp4",
+        priorClipFiles: [],
+      },
+    ],
+    shots: [
+      { shotId: "shot-1", sceneId: "scene-1" },
+      { shotId: "shot-2", sceneId: "scene-1" },
+    ],
+    scratchSong: {
+      cuts: [{ id: "cut-2", shotId: "shot-2", clipFile: "jack.mp4", status: "done", startSec: 45 }],
+    },
+  },
+  [
+    { shotId: "shot-1", beatIds: ["shared"] },
+    { shotId: "shot-2", beatIds: ["shared"] },
+  ],
+);
+assert.equal(sharedBeat.length, 1, "shared beatIds do not paint the same mp4 twice");
+assert.equal(sharedBeat[0].shotId, "shot-2");
+
+
 const thumbs = fs.readFileSync(new URL("../src/components/mobile/PlateClipThumbs.tsx", import.meta.url), "utf8");
 assert.match(thumbs, /createPortal/);
 assert.match(thumbs, /scratch-clip-overlay/);
@@ -141,6 +209,22 @@ assert.match(editor, /action: "remove-clip"/);
 const clipRoute = fs.readFileSync(new URL("../src/app/api/crash/mobile/clip/route.ts", import.meta.url), "utf8");
 assert.match(clipRoute, /planParkDeskClipTake/);
 assert.match(clipRoute, /scratchSong/);
+
+const songRoute = fs.readFileSync(
+  new URL("../src/app/api/crash/mobile/song/route.ts", import.meta.url),
+  "utf8",
+);
+assert.match(songRoute, /clipOwnsHangPlate/, "clip-poll must not hang a cook onto the next still");
+assert.deepEqual(
+  uniqueClipsByFile(
+    [
+      { ...clip, beatId: "a", shotId: "p1", clipFile: "same.mp4", priorClipFiles: [] },
+      { ...clip, beatId: "b", shotId: "p2", clipFile: "same.mp4", priorClipFiles: [] },
+    ],
+    { cuts: [{ shotId: "p2", clipFile: "same.mp4", status: "done" }] },
+  ).map((c) => c.shotId),
+  ["p2"],
+);
 
 const css = fs.readFileSync(new URL("../src/app/(mobile)/m/mobile.css", import.meta.url), "utf8");
 assert.match(css, /\.m-plate-clips-bleed/);

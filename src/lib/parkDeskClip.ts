@@ -33,18 +33,27 @@ function cutFile(cut: ScratchSongCut): string {
   return clipFileBasename(cut.clipFile || "");
 }
 
+function matchesCutTarget(
+  cut: ScratchSongCut,
+  wantCut: string,
+  wantBeat: string,
+): boolean {
+  const id = (cut.id || "").trim();
+  if (wantCut && id === wantCut) return true;
+  if (wantBeat && id === wantBeat) return true;
+  const shotId = (cut.shotId || "").trim();
+  if (wantBeat.startsWith("cut:") && shotId && wantBeat === `cut:${shotId}`) return true;
+  return false;
+}
+
 function matchesCut(
   cut: ScratchSongCut,
   wantCut: string,
   wantBeat: string,
   wantFile: string,
 ): boolean {
-  const id = (cut.id || "").trim();
-  if (wantCut && id === wantCut) return true;
-  if (wantBeat && id === wantBeat) return true;
-  if (wantFile && cutFile(cut) === wantFile) return true;
-  const shotId = (cut.shotId || "").trim();
-  if (wantBeat.startsWith("cut:") && shotId && wantBeat === `cut:${shotId}`) return true;
+  if (matchesCutTarget(cut, wantCut, wantBeat)) return true;
+  if (!wantCut && !wantBeat && wantFile && cutFile(cut) === wantFile) return true;
   return false;
 }
 
@@ -55,6 +64,7 @@ function matchesClip(
   matchedFiles: Set<string>,
 ): boolean {
   if (wantBeat && clip.beatId === wantBeat) return true;
+  if (wantBeat) return false;
   const stacked = stackedClipFiles(clip);
   if (wantFile && stacked.includes(wantFile)) return true;
   for (const file of stacked) {
@@ -73,6 +83,9 @@ function matchesClip(
  *
  * A fail on another cut, or a batch still going, does not block. Running
  * cooks with no file go pending so the desk is not locked.
+ *
+ * X on a leftover copy of the same mp4 parks that row only. The hung
+ * plate keeps the file. X on the last use parks the file.
  */
 export function planParkDeskClipTake(opts: {
   clips: MobileClipUnit[];
@@ -89,15 +102,45 @@ export function planParkDeskClipTake(opts: {
   const cuts = song?.cuts || [];
   const isEpisode = opts.isEpisode || (() => true);
 
-  const matchedCuts = cuts.filter((c) => matchesCut(c, wantCut, wantBeat, wantFile));
+  const targetCuts = cuts.filter((c) => matchesCutTarget(c, wantCut, wantBeat));
+  const targetClips = opts.clips.filter((c) => wantBeat && c.beatId === wantBeat);
   const matchedFiles = new Set<string>();
   if (wantFile) matchedFiles.add(wantFile);
-  for (const cut of matchedCuts) {
+  for (const cut of targetCuts) {
     const file = cutFile(cut);
     if (file) matchedFiles.add(file);
   }
+  for (const clip of targetClips) {
+    for (const file of stackedClipFiles(clip)) matchedFiles.add(file);
+  }
 
-  if (!matchedCuts.length) {
+  const targetShots = new Set<string>();
+  for (const cut of targetCuts) {
+    const shot = (cut.shotId || "").trim();
+    if (shot) targetShots.add(shot);
+  }
+  for (const clip of targetClips) {
+    const shot = (clip.shotId || "").trim();
+    if (shot) targetShots.add(shot);
+  }
+
+  const hungOtherPlate = cuts.some((c) => {
+    const shot = (c.shotId || "").trim();
+    const file = cutFile(c);
+    return (
+      c.status === "done" &&
+      Boolean(file) &&
+      matchedFiles.has(file) &&
+      Boolean(shot) &&
+      !targetShots.has(shot)
+    );
+  });
+
+  const matchedCuts = hungOtherPlate
+    ? targetCuts
+    : cuts.filter((c) => matchesCut(c, wantCut, wantBeat, wantFile) || matchedFiles.has(cutFile(c)));
+
+  if (!matchedCuts.length && !targetClips.length) {
     const episode = planRemoveEpisodeClipTake(
       opts.clips,
       wantBeat,
@@ -105,13 +148,23 @@ export function planParkDeskClipTake(opts: {
       isEpisode,
     );
     if (isEpisodeClipPlanError(episode)) return episode;
-    return { ...episode, nextSong: song, stoppedCook: false };
+    const stillNeeded = (song?.cuts || []).some(
+      (c) => c.status === "done" && wantFile && cutFile(c) === wantFile,
+    );
+    return {
+      ...episode,
+      filesToPark: stillNeeded ? [] : episode.filesToPark,
+      nextSong: song,
+      stoppedCook: false,
+    };
   }
 
-  const filesToPark = [...matchedFiles];
   let stoppedCook = false;
   const nextCuts = cuts.map((cut) => {
-    if (matchesCut(cut, wantCut, wantBeat, wantFile)) {
+    const hit = hungOtherPlate
+      ? matchesCutTarget(cut, wantCut, wantBeat)
+      : matchedCuts.includes(cut) || matchesCut(cut, wantCut, wantBeat, wantFile);
+    if (hit) {
       if (cut.status === "running") stoppedCook = true;
       return pendingCut(cut);
     }
@@ -123,7 +176,10 @@ export function planParkDeskClipTake(opts: {
   });
 
   const nextClips = opts.clips.map((clip) => {
-    if (!matchesClip(clip, wantBeat, wantFile, matchedFiles)) {
+    const targeted = matchesClip(clip, wantBeat, wantFile, matchedFiles);
+    const sameFileGhost =
+      !hungOtherPlate && stackedClipFiles(clip).some((f) => matchedFiles.has(f));
+    if (!targeted && !sameFileGhost) {
       if (clip.clipStatus === "running" && !clipFileBasename(clip.clipFile || "")) {
         stoppedCook = true;
         return { ...clip, clipStatus: "pending" as const, error: "" };
@@ -138,10 +194,14 @@ export function planParkDeskClipTake(opts: {
     return dropClipTakeFromRow({ ...clip, clipStatus: "done", error: "" }, drop);
   });
 
+  const fileStillNeeded = nextCuts.some(
+    (c) => c.status === "done" && matchedFiles.has(cutFile(c)),
+  );
+
   return {
     next: nextClips,
     nextSong: song ? { ...song, cuts: nextCuts } : song,
-    filesToPark,
+    filesToPark: fileStillNeeded || hungOtherPlate ? [] : [...matchedFiles],
     clearedEpisodeErrors: !nextClips.some((c) => isEpisode(c) && c.clipStatus === "error"),
     stoppedCook,
   };
