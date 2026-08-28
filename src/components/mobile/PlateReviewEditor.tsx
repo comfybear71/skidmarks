@@ -94,6 +94,7 @@ import { PlateHangLenControl } from "@/components/mobile/PlateLenSlider";
 import { requestSongCookStop } from "@/lib/songCutCook";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
+  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   plateTimingForShot,
   type MusicVideoTrackDraft,
@@ -2698,12 +2699,21 @@ function ShotLineEditor({
         )}
         </div>
       )}
+      {styleId === "music_video" && onAddToSong ? (
+        <p
+          className={
+            sendStillNote === ADD_STILL_THEN_SEND ? "m-track-err" : "m-plate-add-then-send"
+          }
+        >
+          {ADD_STILL_THEN_SEND}
+        </p>
+      ) : null}
       {h3HangNote && !sendStillBusy ? (
         <p className="m-track-err" role="status">
           {h3HangNote}
         </p>
       ) : null}
-      {sendStillNote ? (
+      {sendStillNote && sendStillNote !== ADD_STILL_THEN_SEND ? (
         <p
           className={sendStillBusy ? "m-song-cook-note" : "m-track-err"}
           role="status"
