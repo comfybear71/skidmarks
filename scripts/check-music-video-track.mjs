@@ -7,8 +7,12 @@ import {
   evenPlateTimings,
   formatTrackClock,
   formatTrackClockPrecise,
+  clipFileOnWave,
+  extraTakeHangPlateId,
   hangClipDurationMs,
   hangMissingPlateTimings,
+  hangOneClipOnWave,
+  hangPlateShotId,
   isLeftoverPlateHang,
   isRealPlateHang,
   hitPlateEdge,
@@ -416,6 +420,57 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     "known mp4 length else 15",
   );
 
+  const twoTakes = hangOneClipOnWave({
+    plateTimings: [{ plateId: "plate-9", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    cuts: [
+      {
+        id: "c1",
+        shotId: "plate-9",
+        plateFile: "9.png",
+        startSec: 0,
+        durationSec: 15,
+        clipFile: "09_kl0.mp4",
+        status: "done",
+      },
+      {
+        id: "c2",
+        shotId: "plate-9",
+        plateFile: "9.png",
+        startSec: 0,
+        durationSec: 8,
+        clipFile: "09_dzd.mp4",
+        status: "done",
+      },
+    ],
+    shotId: "plate-9",
+    plateFile: "9.png",
+    clipFile: "09_dzd.mp4",
+    durationSec: 8,
+    newCutId: () => "c-new",
+  });
+  assert.equal(twoTakes?.plateTimings.length, 2, "second take gets its own clock");
+  assert.equal(twoTakes?.plateTimings[0]?.plateId, "plate-9");
+  assert.equal(twoTakes?.plateTimings[1]?.plateId, extraTakeHangPlateId("plate-9", "09_dzd.mp4"));
+  assert.equal(twoTakes?.plateTimings[1]?.startMs, 15000, "next gap — do not pile on 0:00");
+  assert.equal(twoTakes?.plateTimings[1]?.endMs, 23000, "real 8s, not a fake 15");
+  assert.equal(hangPlateShotId(twoTakes?.plateTimings[1]?.plateId || ""), "plate-9");
+  assert.equal(twoTakes?.cuts.length, 2, "do not wipe the first take");
+  assert.equal(twoTakes?.cuts[0]?.clipFile, "09_kl0.mp4");
+  assert.equal(twoTakes?.cuts[1]?.clipFile, "09_dzd.mp4");
+  assert.equal(twoTakes?.cuts[1]?.shotId, extraTakeHangPlateId("plate-9", "09_dzd.mp4"));
+  assert.equal(clipFileOnWave(twoTakes, "09_kl0.mp4"), true);
+  assert.equal(clipFileOnWave(twoTakes, "09_dzd.mp4"), true);
+  const again = hangOneClipOnWave({
+    plateTimings: twoTakes?.plateTimings,
+    cuts: twoTakes?.cuts || [],
+    shotId: "plate-9",
+    plateFile: "9.png",
+    clipFile: "09_dzd.mp4",
+    durationSec: 8,
+    newCutId: () => "c-dup",
+  });
+  assert.equal(again?.plateTimings.length, 2, "already hung — no second bar");
+
   const stillsStayOff = hangMissingPlateTimings(
     [{ plateId: "plate_1", startMs: 0, endMs: 15000, sortIndex: 0 }],
     [],
@@ -532,6 +587,10 @@ assert.match(
 assert.match(trackUi, /needsDoneClipHang/);
 assert.match(trackUi, /hungClipFileForPlate\(job, picked\.shotId\) \? null/);
 assert.match(trackUi, /isRealPlateHang/);
+assert.match(trackUi, /!compact \|\| Boolean\(onCreatePlate\)/);
+assert.doesNotMatch(trackUi, /m-track-film-len">off</);
+assert.match(songRoute, /action === "hang-clip"/);
+assert.match(songRoute, /hangOneClipOnWave/);
 
 console.log("check-music-video-track: ok");
 
