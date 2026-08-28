@@ -684,7 +684,17 @@ assert.equal(
     ],
   ),
   true,
-  "TRACK 3 bars + leftover clip 4 must auto-hang — do not wait for STILLS ADD",
+  "TRACK 3 bars + leftover clip 4 still needs Hang — not a new plate",
+);
+assert.match(
+  songRoute,
+  /Not on TRACK open or job GET/,
+  "hang-plates stays explicit — leftover / X'd files stay off until Add or Hang",
+);
+assert.match(
+  songRoute,
+  /5s file wins over a 15s cook window/,
+  "explicit hang uses the 5s car, not a invented 15s end bar",
 );
 assert.match(
   readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8"),

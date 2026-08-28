@@ -82,13 +82,25 @@ export function isRealPlateHang(
   return end - start > MIN_PLATE_BOX_MS;
 }
 
-/** Known mp4 length, else 15s. Leftover 0.5s is not a length. */
-export function hangClipDurationMs(durationSec?: number): number {
-  const sec = Number(durationSec);
-  if (Number.isFinite(sec) && sec > MIN_PLATE_BOX_MS / 1000) {
-    return secToMs(sec);
-  }
-  return secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC);
+/**
+ * Real mp4 / clip / cut seconds. Leftover 0.5s is not a length.
+ * When one candidate is 5 and another is the 15s cook window, use 5.
+ */
+export function realHangDurationSec(
+  ...candidates: Array<number | undefined | null>
+): number | undefined {
+  const real = candidates
+    .map((n) => Number(n))
+    .filter((sec) => Number.isFinite(sec) && sec > MIN_PLATE_BOX_MS / 1000);
+  if (!real.length) return undefined;
+  return Math.min(...real);
+}
+
+/** Known mp4 / clip / cut length, else 15s. A 5s file wins over a 15s window. */
+export function hangClipDurationMs(
+  ...candidates: Array<number | undefined | null>
+): number {
+  return secToMs(realHangDurationSec(...candidates) ?? SCRATCH_SONG_SLICE_DEFAULT_SEC);
 }
 
 export type PlateBoxEdge = "start" | "end";
@@ -750,11 +762,7 @@ export function hangOneClipOnWave(opts: {
     return { plateTimings: existing, cuts: opts.cuts };
   }
   const cutForFile = (opts.cuts || []).find((c) => hangClipBasename(c.clipFile || "") === clipFile);
-  const durMs = hangClipDurationMs(
-    Number(opts.durationSec) > MIN_PLATE_BOX_MS / 1000
-      ? opts.durationSec
-      : cutForFile?.durationSec,
-  );
+  const durMs = hangClipDurationMs(opts.durationSec, cutForFile?.durationSec);
   const askedStart =
     cutForFile && Number(cutForFile.durationSec) > MIN_PLATE_BOX_MS / 1000
       ? secToMs(Number(cutForFile.startSec) || 0)
@@ -817,21 +825,40 @@ export function listUnhungDoneClips(opts: {
   ) => {
     const file = hangClipBasename(clipFile);
     const shot = hangPlateShotId(shotId);
-    if (!file || !shot || skipped.has(shot) || seen.has(file)) return;
+    if (!file || !shot || skipped.has(shot)) return;
     if (clipFileOnWave(clock, file) || impliedHung.has(file)) return;
+    const existing = out.find((r) => r.clipFile === file);
+    const dur = realHangDurationSec(existing?.durationSec, durationSec);
+    if (existing) {
+      if (dur != null) existing.durationSec = dur;
+      if (!existing.plateFile && plateFile) existing.plateFile = plateFile;
+      return;
+    }
     seen.add(file);
     out.push({
       shotId: shot,
       clipFile: file,
       ...(plateFile ? { plateFile } : {}),
-      ...(Number(durationSec) > MIN_PLATE_BOX_MS / 1000 ? { durationSec } : {}),
+      ...(dur != null ? { durationSec: dur } : {}),
     });
   };
   for (const clip of opts.clips || []) {
     if (clip.clipStatus && clip.clipStatus !== "done") continue;
     const stacked = [...(clip.priorClipFiles || []), clip.clipFile || ""];
+    const current = hangClipBasename(clip.clipFile || "");
     for (const file of stacked) {
-      take(clip.shotId || "", file, undefined, clip.durationSec);
+      const cut = (opts.cuts || []).find(
+        (c) => hangClipBasename(c.clipFile || "") === hangClipBasename(file),
+      );
+      take(
+        clip.shotId || "",
+        file,
+        cut?.plateFile,
+        realHangDurationSec(
+          hangClipBasename(file) === current ? clip.durationSec : undefined,
+          cut?.durationSec,
+        ),
+      );
     }
   }
   for (const cut of opts.cuts || []) {
@@ -895,6 +922,7 @@ function impliedHungClipFiles(opts: {
  * File first — hang every unhung done mp4 at the next gap after the last
  * hung end. Same still, second take → after 0:25, not another 0:20.
  * Waiting 0/3 cuts do not block. Does not cook.
+ * Call only from explicit Add / Hang / Put stills — never on TRACK open.
  */
 export function hangUnhungDoneClips(opts: {
   plateTimings?: PlateTiming[];
@@ -1030,7 +1058,8 @@ export function addPlateHangOnTrack(opts: {
  * write a waiting cut and leave the wave empty. Keep any real clock
  * already on the wave — leftover 0.5s is not a clock. Hang each cut
  * that has no real timing yet. Three 0:00 clips sequence at the next
- * gap (duration = known mp4 length else 15). extraIds is Add on a
+ * gap (duration = known mp4 / clip / cut length else 15 — a 5s file
+ * wins over a 15s cook window). extraIds is Add on a
  * still with no clip — hang-plates must not pass those.
  */
 export function hangMissingPlateTimings(

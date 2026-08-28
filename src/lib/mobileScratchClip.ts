@@ -461,14 +461,20 @@ export async function runScratchLtxClip(opts: {
     } catch {
       /* clip still usable this request */
     }
+    const fileSec = probeDurationSeconds(localMp4);
     const next = job.clips.map((c) =>
       c.beatId === beatId
-        ? { ...c, ...rememberClipTake(c, localMp4), clipStatus: "done" as const }
+        ? {
+            ...c,
+            ...rememberClipTake(c, localMp4),
+            clipStatus: "done" as const,
+            ...(fileSec ? { durationSec: fileSec } : {}),
+          }
         : c,
     );
     const clipName = path.basename(localMp4);
     const probed =
-      probeDurationSeconds(localMp4) ||
+      fileSec ||
       (Number(opts.sliceDurationSec) > 0 ? Number(opts.sliceDurationSec) : undefined);
     job = (await patchMobileGenJob(jobId, {
       clips: next,
