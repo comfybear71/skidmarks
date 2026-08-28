@@ -555,6 +555,40 @@ assert.equal(afterBbq[0].title, "Caravan park");
 assert.equal(afterBbq[1].title, "BBQ shelter");
 assert.equal(afterBbq[1].roman, "II");
 assert.ok(afterBbq[1].cellKeys.includes("shot:bbq_12"));
+const unit9Tail = {
+  ...jokeDesk.cells[0],
+  key: "shot:unit9_a",
+  shotId: "unit9_a",
+  sceneId: "scene_unit9_tail",
+  sceneTitle: "Unit 9",
+  title: "SHOT 14 — Nuggets",
+  clipFile: "nuggets.mp4",
+};
+const unit9Twin = {
+  ...unit9Tail,
+  key: "shot:unit9_b",
+  shotId: "unit9_b",
+};
+const twoUnit9 = talkPlaceActsFrom(
+  [
+    { id: "scene_park", placeName: "Caravan park" },
+    { id: "scene_unit9", placeName: "Unit 9" },
+    { id: "scene_bbq", placeName: "BBQ shelter" },
+    { id: "scene_unit9_tail", placeName: "Unit 9" },
+  ],
+  [...jokeDesk.cells, bbqOrphan, unit9Tail, unit9Twin],
+);
+assert.equal(
+  twoUnit9.filter((a) => a.title === "Unit 9").length,
+  1,
+  "two Unit 9 scenes must not mint Act II and Act IV",
+);
+assert.equal(twoUnit9[1].title, "BBQ shelter");
+assert.equal(twoUnit9[1].roman, "II", "BBQ is Act II — leftover Unit 9 does not steal it");
+assert.equal(twoUnit9[2]?.title, "Unit 9");
+assert.equal(twoUnit9[2]?.roman, "III");
+assert.ok(twoUnit9[2].cellKeys.includes("shot:unit9_a"));
+assert.ok(twoUnit9[2].cellKeys.includes("shot:unit9_b"));
 assert.equal(
   talkPlaceActsFrom([], jokeDesk.cells).length,
   talkActScriptsFrom(jokeDesk.cells).length,
