@@ -212,6 +212,49 @@ export function LtxImageMotionPanel({
 }
 
 /**
+ * 90% lock + [ ] hole. LTX / H3 on the Add row open this — they are the engine.
+ * Switching engines keeps the slot words. Does not cook.
+ */
+export function MuteMvMotionHole({
+  engine,
+  motionLock,
+  motionSlot,
+  onMotionSlot,
+  disabled,
+}: {
+  engine: MuteMvEngine;
+  motionLock: MuteMvMotionLock;
+  motionSlot: string;
+  onMotionSlot: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="m-plate-motion-hole" data-engine={engine}>
+      <div className="m-plate-motion-label">
+        {engine === "h3" ? "H3 Image motion" : "LTX Image motion"}
+      </div>
+      <p className="m-plate-motion-lock">{motionLock.lead}</p>
+      <label className="m-plate-motion-slot">
+        <span className="m-plate-motion-slot-mark" aria-hidden>
+          [
+        </span>
+        <textarea
+          value={motionSlot}
+          placeholder={MUTE_MV_SLOT_PLACEHOLDER}
+          rows={2}
+          disabled={disabled}
+          onChange={(e) => onMotionSlot(e.target.value)}
+        />
+        <span className="m-plate-motion-slot-mark" aria-hidden>
+          ]
+        </span>
+      </label>
+      <p className="m-plate-motion-lock">{motionLock.tail}</p>
+    </div>
+  );
+}
+
+/**
  * Music-video plate block — LTX / H3 sit where “LTX Image motion” was.
  * Pick the engine, then type motion in the [ ] hole. Does not cook.
  */
@@ -253,26 +296,13 @@ export function MuteMvEnginePanel({
           H3
         </button>
       </div>
-      <div className="m-track-motion">
-        <div className="m-track-motion-label">Image motion</div>
-        <p className="m-track-motion-lock">{motionLock.lead}</p>
-        <label className="m-track-motion-slot">
-          <span className="m-track-motion-slot-mark" aria-hidden>
-            [
-          </span>
-          <textarea
-            value={motionSlot}
-            placeholder={MUTE_MV_SLOT_PLACEHOLDER}
-            rows={2}
-            disabled={disabled}
-            onChange={(e) => onMotionSlot(e.target.value)}
-          />
-          <span className="m-track-motion-slot-mark" aria-hidden>
-            ]
-          </span>
-        </label>
-        <p className="m-track-motion-lock">{motionLock.tail}</p>
-      </div>
+      <MuteMvMotionHole
+        engine={engine}
+        motionLock={motionLock}
+        motionSlot={motionSlot}
+        onMotionSlot={onMotionSlot}
+        disabled={disabled}
+      />
     </div>
   );
 }

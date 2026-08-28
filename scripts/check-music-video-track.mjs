@@ -375,15 +375,22 @@ assert.match(motion, /pickSongSendMotionBody/);
 }
 
 const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+const panels = readFileSync(join(here, "../src/components/mobile/ShotPromptPanels.tsx"), "utf8");
 const thumbs = readFileSync(join(here, "../src/components/mobile/PlateClipThumbs.tsx"), "utf8");
 assert.doesNotMatch(trackUi, /m-track-engines/, "engines do not sit on the TRACK pick");
 assert.doesNotMatch(trackUi, />\s*Siray\s*</, "Siray is not on the TRACK pick");
 assert.doesNotMatch(trackUi, />\s*Free\s*</, "Free is not on the TRACK pick");
 assert.doesNotMatch(trackUi, /m-track-motion-slot/, "[ ] motion hole is not on TRACK");
 assert.doesNotMatch(trackUi, /MUTE_MV_SLOT_PLACEHOLDER/, "TRACK pick does not edit the motion hole");
-assert.match(editor, /m-plate-motion-slot/, "[ ] motion hole sits on the JACK GHOST plate");
-assert.match(editor, /MUTE_MV_SLOT_PLACEHOLDER/, "plate hole placeholder is stand up, car drives off");
-assert.match(editor, /writeMvMotionSlot/, "plate [ ] keeps the slot for TRACK Send");
+assert.match(editor, /MuteMvMotionHole/, "LTX / H3 open the 90% lock + [ ] hole");
+assert.match(editor, /setEnginePromptOpen\(true\)/, "tap LTX or H3 opens the motion prompt");
+assert.match(editor, /onOpen=\{\(next\) =>/, "LTX / H3 are openers, not a dead highlight");
+assert.match(panels, /export function MuteMvMotionHole/, "one hole for LTX and H3");
+assert.match(panels, /H3 Image motion/, "H3 opens H3 motion");
+assert.match(panels, /LTX Image motion/, "LTX opens LTX motion");
+assert.match(panels, /m-plate-motion-slot/, "[ ] hole is the only edit");
+assert.match(panels, /MUTE_MV_SLOT_PLACEHOLDER/, "hole placeholder is stand up, car drives off");
+assert.match(editor, /writeMvMotionSlot/, "plate [ ] keeps the slot when he switches engine");
 assert.match(editor, /function PlateEngineButtons/, "LTX / H3 sit on the plate Add row");
 assert.match(editor, /m-plate-add-engines/, "Add | LTX | H3 share one row");
 assert.match(editor, />\s*LTX\s*</, "LTX is a real button next to Add");
@@ -398,6 +405,8 @@ assert.match(trackUi, /readMvEngine/, "TRACK Send reads the plate LTX / H3 pick"
 assert.match(trackUi, /clipEngine/, "Send can still run LTX / H3");
 assert.doesNotMatch(trackUi, /Seedance/, "do not fake a Seedance button");
 assert.match(mobileCss, /\.m-plate-add-engines/, "Add | LTX | H3 stay on one row");
+assert.match(mobileCss, /\.m-plate-motion-hole/, "opened prompt is lock + [ ] on the plate");
+assert.match(mobileCss, /\.m-plate-motion-lock/, "90% lock sits around the [ ] hole");
 assert.doesNotMatch(mobileCss, /\.m-plate-clip-engines/, "no engine chrome on the CLIPS thumb");
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),

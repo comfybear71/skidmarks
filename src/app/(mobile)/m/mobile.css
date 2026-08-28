@@ -3330,6 +3330,33 @@ span.scratch-history-blob {
   gap: 8px;
 }
 
+.m-plate-engine-pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-plate-motion-hole {
+  margin: 4px 0 10px;
+}
+
+.m-plate-motion-label {
+  margin-bottom: 6px;
+  color: var(--chrome);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.m-plate-motion-lock {
+  margin: 0;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .m-plate-motion-slot {
   display: flex;
   align-items: stretch;
