@@ -47,3 +47,30 @@ export function placeLookFoldsUnderTitle(placeName: string, candidatePrompt?: st
   if (!look) return false;
   return look.trim() !== placeDetailTitle(placeName).trim();
 }
+
+export type PlacePickOption = {
+  sceneId: string;
+  name: string;
+  thumbUrl: string;
+};
+
+/**
+ * ADD PLATE is person / empty / place — not a second STILLS shelf.
+ * Adding a plate often mints another scene with the same still, so
+ * job.scenes can list the same Dark image seven times. One card each.
+ */
+export function uniquePlacePickOptions<T extends PlacePickOption>(places: T[]): T[] {
+  const seenThumb = new Set<string>();
+  const seenName = new Set<string>();
+  const out: T[] = [];
+  for (const place of places) {
+    const thumb = (place.thumbUrl || "").trim();
+    const name = (place.name || "").trim().toLowerCase();
+    if (thumb && seenThumb.has(thumb)) continue;
+    if (name && seenName.has(name)) continue;
+    if (thumb) seenThumb.add(thumb);
+    if (name) seenName.add(name);
+    out.push(place);
+  }
+  return out;
+}

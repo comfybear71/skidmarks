@@ -144,7 +144,9 @@ assert.doesNotMatch(trackUi, /Sending…/, "TRACK pick has no Send — Send sits
 assert.doesNotMatch(trackUi, /void sendPlate\(picked\.shotId\)/, "TRACK does not run Send");
 assert.match(trackUi, /Park this clip/);
 assert.match(trackUi, /requestSongCookStop/);
-assert.match(trackUi, /m-track-film/);
+assert.doesNotMatch(trackUi, /filter\(\(cell\) => !cell\.onSong\)/, "TRACK does not list off-song stills");
+assert.doesNotMatch(trackUi, />off</, "TRACK has no off badge row of existing stills");
+assert.match(trackUi, /m-track-rail-add/);
 assert.doesNotMatch(trackUi, /Use range/);
 assert.doesNotMatch(trackUi, />Earlier</);
 assert.doesNotMatch(trackUi, />Later</);
@@ -228,7 +230,7 @@ assert.match(trackUi, /Already on the song/);
 assert.doesNotMatch(trackUi, /await songPost\("add-plate"/);
 assert.doesNotMatch(trackUi, /Pictures stay put/);
 
-assert.match(mobileCss, /\.m-track-film/);
+assert.match(mobileCss, /\.m-track-rail-add/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "set-plate-duration"/,

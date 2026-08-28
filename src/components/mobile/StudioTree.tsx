@@ -36,6 +36,7 @@ import {
   placeChipLabel,
   placeDetailTitle,
   placeLookWords,
+  uniquePlacePickOptions,
 } from "@/lib/mobilePlaceLabels";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
@@ -1941,14 +1942,16 @@ export function StudioTree({
                 faceUrl: file ? castFaceUrl(job, name, file, characterIds) : "",
               };
             })}
-            placeOptions={job.scenes.map((scene) => ({
-              sceneId: scene.id,
-              name: scene.placeName,
-              thumbUrl: mobilePlacePreviewUrl(job, {
-                fileName: approvedCandidateFileName(job.locationCandidates, scene.id) || "",
-                worldThumbKey: scene.worldThumbKey || "",
-              }),
-            }))}
+            placeOptions={uniquePlacePickOptions(
+              job.scenes.map((scene) => ({
+                sceneId: scene.id,
+                name: scene.placeName,
+                thumbUrl: mobilePlacePreviewUrl(job, {
+                  fileName: approvedCandidateFileName(job.locationCandidates, scene.id) || "",
+                  worldThumbKey: scene.worldThumbKey || "",
+                }),
+              })),
+            )}
             onCreatePlate={(sceneId, speaker) => {
               if (!job.folderName) {
                 pendingPlate.current = { sceneId, speaker };
