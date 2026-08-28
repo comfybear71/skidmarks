@@ -14,7 +14,7 @@ import { stackedClipFiles } from "@/lib/mobilePlateClips";
 import { orderedJobClips } from "@/lib/orderedJobClips";
 import { useMobileAssist } from "./useMobileAssist";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
-import { PositionPromptPanel, LtxImageMotionPanel } from "@/components/mobile/ShotPromptPanels";
+import { PositionPromptPanel, LtxImageMotionPanel, MuteMvMotionHole } from "@/components/mobile/ShotPromptPanels";
 import {
   applyBibleTokens,
   stripBibleSoloLock,
@@ -53,17 +53,21 @@ import type { ShowStyleId } from "@/lib/showStylePresets";
 import { applyStylePositionGold, stylePositionGold } from "@/lib/stylePositionGold";
 import {
   buildDefaultBeatMotion,
+  buildMuteMvMotionLock,
   clearLtxMotionDraft,
+  extractMuteMvMotionSlot,
   looksLikePlatePositionPrompt,
   pickLtxMotionBody,
   readLtxMotionDraft,
   readMvClipEngine,
   readMvEngine,
+  readMvMotionSlot,
   storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
   writeLtxMotionDraft,
   writeMvClipEngine,
   writeMvEngine,
+  writeMvMotionSlot,
   type MuteMvEngine,
 } from "@/lib/mobileImageMotion";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
@@ -2271,6 +2275,16 @@ function ShotLineEditor({
     bibleIds?: string[],
   ) => void;
 }) {
+  const [enginePromptOpen, setEnginePromptOpen] = useState(false);
+  const [mvEngine, setMvEngine] = useState<MuteMvEngine>(() =>
+    shot?.id ? readMvClipEngine(jobId, shot.id) : "ltx",
+  );
+
+  useEffect(() => {
+    setEnginePromptOpen(false);
+    if (shot?.id) setMvEngine(readMvClipEngine(jobId, shot.id));
+  }, [jobId, shot?.id]);
+
   if (loading) {
     return (
       <div style={{ ...mobileCard, padding: "14px", fontSize: "13px", color: "var(--chrome-dim)" }}>
@@ -2395,6 +2409,12 @@ function ShotLineEditor({
             folderName={folderName}
             jobId={jobId}
             shotId={shot.id}
+            enginePromptOpen={
+              styleId === "music_video" &&
+              enginePromptOpen &&
+              beat.id === (speakingBeats[0]?.id || "")
+            }
+            mvEngine={mvEngine}
             jobVoices={jobVoices}
             lookLock={lookForSpeaker(beat.speaker)}
             shotSpeakers={shotSpeakersOnCard({
@@ -2453,6 +2473,11 @@ function ShotLineEditor({
                   jobId={jobId}
                   shotId={shot.id}
                   beatId={shot.beats[0]?.id || ""}
+                  promptOpen={enginePromptOpen}
+                  onOpen={(next) => {
+                    setMvEngine(next);
+                    setEnginePromptOpen(true);
+                  }}
                 />
               </div>
               {onAddCast ? (
@@ -2484,6 +2509,11 @@ function ShotLineEditor({
             jobId={jobId}
             shotId={shot.id}
             beatId={speakingBeats[0]?.id || shot.beats[0]?.id || ""}
+            promptOpen={enginePromptOpen}
+            onOpen={(next) => {
+              setMvEngine(next);
+              setEnginePromptOpen(true);
+            }}
           />
         ) : (
           <>
@@ -2508,15 +2538,19 @@ function ShotLineEditor({
   );
 }
 
-/** Add | LTX | H3 — pick stores for the next TRACK Send. Does not cook. */
+/** Add | LTX | H3 — tap opens that engine's 90% lock + [ ] hole. Does not cook. */
 function PlateEngineButtons({
   jobId,
   shotId,
   beatId,
+  promptOpen,
+  onOpen,
 }: {
   jobId: string;
   shotId: string;
   beatId: string;
+  promptOpen?: boolean;
+  onOpen?: (engine: MuteMvEngine) => void;
 }) {
   const [engine, setEngine] = useState<MuteMvEngine>(() =>
     shotId ? readMvClipEngine(jobId, shotId) : beatId ? readMvEngine(jobId, beatId) : "ltx",
@@ -2558,11 +2592,20 @@ function PlateEngineButtons({
     if (shotId) writeMvClipEngine(jobId, shotId, next);
     if (beatId) writeMvEngine(jobId, beatId, next);
     setEngine(next);
+    onOpen?.(next);
   }
 
   return (
-    <>
-      <MobilePrimaryButton tone={engine === "ltx" ? "accent" : "ghost"} onClick={() => pick("ltx")}>
+    <div
+      className="m-plate-engine-pair"
+      data-motion-open={promptOpen ? "yes" : "no"}
+      role="group"
+      aria-label="Open LTX or H3 motion prompt"
+    >
+      <MobilePrimaryButton
+        tone={engine === "ltx" ? "accent" : "ghost"}
+        onClick={() => pick("ltx")}
+      >
         LTX
       </MobilePrimaryButton>
       <MobilePrimaryButton
@@ -2572,7 +2615,7 @@ function PlateEngineButtons({
       >
         H3
       </MobilePrimaryButton>
-    </>
+    </div>
   );
 }
 
@@ -2644,6 +2687,8 @@ function BeatLineEditor({
   folderName,
   jobId,
   shotId,
+  enginePromptOpen,
+  mvEngine,
   jobVoices,
   lookLock,
   shotSpeakers,
@@ -2661,6 +2706,8 @@ function BeatLineEditor({
   folderName: string;
   jobId: string;
   shotId: string;
+  enginePromptOpen?: boolean;
+  mvEngine?: MuteMvEngine;
   jobVoices?: Record<string, JobSpeakerVoice>;
   lookLock: string;
   shotSpeakers: string[];
@@ -2832,6 +2879,29 @@ function BeatLineEditor({
     [beat.speaker, lookLock, positionBody, shotSpeakers, styleId, text],
   );
   const storedMotion = stripLtxLipSyncLead(beat.imageMotion || "");
+  const muteLock = useMemo(
+    () =>
+      songDesk
+        ? buildMuteMvMotionLock({
+            styleId: (styleId || "music_video") as ShowStyleId,
+            speaker: beat.speaker,
+            lookLock,
+            shotSpeakers: shotSpeakers.length ? shotSpeakers : undefined,
+            staging: positionBody,
+          })
+        : null,
+    [beat.speaker, lookLock, positionBody, shotSpeakers, songDesk, styleId],
+  );
+  const [muteSlot, setMuteSlot] = useState("");
+  useEffect(() => {
+    if (!songDesk || !muteLock) return;
+    const drafted = readMvMotionSlot(jobId, beat.id);
+    if (drafted !== null) {
+      setMuteSlot(drafted);
+      return;
+    }
+    setMuteSlot(extractMuteMvMotionSlot(storedMotion, muteLock));
+  }, [beat.id, jobId, songDesk, storedMotion]);
   const motionBody = pickLtxMotionBody({
     draft: motionDraft,
     stored: storedMotion,
@@ -3162,6 +3232,18 @@ function BeatLineEditor({
         aiError={positionAssist.aiError}
       />
 
+      {songDesk && muteLock && enginePromptOpen ? (
+        <MuteMvMotionHole
+          engine={mvEngine || "ltx"}
+          motionLock={muteLock}
+          motionSlot={muteSlot}
+          onMotionSlot={(next) => {
+            setMuteSlot(next);
+            writeMvMotionSlot(jobId, beat.id, next);
+          }}
+          disabled={saving}
+        />
+      ) : songDesk ? null : (
       <LtxImageMotionPanel
         open={ltxOpen}
         onToggle={() => setLtxOpen((open) => !open)}
@@ -3181,6 +3263,7 @@ function BeatLineEditor({
         aiBusy={motionAssist.aiBusy}
         aiError={motionAssist.aiError}
       />
+      )}
       {songDesk ? null : (
       <MobilePrimaryButton
         disabled={

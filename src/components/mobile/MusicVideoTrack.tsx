@@ -66,7 +66,6 @@ import { readApiJson } from "@/lib/studioFetchError";
 import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import {
-  MUTE_MV_SLOT_PLACEHOLDER,
   buildMuteMvMotionLock,
   composeMuteMvMotion,
   extractMuteMvMotionSlot,
@@ -756,7 +755,6 @@ export function MusicVideoTrack({
   const [marqueeOpen, setMarqueeOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [pickedId, setPickedId] = useState("");
-  const [motionSlot, setMotionSlot] = useState("");
   const [motionSaving, setMotionSaving] = useState(false);
   const [startDraft, setStartDraft] = useState("0");
   const [lengthDraft, setLengthDraft] = useState("15");
@@ -927,21 +925,6 @@ export function MusicVideoTrack({
     const first = filmItems[0]?.shotId || "";
     if (first) setPickedId(first);
   }, [filmItems, pickedId]);
-
-  useEffect(() => {
-    if (!pickedBeatId) {
-      setMotionSlot("");
-      return;
-    }
-    const drafted = readMvMotionSlot(job.id, pickedBeatId);
-    if (drafted !== null) {
-      setMotionSlot(drafted);
-      return;
-    }
-    setMotionSlot(
-      extractMuteMvMotionSlot(pickedStory?.beat?.imageMotion || "", motionLock),
-    );
-  }, [picked?.shotId, pickedBeatId, job.id]);
 
   useEffect(() => {
     if (picked?.timing) {
@@ -1193,9 +1176,10 @@ export function MusicVideoTrack({
   }
 
   function liveMotionSlot() {
-    if (!pickedBeatId) return motionSlot;
+    if (!pickedBeatId) return "";
     const live = readMvMotionSlot(job.id, pickedBeatId);
-    return live !== null ? live : motionSlot;
+    if (live !== null) return live;
+    return extractMuteMvMotionSlot(pickedStory?.beat?.imageMotion || "", motionLock);
   }
 
   function composedMotionBody() {
@@ -1275,7 +1259,7 @@ export function MusicVideoTrack({
             };
     await schedulePlate(shotId, win.startMs, win.endMs, plateBlocks.length);
     setPickedId(shotId);
-    setNote("On the song. Set how long, then Send.");
+    setNote("On the song. Send when you like it.");
   }
 
   async function sendOneCutBody(cutId: string) {
@@ -1305,7 +1289,7 @@ export function MusicVideoTrack({
   async function sendPlate(shotId: string) {
     if (!hungShotIds().has(shotId.trim())) {
       await addPlateToTimeline(shotId);
-      setNote("On the song. Set start and how long, then Send.");
+      setNote("On the song. Send when you like it.");
       return;
     }
     const hungCut = () =>
@@ -1324,7 +1308,7 @@ export function MusicVideoTrack({
       cut = hungCut();
     }
     if (!cut?.id) {
-      setNote("Set where it starts and how long, then Send.");
+      setNote("This still is not on the song yet.");
       return;
     }
     if (cookLock.current) return;
@@ -1781,65 +1765,6 @@ export function MusicVideoTrack({
                   ? `${formatTrackClockPrecise(picked.timing.startMs)} – ${formatTrackClockPrecise(picked.timing.endMs)}`
                   : "Not on the song yet"}
               </div>
-              <div className="m-track-motion">
-                <div className="m-track-motion-label">Image motion</div>
-                <p className="m-track-motion-lock">{motionLock.lead}</p>
-                <label className="m-track-motion-slot">
-                  <span className="m-track-motion-slot-mark" aria-hidden>
-                    [
-                  </span>
-                  <textarea
-                    value={motionSlot}
-                    placeholder={MUTE_MV_SLOT_PLACEHOLDER}
-                    rows={2}
-                    disabled={Boolean(busy) || motionSaving}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      setMotionSlot(next);
-                      if (pickedBeatId) writeMvMotionSlot(job.id, pickedBeatId, next);
-                    }}
-                  />
-                  <span className="m-track-motion-slot-mark" aria-hidden>
-                    ]
-                  </span>
-                </label>
-                <p className="m-track-motion-lock">{motionLock.tail}</p>
-              </div>
-              <label className="m-track-pick-len">
-                Starts at
-                <input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  inputMode="decimal"
-                  value={startDraft}
-                  disabled={Boolean(busy)}
-                  onChange={(e) => setStartDraft(e.target.value)}
-                />
-                seconds
-              </label>
-              <label className="m-track-pick-len">
-                How long
-                <input
-                  type="number"
-                  min={1}
-                  max={180}
-                  step={0.5}
-                  inputMode="decimal"
-                  value={lengthDraft}
-                  disabled={Boolean(busy)}
-                  onChange={(e) => setLengthDraft(e.target.value)}
-                />
-                seconds
-                <button
-                  type="button"
-                  className="m-track-btn"
-                  disabled={Boolean(busy)}
-                  onClick={() => void setPickedLength()}
-                >
-                  Set
-                </button>
-              </label>
               <div className="m-track-pick-tools">
                 {picked.onSong || picked.timing ? (
                   <>
