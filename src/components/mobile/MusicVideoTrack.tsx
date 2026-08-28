@@ -23,6 +23,7 @@ import {
   withoutLyricCue,
   plateTimingForShot,
   cutForHungPlate,
+  hangPlateShotId,
   isRealPlateHang,
   resolvePlateTimings,
   stretchPlateEdge,
@@ -981,27 +982,27 @@ export function MusicVideoTrack({
   )
     .filter((x) => isRealPlateHang(x))
     .map((x) => {
-      const row = plateRows.find((p) => p.shotId === x.plateId);
+      const row = plateRows.find((p) => p.shotId === hangPlateShotId(x.plateId));
       return { ...x, label: row?.title || x.plateId };
     });
   const plateBlocks: WavePlateBlock[] = (stretchTimings || savedPlateBlocks).map((t) => {
-    const row = plateRows.find((p) => p.shotId === t.plateId);
+    const row = plateRows.find((p) => p.shotId === hangPlateShotId(t.plateId));
     const saved = savedPlateBlocks.find((b) => b.plateId === t.plateId);
     return { ...t, label: row?.title || saved?.label || t.plateId };
   });
   const filmItems = useMemo(() => {
     const hungIds = new Set(
-      plateBlocks.filter((b) => isRealPlateHang(b)).map((b) => b.plateId),
+      plateBlocks.filter((b) => isRealPlateHang(b)).map((b) => hangPlateShotId(b.plateId)),
     );
     const hung = plateBlocks
       .filter((block) => isRealPlateHang(block))
       .map((block) => {
-        const row = plateRows.find((p) => p.shotId === block.plateId);
+        const row = plateRows.find((p) => p.shotId === hangPlateShotId(block.plateId));
         return {
           shotId: block.plateId,
           title: row?.title || block.label,
           plateFile: row?.plateFile || "",
-          timing: row?.timing || block,
+          timing: block,
           onSong: true,
         };
       });
@@ -1024,7 +1025,7 @@ export function MusicVideoTrack({
     plateBlocks.find((b) => b.plateId === picked?.shotId) ||
     null;
   const pickedStory = useMemo(() => {
-    const id = (picked?.shotId || "").trim();
+    const id = hangPlateShotId((picked?.shotId || "").trim());
     if (!id || !story) return null;
     for (const scene of story.scenes || []) {
       const shot = scene.shots.find((sh) => sh.id === id);
@@ -1481,8 +1482,37 @@ export function MusicVideoTrack({
     }
     const existing = plateTimingForShot(song, job.trackDraft, shotId);
     if (existing && isRealPlateHang(existing)) {
-      setPickedId(shotId);
-      setNote("Already on the song. Pull the handle, then Send.");
+      const before = resolvePlateTimings(song, job.trackDraft).filter((t) =>
+        isRealPlateHang(t),
+      ).length;
+      setBusy(`add-${shotId}`);
+      try {
+        const res = await fetch("/api/crash/mobile/song", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "add-plate", jobId: job.id, shotId }),
+        });
+        const raw = (await res.json().catch(() => ({}))) as {
+          job?: MobileGenJob;
+          error?: string;
+        };
+        if (raw.job) onJobChange(raw.job);
+        if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't add that still");
+        const after = resolvePlateTimings(
+          raw.job?.scratchSong,
+          raw.job?.trackDraft,
+        ).filter((t) => isRealPlateHang(t)).length;
+        setPickedId(shotId);
+        setNote(
+          after > before
+            ? "On the song. Pull the handle, then Send."
+            : "Already on the song. Pull the handle, then Send.",
+        );
+      } catch (e) {
+        setNote(e instanceof Error ? e.message : "Couldn't add that still");
+      } finally {
+        setBusy("");
+      }
       return;
     }
     const clock = resolvePlateTimings(song, job.trackDraft);

@@ -50,7 +50,13 @@ import { planParkDeskClipTake } from "@/lib/parkDeskClip";
 import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
-import { cutFromPlateTiming, hangMissingPlateTimings, sliceBoundsForPlate } from "@/lib/musicVideoTrack";
+import {
+  addPlateHangOnTrack,
+  cutFromPlateTiming,
+  hangMissingPlateTimings,
+  hangPlateShotId,
+  sliceBoundsForPlate,
+} from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 
 export const runtime = "nodejs";
@@ -70,7 +76,7 @@ export const maxDuration = 900;
  *   remove-stitch — park a leftover joined mp4 if one exists.
  *   hang-plates — hang done clipFiles on the wave (next gap, known length else 15). Leftover 0.5s is not a hang. Stills with no mp4 stay off — Add those. No leftover job.shots. No cook.
  *   redo-cut — park that clip, leave the still, wait for Send again.
- *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row).
+ *   add-plate — hang leftover rendered mp4 after the last bar (file first), else hang the still if it has no unique wave slot. Waiting 0/3 cuts do not block. Same plate again = another list row. No cook.
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
  *   List edits clear stuck cooks first — a hung LTX must not lock Add forever.
@@ -681,11 +687,33 @@ export async function POST(req: Request) {
       const hangCuts = cuts.filter((c) =>
         extraIds.includes(shotIdForSongCut(c, jobShots)),
       );
-      const plateTimings = hangMissingPlateTimings(song.plateTimings, hangCuts, extraIds);
+      const plateFileFor = (id: string) =>
+        plateFileByShotId[hangPlateShotId(id)] || plateFileByShotId[id] || "";
+      // File first — leftover take after the last hung end. Waiting 0/3
+      // must not block. Use original cuts so hung mp4s stay unique slots.
+      const hung = addPlateHangOnTrack({
+        plateTimings: song.plateTimings,
+        cuts: song.cuts || [],
+        clips: job.clips || [],
+        shotId,
+        hangCuts,
+        extraIds,
+        skipShotIds: withoutSkippedSongPlate(skipSongPlateIds(song), shotId),
+        plateFileFor,
+        newCutId: () => newId("cut"),
+      });
+      const deskFiles = new Set(
+        cuts.map((c) => clipFileBasename(c.clipFile || "")).filter(Boolean),
+      );
+      const extraCuts = hung.cuts.filter((c) => {
+        const file = clipFileBasename(c.clipFile || "");
+        return Boolean(file) && !deskFiles.has(file);
+      });
+      const plateTimings = hung.plateTimings;
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,
-          cuts,
+          cuts: [...cuts, ...extraCuts],
           plateTimings,
           songPlateIds: nextIds,
           rowSlices: slices,
