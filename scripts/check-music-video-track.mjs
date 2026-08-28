@@ -373,6 +373,92 @@ assert.match(motion, /pickSongSendMotionBody/);
   assert.equal(hung?.id, "cut_mtylzdo", "Send this still, not a later leftover row");
 }
 
+assert.doesNotMatch(trackUi, /m-track-engines/, "engine row is not on the TRACK pick");
+assert.doesNotMatch(trackUi, />\s*Siray\s*</, "Siray is not on the TRACK pick");
+assert.doesNotMatch(trackUi, />\s*Free\s*</, "Free is not on the TRACK pick");
+assert.match(trackUi, /m-track-motion-slot/, "[ ] motion slot is what he edits");
+assert.match(trackUi, /MUTE_MV_SLOT_PLACEHOLDER/, "slot placeholder is stand up, car drives off");
+assert.match(trackUi, /readMvClipEngine/, "Send reads LTX / H3 from the Clips fold pick");
+assert.match(trackUi, /clipEngine/, "Send can pick LTX / H3");
+assert.doesNotMatch(trackUi, /Seedance/, "do not fake a Seedance button");
+{
+  const thumbs = readFileSync(join(here, "../src/components/mobile/PlateClipThumbs.tsx"), "utf8");
+  const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+  assert.match(thumbs, /m-plate-clip-engine/, "LTX / H3 sit next to the clip thumb");
+  assert.match(thumbs, />\s*LTX\s*</, "LTX is next to the clip render");
+  assert.match(thumbs, />\s*H3\s*</, "H3 is next to the clip render");
+  assert.doesNotMatch(thumbs, />\s*Siray\s*</, "Siray stays off the clip thumb");
+  assert.doesNotMatch(thumbs, />\s*Free\s*</, "Free stays off the clip thumb");
+  assert.match(thumbs, /writeMvClipEngine/, "tap stores the engine for the next Send");
+  assert.match(thumbs, /disabled=\{!h3Ready\}/, "H3 is dead when this Studio has no key");
+  assert.match(editor, /pickEngine=\{isMusicVideoSongJob\(job\)\}/, "only the music-video Clips fold shows LTX / H3");
+  assert.match(mobileCss, /\.m-plate-clip-engines/, "clip engine buttons have a place beside the thumb");
+}
+
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /hangMissingPlateTimings/,
+  "Add on a still must write the TRACK clock, not only a waiting cut",
+);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /action === "hang-plates"/,
+);
+assert.match(trackUi, /hang-plates/);
+assert.match(trackUi, /remove-plate-timing/);
+assert.match(trackUi, /dropPlateFromWave/);
+assert.match(trackUi, /Off song/);
+assert.match(trackRoute, /parkMobileClipFile/);
+assert.match(trackRoute, /songPlateIds/);
+assert.match(songRoute, /hangCuts/);
+assert.match(
+  songRoute,
+  /leftover job\.shots/,
+  "hang-plates must not take every leftover shot row",
+);
+
+console.log("check-music-video-track: ok");
+
+const park = readFileSync(join(here, "../src/lib/parkDeskClip.ts"), "utf8");
+const clipRoute = readFileSync(join(here, "../src/app/api/crash/mobile/clip/route.ts"), "utf8");
+const motion = readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8");
+const scratchClip = readFileSync(join(here, "../src/lib/mobileScratchClip.ts"), "utf8");
+assert.match(park, /planParkDeskClipTake/);
+assert.match(park, /_cleared/);
+assert.match(clipRoute, /planParkDeskClipTake/);
+assert.match(motion, /pickLtxMotionBody/);
+assert.match(scratchClip, /That still is not ready/);
+assert.match(scratchClip, /Drop the song first/);
+assert.match(scratchClip, /pickSongSendMotionBody/);
+assert.match(scratchClip, /songSendNeedsRecook/);
+assert.match(scratchClip, /planParkDeskClipTake/);
+assert.match(trackUi, /cutForHungPlate/);
+assert.match(motion, /pickSongSendMotionBody/);
+{
+  const hung = cutForHungPlate({
+    cuts: [
+      {
+        id: "cut_mtylzdo",
+        shotId: "shot_1j8xafx",
+        startSec: 0,
+        durationSec: 15,
+        status: "done",
+        clipFile: "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      },
+      {
+        id: "cut_l27ecte",
+        shotId: "shot_1j8xafx",
+        startSec: 180,
+        durationSec: 15,
+        status: "pending",
+      },
+    ],
+    shotId: "shot_1j8xafx",
+    timing: { plateId: "shot_1j8xafx", startMs: 0, endMs: 15000, sortIndex: 0 },
+  });
+  assert.equal(hung?.id, "cut_mtylzdo", "Send this still, not a later leftover row");
+}
+
 const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 const prompts = readFileSync(join(here, "../src/components/mobile/ShotPromptPanels.tsx"), "utf8");
 const thumbs = readFileSync(join(here, "../src/components/mobile/PlateClipThumbs.tsx"), "utf8");
