@@ -41,7 +41,9 @@ import {
   syncSongCutsToDesk,
   songCutsOrderBroken,
   expectedDeskCutCount,
+  needsDoneClipHang,
   needsTrackHang,
+  plateIdsNeedingDoneClipHang,
   plateIdsWaitingForTrack,
   removePlateFromSong,
   storyShotForSongCut,
@@ -597,6 +599,67 @@ assert.deepEqual(
   }),
   [],
   "empty leftover ids are not hung",
+);
+assert.deepEqual(
+  plateIdsWaitingForTrack({
+    song: {
+      plateTimings: [{ plateId: "jack", startMs: 0, endMs: 500, sortIndex: 0 }],
+      songPlateIds: ["jack"],
+    },
+    jobShots: [{ shotId: "jack", plateFile: "jack.png" }],
+  }),
+  ["jack"],
+  "0.5s leftover is not a hang — Add can still put a still on",
+);
+assert.deepEqual(
+  plateIdsNeedingDoneClipHang({
+    song: {
+      plateTimings: [
+        { plateId: "plate_1", startMs: 0, endMs: 500 },
+        { plateId: "plate_8", startMs: 0, endMs: 500 },
+      ],
+      cuts: [
+        { shotId: "plate_1", clipFile: "01.mp4", status: "done", durationSec: 0.5 },
+        { shotId: "plate_8", clipFile: "08.mp4", status: "done", durationSec: 0 },
+      ],
+      skipShotIds: [],
+    },
+    clips: [{ shotId: "plate_9", clipFile: "09.mp4", clipStatus: "done", durationSec: 15 }],
+    jobShots: [
+      { shotId: "plate_1", plateFile: "1.png" },
+      { shotId: "off_still", plateFile: "off.png" },
+      { shotId: "plate_8", plateFile: "8.png" },
+      { shotId: "plate_9", plateFile: "9.png" },
+    ],
+  }),
+  ["plate_1", "plate_8", "plate_9"],
+  "done clips without a real hang, in plate order — off stills stay off",
+);
+assert.equal(
+  needsDoneClipHang(
+    {
+      plateTimings: [{ plateId: "plate_1", startMs: 0, endMs: 15000 }],
+      cuts: [{ shotId: "plate_1", clipFile: "01.mp4", status: "done", durationSec: 15 }],
+    },
+    [{ shotId: "plate_1", plateFile: "1.png" }],
+    [{ shotId: "plate_1", clipFile: "01.mp4", clipStatus: "done", durationSec: 15 }],
+  ),
+  false,
+  "already hung clip does not need Add",
+);
+assert.equal(
+  needsDoneClipHang(
+    { plateTimings: [], cuts: [], skipShotIds: ["gone"] },
+    [{ shotId: "gone", plateFile: "g.png" }],
+    [{ shotId: "gone", clipFile: "gone.mp4", clipStatus: "done", durationSec: 15 }],
+  ),
+  false,
+  "Off song skip stays off",
+);
+assert.match(songRoute, /needsDoneClipHang/);
+assert.match(
+  songRoute.slice(songRoute.indexOf('action === "hang-plates"')),
+  /hangMissingPlateTimings\(song\.plateTimings, hangCuts, \[\]\)/,
 );
 {
   const off = removePlateFromSong({
