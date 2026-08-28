@@ -833,7 +833,9 @@ function impliedHungClipFiles(opts: {
     );
     if (onSlot) {
       implied.add(hangClipBasename(onSlot.clipFile || ""));
-      takenShots.add(hangPlateShotId(t.plateId));
+      if (t.plateId === hangPlateShotId(t.plateId)) {
+        takenShots.add(t.plateId);
+      }
     }
   }
   const firstByShot = new Map<string, string>();
