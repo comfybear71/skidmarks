@@ -14,6 +14,7 @@ import {
   secToMs,
   sortPlateTimings,
 } from "./musicVideoTrack";
+import { addPlateHangDurationSec } from "./hangLengthDraft";
 import {
   formatSongClock,
   remainingSongWindows,
@@ -185,7 +186,8 @@ export function syncSongCutsToDesk(opts: {
  * and every other real plateTiming. Does not rebuild the desk as 15s
  * WAITING slices. Empty still (no mp4) hangs after the last end — no
  * waiting cook. alreadyHung + no leftover file still writes another bar
- * after the last end (extraStillHangPlateId). Does not cook.
+ * after the last end (extraStillHangPlateId) at durationSec (slider 5–40).
+ * Does not cook. Does not clamp to H3's 15.
  */
 export function applyAddPlateOnSong(opts: {
   shotId: string;
@@ -203,6 +205,8 @@ export function applyAddPlateOnSong(opts: {
   songPlateIds?: string[];
   rowSlices?: number[];
   songSec: number;
+  /** Plate slider seconds. Still-only hang uses this. Leftover mp4 keeps file length. */
+  durationSec?: number;
   newCutId: () => string;
 }): {
   cuts: ScratchSongCut[];
@@ -255,7 +259,7 @@ export function applyAddPlateOnSong(opts: {
   );
   const kept = sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t));
   const startMs = kept.length ? Math.max(...kept.map((t) => t.endMs)) : 0;
-  const durMs = secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC);
+  const durMs = secToMs(addPlateHangDurationSec(opts.durationSec));
   const hangId = alreadyHung ? extraStillHangPlateId(shotId, kept) : shotId;
   if (!hangId) {
     return {
@@ -1105,4 +1109,4 @@ export function plateLabel(
   return `Plate ${fallbackIndex}`;
 }
 
-export { SCRATCH_SONG_SLICE_DEFAULT_SEC };
+export { SCRATCH_SONG_SLICE_DEFAULT_SEC, addPlateHangDurationSec };

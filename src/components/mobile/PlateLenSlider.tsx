@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
+import { writeHangLengthDraft } from "@/lib/hangLengthDraft";
 import {
   hungBarDurationSec,
   msToSec,
@@ -22,10 +23,12 @@ export function PlateLenSlider({
   valueSec,
   disabled,
   onCommit,
+  onDraft,
 }: {
   valueSec: number;
   disabled?: boolean;
   onCommit: (sec: number) => void;
+  onDraft?: (sec: number) => void;
 }) {
   const live = valueSec > 0 ? valueSec : SCRATCH_SONG_SLICE_DEFAULT_SEC;
   const [draft, setDraft] = useState(String(live));
@@ -36,11 +39,17 @@ export function PlateLenSlider({
   function commit(raw: number) {
     const sec = clampHangLengthSec(raw);
     setDraft(String(sec));
+    onDraft?.(sec);
     if (Math.abs(sec - live) < 0.05) return;
     onCommit(sec);
   }
 
   const shown = clampHangLengthSec(Number(draft) || live);
+  const onDraftRef = useRef(onDraft);
+  onDraftRef.current = onDraft;
+  useEffect(() => {
+    onDraftRef.current?.(shown);
+  }, [shown]);
 
   return (
     <div className="m-track-pick-len" role="group" aria-label="Clip length">
@@ -56,6 +65,7 @@ export function PlateLenSlider({
         onChange={(e) => {
           const sec = clampHangLengthSec(Number(e.target.value));
           setDraft(String(sec));
+          onDraft?.(sec);
           onCommit(sec);
         }}
       />
@@ -104,7 +114,7 @@ export function PlateHangLenControl({
 
   async function setLength(durationSec: number) {
     if (!jobId || !shotId || !song?.fileName) return;
-    const sec = clampHangLengthSec(durationSec);
+    const sec = writeHangLengthDraft(jobId, shotId, durationSec);
     setBusy(true);
     try {
       const res = await fetch("/api/crash/mobile/track", {
@@ -134,6 +144,7 @@ export function PlateHangLenControl({
     <PlateLenSlider
       valueSec={valueSec}
       disabled={disabled || busy}
+      onDraft={(sec) => writeHangLengthDraft(jobId, shotId, sec)}
       onCommit={(sec) => void setLength(sec)}
     />
   );

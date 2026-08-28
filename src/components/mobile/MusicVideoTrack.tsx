@@ -85,6 +85,7 @@ import {
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
 import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
+import { readHangLengthDraft, writeHangLengthDraft } from "@/lib/hangLengthDraft";
 import { clampHangLengthSec } from "@/lib/scratchSongWindow";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { ClipFrameThumb } from "./ClipFrameThumb";
@@ -1489,7 +1490,12 @@ export function MusicVideoTrack({
         const res = await fetch("/api/crash/mobile/song", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "add-plate", jobId: job.id, shotId }),
+          body: JSON.stringify({
+            action: "add-plate",
+            jobId: job.id,
+            shotId,
+            durationSec: readHangLengthDraft(job.id, shotId),
+          }),
         });
         const raw = (await res.json().catch(() => ({}))) as {
           job?: MobileGenJob;
@@ -1515,7 +1521,7 @@ export function MusicVideoTrack({
       return;
     }
     const clock = resolvePlateTimings(song, job.trackDraft);
-    const next = nextPlateHangWindow(clock);
+    const next = nextPlateHangWindow(clock, readHangLengthDraft(job.id, shotId));
     const win =
       rangeChosen && rangeEndMs > rangeStartMs
         ? { startMs: rangeStartMs, endMs: rangeEndMs }
@@ -2133,6 +2139,7 @@ export function MusicVideoTrack({
                     <PlateLenSlider
                       valueSec={Number(lenDraft) || pickedLenSec || 0}
                       disabled={Boolean(busy)}
+                      onDraft={(sec) => writeHangLengthDraft(job.id, picked.shotId, sec)}
                       onCommit={(sec) => {
                         setLenDraft(String(clampHangLengthSec(sec)));
                         void setHungPlateLength(sec);
