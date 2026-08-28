@@ -95,6 +95,7 @@ import { requestSongCookStop } from "@/lib/songCutCook";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import { runAddPlateInFlight } from "@/lib/addPlateInFlight";
 import {
+  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   plateTimingForShot,
   type MusicVideoTrackDraft,
@@ -2513,6 +2514,7 @@ function ShotLineEditor({
               (enginePromptOpen || muteAction)
             }
             mvEngine={mvEngine}
+            h3LastStills={h3LastStills}
             jobVoices={jobVoices}
             lookLock={lookForSpeaker(beat.speaker)}
             shotSpeakers={shotSpeakersOnCard({
@@ -2620,6 +2622,7 @@ function ShotLineEditor({
                   shotId={shot.id}
                   beatId={shot.beats[0]?.id || ""}
                   engine={mvEngine}
+                  h3LastStills={h3LastStills}
                 />
               ) : null}
               {onAddCast ? (
@@ -2700,12 +2703,21 @@ function ShotLineEditor({
         )}
         </div>
       )}
+      {styleId === "music_video" && onAddToSong ? (
+        <p
+          className={
+            sendStillNote === ADD_STILL_THEN_SEND ? "m-track-err" : "m-plate-add-then-send"
+          }
+        >
+          {ADD_STILL_THEN_SEND}
+        </p>
+      ) : null}
       {h3HangNote && !sendStillBusy ? (
         <p className="m-track-err" role="status">
           {h3HangNote}
         </p>
       ) : null}
-      {sendStillNote ? (
+      {sendStillNote && sendStillNote !== ADD_STILL_THEN_SEND ? (
         <p
           className={sendStillBusy ? "m-song-cook-note" : "m-track-err"}
           role="status"
@@ -2726,11 +2738,13 @@ function EmptyMvMotionHole({
   shotId,
   beatId,
   engine,
+  h3LastStills,
 }: {
   jobId: string;
   shotId: string;
   beatId: string;
   engine: MuteMvEngine;
+  h3LastStills?: MinimaxH3LastStill[];
 }) {
   const muteLock = useMemo(
     () =>
@@ -2762,6 +2776,9 @@ function EmptyMvMotionHole({
         setMuteSlot(next);
         writeMvMotionSlot(jobId, beatId, next);
       }}
+      jobId={jobId}
+      shotId={shotId}
+      h3LastStills={h3LastStills}
     />
   );
 }
@@ -2953,6 +2970,7 @@ function BeatLineEditor({
   shotId,
   enginePromptOpen,
   mvEngine,
+  h3LastStills,
   jobVoices,
   lookLock,
   shotSpeakers,
