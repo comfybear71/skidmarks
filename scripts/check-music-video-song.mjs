@@ -281,7 +281,7 @@ assert.match(songUi, /songOrdinal/);
 assert.match(songUi, /\{n\} × 15s/);
 assert.match(songUi, /shortPlateLabel/);
 assert.match(songUi, /deskRowAllDone/);
-assert.match(songRoute, /still with no mp4 goes on the list at 1 × 15s/);
+assert.match(songRoute, /Still with no mp4 goes on[\s\S]*the list at 1 × 15s/);
 assert.match(songRoute, /leftover mp4 file-first hangs after the last hung bar/);
 assert.match(songUi, /runOneCut/);
 assert.doesNotMatch(songUi, /Send next/);
