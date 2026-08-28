@@ -834,6 +834,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
   /* The Collapse button sits right above this — without a gap the song title
      and the LYRICS chip run straight into it. */
   padding-top: 14px;
@@ -859,6 +860,10 @@ body {
   /* /m scrolls the window — a vertical flick must still move the page. */
   touch-action: pan-x pan-y;
   width: 100%;
+  /* Flex item default min-width:auto grows to the 28px/s inner and body
+     overflow-x:hidden then clips the rest — the whole 5:27 looks like one
+     screen and a 15s bar reads as ~3s. Shrink so this box scrolls. */
+  min-width: 0;
   scrollbar-width: thin;
 }
 
@@ -3239,6 +3244,13 @@ span.scratch-history-blob {
   margin: 2px 0 4px;
 }
 
+/* Hung stills sit on the same inner width as the wave (seconds × 28px). */
+.m-track-rail-on-wave {
+  display: block;
+  width: 100%;
+  margin: 2px 0 4px;
+}
+
 .m-track-film {
   display: flex;
   align-items: stretch;
@@ -3612,6 +3624,16 @@ span.scratch-history-blob {
 
 .m-track-rail-cell.is-timed {
   border-color: var(--acid);
+}
+
+.m-track-rail-cell.is-on {
+  border-color: var(--acid);
+  box-shadow: 0 0 0 1px var(--acid);
+}
+
+.m-track-rail-cell.is-on {
+  border-color: var(--acid);
+  box-shadow: 0 0 0 1px var(--acid);
 }
 
 .m-track-rail-cell.is-align {

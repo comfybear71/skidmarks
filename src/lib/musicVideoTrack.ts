@@ -242,6 +242,17 @@ export function plateRailBox(
   };
 }
 
+/** Bar / picture width in px on the painted wave. Honest: (end − start) / song × wave. */
+export function plateSlicePx(
+  startMs: number,
+  endMs: number,
+  durationMs: number,
+  waveCssWidth: number,
+): number {
+  const box = plateRailBox(startMs, endMs, durationMs);
+  return (box.widthPct / 100) * Math.max(0, waveCssWidth);
+}
+
 export const TRACK_WAVE_RULER_H = 13;
 export const TRACK_WAVE_LANE_H = 26;
 
