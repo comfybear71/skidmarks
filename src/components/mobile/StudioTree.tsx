@@ -36,7 +36,6 @@ import {
   placeChipLabel,
   placeDetailTitle,
   placeLookWords,
-  uniquePlacePickOptions,
 } from "@/lib/mobilePlaceLabels";
 import { getShowStylePreset } from "@/lib/showStylePresets";
 import { styleRealismLabel } from "@/lib/types";
@@ -1934,32 +1933,6 @@ export function StudioTree({
             canStart={canWrite && !lockingScript && !job.folderName}
             onStart={onStartMusicVideo}
             onOpenPlate={(shotId) => revealPlates(shotId)}
-            onExpand={() => setPlatesOpen(true)}
-            castOptions={job.speakers.map((name) => {
-              const file = approvedCandidateFileName(job.castCandidates, name) || "";
-              return {
-                name,
-                faceUrl: file ? castFaceUrl(job, name, file, characterIds) : "",
-              };
-            })}
-            placeOptions={uniquePlacePickOptions(
-              job.scenes.map((scene) => ({
-                sceneId: scene.id,
-                name: scene.placeName,
-                thumbUrl: mobilePlacePreviewUrl(job, {
-                  fileName: approvedCandidateFileName(job.locationCandidates, scene.id) || "",
-                  worldThumbKey: scene.worldThumbKey || "",
-                }),
-              })),
-            )}
-            onCreatePlate={(sceneId, speaker) => {
-              if (!job.folderName) {
-                pendingPlate.current = { sceneId, speaker };
-                onStartMusicVideo(job.lyrics || "");
-                return;
-              }
-              void addLocationToPlate(sceneId, speaker);
-            }}
             onBindSendStill={(fn) => {
               sendStillRef.current = fn;
             }}
