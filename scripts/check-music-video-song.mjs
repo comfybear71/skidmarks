@@ -659,4 +659,12 @@ assert.doesNotMatch(
   "clips fold is not music-video only",
 );
 
+assert.doesNotMatch(trackUi, /How long/, "clip length is after the mp4, not a How long box");
+assert.match(trackUi, /Clip is/, "finished clip shows its real length");
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
+  /durationSec\?: number/,
+  "TRACK POST still types durationSec",
+);
+
 console.log("check-music-video-song: ok");

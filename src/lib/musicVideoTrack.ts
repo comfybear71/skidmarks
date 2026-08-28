@@ -447,6 +447,29 @@ export function applyLandedClipDuration(
   };
 }
 
+/** Seconds the finished mp4 actually runs. Not the 15s hang guess. */
+export function storedClipDurationSec(opts: {
+  clips?: { shotId?: string; clipFile?: string; durationSec?: number }[];
+  cuts?: { shotId?: string; clipFile?: string; durationSec?: number }[];
+  shotId: string;
+}): number | null {
+  const id = (opts.shotId || "").trim();
+  if (!id) return null;
+  for (const clip of opts.clips || []) {
+    if ((clip.shotId || "").trim() !== id) continue;
+    if (!(clip.clipFile || "").trim()) continue;
+    const sec = Number(clip.durationSec);
+    if (Number.isFinite(sec) && sec > 0) return Math.round(sec * 10) / 10;
+  }
+  for (const cut of opts.cuts || []) {
+    if ((cut.shotId || "").trim() !== id) continue;
+    if (!(cut.clipFile || "").trim()) continue;
+    const sec = Number(cut.durationSec);
+    if (Number.isFinite(sec) && sec > 0) return Math.round(sec * 10) / 10;
+  }
+  return null;
+}
+
 /**
  * TRACK paints plateTimings, not the cut list. Add-on-stills used to
  * write a waiting cut and leave the wave empty. Keep any clock already
