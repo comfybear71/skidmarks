@@ -59,7 +59,6 @@ import { clearPendingSong, songChipName } from "@/lib/musicVideoStart";
 import {
   findSongCarrierBeatId,
   hasStuckSongCook,
-  isMusicVideoSongJob,
   musicVideoCreditLine,
   needsDoneClipHang,
 } from "@/lib/musicVideoSong";
@@ -67,7 +66,6 @@ import {
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
-import { uniquePlacePickOptions } from "@/lib/mobilePlaceLabels";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
 import { readApiJson } from "@/lib/studioFetchError";
@@ -842,10 +840,6 @@ export function MusicVideoTrack({
   canStart = false,
   onStart,
   onOpenPlate,
-  onExpand,
-  castOptions = [],
-  placeOptions = [],
-  onCreatePlate,
   onBindSendStill,
   onSendStillBusy,
   onSendStillNote,
@@ -862,13 +856,6 @@ export function MusicVideoTrack({
   onStart?: (lyrics: string) => void;
   /** Tap a plate — opens its Position and LTX prompts. */
   onOpenPlate?: (shotId: string) => void;
-  /** Collapsed ADD PLATE still needs the picker — open Plates first. */
-  onExpand?: () => void;
-  /** Cast and places for the ADD PLATE picker — thumbnails built by the tree. */
-  castOptions?: { name: string; faceUrl: string }[];
-  placeOptions?: { sceneId: string; name: string; thumbUrl: string }[];
-  /** One person, one place, one plate. */
-  onCreatePlate?: (sceneId: string, speaker: string) => void;
   /** Plate-row Send — same cook, not a second generate. */
   onBindSendStill?: (send: (shotId: string) => Promise<void>) => void;
   onSendStillBusy?: (busy: boolean) => void;
@@ -892,9 +879,6 @@ export function MusicVideoTrack({
   const [motionSaving, setMotionSaving] = useState(false);
   const [openSectionId, setOpenSectionId] = useState("");
   const [playing, setPlaying] = useState(false);
-  const [pickOpen, setPickOpen] = useState(false);
-  const [pickWho, setPickWho] = useState<string | null>(null);
-  const [pickWhere, setPickWhere] = useState("");
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
   const [rangeChosen, setRangeChosen] = useState(false);
@@ -1009,10 +993,6 @@ export function MusicVideoTrack({
         };
       });
   }, [plateBlocks, plateRows]);
-  const addPlaces = useMemo(
-    () => uniquePlacePickOptions(placeOptions),
-    [placeOptions],
-  );
   const picked =
     filmItems.find((item) => item.shotId === pickedId) || filmItems[0] || null;
   const pickedOnSong = Boolean(picked && isRealPlateHang(picked.timing));
@@ -2087,10 +2067,8 @@ export function MusicVideoTrack({
           ) : null}
           </TrackScroll>
 
-          {plateBlocks.length ? (
-            <p className="m-track-stretch-hint">
-              {stretchReadout || "Pull a handle on the bar to lengthen or shorten."}
-            </p>
+          {stretchReadout ? (
+            <p className="m-track-stretch-hint">{stretchReadout}</p>
           ) : null}
 
           {picked ? (
@@ -2215,107 +2193,6 @@ export function MusicVideoTrack({
               {pickedOnSong && refuseMinimaxH3OverMax(pickedLenSec) ? (
                 <p className="m-track-err">{MINIMAX_H3_OVER_MAX_NOTE}</p>
               ) : null}
-            </div>
-          ) : null}
-
-          {/* STILLS already lists leftover stills. TRACK does not copy them
-              as an off-row, and does not add a second + for the same job. */}
-          {(!compact || Boolean(onCreatePlate)) && !pickOpen ? (
-            <button
-              type="button"
-              className="m-track-btn"
-              onClick={() => {
-                if (compact) onExpand?.();
-                setPickOpen(true);
-              }}
-            >
-              ADD PLATE
-            </button>
-          ) : null}
-
-          {/* New plate only: person / empty / place. Not every current still. */}
-
-          {pickOpen ? (
-            <div className="m-plate-pick">
-              <div className="m-plate-pick-row">
-                {castOptions.map((who) => (
-                  <button
-                    type="button"
-                    key={who.name}
-                    className={`m-plate-pick-cell${pickWho === who.name ? " is-on" : ""}`}
-                    onClick={() => setPickWho(who.name)}
-                  >
-                    {who.faceUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={who.faceUrl} alt="" />
-                    ) : (
-                      <span className="m-plate-pick-blank" />
-                    )}
-                    <span className="m-plate-pick-name">{who.name}</span>
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className={`m-plate-pick-cell${pickWho === "" ? " is-on" : ""}`}
-                  onClick={() => setPickWho("")}
-                >
-                  <span className="m-plate-pick-blank" />
-                  <span className="m-plate-pick-name">Empty</span>
-                </button>
-              </div>
-              <div className="m-plate-pick-row">
-                {addPlaces.map((place) => (
-                  <button
-                    type="button"
-                    key={place.sceneId}
-                    className={`m-plate-pick-cell${pickWhere === place.sceneId ? " is-on" : ""}`}
-                    onClick={() => setPickWhere(place.sceneId)}
-                  >
-                    {place.thumbUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={place.thumbUrl} alt="" />
-                    ) : (
-                      <span className="m-plate-pick-blank" />
-                    )}
-                    <span className="m-plate-pick-name">{place.name}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="m-plate-pick-actions">
-                <MobilePrimaryButton
-                  size="chip"
-                  disabled={
-                    pickWho === null ||
-                    !pickWhere ||
-                    (!job.folderName && !isMusicVideoSongJob(job))
-                  }
-                  onClick={() => {
-                    onCreatePlate?.(pickWhere, pickWho || "");
-                    setPickOpen(false);
-                    setPickWho(null);
-                    setPickWhere("");
-                  }}
-                >
-                  {job.folderName
-                    ? pickWho
-                      ? `Add ${pickWho}`
-                      : "Add empty"
-                    : isMusicVideoSongJob(job)
-                      ? "Start the video & add"
-                      : "Lock first"}
-                </MobilePrimaryButton>
-                <button
-                  type="button"
-                  className="m-track-btn"
-                  onClick={() => {
-                    setPickOpen(false);
-                    setPickWho(null);
-                    setPickWhere("");
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
           ) : null}
 

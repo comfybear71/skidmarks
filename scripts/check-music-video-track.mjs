@@ -198,8 +198,11 @@ assert.match(trackUi, /m-track-film/);
 assert.doesNotMatch(trackUi, /m-track-film-len">off</, "TRACK must not draw leftover stills as an off-row");
 assert.doesNotMatch(trackUi, /m-track-rail-add/, "TRACK must not draw a second + next to STILLS");
 assert.doesNotMatch(trackUi, /aria-label="Add a still"/);
-assert.doesNotMatch(trackUi, /aria-label="Add a plate"/, "TRACK + is gone — ADD PLATE is the picker");
-assert.match(trackUi, /ADD PLATE/);
+assert.doesNotMatch(trackUi, /aria-label="Add a plate"/, "TRACK + is gone");
+assert.doesNotMatch(trackUi, /ADD PLATE/, "TRACK must not draw ADD PLATE — STILLS is how he adds");
+assert.doesNotMatch(trackUi, /m-track-add-plate/, "TRACK must not grow an add-plate control");
+assert.doesNotMatch(trackUi, /onCreatePlate/, "TRACK must not open a person/place picker");
+assert.doesNotMatch(trackUi, /m-plate-pick/, "TRACK picker went with ADD PLATE");
 assert.doesNotMatch(trackUi, /filter\(\(cell\) => !cell\.onSong\)/, "TRACK does not list off-song stills");
 assert.doesNotMatch(trackUi, />off</, "TRACK has no off badge row of existing stills");
 assert.doesNotMatch(trackUi, /Use range/);
@@ -279,7 +282,12 @@ assert.match(
 assert.match(trackUi, /stretchPlateEdge/);
 assert.match(trackUi, /onStretchCommit/);
 assert.match(trackUi, /hitPlateEdge/);
-assert.match(trackUi, /Pull a handle on the bar/);
+assert.doesNotMatch(
+  trackUi,
+  /Pull a handle on the bar to lengthen or shorten/,
+  "TRACK must not lecture about a handle on a bar",
+);
+assert.doesNotMatch(trackUi, /Pull a handle on the bar/);
 assert.match(trackUi, /selectedPlateId/);
 assert.match(mobileCss, /\.m-track-stretch-hint/);
 assert.match(trackRoute, /set-plate-timings/);
@@ -1235,7 +1243,7 @@ assert.match(
 assert.match(trackUi, /needsDoneClipHang/);
 assert.match(trackUi, /hungClipFileForPlate\(job, picked\.shotId\) \? null/);
 assert.match(trackUi, /isRealPlateHang/);
-assert.match(trackUi, /!compact \|\| Boolean\(onCreatePlate\)/);
+assert.doesNotMatch(trackUi, /!compact \|\| Boolean\(onCreatePlate\)/);
 assert.doesNotMatch(trackUi, /m-track-film-len">off</);
 assert.match(songRoute, /action === "hang-clip"/);
 assert.match(songRoute, /hangOneClipOnWave/);

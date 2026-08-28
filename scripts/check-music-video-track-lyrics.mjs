@@ -118,7 +118,7 @@ console.log("check-music-video-track-lyrics OK");
     assert.ok(railCss.includes(`.${cls} `) || railCss.includes(`.${cls}.`) || railCss.includes(`.${cls}{`) || railCss.includes(`.${cls},`), `${cls} has a rule`);
   }
   assert.match(ui, /onOpenPlate/, "tapping a plate opens its prompts");
-  assert.match(ui, /onCreatePlate/, "the plus makes the plate itself");
+  assert.doesNotMatch(ui, /onCreatePlate/, "TRACK has no ADD PLATE picker");
   // One place picker in the app, not two.
   assert.doesNotMatch(ui, /locationCandidates/, "no second place picker inside Plates");
   // Music does not come in 15s blocks — Add section must not assume one.
@@ -716,38 +716,31 @@ console.log("check-music-video-lyric-tags OK");
     "utf8",
   );
 
-  // One person, one place, one plate — picked without leaving Plates.
-  assert.match(ui, /m-plate-pick/, "the picker lives in the Plates section");
-  assert.match(ui, /castOptions/);
-  assert.match(ui, /placeOptions/);
-  assert.match(ui, /onCreatePlate/);
-
-  // The + is the last thing in the strip, after the plates.
-  assert.ok(
-    ui.indexOf("m-track-rail-cell") < ui.indexOf("m-track-rail-add"),
-    "the + sits to the right of the plates",
-  );
+  // STILLS is how he adds. TRACK must not grow ADD PLATE or a + again.
+  assert.doesNotMatch(ui, /m-plate-pick/, "TRACK has no person/place picker");
+  assert.doesNotMatch(ui, /onCreatePlate/);
+  assert.doesNotMatch(ui, /ADD PLATE/);
+  assert.doesNotMatch(ui, /m-track-rail-add/);
+  assert.doesNotMatch(ui, /m-track-add-plate/);
 
   // It no longer bounces the user over to Locations.
-  assert.doesNotMatch(ui, /onAddPlate/, "the + does the job itself");
+  assert.doesNotMatch(ui, /onAddPlate/, "TRACK does not jump to Locations");
   assert.doesNotMatch(tree, /m-locations-strip.*scrollIntoView/s);
 
-  // No pack yet is not a wall: the + starts the video and holds the pick.
+  // Locations still holds a pick made before Start. TRACK does not.
   assert.match(tree, /pendingPlate/, "a pick made before Start is held");
   assert.match(tree, /Start the video & add|onStartMusicVideo/);
-  assert.match(ui, /Start the video & add/, "the button says what it will do");
+  assert.doesNotMatch(ui, /Start the video & add/, "TRACK has no add-and-start picker");
 
-  // Collapsed Plates used to hide the + when nothing was hung yet.
-  assert.match(
+  assert.doesNotMatch(
     ui,
     /!compact \|\| Boolean\(onCreatePlate\)/,
-    "the + stays on the wave before any plate exists",
+    "TRACK has no leftover add control",
   );
-  assert.match(ui, /uniquePlacePickOptions/, "ADD PLATE does not list every cloned still");
-  assert.match(ui, /m-plate-pick-name">Empty</, "ADD PLATE can make an empty plate");
+  assert.doesNotMatch(ui, /uniquePlacePickOptions/, "TRACK has no place picker");
+  assert.doesNotMatch(ui, /m-plate-pick-name">Empty</, "TRACK has no empty-plate picker");
   assert.doesNotMatch(ui, /m-track-film-len">off</, "TRACK has no second stills shelf");
-  assert.match(tree, /uniquePlacePickOptions/);
-  assert.match(ui, /if \(compact\) onExpand\?/, "collapsed + opens Plates so the picker is on screen");
+  assert.doesNotMatch(ui, /if \(compact\) onExpand\?/, "collapsed ADD PLATE is gone");
   assert.match(tree, /onExpand=\{\(\) => setPlatesOpen\(true\)\}/);
   assert.match(
     tree,

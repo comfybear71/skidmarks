@@ -38,7 +38,7 @@ assert.match(tree, /placeChipLabel\(scene\.placeName\)/);
 assert.match(tree, /displayTitle=\{placeDetailTitle/);
 assert.match(tree, /lookDetail=\{placeLookWords/);
 assert.match(tree, /m-place-look-fold/);
-assert.match(tree, /uniquePlacePickOptions/);
+assert.doesNotMatch(tree, /uniquePlacePickOptions/, "TRACK ADD PLATE picker is gone");
 
 {
   const dark = "/api/crash/mobile/location-still?name=Dark%20imag.png";
