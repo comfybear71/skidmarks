@@ -244,11 +244,21 @@ function talkPlaceKey(name: string): string {
     .trim();
 }
 
+function cellFillsAct(cell: TalkClipCell): boolean {
+  if (String(cell.clipFile || "").trim()) return true;
+  return talkCellTakes(cell).some((t) => String(t.clipFile || "").trim());
+}
+
+function groupFillsAct(group: TalkClipCell[]): boolean {
+  return group.some(cellFillsAct);
+}
+
 /**
  * One act chip per location. Empty leftovers in the middle (Unit 9
  * sitting between Caravan park and BBQ) do not steal Act II — clips
  * pasted at BBQ stay on the BBQ chip. A later add that minted a fresh
- * scene for the same place still sits on that place's chip.
+ * scene for the same place still sits on that place's chip, numbered
+ * where the clips actually are (after BBQ), not twice as Act II and IV.
  * Trailing empty places stay tappable. Does not rewrite story.
  */
 export function talkPlaceActsFrom(
@@ -260,47 +270,102 @@ export function talkPlaceActsFrom(
   if (!places.length) return talkActScriptsFrom(list);
 
   const used = new Set<string>();
-  const grouped = places.map((scene) => {
-    const key = talkPlaceKey(scene.placeName || scene.title || "");
-    const direct = list.filter((c) => c.sceneId === scene.id);
-    const extras = list.filter(
-      (c) =>
-        !used.has(c.key) &&
-        !direct.some((d) => d.key === c.key) &&
-        talkPlaceKey(c.sceneTitle) === key,
-    );
-    const group = [...direct, ...extras];
-    for (const cell of group) used.add(cell.key);
-    return { scene, group };
-  });
-  const lastFilled = grouped.reduce((n, row, i) => (row.group.length ? i : n), -1);
-
-  const acts: TalkActScript[] = [];
-  const seenPlace = new Set<string>();
-  for (const [i, row] of grouped.entries()) {
-    const title = (row.scene.placeName || row.scene.title || "Shot").trim();
+  const perScene = places.map((scene, index) => {
+    const title = (scene.placeName || scene.title || "Shot").trim();
     const key = talkPlaceKey(title);
-    const empty = !row.group.length;
+    const direct = list.filter((c) => c.sceneId === scene.id);
+    for (const cell of direct) used.add(cell.key);
+    return { scene, title, key, index, group: [...direct] };
+  });
+
+  for (const cell of list) {
+    if (used.has(cell.key)) continue;
+    const key = talkPlaceKey(cell.sceneTitle);
+    if (!key) continue;
+    const matches = perScene.filter((row) => row.key === key);
+    if (!matches.length) continue;
+    const home =
+      [...matches].reverse().find((row) => row.group.length) || matches[matches.length - 1]!;
+    home.group.push(cell);
+    used.add(cell.key);
+  }
+
+  type Merged = {
+    scene: (typeof places)[number];
+    title: string;
+    key: string;
+    group: TalkClipCell[];
+    sortIndex: number;
+    hadFilled: boolean;
+  };
+  const merged: Merged[] = [];
+  const byKey = new Map<string, Merged>();
+  for (const row of perScene) {
+    const incomingFilled = groupFillsAct(row.group);
+    if (row.key && byKey.has(row.key)) {
+      const keep = byKey.get(row.key)!;
+      for (const cell of row.group) {
+        if (!keep.group.some((c) => c.key === cell.key)) keep.group.push(cell);
+      }
+      if (incomingFilled) {
+        if (!keep.hadFilled) {
+          keep.sortIndex = row.index;
+          keep.scene = row.scene;
+        } else {
+          keep.sortIndex = Math.min(keep.sortIndex, row.index);
+        }
+        keep.hadFilled = true;
+      }
+      continue;
+    }
+    const next: Merged = {
+      scene: row.scene,
+      title: row.title,
+      key: row.key,
+      group: [...row.group],
+      sortIndex: row.index,
+      hadFilled: incomingFilled,
+    };
+    if (row.key) byKey.set(row.key, next);
+    merged.push(next);
+  }
+  merged.sort((a, b) => a.sortIndex - b.sortIndex);
+
+  const lastFilled = merged.reduce((n, row, i) => (groupFillsAct(row.group) ? i : n), -1);
+  const acts: TalkActScript[] = [];
+  for (const [i, row] of merged.entries()) {
+    const empty = !groupFillsAct(row.group);
     if (empty && lastFilled >= 0 && i < lastFilled) continue;
-    if (empty && key && seenPlace.has(key)) continue;
-    if (key) seenPlace.add(key);
     const built = talkActFromCells(acts.length + 1, row.group, `place-${row.scene.id}`);
     acts.push({
       ...built,
       sceneId: row.scene.id,
-      title: title || built.title,
+      title: row.title || built.title,
     });
   }
 
-  const extras = new Map<string, TalkClipCell[]>();
   for (const cell of list) {
     if (used.has(cell.key)) continue;
-    const group = extras.get(cell.sceneId) || [];
-    group.push(cell);
-    extras.set(cell.sceneId, group);
-  }
-  for (const group of extras.values()) {
-    acts.push(talkActFromCells(acts.length + 1, group, `place-${group[0]!.sceneId}`));
+    const key = talkPlaceKey(cell.sceneTitle);
+    const hit = acts.find(
+      (a) => a.sceneId === cell.sceneId || (key && talkPlaceKey(a.title) === key),
+    );
+    if (hit) {
+      if (!hit.cellKeys.includes(cell.key)) {
+        hit.cellKeys.push(cell.key);
+        hit.lineCount += 1;
+        hit.script = `${hit.script}${talkActCellScript(cell)}`.trim();
+      }
+      used.add(cell.key);
+      continue;
+    }
+    const built = talkActFromCells(acts.length + 1, [cell], `place-${cell.sceneId}`);
+    acts.push({
+      ...built,
+      sceneId: cell.sceneId,
+      title: (cell.sceneTitle || built.title).trim() || built.title,
+    });
+    used.add(cell.key);
   }
   return acts;
 }
