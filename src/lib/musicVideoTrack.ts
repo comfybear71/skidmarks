@@ -9,8 +9,8 @@ import { clampMinimaxH3HangSec } from "./minimaxH3";
 import {
   clampSongSliceDuration,
   clampSongWindow,
+  HANG_LENGTH_MAX_SEC,
   SCRATCH_SONG_SLICE_DEFAULT_SEC,
-  SCRATCH_SONG_SLICE_MAX_SEC,
   SCRATCH_SONG_SLICE_MIN_SEC,
 } from "./scratchSongWindow";
 
@@ -476,8 +476,8 @@ export function hungBarDurationSec(
 }
 
 /**
- * Send uses this clock. H3 4–15 (7 and 9 stay 7 and 9). LTX 4–30.
- * Never fall back to the H3 5s default when the bar is hung.
+ * Send uses this clock. H3 4–15 (7 and 9 stay 7 and 9). LTX 5–40.
+ * A 10s bar cooks 10. A 40s bar cooks 40. Never invent 15.
  */
 export function cookDurationFromHungBar(
   timing: { startMs?: number; endMs?: number } | null | undefined,
@@ -486,9 +486,9 @@ export function cookDurationFromHungBar(
   const hang = hungBarDurationSec(timing);
   if (hang == null) return { error: "Hang the still on the song first." };
   if (engine === "h3") return clampMinimaxH3HangSec(hang);
-  const durationSec = clampSongSliceDuration(hang, SCRATCH_SONG_SLICE_MAX_SEC);
-  if (hang > SCRATCH_SONG_SLICE_MAX_SEC) {
-    return { durationSec, note: `LTX max ${SCRATCH_SONG_SLICE_MAX_SEC} — cooking ${durationSec}` };
+  const durationSec = clampSongSliceDuration(hang, HANG_LENGTH_MAX_SEC);
+  if (hang > HANG_LENGTH_MAX_SEC) {
+    return { durationSec, note: `LTX max ${HANG_LENGTH_MAX_SEC} — cooking ${durationSec}` };
   }
   if (hang < SCRATCH_SONG_SLICE_MIN_SEC) {
     return { durationSec, note: `LTX min ${SCRATCH_SONG_SLICE_MIN_SEC} — cooking ${durationSec}` };
@@ -633,6 +633,35 @@ export function withPlateDuration(
   const hit = sorted.find((t) => t.plateId === (plateId || "").trim());
   if (!hit) return null;
   return withPlateWindow(existing, plateId, hit.startMs, durationMs, songMs);
+}
+
+/**
+ * Same as withPlateDuration when the still is already on the wave.
+ * If it is not hung yet, mint a bar after the last end at this length
+ * so Send has a clock (10s stays 10).
+ */
+export function ensurePlateDuration(
+  existing: PlateTiming[] | undefined,
+  plateId: string,
+  durationMs: number,
+  songMs: number,
+): PlateTiming[] | null {
+  const id = (plateId || "").trim();
+  if (!id) return null;
+  const resized = withPlateDuration(existing, id, durationMs, songMs);
+  if (resized) return resized;
+  const startMs = nextPlateHangStartMs(existing);
+  const dur = Math.max(PLATE_DURATION_MIN_MS, Math.round(Number(durationMs) || 0));
+  const seed: PlateTiming[] = [
+    ...sortPlateTimings(existing || []),
+    {
+      plateId: id,
+      startMs,
+      endMs: startMs + dur,
+      sortIndex: (existing || []).length,
+    },
+  ];
+  return withPlateDuration(seed, id, durationMs, songMs);
 }
 
 /**

@@ -85,11 +85,12 @@ import {
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
 import { MINIMAX_H3_ID, MINIMAX_H3_OVER_MAX_NOTE, refuseMinimaxH3OverMax } from "@/lib/minimaxH3";
-import { HANG_LENGTH_CHIPS_SEC } from "@/lib/scratchSongWindow";
+import { clampHangLengthSec } from "@/lib/scratchSongWindow";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 import { DeskFold, MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
+import { PlateLenSlider } from "./PlateLenSlider";
 
 import {
   askSongCookNotifyPermission,
@@ -101,21 +102,6 @@ import {
   waitForSongCut,
 } from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
-
-/** Slider stops only. The seconds box still takes a typed 7 or 9. */
-function snapHangLengthSec(sec: number): (typeof HANG_LENGTH_CHIPS_SEC)[number] {
-  const n = Number(sec);
-  let best: (typeof HANG_LENGTH_CHIPS_SEC)[number] = 15;
-  let bestDist = Number.POSITIVE_INFINITY;
-  for (const snap of HANG_LENGTH_CHIPS_SEC) {
-    const d = Math.abs(n - snap);
-    if (d < bestDist) {
-      best = snap;
-      bestDist = d;
-    }
-  }
-  return best;
-}
 
 /** Tall enough to read the bars and the plate lane on a phone. */
 const TRACK_WAVE_HEIGHT = 78;
@@ -2144,42 +2130,14 @@ export function MusicVideoTrack({
                     >
                       {busy === `drop-${picked.shotId}` ? "…" : "Off song"}
                     </button>
-                    <div className="m-track-pick-len" role="group" aria-label="Clip length">
-                      <input
-                        type="range"
-                        className="m-track-len-slider"
-                        min={5}
-                        max={15}
-                        step={5}
-                        aria-label="Snap length"
-                        value={snapHangLengthSec(Number(lenDraft) || pickedLenSec || 15)}
-                        disabled={Boolean(busy)}
-                        onChange={(e) => {
-                          const sec = snapHangLengthSec(Number(e.target.value));
-                          setLenDraft(String(sec));
-                          void setHungPlateLength(sec);
-                        }}
-                      />
-                      <input
-                        type="number"
-                        min={4}
-                        max={30}
-                        step={1}
-                        inputMode="decimal"
-                        aria-label="Seconds on the song"
-                        value={lenDraft}
-                        disabled={Boolean(busy)}
-                        onChange={(e) => setLenDraft(e.target.value)}
-                        onBlur={() => commitHungPlateLength()}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            commitHungPlateLength();
-                          }
-                        }}
-                      />
-                      <span>s</span>
-                    </div>
+                    <PlateLenSlider
+                      valueSec={Number(lenDraft) || pickedLenSec || 0}
+                      disabled={Boolean(busy)}
+                      onCommit={(sec) => {
+                        setLenDraft(String(clampHangLengthSec(sec)));
+                        void setHungPlateLength(sec);
+                      }}
+                    />
                     {/* Send lives on the JACK GHOST plate row — one cook. */}
                     {doneCutForPlate(picked.shotId)?.id ||
                     waitingCutForPlate(picked.shotId)?.clipFile ||
