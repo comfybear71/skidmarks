@@ -2353,7 +2353,7 @@ function ShotLineEditor({
   const [muteAction, setMuteAction] = useState(
     () => leftoverCutaway || Boolean(shot?.id && readMvMuteAction(jobId, shot.id)),
   );
-  const h3HangNote = useMemo(() => {
+  const h3HangNote = (() => {
     if (styleId !== "music_video" || mvEngine !== "h3" || !shot?.id) return "";
     const cook = cookDurationFromHungBar(
       plateTimingForShot(scratchSong, trackDraft, shot.id),
@@ -2361,7 +2361,7 @@ function ShotLineEditor({
     );
     if ("error" in cook) return "";
     return cook.note;
-  }, [mvEngine, scratchSong, shot?.id, styleId, trackDraft]);
+  })();
 
   useEffect(() => {
     setEnginePromptOpen(false);
