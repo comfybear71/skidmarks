@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { MobileGenJob } from "@/lib/mobileGenJob";
 import { writeHangLengthDraft } from "@/lib/hangLengthDraft";
 import {
@@ -45,11 +45,6 @@ export function PlateLenSlider({
   }
 
   const shown = clampHangLengthSec(Number(draft) || live);
-  const onDraftRef = useRef(onDraft);
-  onDraftRef.current = onDraft;
-  useEffect(() => {
-    onDraftRef.current?.(shown);
-  }, [shown]);
 
   return (
     <div className="m-track-pick-len" role="group" aria-label="Clip length">
@@ -78,7 +73,11 @@ export function PlateLenSlider({
         aria-label="Seconds on the song"
         value={draft}
         disabled={disabled}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          const n = Number(e.target.value);
+          if (Number.isFinite(n) && n > 0) onDraft?.(clampHangLengthSec(n));
+        }}
         onBlur={() => commit(Number(draft))}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -111,6 +110,11 @@ export function PlateHangLenControl({
   const [busy, setBusy] = useState(false);
   const timing = plateTimingForShot(song, trackDraft, shotId);
   const valueSec = hungBarDurationSec(timing) || 0;
+  useEffect(() => {
+    if (jobId && shotId) {
+      writeHangLengthDraft(jobId, shotId, valueSec > 0 ? valueSec : SCRATCH_SONG_SLICE_DEFAULT_SEC);
+    }
+  }, [jobId, shotId, valueSec]);
 
   async function setLength(durationSec: number) {
     if (!jobId || !shotId || !song?.fileName) return;
