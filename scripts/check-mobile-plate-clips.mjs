@@ -101,6 +101,11 @@ assert.match(editor, /m-plate-clips-bleed/);
 assert.match(editor, /m-plate-clip-rail/);
 assert.match(editor, /layout="strip"/);
 assert.doesNotMatch(editor, /width: `\$\{PLATE_TILE_PX\}px`[\s\S]{0,200}Clips/);
+assert.match(editor, /requestSongCookStop/);
+assert.match(editor, /action: "remove-clip"/);
+const clipRoute = fs.readFileSync(new URL("../src/app/api/crash/mobile/clip/route.ts", import.meta.url), "utf8");
+assert.match(clipRoute, /planParkDeskClipTake/);
+assert.match(clipRoute, /scratchSong/);
 
 const css = fs.readFileSync(new URL("../src/app/(mobile)/m/mobile.css", import.meta.url), "utf8");
 assert.match(css, /\.m-plate-clips-bleed/);

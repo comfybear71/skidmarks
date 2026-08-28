@@ -69,6 +69,7 @@ import {
   tallySongCuts,
 } from "@/lib/musicVideoSong";
 import { CutawayBeatPanel } from "@/components/mobile/CutawayBeatPanel";
+import { requestSongCookStop } from "@/lib/songCutCook";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
@@ -511,6 +512,9 @@ export function PlateReviewEditor({
   async function postClipAction(body: Record<string, string>) {
     setActionError("");
     setClipBusy(true);
+    if (isMusicVideoSongJob(job) && body.action === "remove-clip") {
+      requestSongCookStop(job.id);
+    }
     try {
       const res = await fetch("/api/crash/mobile/clip", {
         method: "POST",

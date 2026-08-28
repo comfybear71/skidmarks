@@ -120,6 +120,8 @@ export function clipsUnderPlate(
 /**
  * /m Clips fold under Stills. TRACK hang writes cuts + plateTimings.
  * If we only look at job.clips, a hung mute clip hides the whole dropdown.
+ * ✕ must park the song cut too (`planParkDeskClipTake`) or this list
+ * draws the file again and the X looks dead.
  */
 export function clipsForStillsDesk(job: {
   clips?: MobileClipUnit[];

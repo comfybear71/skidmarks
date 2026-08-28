@@ -132,4 +132,93 @@ const runningPlate = planParkClipsUnderPlate(
 assert.equal(isEpisodeClipPlanError(runningPlate), true);
 assert.equal(runningPlate.status, 409);
 
+
+import { planParkDeskClipTake } from "../src/lib/parkDeskClip.ts";
+import { clipsForStillsDesk } from "../src/lib/mobilePlateClips.ts";
+
+const song = {
+  fileName: "give-me-something.mp3",
+  durationSec: 180,
+  sliceStartSec: 0,
+  sliceDurationSec: 24,
+  plateTimings: [{ plateId: "jack", startMs: 0, endMs: 24000, sortIndex: 0 }],
+  cuts: [
+    {
+      id: "cut-jack",
+      plateFile: "jack.png",
+      shotId: "jack",
+      startSec: 0,
+      durationSec: 24,
+      clipFile: "01_JACK_GHOST.mp4",
+      status: "done",
+      error: "",
+    },
+    {
+      id: "cut-fail",
+      plateFile: "p6.png",
+      shotId: "s6",
+      startSec: 90,
+      durationSec: 15,
+      clipFile: "",
+      status: "error",
+      error: "failed",
+    },
+    {
+      id: "cut-run",
+      plateFile: "p7.png",
+      shotId: "s7",
+      startSec: 105,
+      durationSec: 15,
+      clipFile: "",
+      status: "running",
+      error: "",
+    },
+  ],
+};
+const deskClip = clip({
+  beatId: "beat-jack",
+  shotId: "jack",
+  clipFile: "01_JACK_GHOST.mp4",
+  clipStatus: "done",
+});
+const both = planParkDeskClipTake({
+  clips: [deskClip],
+  song,
+  beatId: "beat-jack",
+  fileName: "01_JACK_GHOST.mp4",
+});
+assert.equal(isEpisodeClipPlanError(both), false);
+assert.equal(both.next[0].clipFile, "");
+assert.equal(both.next[0].clipStatus, "pending");
+assert.equal(both.nextSong.cuts[0].clipFile, "");
+assert.equal(both.nextSong.cuts[0].status, "pending");
+assert.equal(both.nextSong.cuts[1].status, "error");
+assert.equal(both.nextSong.cuts[2].status, "pending");
+assert.equal(both.stoppedCook, true);
+assert.deepEqual(both.filesToPark, ["01_JACK_GHOST.mp4"]);
+assert.equal(both.nextSong.plateTimings[0].plateId, "jack");
+
+const railBefore = clipsForStillsDesk({
+  clips: [deskClip],
+  shots: [{ shotId: "jack", sceneId: "scene-1" }],
+  scratchSong: song,
+});
+assert.equal(railBefore.some((c) => stackedClipFiles(c).includes("01_JACK_GHOST.mp4")), true);
+const railAfter = clipsForStillsDesk({
+  clips: both.next,
+  shots: [{ shotId: "jack", sceneId: "scene-1" }],
+  scratchSong: both.nextSong,
+});
+assert.equal(railAfter.some((c) => stackedClipFiles(c).includes("01_JACK_GHOST.mp4")), false);
+
+const synth = planParkDeskClipTake({
+  clips: [],
+  song,
+  beatId: "cut-jack",
+  fileName: "01_JACK_GHOST.mp4",
+});
+assert.equal(isEpisodeClipPlanError(synth), false);
+assert.equal(synth.nextSong.cuts[0].status, "pending");
+assert.deepEqual(synth.filesToPark, ["01_JACK_GHOST.mp4"]);
+
 console.log("check-mobile-episode-clips: ok");

@@ -508,6 +508,8 @@ assert.match(songRoute, /Do not rebuild them as 1 × 15s/);
 assert.match(songRoute, /syncSongCutsToDesk/);
 assert.match(songRoute, /Keep done clips/);
 assert.match(songRoute, /action === "redo-cut"/);
+assert.match(songRoute, /planParkDeskClipTake/);
+assert.doesNotMatch(songRoute, /Stop send first\./);
 assert.match(songRoute, /action === "hang-plates"/);
 assert.match(songRoute, /action === "add-plate"/);
 assert.match(songRoute, /storyShotForSongCut/);
