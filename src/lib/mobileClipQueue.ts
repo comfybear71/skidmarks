@@ -236,9 +236,10 @@ export function upsertPendingClip(
   const clips = job.clips || [];
   if (!home) return clips;
   const existing = clips.find((c) => c.beatId === beatId);
+  const existingVoice = existing?.voiceFile || "";
   const voiceFile =
     (isMobileSavedVoiceFile(home.voiceFile) && home.voiceFile) ||
-    (isMobileSavedVoiceFile(existing?.voiceFile) && existing.voiceFile) ||
+    (isMobileSavedVoiceFile(existingVoice) && existingVoice) ||
     "";
   if (!voiceFile) return clips;
   if (!existing) {
