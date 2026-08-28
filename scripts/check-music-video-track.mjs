@@ -10,6 +10,7 @@ import {
   hangMissingPlateTimings,
   nextPlateHangWindow,
   swapNeighborPlateTimings,
+  withPlateDuration,
   msToSec,
   orderedDoneCutsForStitch,
   plateRailBox,
@@ -117,13 +118,15 @@ assert.match(
 assert.match(tree, /compact=\{!platesOpen\}/);
 assert.match(trackUi, /WaveformCanvas/);
 assert.match(trackUi, /Add section/);
-assert.match(trackUi, /Add to timeline/);
-assert.match(trackUi, /Add stills to the timeline/);
+assert.match(trackUi, /Put stills on the song/);
+assert.match(trackUi, /How long/);
 assert.match(trackUi, /Send all/);
+assert.match(trackUi, /m-track-film/);
 assert.doesNotMatch(trackUi, /Use range/);
 assert.doesNotMatch(trackUi, /Hang stills on the wave/);
-assert.match(mobileCss, /\.m-track-plate-row \.clip-frame-thumb\.m-track-plate-thumb/);
-assert.match(mobileCss, /max-height: 40px/);
+assert.doesNotMatch(trackUi, /Plates on the track/);
+assert.match(mobileCss, /\.m-track-film-cell/);
+assert.match(mobileCss, /\.m-track-pick-len/);
 assert.match(trackRoute, /set-plate-timing/);
 assert.match(songRoute, /sliceBoundsForPlate/);
 assert.match(songRoute, /cutFromPlateTiming/);
@@ -131,11 +134,12 @@ assert.match(attach, /trackDraft/);
 assert.match(attach, /evenPlateTimings/);
 assert.match(mobileCss, /\.m-track-wave/);
 
-assert.match(trackUi, /Earlier/);
-assert.match(trackUi, /Later/);
+assert.match(trackUi, /Move left/);
+assert.match(trackUi, /Move right/);
 assert.match(trackUi, /move-plate/);
 assert.match(trackUi, /Stop send/);
-assert.match(trackUi, /Add stills to the timeline/);
+assert.match(trackUi, /Put stills on the song/);
+assert.match(trackUi, /set-plate-duration/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "move-plate"/,
@@ -171,8 +175,11 @@ assert.doesNotMatch(trackUi, /Pictures stay put/);
 assert.doesNotMatch(mobileCss, /\.m-track-stretch-hint/);
 assert.doesNotMatch(trackRoute, /set-plate-timings/);
 
-assert.match(trackUi, /plateRailBox/);
-assert.match(mobileCss, /\.m-track-rail-align/);
+assert.match(mobileCss, /\.m-track-film/);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
+  /action === "set-plate-duration"/,
+);
 
 const first = plateRailBox(0, 15000, 60000);
 assert.equal(first.leftPct, 0);
@@ -226,6 +233,20 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   ]);
   assert.equal(nextWin.startMs, 15000);
   assert.equal(nextWin.endMs, 30000);
+
+  const resized = withPlateDuration(
+    [
+      { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+    ],
+    "a",
+    8000,
+    180000,
+  );
+  assert.equal(resized?.[0].endMs, 8000);
+  assert.equal(resized?.[1].startMs, 8000);
+  assert.equal(resized?.[1].endMs, 23000);
+  assert.equal(withPlateDuration([], "missing", 8000, 180000), null);
 
   const fromShots = hangMissingPlateTimings(
     [{ plateId: "shot_2uhu0p1", startMs: 0, endMs: 15000, sortIndex: 0 }],

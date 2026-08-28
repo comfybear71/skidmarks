@@ -8,6 +8,8 @@ import {
   TRACK_SECTION_LABELS,
   formatTrackClock,
   formatTrackClockPrecise,
+  msToSec,
+  secToMs,
   nextPlateHangWindow,
   evenLineStartMs,
   evenLyricHoldMs,
@@ -33,7 +35,6 @@ import {
   sectionNeedsStartHere,
   sectionTint,
   sectionTitle,
-  plateRailBox,
   sortPlateTimings,
   sortSectionMarkers,
   trackPlayheadScrollLeft,
@@ -737,7 +738,8 @@ export function MusicVideoTrack({
   const [lyricsOpen, setLyricsOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
   const [marqueeOpen, setMarqueeOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(false);
-  const [platesOnTrackOpen, setPlatesOnTrackOpen] = useState(true);
+  const [pickedId, setPickedId] = useState("");
+  const [lengthDraft, setLengthDraft] = useState("15");
   const [freeLookOpen, setFreeLookOpen] = useState(() => stockLookIsOn(job.stockLook));
   const [freeLook, setFreeLook] = useState<StockLook>(() => parseStockLook(job.stockLook));
   const [openSectionId, setOpenSectionId] = useState("");
@@ -830,6 +832,43 @@ export function MusicVideoTrack({
     return { ...t, label: row?.title || t.plateId };
   });
   const plateBlocks = savedPlateBlocks;
+  const filmItems = useMemo(() => {
+    const hungIds = new Set(plateBlocks.map((b) => b.plateId));
+    const hung = plateBlocks.map((block) => {
+      const row = plateRows.find((p) => p.shotId === block.plateId);
+      return {
+        shotId: block.plateId,
+        title: row?.title || block.label,
+        plateFile: row?.plateFile || "",
+        timing: row?.timing || block,
+        onSong: true,
+      };
+    });
+    const waiting = plateRows
+      .filter((row) => !hungIds.has(row.shotId))
+      .map((row) => ({
+        shotId: row.shotId,
+        title: row.title,
+        plateFile: row.plateFile,
+        timing: row.timing,
+        onSong: Boolean(row.timing),
+      }));
+    return [...hung, ...waiting];
+  }, [plateBlocks, plateRows]);
+  const picked =
+    filmItems.find((item) => item.shotId === pickedId) || filmItems[0] || null;
+
+  useEffect(() => {
+    if (pickedId && filmItems.some((item) => item.shotId === pickedId)) return;
+    const first = filmItems[0]?.shotId || "";
+    if (first) setPickedId(first);
+  }, [filmItems, pickedId]);
+
+  useEffect(() => {
+    if (!picked?.timing) return;
+    setLengthDraft(String(msToSec(picked.timing.endMs - picked.timing.startMs)));
+  }, [picked?.shotId, picked?.timing?.endMs, picked?.timing?.startMs]);
+
   const zipClips = useMemo(() => orderedJobClips(job), [job]);
   const zipHref = zipClips.length
     ? `/api/crash/mobile/clips/zip?jobId=${encodeURIComponent(job.id)}`
@@ -1074,12 +1113,19 @@ export function MusicVideoTrack({
       setNote("Drop the song first.");
       return;
     }
+    const typed = Number(lengthDraft);
+    const durSec = Number.isFinite(typed) && typed > 0 ? typed : 15;
     const win =
       rangeChosen && rangeEndMs > rangeStartMs
         ? { startMs: rangeStartMs, endMs: rangeEndMs }
-        : nextPlateHangWindow(song.plateTimings);
+        : {
+            startMs: nextPlateHangWindow(song.plateTimings).startMs,
+            endMs:
+              nextPlateHangWindow(song.plateTimings).startMs + secToMs(durSec),
+          };
     await schedulePlate(shotId, win.startMs, win.endMs, plateBlocks.length);
-    setNote("On the timeline. Move it, then Send when you like the order.");
+    setPickedId(shotId);
+    setNote("On the song. Set how long, then Send.");
   }
 
   async function sendOneCutBody(cutId: string) {
@@ -1285,6 +1331,36 @@ export function MusicVideoTrack({
     }
   }
 
+  async function setPickedLength() {
+    if (!picked?.shotId) {
+      setNote("Tap a still first.");
+      return;
+    }
+    if (!picked.onSong && !picked.timing) {
+      await addPlateToTimeline(picked.shotId);
+      return;
+    }
+    const durationSec = Number(lengthDraft);
+    if (!Number.isFinite(durationSec) || durationSec <= 0) {
+      setNote("Type how many seconds this still covers.");
+      return;
+    }
+    setBusy(`len-${picked.shotId}`);
+    setNote("");
+    try {
+      const updated = await trackAction("set-plate-duration", {
+        jobId: job.id,
+        plateId: picked.shotId,
+        durationSec,
+      });
+      if (updated) onJobChange(updated);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't set that length");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function dropSong() {
     // The browser copy and the saved one both have to go, or the x looks dead:
     // clearing only the parked file left trackDraft.songFile pointing at it and
@@ -1329,7 +1405,7 @@ export function MusicVideoTrack({
                 disabled={busy === "hang"}
                 onClick={() => void hangStillsOnWave()}
               >
-                {busy === "hang" ? "Adding…" : "Add stills to the timeline"}
+                {busy === "hang" ? "Adding…" : "Put stills on the song"}
               </MobilePrimaryButton>
             ) : null}
             {song?.fileName && hungWaitingCuts().length && !busy.startsWith("send-") ? (
@@ -1474,62 +1550,43 @@ export function MusicVideoTrack({
               Compact still shows the rail so hung clips keep their own thumbs.
               + stays up even with no plates yet — that is how a band
               member gets onto the song. */}
-          {(plateBlocks.length || !compact || Boolean(onCreatePlate)) ? (
+          {(filmItems.length || !compact || Boolean(onCreatePlate)) ? (
             <div className="m-track-rail">
-              <div
-                className={`m-track-rail-scroll${plateBlocks.length ? " m-track-rail-align" : ""}`}
-              >
-                {(plateBlocks.length
-                  ? plateBlocks.map((block) => {
-                      const row = plateRows.find((p) => p.shotId === block.plateId);
-                      const box = plateRailBox(
-                        block.startMs,
-                        block.endMs,
-                        effectiveDurationMs || 1,
-                      );
-                      return {
-                        key: block.plateId,
-                        shotId: block.plateId,
-                        title: row?.title || block.label,
-                        plateFile: row?.plateFile || "",
-                        timed: Boolean(row?.timing),
-                        style: { left: `${box.leftPct}%`, width: `${box.widthPct}%` } as const,
-                      };
-                    })
-                  : plateRows.map((row) => ({
-                      key: row.shotId,
-                      shotId: row.shotId,
-                      title: row.title,
-                      plateFile: row.plateFile,
-                      timed: Boolean(row.timing),
-                      style: undefined,
-                    }))
-                ).map((cell) => (
-                  <button
-                    type="button"
-                    key={cell.key}
-                    className={`m-track-rail-cell${plateBlocks.length ? " is-align" : ""}${cell.timed ? " is-timed" : ""}`}
-                    style={cell.style}
-                    onClick={() => onOpenPlate?.(cell.shotId)}
-                    title={cell.title}
-                  >
-                    {hungClipFileForPlate(job, cell.shotId) || cell.plateFile ? (
-                      <ClipFrameThumb
-                        clipSrc={
-                          hungClipFileForPlate(job, cell.shotId)
-                            ? mobileClipSrc(job, hungClipFileForPlate(job, cell.shotId))
-                            : ""
-                        }
-                        stillSrc={
-                          cell.plateFile ? mobileLocationStillUrl(job, cell.plateFile) : ""
-                        }
-                      />
-                    ) : (
-                      <span className="m-track-rail-empty" />
-                    )}
-                    <span className="m-track-rail-label">{cell.title}</span>
-                  </button>
-                ))}
+              <div className="m-track-film">
+                {filmItems.map((cell) => {
+                  const durSec = cell.timing
+                    ? msToSec(cell.timing.endMs - cell.timing.startMs)
+                    : 0;
+                  const on = picked?.shotId === cell.shotId;
+                  return (
+                    <button
+                      type="button"
+                      key={cell.shotId}
+                      className={`m-track-film-cell${cell.onSong ? " is-on-song" : ""}${on ? " is-on" : ""}`}
+                      onClick={() => setPickedId(cell.shotId)}
+                      title={cell.title}
+                    >
+                      {hungClipFileForPlate(job, cell.shotId) || cell.plateFile ? (
+                        <ClipFrameThumb
+                          clipSrc={
+                            hungClipFileForPlate(job, cell.shotId)
+                              ? mobileClipSrc(job, hungClipFileForPlate(job, cell.shotId))
+                              : ""
+                          }
+                          stillSrc={
+                            cell.plateFile ? mobileLocationStillUrl(job, cell.plateFile) : ""
+                          }
+                        />
+                      ) : (
+                        <span className="m-track-rail-empty" />
+                      )}
+                      <span className="m-track-rail-label">{cell.title}</span>
+                      <span className="m-track-film-len">
+                        {cell.onSong && durSec > 0 ? `${durSec}s` : "off"}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
               <button
                 type="button"
@@ -1539,10 +1596,111 @@ export function MusicVideoTrack({
                   setPickOpen((v) => !v);
                 }}
                 aria-expanded={pickOpen}
-                aria-label="Add a plate"
+                aria-label="Add a still"
               >
                 +
               </button>
+            </div>
+          ) : null}
+          {!compact && picked ? (
+            <div className="m-track-pick">
+              <div className="m-track-pick-name">{picked.title}</div>
+              <div className="m-track-pick-clock">
+                {picked.timing
+                  ? `${formatTrackClockPrecise(picked.timing.startMs)} – ${formatTrackClockPrecise(picked.timing.endMs)}`
+                  : "Not on the song yet"}
+              </div>
+              <label className="m-track-pick-len">
+                How long
+                <input
+                  type="number"
+                  min={1}
+                  max={180}
+                  step={0.5}
+                  inputMode="decimal"
+                  value={lengthDraft}
+                  disabled={Boolean(busy)}
+                  onChange={(e) => setLengthDraft(e.target.value)}
+                />
+                seconds
+                <button
+                  type="button"
+                  className="m-track-btn"
+                  disabled={Boolean(busy)}
+                  onClick={() => void setPickedLength()}
+                >
+                  Set
+                </button>
+              </label>
+              <div className="m-track-pick-tools">
+                {picked.onSong || picked.timing ? (
+                  <>
+                    <button
+                      type="button"
+                      className="m-track-btn"
+                      disabled={
+                        Boolean(busy) ||
+                        plateBlocks.findIndex((b) => b.plateId === picked.shotId) <= 0
+                      }
+                      onClick={() => void movePlate(picked.shotId, "earlier")}
+                    >
+                      Move left
+                    </button>
+                    <button
+                      type="button"
+                      className="m-track-btn"
+                      disabled={
+                        Boolean(busy) ||
+                        plateBlocks.findIndex((b) => b.plateId === picked.shotId) >=
+                          plateBlocks.length - 1
+                      }
+                      onClick={() => void movePlate(picked.shotId, "later")}
+                    >
+                      Move right
+                    </button>
+                    {waitingCutForPlate(picked.shotId)?.id ? (
+                      <button
+                        type="button"
+                        className="m-track-btn"
+                        disabled={Boolean(busy) || busy.startsWith("send-")}
+                        onClick={() => void sendPlate(picked.shotId)}
+                      >
+                        {busy === `send-${waitingCutForPlate(picked.shotId)?.id}`
+                          ? "Sending…"
+                          : "Send"}
+                      </button>
+                    ) : null}
+                    {doneCutForPlate(picked.shotId)?.id ? (
+                      <button
+                        type="button"
+                        className="m-track-btn"
+                        disabled={Boolean(busy) || busy.startsWith("send-")}
+                        onClick={() => void redoPlate(picked.shotId)}
+                      >
+                        Redo
+                      </button>
+                    ) : null}
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="m-track-btn"
+                    disabled={Boolean(busy) || !picked.plateFile}
+                    onClick={() => void addPlateToTimeline(picked.shotId)}
+                  >
+                    Add
+                  </button>
+                )}
+                {onOpenPlate ? (
+                  <button
+                    type="button"
+                    className="m-track-btn"
+                    onClick={() => onOpenPlate(picked.shotId)}
+                  >
+                    Open
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
           </TrackScroll>
@@ -1882,117 +2040,6 @@ export function MusicVideoTrack({
                     Clear
                   </button>
                 ) : null}
-              </div>
-            </DeskFold>
-          ) : null}
-
-          {compact ? null : job.folderName && plateRows.length ? (
-            <DeskFold
-              label="Plates"
-              count={plateRows.length}
-              open={platesOnTrackOpen}
-              onToggle={() => setPlatesOnTrackOpen((v) => !v)}
-            >
-              <p className="m-track-lyric-hint">
-                These are stills. Add them to the timeline
-                {rangeChosen
-                  ? ` at ${formatTrackClockPrecise(rangeStartMs)}–${formatTrackClockPrecise(rangeEndMs)}`
-                  : ""}
-                . Then Send one, or Send all. Keep a good clip. Redo a bad one.
-              </p>
-              <div className="m-track-plates">
-                {plateRows.map((row) => {
-                  const waveI = plateBlocks.findIndex((b) => b.plateId === row.shotId);
-                  const onTimeline = waveI >= 0;
-                  const waitCut = waitingCutForPlate(row.shotId);
-                  const doneCut = doneCutForPlate(row.shotId);
-                  const sending = waitCut?.id ? busy === `send-${waitCut.id}` : false;
-                  return (
-                  <div key={row.shotId} className="m-track-plate-row">
-                    {hungClipFileForPlate(job, row.shotId) || row.plateFile ? (
-                      <ClipFrameThumb
-                        className="m-track-plate-thumb"
-                        clipSrc={
-                          hungClipFileForPlate(job, row.shotId)
-                            ? mobileClipSrc(job, hungClipFileForPlate(job, row.shotId))
-                            : ""
-                        }
-                        stillSrc={
-                          row.plateFile ? mobileLocationStillUrl(job, row.plateFile) : ""
-                        }
-                      />
-                    ) : (
-                      <span className="m-track-plate-thumb m-track-plate-thumb--empty" />
-                    )}
-                    <div className="m-track-plate-meta">
-                      <div className="m-track-plate-title">{row.title}</div>
-                      {row.timing ? (
-                        <div className="m-track-plate-time">
-                          {formatTrackClockPrecise(row.timing.startMs)} –{" "}
-                          {formatTrackClockPrecise(row.timing.endMs)}
-                        </div>
-                      ) : (
-                        <div className="m-track-plate-time m-track-plate-time--open">
-                          Not on the timeline
-                        </div>
-                      )}
-                    </div>
-                    <div className="m-track-plate-tools">
-                      {onTimeline ? (
-                        <>
-                          <button
-                            type="button"
-                            className="m-track-btn"
-                            disabled={Boolean(busy) || waveI <= 0}
-                            onClick={() => void movePlate(row.shotId, "earlier")}
-                          >
-                            {busy === `move-${row.shotId}` ? "…" : "Earlier"}
-                          </button>
-                          <button
-                            type="button"
-                            className="m-track-btn"
-                            disabled={
-                              Boolean(busy) || waveI >= plateBlocks.length - 1
-                            }
-                            onClick={() => void movePlate(row.shotId, "later")}
-                          >
-                            {busy === `move-${row.shotId}` ? "…" : "Later"}
-                          </button>
-                          {waitCut?.id && (waitCut.status !== "done" || !waitCut.clipFile) ? (
-                            <button
-                              type="button"
-                              className="m-track-btn"
-                              disabled={Boolean(busy) || busy.startsWith("send-")}
-                              onClick={() => void sendPlate(row.shotId)}
-                            >
-                              {sending ? "Sending…" : "Send"}
-                            </button>
-                          ) : null}
-                          {doneCut?.id ? (
-                            <button
-                              type="button"
-                              className="m-track-btn"
-                              disabled={Boolean(busy) || busy.startsWith("send-")}
-                              onClick={() => void redoPlate(row.shotId)}
-                            >
-                              {busy === `redo-${doneCut.id}` ? "…" : "Redo"}
-                            </button>
-                          ) : null}
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="m-track-btn"
-                          disabled={Boolean(busy) || !row.plateFile}
-                          onClick={() => void addPlateToTimeline(row.shotId)}
-                        >
-                          {busy === `time-${row.shotId}` ? "…" : "Add to timeline"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  );
-                })}
               </div>
             </DeskFold>
           ) : null}

@@ -7,8 +7,10 @@ import {
 } from "@/lib/forgottenWhoPlays";
 import {
   cutFromPlateTiming,
+  secToMs,
   songFromTrackDraft,
   swapNeighborPlateTimings,
+  withPlateDuration,
   type LyricCue,
   type MusicVideoTrackDraft,
   type PlateTiming,
@@ -64,6 +66,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-draft — pre-lock peaks/markers/timings on job.trackDraft
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
+ *   set-plate-duration — how many seconds this still covers. Followers slide. No cook.
  *   move-plate — swap this still with the earlier or later slot. No cook.
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
@@ -210,6 +213,35 @@ export async function POST(req: Request) {
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated, timing });
+    }
+
+    if (action === "set-plate-duration") {
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
+      }
+      const plateId = String(body.plateId || "").trim();
+      if (!plateId) return NextResponse.json({ error: "Need plateId" }, { status: 400 });
+      const plateTimings = withPlateDuration(
+        song.plateTimings,
+        plateId,
+        secToMs(Number(body.durationSec)),
+        secToMs(song.durationSec),
+      );
+      if (!plateTimings) {
+        return NextResponse.json({ error: "Put that still on the song first." }, { status: 400 });
+      }
+      let cuts = song.cuts || [];
+      for (const timing of plateTimings) {
+        const plateFile = (job.shots.find((s) => s.shotId === timing.plateId)?.plateFile || "").trim();
+        if (!plateFile || plateFile === "__error__") continue;
+        cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, plateTimings, cuts },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
     }
 
     if (action === "move-plate") {
