@@ -99,6 +99,21 @@ import {
 } from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
 
+/** Slider stops only. The seconds box still takes a typed 7 or 9. */
+function snapHangLengthSec(sec: number): (typeof HANG_LENGTH_CHIPS_SEC)[number] {
+  const n = Number(sec);
+  let best: (typeof HANG_LENGTH_CHIPS_SEC)[number] = 15;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const snap of HANG_LENGTH_CHIPS_SEC) {
+    const d = Math.abs(n - snap);
+    if (d < bestDist) {
+      best = snap;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
 /** Tall enough to read the bars and the plate lane on a phone. */
 const TRACK_WAVE_HEIGHT = 78;
 
@@ -2114,17 +2129,21 @@ export function MusicVideoTrack({
                       {busy === `drop-${picked.shotId}` ? "…" : "Off song"}
                     </button>
                     <div className="m-track-pick-len" role="group" aria-label="Clip length">
-                      {HANG_LENGTH_CHIPS_SEC.map((sec) => (
-                        <button
-                          type="button"
-                          key={sec}
-                          className={`m-track-len-chip${pickedLenSec === sec ? " is-on" : ""}`}
-                          disabled={Boolean(busy)}
-                          onClick={() => void setHungPlateLength(sec)}
-                        >
-                          {sec}
-                        </button>
-                      ))}
+                      <input
+                        type="range"
+                        className="m-track-len-slider"
+                        min={5}
+                        max={15}
+                        step={5}
+                        aria-label="Snap length"
+                        value={snapHangLengthSec(Number(lenDraft) || pickedLenSec || 15)}
+                        disabled={Boolean(busy)}
+                        onChange={(e) => {
+                          const sec = snapHangLengthSec(Number(e.target.value));
+                          setLenDraft(String(sec));
+                          void setHungPlateLength(sec);
+                        }}
+                      />
                       <input
                         type="number"
                         min={4}

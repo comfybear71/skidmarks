@@ -242,14 +242,28 @@ assert.match(trackUi, /Put stills on the song/);
 assert.match(trackUi, /set-plate-duration/);
 assert.match(trackUi, /setHungPlateLength/);
 assert.match(trackUi, /HANG_LENGTH_CHIPS_SEC/);
-assert.match(trackUi, /m-track-len-chip/);
+assert.match(trackUi, /snapHangLengthSec/);
+assert.match(trackUi, /type="range"/);
+assert.match(trackUi, /m-track-len-slider/);
+assert.match(trackUi, /min=\{5\}/);
+assert.match(trackUi, /max=\{15\}/);
+assert.match(trackUi, /step=\{5\}/);
+assert.doesNotMatch(trackUi, /m-track-len-chip/, "5/10/15 chips as separate buttons are gone");
+assert.doesNotMatch(
+  trackUi,
+  /HANG_LENGTH_CHIPS_SEC\.map\(\(sec\) =>/,
+  "chips are not mapped to buttons",
+);
 assert.match(trackUi, /MINIMAX_H3_OVER_MAX_NOTE/);
 assert.match(trackUi, /refuseMinimaxH3OverMax/);
 assert.match(
   readFileSync(join(here, "../src/lib/minimaxH3.ts"), "utf8"),
   /H3 max 15/,
 );
-assert.match(mobileCss, /\.m-track-len-chip/);
+assert.doesNotMatch(mobileCss, /\.m-track-len-chip/, "chip chrome is gone");
+assert.match(mobileCss, /\.m-track-len-slider/);
+assert.match(mobileCss, /\.m-track-pick-len input\[type="number"\]/);
+assert.match(mobileCss, /width: 2\.3rem/, "seconds box is half the old 4.6rem");
 assert.match(trackUi, /aria-label="Seconds on the song"/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
