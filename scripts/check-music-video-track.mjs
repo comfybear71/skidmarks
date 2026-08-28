@@ -372,3 +372,6 @@ assert.match(motion, /pickSongSendMotionBody/);
   });
   assert.equal(hung?.id, "cut_mtylzdo", "Send this still, not a later leftover row");
 }
+
+assert.match(trackUi, /studioFetchError/, "TRACK must not print raw Failed to fetch");
+assert.match(trackUi, /Couldn't reach Studio/, "dropped TRACK POST keeps the episode");

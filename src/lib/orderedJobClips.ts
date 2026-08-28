@@ -6,6 +6,7 @@
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import {
   clipFileBasename,
+  clipsForStillsDesk,
   clipsUnderPlate,
   humanMediaSlug,
   humanOrderedClipName,
@@ -81,12 +82,6 @@ export function orderedJobClips(
       const clip = (job.clips || []).find((c) => (c.shotId || "").trim() === shotId && c.clipFile);
       push(cut?.clipFile || clip?.clipFile || "", clip?.speaker || "", shotId);
     }
-  } else if (cuts.some((c) => c.clipFile)) {
-    for (const cut of cuts) {
-      if (!cut.clipFile) continue;
-      const clip = (job.clips || []).find((c) => clipFileBasename(c.clipFile || "") === clipFileBasename(cut.clipFile || ""));
-      push(cut.clipFile, clip?.speaker || "", cut.shotId || "");
-    }
   } else if (story?.scenes?.length) {
     for (const scene of story.scenes) {
       for (const shot of scene.shots) {
@@ -100,6 +95,17 @@ export function orderedJobClips(
     }
   }
 
+  // Hung cuts always — a TRACK clock on other plates must not hide an mp4
+  // whose shotId is not one of those timing rows. Story fetch must not
+  // hide them either.
+  for (const cut of cuts) {
+    if (!cut.clipFile) continue;
+    const clip = (job.clips || []).find(
+      (c) => clipFileBasename(c.clipFile || "") === clipFileBasename(cut.clipFile || ""),
+    );
+    push(cut.clipFile, clip?.speaker || "", cut.shotId || "");
+  }
+
   for (const clip of job.clips || []) {
     for (const file of stackedClipFiles(clip)) {
       push(file, clip.speaker || "", clip.shotId || "");
@@ -107,6 +113,16 @@ export function orderedJobClips(
   }
 
   return out;
+}
+
+/** Playable mp4s the Clips fold can show — job + hung cuts, no story needed. */
+export function playableDeskClipCount(job: MobileGenJob): number {
+  const files = new Set<string>();
+  for (const row of orderedJobClips(job)) files.add(row.clipFile);
+  for (const clip of clipsForStillsDesk(job)) {
+    for (const file of stackedClipFiles(clip)) files.add(file);
+  }
+  return files.size;
 }
 
 export function clipsZipFileName(

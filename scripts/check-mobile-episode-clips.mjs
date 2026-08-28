@@ -135,6 +135,7 @@ assert.equal(runningPlate.status, 409);
 
 import { planParkDeskClipTake } from "../src/lib/parkDeskClip.ts";
 import { clipsForStillsDesk } from "../src/lib/mobilePlateClips.ts";
+import { orderedJobClips, playableDeskClipCount } from "../src/lib/orderedJobClips.ts";
 
 const song = {
   fileName: "give-me-something.mp3",
@@ -220,5 +221,53 @@ const synth = planParkDeskClipTake({
 assert.equal(isEpisodeClipPlanError(synth), false);
 assert.equal(synth.nextSong.cuts[0].status, "pending");
 assert.deepEqual(synth.filesToPark, ["01_JACK_GHOST.mp4"]);
+
+// TRACK thumbs can show 15s / 30s / leftover clocks that do not match the
+// hung mp4's shotId. The Clips fold must still list that file — story
+// fetch must not be required either.
+const leftoverJob = {
+  id: "mgen_leftover",
+  styleId: "music_video",
+  folderName: "TEST_PACK",
+  songTitle: "Give Me Something",
+  clips: [],
+  shots: [{ shotId: "jack", sceneId: "scene-1", plateFile: "jack.png" }],
+  scratchSong: {
+    plateTimings: [
+      { plateId: "other", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "also", startMs: 15000, endMs: 45000, sortIndex: 1 },
+      { plateId: "rest", startMs: 45000, endMs: 110500, sortIndex: 2 },
+    ],
+    cuts: [
+      {
+        id: "cut-jack",
+        shotId: "jack",
+        clipFile: "01_JACK_24s.mp4",
+        status: "done",
+        durationSec: 24,
+      },
+    ],
+  },
+};
+const leftover = orderedJobClips(leftoverJob);
+assert.equal(leftover.some((c) => c.clipFile === "01_JACK_24s.mp4"), true);
+assert.equal(playableDeskClipCount(leftoverJob) >= 1, true);
+
+const viaPlate = clipsForStillsDesk({
+  clips: [],
+  shots: [{ shotId: "jack", sceneId: "scene-1", plateFile: "jack.png" }],
+  scratchSong: {
+    cuts: [
+      {
+        id: "cut-jack",
+        plateFile: "jack.png",
+        clipFile: "01_JACK_24s.mp4",
+        status: "done",
+        durationSec: 24,
+      },
+    ],
+  },
+});
+assert.equal(viaPlate.some((c) => stackedClipFiles(c).includes("01_JACK_24s.mp4")), true);
 
 console.log("check-mobile-episode-clips: ok");

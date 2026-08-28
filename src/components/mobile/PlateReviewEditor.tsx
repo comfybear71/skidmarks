@@ -11,7 +11,7 @@ import {
 } from "./MobileUi";
 import { PLATE_TILE_PX, PlateClipThumbs, clipsForStillsDesk, clipsUnderPlate } from "./PlateClipThumbs";
 import { stackedClipFiles } from "@/lib/mobilePlateClips";
-import { orderedJobClips } from "@/lib/orderedJobClips";
+import { orderedJobClips, playableDeskClipCount } from "@/lib/orderedJobClips";
 import { useMobileAssist } from "./useMobileAssist";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
 import { PositionPromptPanel, LtxImageMotionPanel } from "@/components/mobile/ShotPromptPanels";
@@ -118,12 +118,18 @@ function fieldLabel(text: string) {
 type RemovedShot = { sceneId: string; shot: CrashStoryShot };
 
 async function fetchStory(styleId: string, folderName: string): Promise<CrashStoryDoc | null> {
-  const res = await fetch(
-    `/api/crash/story?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(folderName)}`,
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  return (data.story as CrashStoryDoc) || null;
+  let res: Response;
+  try {
+    res = await fetch(
+      `/api/crash/story?styleId=${encodeURIComponent(styleId)}&folderName=${encodeURIComponent(folderName)}`,
+    );
+  } catch (e) {
+    throw new Error(
+      studioFetchError(e, "Couldn't load the plates. Tap + — the episode is still there."),
+    );
+  }
+  const data = await readApiJson<{ story?: CrashStoryDoc; error?: string }>(res);
+  return data.story || null;
 }
 
 /** Submit the still, then poll. One long POST was dying as "Couldn't reach Studio". */
@@ -258,12 +264,22 @@ export function PlateReviewEditor({
         if (s) {
           setStory(s);
           setLoadError("");
-        } else setLoadError("Couldn't load the plates. Tap + — the episode is still there.");
+          return;
+        }
+        // Job already has stills/clips — a stub story GET must not hide them.
+        if (playableDeskClipCount(job) || job.shots.length) {
+          setLoadError("");
+          return;
+        }
+        setLoadError("Couldn't load the plates. Tap + — the episode is still there.");
       })
       .catch((e) => {
-        if (!cancelled) {
-          setLoadError(studioFetchError(e, "Couldn't load the plates. Tap + — the episode is still there."));
+        if (cancelled) return;
+        if (playableDeskClipCount(job) || job.shots.length) {
+          setLoadError("");
+          return;
         }
+        setLoadError(studioFetchError(e, "Couldn't load the plates. Tap + — the episode is still there."));
       });
     return () => {
       cancelled = true;
@@ -321,6 +337,10 @@ export function PlateReviewEditor({
       clips = gather(shots);
       focused = false;
     }
+    if (!clips.some((c) => stackedClipFiles(c).length > 0)) {
+      clips = deskClips.filter((c) => stackedClipFiles(c).length > 0);
+      focused = false;
+    }
     const posterRow =
       (focus ? shots.find((s) => s.shotId === focus) : null) ||
       shots.find((s) => {
@@ -354,6 +374,7 @@ export function PlateReviewEditor({
   }, [openShotId, shots, story, job]);
 
   const zipClips = useMemo(() => orderedJobClips(job, story), [job, story]);
+  const playableClipCount = useMemo(() => playableDeskClipCount(job), [job]);
   const zipHref = zipClips.length
     ? `/api/crash/mobile/clips/zip?jobId=${encodeURIComponent(job.id)}`
     : "";
@@ -569,7 +590,7 @@ export function PlateReviewEditor({
 
   return (
     <div style={{ marginBottom: "16px" }}>
-      {loadError ? (
+      {loadError && !playableClipCount ? (
         <div style={{ fontSize: "13px", color: "var(--magenta-hot)", margin: "0 2px 8px" }}>{loadError}</div>
       ) : null}
       {!shots.length && !musicVideoTrackOwnsEmptyPlates ? (
@@ -912,10 +933,10 @@ export function PlateReviewEditor({
       </DeskFold>
       )}
 
-      {!collapsed && zipClips.length ? (
+      {!collapsed && playableClipCount ? (
         <DeskFold
           label="Clips"
-          count={zipClips.length}
+          count={playableClipCount}
           open={clipsOpen}
           onToggle={() => setClipsOpen((v) => !v)}
         >
