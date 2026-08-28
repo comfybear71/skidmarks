@@ -827,7 +827,8 @@ assert.doesNotMatch(
   assert.match(block, /fileFirst\.hung/);
   assert.match(block, /alreadyHung/, "hung still with no leftover must not mint WAITING 4");
   assert.match(block, /syncSongCutsToDesk/);
-  assert.match(block, /hangMissingPlateTimings/, "still with no mp4 still parks a wave clock");
+  assert.match(block, /addPlateHangOnTrack/, "still with no leftover parks on the wave — no cook");
+  assert.match(block, /job\.clips/, "Add reads leftover rendered mp4s, not only waiting cuts");
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
 }
 {

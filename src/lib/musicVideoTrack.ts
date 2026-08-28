@@ -603,7 +603,7 @@ export function hangPlateShotId(plateId: string): string {
 }
 
 export function extraTakeHangPlateId(shotId: string, clipFile: string): string {
-  const shot = (shotId || "").trim();
+  const shot = hangPlateShotId(shotId);
   const stem = hangClipBasename(clipFile).replace(/\.[^.]+$/, "");
   const tail = stem.replace(/[^a-zA-Z0-9]/g, "").slice(-12);
   if (!shot) return "";
@@ -862,7 +862,7 @@ function impliedHungClipFiles(opts: {
 /**
  * File first — hang every unhung done mp4 at the next gap after the last
  * hung end. Same still, second take → after 0:25, not another 0:20.
- * Does not cook.
+ * Waiting 0/3 cuts do not block. Does not cook.
  */
 export function hangUnhungDoneClips(opts: {
   plateTimings?: PlateTiming[];
@@ -950,6 +950,47 @@ export function addPlateFileFirstHang(opts: {
     onlyShotId: shotId,
   });
   return { ...hung, hung: true };
+}
+
+/**
+ * Both Add buttons (STILLS + plate-row) share this. File first: leftover
+ * mp4 after the last hung end. Then hang the still if it has no unique slot.
+ * Waiting 0/3 cuts do not block. Does not cook.
+ */
+export function addPlateHangOnTrack(opts: {
+  plateTimings?: PlateTiming[];
+  cuts: ScratchSongCut[];
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }>;
+  shotId: string;
+  hangCuts: Array<Pick<ScratchSongCut, "shotId" | "startSec"> & { durationSec?: number }>;
+  extraIds: string[];
+  skipShotIds?: string[];
+  plateFileFor: (shotId: string) => string;
+  newCutId: () => string;
+}): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } {
+  const leftover = hangUnhungDoneClips({
+    plateTimings: opts.plateTimings,
+    cuts: opts.cuts,
+    clips: opts.clips,
+    skipShotIds: opts.skipShotIds,
+    plateFileFor: opts.plateFileFor,
+    newCutId: opts.newCutId,
+    onlyShotId: opts.shotId,
+  });
+  return {
+    plateTimings: hangMissingPlateTimings(
+      leftover.plateTimings,
+      opts.hangCuts,
+      opts.extraIds,
+    ),
+    cuts: leftover.cuts,
+  };
 }
 
 /**

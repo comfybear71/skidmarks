@@ -8,6 +8,7 @@ import {
   formatTrackClock,
   formatTrackClockPrecise,
   addPlateFileFirstHang,
+  addPlateHangOnTrack,
   extraTakeHangPlateId,
   hangClipDurationMs,
   hangMissingPlateTimings,
@@ -145,7 +146,9 @@ assert.doesNotMatch(trackUi, /Sending…/, "TRACK pick has no Send — Send sits
 assert.doesNotMatch(trackUi, /void sendPlate\(picked\.shotId\)/, "TRACK does not run Send");
 assert.match(trackUi, /Park this clip/);
 assert.match(trackUi, /requestSongCookStop/);
-assert.match(trackUi, /m-track-film/);
+assert.doesNotMatch(trackUi, /filter\(\(cell\) => !cell\.onSong\)/, "TRACK does not list off-song stills");
+assert.doesNotMatch(trackUi, />off</, "TRACK has no off badge row of existing stills");
+assert.match(trackUi, /m-track-rail-add/);
 assert.doesNotMatch(trackUi, /Use range/);
 assert.doesNotMatch(trackUi, />Earlier</);
 assert.doesNotMatch(trackUi, />Later</);
@@ -229,7 +232,7 @@ assert.match(trackUi, /Already on the song/);
 assert.doesNotMatch(trackUi, /await songPost\("add-plate"/);
 assert.doesNotMatch(trackUi, /Pictures stay put/);
 
-assert.match(mobileCss, /\.m-track-film/);
+assert.match(mobileCss, /\.m-track-rail-add/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "set-plate-duration"/,
@@ -816,6 +819,108 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(fromShots[2].plateId, "shot_car");
   assert.equal(fromShots[2].startMs, 30000);
 
+  {
+    const jack = "shot_jack_ghost";
+    const car = "shot_car";
+    const jack2 = "shot_jack_ghost_2";
+    const threeBars = [
+      { plateId: jack, startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: car, startMs: 15000, endMs: 20000, sortIndex: 1 },
+      { plateId: jack2, startMs: 20000, endMs: 25000, sortIndex: 2 },
+    ];
+    const fourCuts = [
+      { id: "c1", plateFile: "jack.png", shotId: jack, startSec: 0, durationSec: 15, clipFile: "clip1.mp4", status: "done" },
+      { id: "c2", plateFile: "car.png", shotId: car, startSec: 15, durationSec: 5, clipFile: "clip2.mp4", status: "done" },
+      { id: "c3", plateFile: "jack2.png", shotId: jack2, startSec: 20, durationSec: 5, clipFile: "clip3.mp4", status: "done" },
+      { id: "c4", plateFile: "jack2.png", shotId: jack2, startSec: 20, durationSec: 5, clipFile: "clip4.mp4", status: "done" },
+    ];
+    const waitingCuts = [
+      { id: "w1", plateFile: "jack2.png", shotId: jack2, startSec: 0, durationSec: 15, status: "pending" },
+      { id: "w2", plateFile: "jack2.png", shotId: jack2, startSec: 15, durationSec: 15, status: "pending" },
+      { id: "w3", plateFile: "jack2.png", shotId: jack2, startSec: 30, durationSec: 15, status: "pending" },
+    ];
+    const clips = [
+      { shotId: jack, clipFile: "clip1.mp4", clipStatus: "done", durationSec: 15 },
+      { shotId: car, clipFile: "clip2.mp4", clipStatus: "done", durationSec: 5 },
+      {
+        shotId: jack2,
+        clipFile: "clip4.mp4",
+        priorClipFiles: ["clip3.mp4"],
+        clipStatus: "done",
+        durationSec: 5,
+      },
+    ];
+    const ids = { n: 0 };
+    const plateFileFor = (id) =>
+      id === car ? "car.png" : id === jack ? "jack.png" : "jack2.png";
+
+    const stillsAdd = addPlateHangOnTrack({
+      plateTimings: threeBars,
+      cuts: [...fourCuts, ...waitingCuts],
+      clips,
+      shotId: jack2,
+      hangCuts: waitingCuts,
+      extraIds: [],
+      plateFileFor,
+      newCutId: () => `cut_${++ids.n}`,
+    });
+    const plateRowAdd = addPlateHangOnTrack({
+      plateTimings: threeBars,
+      cuts: [...fourCuts, ...waitingCuts],
+      clips,
+      shotId: jack2,
+      hangCuts: waitingCuts,
+      extraIds: [],
+      plateFileFor,
+      newCutId: () => `cut_${++ids.n}`,
+    });
+    for (const [label, hung] of [
+      ["STILLS ADD", stillsAdd],
+      ["plate-row Add", plateRowAdd],
+    ]) {
+      assert.equal(hung.plateTimings.length, 4, `${label} hangs the leftover take`);
+      assert.deepEqual(
+        hung.plateTimings.slice(0, 3).map((t) => [t.plateId, t.startMs, t.endMs]),
+        [
+          [jack, 0, 15000],
+          [car, 15000, 20000],
+          [jack2, 20000, 25000],
+        ],
+        `${label} leaves the three hung bars`,
+      );
+      assert.equal(hung.plateTimings[3].startMs, 25000, `${label} starts after 0:25`);
+      assert.equal(hung.plateTimings[3].endMs, 30000, `${label} uses the 5s clip length`);
+      assert.equal(
+        hung.plateTimings[3].plateId,
+        extraTakeHangPlateId(jack2, "clip4.mp4"),
+        `${label} unique slot, not another 0:20`,
+      );
+    }
+
+    const again = hangOneClipOnWave({
+      plateTimings: stillsAdd.plateTimings,
+      cuts: stillsAdd.cuts,
+      shotId: jack2,
+      plateFile: "jack2.png",
+      clipFile: "clip4.mp4",
+      durationSec: 5,
+      newCutId: () => "nope",
+    });
+    assert.equal(again?.plateTimings.length, 4, "already-hung leftover is a no-op");
+    assert.equal(
+      hangUnhungDoneClips({
+        plateTimings: stillsAdd.plateTimings,
+        cuts: stillsAdd.cuts,
+        clips,
+        plateFileFor,
+        newCutId: () => "nope",
+        onlyShotId: jack2,
+      }).plateTimings.length,
+      4,
+      "second Add does not invent another bar",
+    );
+  }
+
   assert.deepEqual(
     resolvePlateTimings({ plateTimings: [] }, {
       plateTimings: [{ plateId: "ghost", startMs: 0, endMs: 15000, sortIndex: 0 }],
@@ -877,6 +982,9 @@ assert.match(
   /hangMissingPlateTimings/,
   "Add on a still must write the TRACK clock, not only a waiting cut",
 );
+assert.match(songRoute, /addPlateHangOnTrack/, "both Add buttons hang leftover takes after the last bar");
+assert.match(trackUi, /hangPlateShotId/, "extra take bars keep the still title");
+assert.match(trackUi, /action: "add-plate"/, "already-hung Add still posts add-plate for leftover takes");
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
   /action === "hang-plates"/,
