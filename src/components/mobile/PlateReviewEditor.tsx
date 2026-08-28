@@ -42,6 +42,8 @@ import { isSupportShot } from "@/lib/stockFootage";
 import type { StockLook } from "@/lib/stockLook";
 import {
   leftoverHydrateBeat,
+  muteMvEmptyFrame,
+  muteMvPadNames,
   plateLineBeats,
   songDeskEditorBeats,
   shotSpeakersOnCard,
@@ -64,6 +66,7 @@ import {
   readMvEngine,
   readMvMotionSlot,
   readMvMuteAction,
+  readMvNobodyInShot,
   storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
   writeLtxMotionDraft,
@@ -71,6 +74,7 @@ import {
   writeMvEngine,
   writeMvMotionSlot,
   writeMvMuteAction,
+  writeMvNobodyInShot,
   type MuteMvEngine,
 } from "@/lib/mobileImageMotion";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
@@ -2088,14 +2092,22 @@ function ShotStockPanel({
   clips?: MobileClipUnit[];
   trackClipFile?: string;
   stockLook?: StockLook | null;
-  onShotMeta?: (patch: { footageRole?: ShotFootageRole; stockQuery?: string }) => void;
+  onShotMeta?: (patch: {
+    footageRole?: ShotFootageRole;
+    stockQuery?: string;
+    nobodyInShot?: boolean;
+  }) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const queryTimer = useRef<number | null>(null);
 
-  async function saveMeta(patch: { footageRole?: ShotFootageRole; stockQuery?: string }) {
+  async function saveMeta(patch: {
+    footageRole?: ShotFootageRole;
+    stockQuery?: string;
+    nobodyInShot?: boolean;
+  }) {
     onShotMeta?.(patch);
     setError("");
     try {
@@ -2194,6 +2206,15 @@ function ShotStockPanel({
           : undefined
       }
       onRoleChange={(footageRole) => void saveMeta({ footageRole })}
+      nobodyInShot={Boolean(shot.nobodyInShot) || readMvNobodyInShot(jobId, shot.id)}
+      onNobodyChange={
+        styleId === "music_video"
+          ? (nobodyInShot) => {
+              writeMvNobodyInShot(jobId, shot.id, nobodyInShot);
+              void saveMeta({ nobodyInShot });
+            }
+          : undefined
+      }
       onQueryChange={(stockQuery) => {
         onShotMeta?.({ stockQuery });
         if (queryTimer.current) window.clearTimeout(queryTimer.current);
@@ -2264,7 +2285,11 @@ function ShotLineEditor({
           sendStillBusy?: boolean;
           sendStillNote?: string;
           onJobChange?: (job: MobileGenJob) => void;
-          onShotMeta?: (patch: { footageRole?: ShotFootageRole; stockQuery?: string }) => void;
+          onShotMeta?: (patch: {
+            footageRole?: ShotFootageRole;
+            stockQuery?: string;
+            nobodyInShot?: boolean;
+          }) => void;
           onPlateRebuilt: (
     plateFile: string | undefined,
     staging: string,
@@ -2439,6 +2464,20 @@ function ShotLineEditor({
               plateFile: shot.plateFile,
               jobSpeakers,
               beats: shot.beats,
+            })}
+            emptyFrame={muteMvEmptyFrame({
+              footageRole: shot.footageRole,
+              nobodyInShot:
+                Boolean(shot.nobodyInShot) || readMvNobodyInShot(jobId, shot.id),
+              staging: shot.staging,
+              summary: shot.summary,
+              castNames: shot.castNames,
+              padNames: muteMvPadNames({
+                roster: jobSpeakers,
+                staging: shot.staging,
+                summary: shot.summary,
+                castNames: shot.castNames,
+              }),
             })}
             placeName={placeName || "this place"}
             beat={beat}
@@ -2772,6 +2811,7 @@ function BeatLineEditor({
   jobVoices,
   lookLock,
   shotSpeakers,
+  emptyFrame,
   placeName,
   beat,
   clipStatus,
@@ -2791,6 +2831,7 @@ function BeatLineEditor({
   jobVoices?: Record<string, JobSpeakerVoice>;
   lookLock: string;
   shotSpeakers: string[];
+  emptyFrame?: boolean;
   placeName?: string;
   beat: CrashStoryBeat;
   clipStatus?: MobileClipUnit["clipStatus"];
@@ -2968,9 +3009,10 @@ function BeatLineEditor({
             lookLock,
             shotSpeakers: shotSpeakers.length ? shotSpeakers : undefined,
             staging: positionBody,
+            emptyFrame,
           })
         : null,
-    [beat.speaker, lookLock, positionBody, shotSpeakers, songDesk, styleId],
+    [beat.speaker, emptyFrame, lookLock, positionBody, shotSpeakers, songDesk, styleId],
   );
   const [muteSlot, setMuteSlot] = useState("");
   useEffect(() => {

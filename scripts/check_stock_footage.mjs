@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   looksLikeLocalFilePath,
   shotFootageRole,
@@ -140,5 +143,12 @@ assert(
 );
 assert(composeStockSearchQuery(null, "ice drop") === "ice drop", "empty look leaves shot query");
 assert(!stockLookIsOn(parseStockLook({})), "blank look is off");
+
+const panel = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../src/components/StockFootagePanel.tsx"),
+  "utf8",
+);
+assert(panel.includes("Nobody"), "Nobody sits next to HERO/SUPPORT");
+assert(panel.includes("onNobodyChange"), "Nobody is optional — desk storyboard stays as-is");
 
 console.log("stock footage checks passed");

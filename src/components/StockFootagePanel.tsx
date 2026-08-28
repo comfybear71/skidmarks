@@ -21,6 +21,9 @@ type Props = {
   onRoleChange: (role: ShotFootageRole) => void;
   onQueryChange: (query: string) => void;
   onAttachFile: (file: File) => void;
+  /** Music-video mute: drop the singer name when this still has no person. */
+  nobodyInShot?: boolean;
+  onNobodyChange?: (nobodyInShot: boolean) => void;
   /** Music-video Support only. Omit everywhere else. */
   arsenal?: {
     hasClip: boolean;
@@ -104,6 +107,8 @@ export function StockFootagePanel({
   onQueryChange,
   onAttachFile,
   arsenal,
+  nobodyInShot,
+  onNobodyChange,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pathNote, setPathNote] = useState("");
@@ -145,7 +150,46 @@ export function StockFootagePanel({
         >
           Footage
         </span>
-        <RoleToggle role={role} onChange={onRoleChange} compact={compact} />
+        <div
+          className={compact ? undefined : "flex items-center gap-1"}
+          style={compact ? { display: "flex", gap: "6px", flexWrap: "wrap" } : undefined}
+        >
+          <RoleToggle role={role} onChange={onRoleChange} compact={compact} />
+          {onNobodyChange ? (
+            <button
+              type="button"
+              title="This still has no person — car, road, scenery. Do not name JACK or say is prominent."
+              onClick={() => onNobodyChange(!nobodyInShot)}
+              className={
+                compact
+                  ? undefined
+                  : `rounded-sm border px-1.5 py-0.5 text-[9px] uppercase tracking-wide ${
+                      nobodyInShot
+                        ? "border-[var(--acid)] bg-[var(--acid)] text-[#111]"
+                        : "border-[var(--line)] text-[var(--chrome-dim)] hover:border-[var(--chrome-dim)]"
+                    }`
+              }
+              style={
+                compact
+                  ? {
+                      border: nobodyInShot ? "1px solid var(--acid)" : "1px solid var(--line)",
+                      background: nobodyInShot ? "var(--acid)" : "transparent",
+                      color: nobodyInShot ? "#111" : "var(--chrome-dim)",
+                      fontSize: "11px",
+                      lineHeight: 1,
+                      padding: "5px 8px",
+                      borderRadius: "2px",
+                      cursor: "pointer",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }
+                  : undefined
+              }
+            >
+              Nobody
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {role === "support" ? (

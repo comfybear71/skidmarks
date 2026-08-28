@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { MobileGenJob, MobileShotUnit } from "@/lib/mobileGenJob";
-import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
+import type { CrashStoryDoc, CrashStoryShot } from "@/lib/crashStoryTypes";
 import {
   TRACK_ACID,
   TRACK_SECTION_LABELS,
@@ -67,7 +67,7 @@ import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
 import { readApiJson } from "@/lib/studioFetchError";
 import { candidateLookPrompt } from "@/lib/mobileJobReady";
-import { shotSpeakersOnCard } from "@/lib/mobilePlateLines";
+import { muteMvEmptyFrame, muteMvPadNames, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import {
   buildMuteMvMotionLock,
   composeMuteMvMotion,
@@ -76,6 +76,7 @@ import {
   readMvEngine,
   readMvMotionSlot,
   readMvMuteAction,
+  readMvNobodyInShot,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
 import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
@@ -104,6 +105,34 @@ import { SongCookAlertBanner } from "./SongCookAlertBanner";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
 const TRACK_WAVE_HEIGHT = 78;
+
+function muteLockEmptyFrame(
+  jobId: string,
+  shot:
+    | Pick<
+        CrashStoryShot,
+        "id" | "staging" | "summary" | "castNames" | "footageRole" | "nobodyInShot"
+      >
+    | null
+    | undefined,
+  roster: string[],
+): boolean {
+  if (!shot) return false;
+  const padNames = muteMvPadNames({
+    roster,
+    staging: shot.staging,
+    summary: shot.summary,
+    castNames: shot.castNames,
+  });
+  return muteMvEmptyFrame({
+    footageRole: shot.footageRole,
+    nobodyInShot: Boolean(shot.nobodyInShot) || readMvNobodyInShot(jobId, shot.id),
+    staging: shot.staging,
+    summary: shot.summary,
+    castNames: shot.castNames,
+    padNames,
+  });
+}
 
 /** Same hex at an alpha — canvas has no colour-mix(). */
 function hexTint(hex: string, alpha: number): string {
@@ -1035,6 +1064,11 @@ export function MusicVideoTrack({
     job.roster?.find((c) => c.name.trim().toLowerCase() === pickedSpeaker.toLowerCase())
       ?.appearance ||
     "";
+  const pickedEmptyFrame = muteLockEmptyFrame(
+    job.id,
+    pickedStory?.shot,
+    job.speakers || [],
+  );
   const motionLock = useMemo(
     () =>
       buildMuteMvMotionLock({
@@ -1043,8 +1077,17 @@ export function MusicVideoTrack({
         lookLock: pickedLook,
         shotSpeakers: pickedSpeakers.length ? pickedSpeakers : undefined,
         staging: pickedStory?.shot.staging || "",
+        emptyFrame: pickedEmptyFrame,
       }),
-    [job.styleId, pickedSpeaker, picked?.title, pickedLook, pickedSpeakers, pickedStory?.shot.staging],
+    [
+      job.styleId,
+      pickedSpeaker,
+      picked?.title,
+      pickedLook,
+      pickedSpeakers,
+      pickedStory?.shot.staging,
+      pickedEmptyFrame,
+    ],
   );
 
   useEffect(() => {
@@ -1359,6 +1402,7 @@ export function MusicVideoTrack({
       lookLock: look,
       shotSpeakers: speakers.length ? speakers : undefined,
       staging: shot?.staging || "",
+      emptyFrame: muteLockEmptyFrame(job.id, shot, job.speakers || []),
     });
     const stored = shot?.beats[0]?.imageMotion || "";
     const live = readMvMotionSlot(job.id, targetBeatId);
