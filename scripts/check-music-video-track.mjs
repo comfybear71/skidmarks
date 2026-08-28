@@ -12,6 +12,8 @@ import {
   swapNeighborPlateTimings,
   withPlateDuration,
   withPlateWindow,
+  applyRealClipDuration,
+  storedClipDurationSec,
   msToSec,
   orderedDoneCutsForStitch,
   plateRailBox,
@@ -123,6 +125,11 @@ assert.match(trackUi, /Put stills on the song/);
 assert.match(trackUi, /How long/);
 assert.match(trackUi, /Starts at/);
 assert.match(trackUi, /startSec/);
+assert.match(trackUi, /length after Send/);
+assert.match(trackUi, /Clip is/);
+assert.match(trackUi, /hangRealClipLength/);
+assert.doesNotMatch(trackUi, /Set how long, then Send/);
+assert.doesNotMatch(trackUi, /useState\("15"\)/);
 assert.match(trackUi, /Send all/);
 assert.match(trackUi, /m-track-film/);
 assert.doesNotMatch(trackUi, /Use range/);
@@ -133,6 +140,8 @@ assert.doesNotMatch(trackUi, /Plates on the track/);
 assert.doesNotMatch(trackUi, /!compact && picked/);
 assert.match(mobileCss, /\.m-track-film-cell/);
 assert.match(mobileCss, /\.m-track-pick-len/);
+assert.match(mobileCss, /\.m-track-pick-clip/);
+assert.match(mobileCss, /\.m-track-pick-trim/);
 assert.match(trackRoute, /set-plate-timing/);
 assert.match(songRoute, /sliceBoundsForPlate/);
 assert.match(songRoute, /cutFromPlateTiming/);
@@ -277,6 +286,43 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(placed?.[0].endMs, 15000, "earlier still stays put");
   assert.equal(placed?.[1].plateId, "b");
   assert.equal(placed?.[1].startMs, 45000);
+  assert.equal(storedClipDurationSec({ clips: [], shotId: "a" }), null);
+  assert.equal(
+    storedClipDurationSec({
+      clips: [{ shotId: "a", clipFile: "a.mp4", durationSec: 12.4 }],
+      shotId: "a",
+    }),
+    12.4,
+  );
+  assert.equal(
+    storedClipDurationSec({
+      clips: [{ shotId: "a", clipFile: "", durationSec: 15 }],
+      shotId: "a",
+    }),
+    null,
+    "no file means no real length",
+  );
+  const afterMake = applyRealClipDuration(
+    {
+      fileName: "song.mp3",
+      durationSec: 180,
+      sliceStartSec: 0,
+      sliceDurationSec: 15,
+      plateTimings: [
+        { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+      ],
+      cuts: [
+        { id: "1", plateFile: "a.png", shotId: "a", startSec: 0, durationSec: 15 },
+      ],
+    },
+    "a",
+    8.5,
+  );
+  assert.equal(afterMake?.plateTimings?.[0].endMs, 8500);
+  assert.equal(afterMake?.plateTimings?.[1].startMs, 8500);
+  assert.equal(afterMake?.cuts?.[0].durationSec, 8.5);
+  assert.equal(applyRealClipDuration({ fileName: "x", durationSec: 10, sliceStartSec: 0, sliceDurationSec: 15 }, "missing", 8), null);
   assert.equal(placed?.[1].endMs, 53000);
   assert.equal(withPlateWindow([], "missing", 1000, 8000, 180000), null);
 

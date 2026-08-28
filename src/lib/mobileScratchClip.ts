@@ -4,6 +4,8 @@ import { resolveGenOrPackPlate } from "./crashActivePack";
 import { resolveMobileBeatAudio } from "./resolveMobileBeatAudio";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
 import { humanOrderedClipName, rememberClipTake } from "./mobilePlateClips";
+import { probeDurationSeconds } from "./mediaDuration";
+import { applyRealClipDuration } from "./musicVideoTrack";
 import { runLtxSmoke } from "./ltxSmoke";
 import { resolveComfyUrl, probeComfyUrl } from "./comfyClient";
 import { candidateLookPrompt } from "./mobileJobReady";
@@ -286,19 +288,30 @@ export async function runScratchLtxClip(opts: {
     } catch {
       /* clip still usable this request */
     }
+    const durationSec = probeDurationSeconds(localMp4);
     const next = job.clips.map((c) =>
       c.beatId === beatId
-        ? { ...c, ...rememberClipTake(c, localMp4), clipStatus: "done" as const }
+        ? {
+            ...c,
+            ...rememberClipTake(c, localMp4),
+            clipStatus: "done" as const,
+            ...(durationSec ? { durationSec } : {}),
+          }
         : c,
     );
     const clipName = path.basename(localMp4);
+    let song = patchScratchSongCut(job.scratchSong, opts.cutId, {
+      clipFile: clipName,
+      status: "done",
+      error: "",
+      ...(durationSec ? { durationSec } : {}),
+    });
+    if (song && durationSec) {
+      song = applyRealClipDuration(song, shotId, durationSec) || song;
+    }
     job = (await patchMobileGenJob(jobId, {
       clips: next,
-      scratchSong: patchScratchSongCut(job.scratchSong, opts.cutId, {
-        clipFile: clipName,
-        status: "done",
-        error: "",
-      }),
+      scratchSong: song,
     }))!;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -322,7 +335,12 @@ export async function runScratchLtxClip(opts: {
 function patchScratchSongCut(
   song: ScratchSong | null | undefined,
   cutId: string | undefined,
-  patch: { clipFile?: string; status?: "pending" | "running" | "done" | "error"; error?: string },
+  patch: {
+    clipFile?: string;
+    status?: "pending" | "running" | "done" | "error";
+    error?: string;
+    durationSec?: number;
+  },
 ): ScratchSong | null | undefined {
   if (!song || !cutId) return song;
   return {

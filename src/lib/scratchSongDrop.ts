@@ -24,6 +24,22 @@ export function probeBrowserAudioDurationSec(file: File): Promise<number> {
   });
 }
 
+/** Real mp4 length after Send — the desk must not guess 15/24/30 first. */
+export function probeBrowserVideoDurationSec(src: string): Promise<number> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    const done = (sec: number) => {
+      video.removeAttribute("src");
+      video.load();
+      resolve(Number.isFinite(sec) && sec > 0 ? Math.round(sec * 10) / 10 : 0);
+    };
+    video.onloadedmetadata = () => done(Number(video.duration));
+    video.onerror = () => done(0);
+    video.src = src;
+  });
+}
+
 /**
  * Track drop → Blob, then a tiny JSON attach. No beat needed.
  * The old FormData POST dies on Vercel around 4.5MB (Jack Ash songs are bigger).

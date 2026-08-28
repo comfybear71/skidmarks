@@ -415,6 +415,50 @@ export function withPlateDuration(
   return withPlateWindow(existing, plateId, hit.startMs, durationMs, songMs);
 }
 
+/** Stored mp4 length after the file exists. Never a 15/24/30 guess. */
+export function storedClipDurationSec(opts: {
+  clips?: { shotId?: string; clipFile?: string; durationSec?: number }[];
+  shotId: string;
+}): number | null {
+  const id = (opts.shotId || "").trim();
+  if (!id) return null;
+  for (const clip of opts.clips || []) {
+    if ((clip.shotId || "").trim() !== id) continue;
+    if (!(clip.clipFile || "").trim()) continue;
+    const sec = Number(clip.durationSec);
+    if (Number.isFinite(sec) && sec > 0) return Math.round(sec * 10) / 10;
+  }
+  return null;
+}
+
+/** Write the measured clip onto the wave. Followers keep their length and slide. */
+export function applyRealClipDuration(
+  song: ScratchSong,
+  plateId: string,
+  durationSec: number,
+): ScratchSong | null {
+  const id = (plateId || "").trim();
+  const sec = Number(durationSec);
+  if (!id || !Number.isFinite(sec) || sec <= 0) return null;
+  const plateTimings = withPlateDuration(
+    song.plateTimings,
+    id,
+    secToMs(sec),
+    secToMs(song.durationSec),
+  );
+  if (!plateTimings) return null;
+  const timing = plateTimings.find((t) => t.plateId === id);
+  const cuts = (song.cuts || []).map((c) => {
+    if ((c.shotId || "").trim() !== id) return c;
+    return {
+      ...c,
+      startSec: timing ? msToSec(timing.startMs) : c.startSec,
+      durationSec: sec,
+    };
+  });
+  return { ...song, plateTimings, cuts };
+}
+
 /**
  * TRACK paints plateTimings, not the cut list. Add-on-stills used to
  * write a waiting cut and leave the wave empty. Keep any clock already

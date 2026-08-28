@@ -67,7 +67,9 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-draft — pre-lock peaks/markers/timings on job.trackDraft
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
- *   set-plate-duration — Starts at + How long. Followers slide. No cook.
+ *   set-plate-duration — Starts at, and after the mp4 exists the real clip
+ *     length (durationSec). Followers slide. No cook. Do not require a
+ *     pre-Send How long guess.
  *   move-plate — swap this still with the earlier or later slot. No cook.
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
@@ -226,12 +228,22 @@ export async function POST(req: Request) {
       const plateId = String(body.plateId || "").trim();
       if (!plateId) return NextResponse.json({ error: "Need plateId" }, { status: 400 });
       const songMs = secToMs(song.durationSec);
-      const durationMs = secToMs(Number(body.durationSec));
+      const askedDur = Number(body.durationSec);
+      const durationMs = Number.isFinite(askedDur) && askedDur > 0 ? secToMs(askedDur) : 0;
       const askedStart = Number(body.startSec);
+      const existing = (song.plateTimings || []).find((p) => p.plateId === plateId);
+      const keepMs = existing ? Math.max(0, existing.endMs - existing.startMs) : 0;
+      const useDur = durationMs > 0 ? durationMs : keepMs;
+      if (!(useDur > 0)) {
+        return NextResponse.json(
+          { error: "Need a start on the song, or the real clip length after it is made." },
+          { status: 400 },
+        );
+      }
       const plateTimings =
         Number.isFinite(askedStart) && askedStart >= 0
-          ? withPlateWindow(song.plateTimings, plateId, secToMs(askedStart), durationMs, songMs)
-          : withPlateDuration(song.plateTimings, plateId, durationMs, songMs);
+          ? withPlateWindow(song.plateTimings, plateId, secToMs(askedStart), useDur, songMs)
+          : withPlateDuration(song.plateTimings, plateId, useDur, songMs);
       if (!plateTimings) {
         return NextResponse.json({ error: "Put that still on the song first." }, { status: 400 });
       }

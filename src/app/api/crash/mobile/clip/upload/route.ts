@@ -129,6 +129,7 @@ export async function POST(req: Request) {
             shotId: home.shotId,
             plateFile: home.plateFile,
             clipFile: fileName,
+            durationSec,
             newCutId: () => newId("cut"),
           })
         : null;

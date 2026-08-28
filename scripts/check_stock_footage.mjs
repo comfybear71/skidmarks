@@ -78,6 +78,24 @@ const noClock = hangDoneClipOnTrack({
 assert(noClock?.cuts?.[0]?.clipFile === "stock.mp4", "stamps existing cut");
 assert((noClock?.plateTimings || []).length === 0, "does not invent timings");
 
+const measured = hangDoneClipOnTrack({
+  song: {
+    fileName: "song.mp3",
+    durationSec: 100,
+    sliceStartSec: 0,
+    sliceDurationSec: 15,
+    plateTimings: [{ plateId: "shot_a", startMs: 1000, endMs: 9000, sortIndex: 0 }],
+    cuts: [{ id: "c1", plateFile: "p.jpg", shotId: "shot_a", startSec: 1, durationSec: 8 }],
+  },
+  shotId: "shot_a",
+  plateFile: "p.jpg",
+  clipFile: "real.mp4",
+  durationSec: 8.5,
+  newCutId: () => "cut_m",
+});
+assert(measured?.cuts?.[0]?.durationSec === 8.5, "wave uses probed clip length");
+assert(measured?.plateTimings?.[0]?.endMs === 9500, "clock follows the file");
+
 const ww1 = parseStockLook({
   theme: "first world war",
   colour: "mud brown grain",

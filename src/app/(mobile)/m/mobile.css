@@ -3260,6 +3260,17 @@ span.scratch-history-blob {
   font-size: 12px;
 }
 
+.m-track-pick-clip {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--acid);
+}
+
+.m-track-pick-trim {
+  opacity: 0.72;
+}
+
 .m-track-pick-len {
   display: flex;
   align-items: center;

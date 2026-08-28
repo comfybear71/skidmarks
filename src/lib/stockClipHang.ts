@@ -2,18 +2,20 @@ import fs from "fs";
 import { execFileSync } from "child_process";
 import { clipFileBasename } from "./mobilePlateClips";
 import { resolveFfmpeg } from "./mobileStitch";
-import { msToSec } from "./musicVideoTrack";
+import { applyRealClipDuration, msToSec } from "./musicVideoTrack";
 import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
 
 /**
  * Put a finished stock/BYO mp4 on the TRACK cut that already has this
  * shot's clock. Does not invent 15s rows when plateTimings is empty.
+ * When durationSec is the probed file length, the wave uses that.
  */
 export function hangDoneClipOnTrack(opts: {
   song: ScratchSong | null | undefined;
   shotId: string;
   plateFile: string;
   clipFile: string;
+  durationSec?: number;
   newCutId: () => string;
 }): ScratchSong | null {
   if (!opts.song) return null;
@@ -21,25 +23,39 @@ export function hangDoneClipOnTrack(opts: {
   const clipFile = clipFileBasename(opts.clipFile);
   if (!shotId || !clipFile) return opts.song;
 
+  const realSec = Number(opts.durationSec);
+  const measured = Number.isFinite(realSec) && realSec > 0 ? realSec : 0;
+
   const stampCut = (cut: ScratchSongCut): ScratchSongCut =>
     (cut.shotId || "").trim() === shotId
-      ? { ...cut, clipFile, status: "done", error: "" }
+      ? {
+          ...cut,
+          clipFile,
+          status: "done",
+          error: "",
+          ...(measured ? { durationSec: measured } : {}),
+        }
       : cut;
 
   const cuts = (opts.song.cuts || []).map(stampCut);
-  const timing = (opts.song.plateTimings || []).find((p) => p.plateId === shotId);
-  if (!timing) {
-    return { ...opts.song, cuts };
+  let song: ScratchSong = { ...opts.song, cuts };
+  if (measured) {
+    const applied = applyRealClipDuration(song, shotId, measured);
+    if (applied) song = applied;
   }
-  if (cuts.some((c) => (c.shotId || "").trim() === shotId)) {
-    return { ...opts.song, cuts };
+  const timing = (song.plateTimings || []).find((p) => p.plateId === shotId);
+  if (!timing) {
+    return song;
+  }
+  if ((song.cuts || []).some((c) => (c.shotId || "").trim() === shotId)) {
+    return song;
   }
   const startSec = msToSec(timing.startMs);
-  const durationSec = msToSec(timing.endMs - timing.startMs);
+  const durationSec = measured || msToSec(timing.endMs - timing.startMs);
   return {
-    ...opts.song,
+    ...song,
     cuts: [
-      ...cuts,
+      ...(song.cuts || []),
       {
         id: opts.newCutId(),
         plateFile: opts.plateFile || "",
