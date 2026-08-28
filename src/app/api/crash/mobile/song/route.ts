@@ -87,7 +87,9 @@ export const maxDuration = 900;
  *     (applyAddPlateOnSong → addPlateFileFirstHang). No waiting cook on
  *     siblings. Still with no mp4 goes on the list at 1 × 15s. Already
  *     hung + extra mp4 → hang that file after the last bar at render
- *     length. fileFirst.hung / alreadyHung live there. No desk rebuild.
+ *     length. alreadyHung + no leftover → another still bar after the
+ *     last end (extraStillHangPlateId). No cook. fileFirst.hung /
+ *     alreadyHung live there. No desk rebuild.
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
  *   List edits clear stuck cooks first — a hung LTX must not lock Add forever.
@@ -730,8 +732,9 @@ export async function POST(req: Request) {
       const livePlate =
         (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim();
       // applyAddPlateOnSong → addPlateFileFirstHang. fileFirst.hung /
-      // alreadyHung live there. Keep done clips. No desk rebuild — that
-      // minted WAITING 15s on the 0:15 car when skip hid car~6ir.
+      // alreadyHung live there. alreadyHung + no leftover writes another
+      // still bar after the last end. Keep done clips. No desk rebuild —
+      // that minted WAITING 15s on the 0:15 car when skip hid car~6ir.
       const added = applyAddPlateOnSong({
         shotId,
         plateFile: livePlate,

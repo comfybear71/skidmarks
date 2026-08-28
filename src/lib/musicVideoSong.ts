@@ -5,6 +5,7 @@
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import {
   addPlateFileFirstHang,
+  extraStillHangPlateId,
   hangPlateShotId,
   isLeftoverPlateHang,
   isRealPlateHang,
@@ -183,7 +184,8 @@ export function syncSongCutsToDesk(opts: {
  * last hung bar, at the cooked mp4 length. Keeps every other done clipFile
  * and every other real plateTiming. Does not rebuild the desk as 15s
  * WAITING slices. Empty still (no mp4) hangs after the last end — no
- * waiting cook.
+ * waiting cook. alreadyHung + no leftover file still writes another bar
+ * after the last end (extraStillHangPlateId). Does not cook.
  */
 export function applyAddPlateOnSong(opts: {
   shotId: string;
@@ -251,28 +253,24 @@ export function applyAddPlateOnSong(opts: {
   const alreadyHung = (opts.plateTimings || []).some(
     (t) => hangPlateShotId(t.plateId) === shotId && isRealPlateHang(t),
   );
-  if (alreadyHung) {
+  const kept = sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t));
+  const startMs = kept.length ? Math.max(...kept.map((t) => t.endMs)) : 0;
+  const durMs = secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC);
+  const hangId = alreadyHung ? extraStillHangPlateId(shotId, kept) : shotId;
+  if (!hangId) {
     return {
       cuts: opts.cuts,
-      plateTimings: sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t)),
+      plateTimings: kept,
       songPlateIds: onList,
       rowSlices: slices,
       skipShotIds: skip,
       hung: false,
     };
   }
-  const kept = sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t));
-  const startMs = kept.length ? Math.max(...kept.map((t) => t.endMs)) : 0;
-  const leftoverSec = Math.max(0, Number(opts.songSec) || 0) - msToSec(startMs);
-  const durationSec =
-    leftoverSec > 0
-      ? Math.min(SCRATCH_SONG_SLICE_DEFAULT_SEC, leftoverSec)
-      : SCRATCH_SONG_SLICE_DEFAULT_SEC;
-  const durMs = secToMs(durationSec);
   const plateTimings = [
     ...kept,
     {
-      plateId: shotId,
+      plateId: hangId,
       startMs,
       endMs: Math.max(startMs + 100, startMs + durMs),
       sortIndex: kept.length,
@@ -281,8 +279,8 @@ export function applyAddPlateOnSong(opts: {
   return {
     cuts: opts.cuts,
     plateTimings,
-    songPlateIds: withSongPlate(onList, shotId),
-    rowSlices: withSongRowSlice(slices),
+    songPlateIds: alreadyHung ? onList : withSongPlate(onList, shotId),
+    rowSlices: alreadyHung ? slices : withSongRowSlice(slices),
     skipShotIds: skipForHang,
     hung: false,
   };

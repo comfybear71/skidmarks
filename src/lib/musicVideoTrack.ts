@@ -685,6 +685,25 @@ export function extraTakeHangPlateId(shotId: string, clipFile: string): string {
   return `${shot}${EXTRA_HANG_SEP}${tail || "take"}`;
 }
 
+/** Same still, another Add with no leftover mp4 — unique wave slot. */
+export function extraStillHangPlateId(
+  shotId: string,
+  plateTimings?: { plateId?: string }[],
+): string {
+  const shot = hangPlateShotId(shotId);
+  if (!shot) return "";
+  const used = new Set(
+    (plateTimings || []).map((t) => (t.plateId || "").trim()).filter(Boolean),
+  );
+  let n = 2;
+  let id = `${shot}${EXTRA_HANG_SEP}still${n}`;
+  while (used.has(id)) {
+    n += 1;
+    id = `${shot}${EXTRA_HANG_SEP}still${n}`;
+  }
+  return id;
+}
+
 function hangClipBasename(clipFile: string): string {
   const raw = (clipFile || "").trim();
   if (!raw) return "";
