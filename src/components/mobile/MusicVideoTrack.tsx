@@ -906,7 +906,9 @@ export function MusicVideoTrack({
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const jobRef = useRef(job);
-  jobRef.current = preferLiveSongJob(jobRef.current, job) || job;
+  useLayoutEffect(() => {
+    jobRef.current = preferLiveSongJob(jobRef.current, job) || job;
+  }, [job]);
   function takeSongJob(next: MobileGenJob | null | undefined) {
     if (!next) return;
     const kept = preferLiveSongJob(jobRef.current, next) || next;
