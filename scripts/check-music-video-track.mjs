@@ -189,21 +189,12 @@ assert.match(trackUi, /Put stills on the song/);
 assert.doesNotMatch(trackUi, /Starts at/, "Starts at is not on the TRACK pick");
 assert.doesNotMatch(trackUi, /How long/, "How long is not on the TRACK pick");
 assert.doesNotMatch(trackUi, /m-track-motion/, "IMAGE MOTION essay is not on the TRACK pick");
-assert.match(trackUi, /startSec/);
 assert.doesNotMatch(trackUi, /Send all/);
 assert.doesNotMatch(trackUi, /Sending…/, "TRACK pick has no Send — Send sits on the plate row");
 assert.doesNotMatch(trackUi, /void sendPlate\(picked\.shotId\)/, "TRACK does not run Send");
-assert.match(trackUi, /Take off the song/);
-assert.match(
-  trackUi,
-  /aria-label="Take off the song"[\s\S]{0,220}dropPlateFromWave/,
-  "TRACK X unhangs — it must not park the mp4",
-);
-assert.doesNotMatch(
-  trackUi,
-  /aria-label="Take off the song"[\s\S]{0,220}redoPlate/,
-  "TRACK X is not Redo / park",
-);
+assert.match(trackUi, /dropPlateFromWave/);
+assert.doesNotMatch(trackUi, /Take off the song/, "TRACK X left the hung row");
+assert.doesNotMatch(trackUi, /redoPlate/, "Redo left the hung row");
 assert.doesNotMatch(trackUi, /Park this clip/);
 assert.match(trackUi, /requestSongCookStop/);
 assert.match(trackUi, /m-track-film/);
@@ -226,7 +217,7 @@ assert.doesNotMatch(trackUi, /!compact && picked/);
 assert.doesNotMatch(trackUi, /label="Free look"/, "Free look is not on TRACK — it sits under Song list");
 assert.doesNotMatch(trackUi, /set-stock-look/, "TRACK does not save the free look");
 assert.match(mobileCss, /\.m-track-film-cell/);
-assert.match(mobileCss, /\.m-track-pick-len/);
+assert.doesNotMatch(mobileCss, /\.m-track-pick-len/, "seconds box chrome left the hung row");
 assert.match(trackRoute, /set-plate-timing/);
 assert.match(songRoute, /sliceBoundsForPlate/);
 assert.match(songRoute, /cutFromPlateTiming/);
@@ -239,32 +230,51 @@ assert.match(trackUi, /Move right/);
 assert.match(trackUi, /move-plate/);
 assert.match(trackUi, /Stop send/);
 assert.match(trackUi, /Put stills on the song/);
-assert.match(trackUi, /set-plate-duration/);
-assert.match(trackUi, /setHungPlateLength/);
-assert.match(trackUi, /HANG_LENGTH_CHIPS_SEC/);
-assert.match(trackUi, /snapHangLengthSec/);
-assert.match(trackUi, /type="range"/);
-assert.match(trackUi, /m-track-len-slider/);
-assert.match(trackUi, /min=\{5\}/);
-assert.match(trackUi, /max=\{15\}/);
-assert.match(trackUi, /step=\{5\}/);
+{
+  const hungRow =
+    trackUi.match(
+      /className="m-track-pick-tools"[\s\S]*?\{pickedOnSong \? \([\s\S]*?\) : hungClipFileForPlate/,
+    )?.[0] || "";
+  assert.match(hungRow, /Move left/, "hung row keeps Move left");
+  assert.match(hungRow, /Move right/, "hung row keeps Move right");
+  assert.match(hungRow, /: "Remove"/, "Off song was renamed Remove");
+  assert.doesNotMatch(hungRow, /Off song/, "Off song must not return on the hung row");
+  assert.doesNotMatch(hungRow, /type="range"/, "slider must not return on the hung row");
+  assert.doesNotMatch(hungRow, /m-track-len-slider/, "slider must not return on the hung row");
+  assert.doesNotMatch(hungRow, /m-track-pick-len/, "15 s box must not return on the hung row");
+  assert.doesNotMatch(hungRow, /Seconds on the song/, "15 s box must not return on the hung row");
+  assert.doesNotMatch(hungRow, />Redo</, "Redo must not return on the hung row");
+  assert.doesNotMatch(hungRow, /redoPlate/, "Redo must not return on the hung row");
+  assert.doesNotMatch(hungRow, />X</, "TRACK X must not return on the hung row");
+  assert.doesNotMatch(hungRow, />Open</, "Open must not return on the hung row");
+  assert.doesNotMatch(hungRow, /onOpenPlate\(/, "Open must not return on the hung row");
+}
+assert.doesNotMatch(trackUi, /Off song/, "Off song left the hung row — Remove unhangs");
+assert.doesNotMatch(trackUi, /setHungPlateLength/, "TRACK slider does not set a finished render");
+assert.doesNotMatch(trackUi, /commitHungPlateLength/, "TRACK seconds box does not set a finished render");
+assert.doesNotMatch(trackUi, /snapHangLengthSec/, "5\/10\/15 snap left the hung row");
+assert.doesNotMatch(trackUi, /HANG_LENGTH_CHIPS_SEC/, "5\/10\/15 chips left the hung row");
+assert.doesNotMatch(trackUi, /type="range"/, "slider left the hung row");
+assert.doesNotMatch(trackUi, /m-track-len-slider/, "slider left the hung row");
+assert.doesNotMatch(trackUi, /min=\{5\}/, "slider left the hung row");
+assert.doesNotMatch(trackUi, /max=\{15\}/, "slider left the hung row");
+assert.doesNotMatch(trackUi, /step=\{5\}/, "slider left the hung row");
 assert.doesNotMatch(trackUi, /m-track-len-chip/, "5/10/15 chips as separate buttons are gone");
 assert.doesNotMatch(
   trackUi,
   /HANG_LENGTH_CHIPS_SEC\.map\(\(sec\) =>/,
   "chips are not mapped to buttons",
 );
-assert.match(trackUi, /MINIMAX_H3_OVER_MAX_NOTE/);
-assert.match(trackUi, /refuseMinimaxH3OverMax/);
+assert.doesNotMatch(trackUi, /MINIMAX_H3_OVER_MAX_NOTE/, "H3 max note left the hung row");
+assert.doesNotMatch(trackUi, /refuseMinimaxH3OverMax/, "H3 max note left the hung row");
 assert.match(
   readFileSync(join(here, "../src/lib/minimaxH3.ts"), "utf8"),
   /H3 max 15/,
 );
 assert.doesNotMatch(mobileCss, /\.m-track-len-chip/, "chip chrome is gone");
-assert.match(mobileCss, /\.m-track-len-slider/);
-assert.match(mobileCss, /\.m-track-pick-len input\[type="number"\]/);
-assert.match(mobileCss, /width: 2\.3rem/, "seconds box is half the old 4.6rem");
-assert.match(trackUi, /aria-label="Seconds on the song"/);
+assert.doesNotMatch(mobileCss, /\.m-track-len-slider/, "slider chrome left the hung row");
+assert.doesNotMatch(mobileCss, /\.m-track-pick-len/, "seconds box chrome left the hung row");
+assert.doesNotMatch(trackUi, /aria-label="Seconds on the song"/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
   /refuseMinimaxH3OverMax/,
@@ -275,7 +285,6 @@ assert.match(
 );
 assert.match(trackUi, /cookDurationFromHungBar/);
 assert.match(trackUi, /durationSec: cook\.durationSec/);
-assert.match(trackUi, /commitHungPlateLength/);
 assert.doesNotMatch(trackUi, /\.\.\.\(durationSec \? \{ durationSec \} : \{\}\)/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
@@ -1237,14 +1246,14 @@ assert.doesNotMatch(
 );
 assert.match(trackUi, /remove-plate-timing/);
 assert.match(trackUi, /dropPlateFromWave/);
-assert.match(trackUi, /Off song/);
+assert.match(trackUi, /: "Remove"/);
 assert.match(trackUi, /Off the wave\. Clip stays/);
 assert.doesNotMatch(songLib, /the route can park them/);
 assert.match(trackRoute, /keepClipsAfterUnhang/);
 assert.doesNotMatch(
   trackRoute.slice(trackRoute.indexOf('action === "remove-plate-timing"')),
   /parkMobileClipFile/,
-  "Off song / TRACK X must not park the mp4",
+  "Remove unhangs — it must not park the mp4",
 );
 assert.doesNotMatch(trackRoute, /parkMobileClipFile/);
 assert.match(trackRoute, /songPlateIds/);
@@ -1253,7 +1262,7 @@ assert.match(trackRoute, /durationSec\?: number/);
 assert.doesNotMatch(
   trackRoute.slice(trackRoute.indexOf('action === "remove-plate-timing"')),
   /hangMissingPlateTimings|nextPlateHangWindow|add-plate/,
-  "Off song must not hang or append a new row",
+  "Remove must not hang or append a new row",
 );
 assert.match(songRoute, /hangCuts/);
 assert.match(
@@ -1347,6 +1356,12 @@ assert.match(motion, /pickSongSendMotionBody/);
 const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 const panels = readFileSync(join(here, "../src/components/mobile/ShotPromptPanels.tsx"), "utf8");
 const thumbs = readFileSync(join(here, "../src/components/mobile/PlateClipThumbs.tsx"), "utf8");
+assert.match(trackUi, /m-track-pick-clock/, "hung row keeps the short clock");
+assert.match(
+  trackUi,
+  /formatTrackClockPrecise\(pickedClock\.startMs\)/,
+  "hung row keeps 0:00.0 – 0:15.0 · 15s",
+);
 assert.doesNotMatch(trackUi, /m-track-engines/, "engines do not sit on the TRACK pick");
 assert.doesNotMatch(trackUi, />\s*Siray\s*</, "Siray is not on the TRACK pick");
 assert.doesNotMatch(trackUi, />\s*Free\s*</, "Free is not on the TRACK pick");

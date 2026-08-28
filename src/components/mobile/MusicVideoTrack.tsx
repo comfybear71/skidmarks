@@ -81,8 +81,7 @@ import {
   resolveMvSendEngine,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
-import { MINIMAX_H3_ID, MINIMAX_H3_OVER_MAX_NOTE, refuseMinimaxH3OverMax } from "@/lib/minimaxH3";
-import { HANG_LENGTH_CHIPS_SEC } from "@/lib/scratchSongWindow";
+import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 import { DeskFold, MobilePrimaryButton } from "./MobileUi";
@@ -98,21 +97,6 @@ import {
   waitForSongCut,
 } from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
-
-/** Slider stops only. The seconds box still takes a typed 7 or 9. */
-function snapHangLengthSec(sec: number): (typeof HANG_LENGTH_CHIPS_SEC)[number] {
-  const n = Number(sec);
-  let best: (typeof HANG_LENGTH_CHIPS_SEC)[number] = 15;
-  let bestDist = Number.POSITIVE_INFINITY;
-  for (const snap of HANG_LENGTH_CHIPS_SEC) {
-    const d = Math.abs(n - snap);
-    if (d < bestDist) {
-      best = snap;
-      bestDist = d;
-    }
-  }
-  return best;
-}
 
 /** Tall enough to read the bars and the plate lane on a phone. */
 const TRACK_WAVE_HEIGHT = 78;
@@ -854,7 +838,6 @@ export function MusicVideoTrack({
   busy: startBusy = false,
   canStart = false,
   onStart,
-  onOpenPlate,
   onBindSendStill,
   onSendStillBusy,
   onSendStillNote,
@@ -899,7 +882,6 @@ export function MusicVideoTrack({
   const [rangeChosen, setRangeChosen] = useState(false);
   const [stretchTimings, setStretchTimings] = useState<PlateTiming[] | null>(null);
   const [stretchReadout, setStretchReadout] = useState("");
-  const [lenDraft, setLenDraft] = useState("");
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const jobRef = useRef(job);
@@ -1085,10 +1067,6 @@ export function MusicVideoTrack({
       ? msToSec(pickedClock.endMs - pickedClock.startMs)
       : 0;
 
-  useEffect(() => {
-    if (pickedOnSong && pickedLenSec > 0) setLenDraft(String(pickedLenSec));
-  }, [picked?.shotId, pickedLenSec, pickedOnSong]);
-
   const zipClips = useMemo(() => orderedJobClips(job), [job]);
   const zipHref = zipClips.length
     ? `/api/crash/mobile/clips/zip?jobId=${encodeURIComponent(job.id)}`
@@ -1269,22 +1247,6 @@ export function MusicVideoTrack({
       (jobRef.current.scratchSong?.plateTimings || [])
         .map((t) => (t.plateId || "").trim())
         .filter(Boolean),
-    );
-  }
-
-  function waitingCutForPlate(shotId: string) {
-    const id = shotId.trim();
-    return (jobRef.current.scratchSong?.cuts || []).find((c) => {
-      if ((c.shotId || "").trim() !== id) return false;
-      if (c.status === "done" && c.clipFile) return false;
-      return true;
-    });
-  }
-
-  function doneCutForPlate(shotId: string) {
-    const id = shotId.trim();
-    return (jobRef.current.scratchSong?.cuts || []).find(
-      (c) => (c.shotId || "").trim() === id && c.status === "done" && Boolean(c.clipFile),
     );
   }
 
@@ -1664,27 +1626,6 @@ export function MusicVideoTrack({
     }
   }
 
-  async function redoPlate(shotId: string) {
-    const cut = doneCutForPlate(shotId) || waitingCutForPlate(shotId);
-    if (!cut?.id) {
-      setNote("Nothing to redo on that still.");
-      return;
-    }
-    requestSongCookStop(job.id);
-    cookCancel.current = true;
-    cookLock.current = false;
-    setBusy(`redo-${cut.id}`);
-    setNote("");
-    try {
-      await songPost("redo-cut", { cutId: cut.id });
-      setNote("Clip parked. Still stays on the song. Send again when you want.");
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't redo that cut");
-    } finally {
-      setBusy("");
-    }
-  }
-
   useEffect(() => {
     onBindSendStill?.((shotId) => sendPlateRef.current(shotId));
   }, [onBindSendStill]);
@@ -1811,40 +1752,6 @@ export function MusicVideoTrack({
       setStretchReadout("");
       setBusy("");
     }
-  }
-
-  async function setHungPlateLength(durationSec: number) {
-    if (!picked?.shotId || !pickedOnSong || !pickedClock) {
-      setNote("Hang the still on the song first.");
-      return;
-    }
-    const startSec = msToSec(pickedClock.startMs);
-    setBusy(`len-${picked.shotId}`);
-    setNote("");
-    try {
-      const updated = await trackAction("set-plate-duration", {
-        jobId: job.id,
-        plateId: picked.shotId,
-        startSec,
-        durationSec,
-      });
-      if (updated) onJobChange(updated);
-      setLenDraft(String(durationSec));
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't set that length");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  function commitHungPlateLength() {
-    const sec = Number(lenDraft);
-    if (!Number.isFinite(sec) || sec <= 0) {
-      if (pickedLenSec > 0) setLenDraft(String(pickedLenSec));
-      return;
-    }
-    if (pickedLenSec > 0 && Math.abs(sec - pickedLenSec) < 0.05) return;
-    void setHungPlateLength(sec);
   }
 
   async function dropSong() {
@@ -2126,68 +2033,8 @@ export function MusicVideoTrack({
                       disabled={Boolean(busy) || busy === `drop-${picked.shotId}`}
                       onClick={() => void dropPlateFromWave(picked.shotId)}
                     >
-                      {busy === `drop-${picked.shotId}` ? "…" : "Off song"}
+                      {busy === `drop-${picked.shotId}` ? "…" : "Remove"}
                     </button>
-                    <div className="m-track-pick-len" role="group" aria-label="Clip length">
-                      <input
-                        type="range"
-                        className="m-track-len-slider"
-                        min={5}
-                        max={15}
-                        step={5}
-                        aria-label="Snap length"
-                        value={snapHangLengthSec(Number(lenDraft) || pickedLenSec || 15)}
-                        disabled={Boolean(busy)}
-                        onChange={(e) => {
-                          const sec = snapHangLengthSec(Number(e.target.value));
-                          setLenDraft(String(sec));
-                          void setHungPlateLength(sec);
-                        }}
-                      />
-                      <input
-                        type="number"
-                        min={4}
-                        max={30}
-                        step={1}
-                        inputMode="decimal"
-                        aria-label="Seconds on the song"
-                        value={lenDraft}
-                        disabled={Boolean(busy)}
-                        onChange={(e) => setLenDraft(e.target.value)}
-                        onBlur={() => commitHungPlateLength()}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            commitHungPlateLength();
-                          }
-                        }}
-                      />
-                      <span>s</span>
-                    </div>
-                    {/* Send lives on the JACK GHOST plate row — one cook. */}
-                    {doneCutForPlate(picked.shotId)?.id ||
-                    waitingCutForPlate(picked.shotId)?.clipFile ||
-                    waitingCutForPlate(picked.shotId)?.status === "error" ? (
-                      <>
-                        <button
-                          type="button"
-                          className="m-track-btn"
-                          disabled={busy.startsWith("redo-")}
-                          onClick={() => void redoPlate(picked.shotId)}
-                        >
-                          {busy.startsWith("redo-") ? "…" : "Redo"}
-                        </button>
-                        <button
-                          type="button"
-                          className="m-track-btn"
-                          aria-label="Take off the song"
-                          disabled={Boolean(busy) || busy === `drop-${picked.shotId}`}
-                          onClick={() => void dropPlateFromWave(picked.shotId)}
-                        >
-                          {busy === `drop-${picked.shotId}` ? "…" : "X"}
-                        </button>
-                      </>
-                    ) : null}
                   </>
                 ) : hungClipFileForPlate(job, picked.shotId) ? null : (
                   <button
@@ -2199,19 +2046,7 @@ export function MusicVideoTrack({
                     Add
                   </button>
                 )}
-                {onOpenPlate ? (
-                  <button
-                    type="button"
-                    className="m-track-btn"
-                    onClick={() => onOpenPlate(hangPlateShotId(picked.shotId))}
-                  >
-                    Open
-                  </button>
-                ) : null}
               </div>
-              {pickedOnSong && refuseMinimaxH3OverMax(pickedLenSec) ? (
-                <p className="m-track-err">{MINIMAX_H3_OVER_MAX_NOTE}</p>
-              ) : null}
             </div>
           ) : null}
 
