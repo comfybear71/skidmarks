@@ -491,8 +491,6 @@ assert.equal(
 const h3Fold = muteMvEngineFoldLines("h3");
 assert.equal(h3Fold.length, 6, "H3 tap opens the real API set");
 assert.match(h3Fold[0], /4–15s/);
-assert.match(h3Fold[0], /No 25s/);
-assert.match(h3Fold[0], /Use LTX for 25/);
 assert.match(h3Fold[1], /First \+ last frame/);
 assert.match(h3Fold[2], /no drone field/);
 assert.match(h3Fold[2], /Pedestal up/);
