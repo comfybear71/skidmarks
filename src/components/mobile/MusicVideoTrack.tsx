@@ -1161,12 +1161,17 @@ export function MusicVideoTrack({
 
   async function sendPlate(shotId: string) {
     if (!hungShotIds().has(shotId.trim())) {
-      setNote("Add this still to the timeline first.");
+      await addPlateToTimeline(shotId);
+      setNote("On the song. Set start and how long, then Send.");
       return;
     }
-    const cut = waitingCutForPlate(shotId);
+    let cut = waitingCutForPlate(shotId);
     if (!cut?.id) {
-      setNote("Add this still to the timeline first.");
+      await setPickedLength();
+      cut = waitingCutForPlate(shotId);
+    }
+    if (!cut?.id) {
+      setNote("Set where it starts and how long, then Send.");
       return;
     }
     if (cookLock.current) return;
@@ -1177,6 +1182,27 @@ export function MusicVideoTrack({
       await sendOneCutBody(cut.id);
     } finally {
       cookLock.current = false;
+    }
+  }
+
+  async function dropPlateFromWave(shotId: string) {
+    if (!song?.fileName) {
+      setNote("Nothing on the song to drop.");
+      return;
+    }
+    setBusy(`drop-${shotId}`);
+    setNote("");
+    try {
+      const updated = await trackAction("remove-plate-timing", {
+        jobId: job.id,
+        plateId: shotId,
+      });
+      if (updated) onJobChange(updated);
+      setNote("Off the wave. Still stays. Nothing deleted.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't drop that plate");
+    } finally {
+      setBusy("");
     }
   }
 
@@ -1651,16 +1677,23 @@ export function MusicVideoTrack({
                     >
                       Move right
                     </button>
-                    {waitingCutForPlate(picked.shotId)?.id ? (
+                    <button
+                      type="button"
+                      className="m-track-btn"
+                      disabled={Boolean(busy) || busy === `drop-${picked.shotId}`}
+                      onClick={() => void dropPlateFromWave(picked.shotId)}
+                    >
+                      {busy === `drop-${picked.shotId}` ? "…" : "Off song"}
+                    </button>
+                    {!doneCutForPlate(picked.shotId) ||
+                    waitingCutForPlate(picked.shotId)?.id ? (
                       <button
                         type="button"
                         className="m-track-btn"
                         disabled={Boolean(busy) || busy.startsWith("send-")}
                         onClick={() => void sendPlate(picked.shotId)}
                       >
-                        {busy === `send-${waitingCutForPlate(picked.shotId)?.id}`
-                          ? "Sending…"
-                          : "Send"}
+                        {busy.startsWith("send-") ? "Sending…" : "Send"}
                       </button>
                     ) : null}
                     {doneCutForPlate(picked.shotId)?.id ||

@@ -320,6 +320,7 @@ assert.match(
 assert.match(trackUi, /hang-plates/);
 assert.match(trackUi, /remove-plate-timing/);
 assert.match(trackUi, /dropPlateFromWave/);
+assert.match(trackUi, /Off song/);
 assert.match(trackRoute, /parkMobileClipFile/);
 assert.match(trackRoute, /songPlateIds/);
 assert.match(songRoute, /hangCuts/);

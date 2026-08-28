@@ -345,7 +345,26 @@ export function shotIdForSongCut(
   ).trim();
 }
 
-/** Shot ids that have a still but no TRACK clock. */
+/** A usable still — empty / failed leftover shot rows do not count. */
+export function realPlateStillFile(
+  shotId: string,
+  jobShots: { shotId: string; plateFile?: string }[] = [],
+  cut?: { plateFile?: string },
+): string {
+  const fromCut = (cut?.plateFile || "").trim();
+  if (fromCut && fromCut !== "__error__") return fromCut;
+  const id = (shotId || "").trim();
+  const fromShot = (
+    jobShots.find((s) => (s.shotId || "").trim() === id)?.plateFile || ""
+  ).trim();
+  if (fromShot && fromShot !== "__error__") return fromShot;
+  return "";
+}
+
+/**
+ * Shot ids he put on the song (song list / cuts with a real still)
+ * that have no TRACK clock. Leftover job.shots rows stay off the wave.
+ */
 export function plateIdsWaitingForTrack(opts: {
   song?: {
     cuts?: { shotId?: string; plateFile?: string }[];
@@ -354,24 +373,21 @@ export function plateIdsWaitingForTrack(opts: {
   } | null;
   jobShots?: { shotId: string; plateFile?: string }[];
 }): string[] {
+  const jobShots = opts.jobShots || [];
   const have = new Set(
     (opts.song?.plateTimings || []).map((t) => (t.plateId || "").trim()).filter(Boolean),
   );
   const want: string[] = [];
-  const push = (id: string) => {
+  const push = (id: string, cut?: { plateFile?: string }) => {
     const clean = id.trim();
     if (!clean || have.has(clean) || want.includes(clean)) return;
+    if (!realPlateStillFile(clean, jobShots, cut)) return;
     want.push(clean);
   };
   for (const c of opts.song?.cuts || []) {
-    push(shotIdForSongCut(c, opts.jobShots || []));
+    push(shotIdForSongCut(c, jobShots), c);
   }
   for (const id of opts.song?.songPlateIds || []) push(id);
-  for (const s of opts.jobShots || []) {
-    const file = (s.plateFile || "").trim();
-    if (!file || file === "__error__") continue;
-    push(s.shotId);
-  }
   return want;
 }
 
