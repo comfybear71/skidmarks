@@ -60,10 +60,9 @@ import {
   looksLikePlatePositionPrompt,
   pickLtxMotionBody,
   readLtxMotionDraft,
-  readMvClipEngine,
-  readMvEngine,
   readMvMotionSlot,
   readMvMuteAction,
+  resolveMvSendEngine,
   storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
   writeLtxMotionDraft,
@@ -2275,7 +2274,7 @@ function ShotLineEditor({
 }) {
   const [enginePromptOpen, setEnginePromptOpen] = useState(false);
   const [mvEngine, setMvEngine] = useState<MuteMvEngine>(() =>
-    shot?.id ? readMvClipEngine(jobId, shot.id) : "ltx",
+    resolveMvSendEngine({ jobId, shotId: shot?.id, beatId: shot?.beats?.[0]?.id }),
   );
   const leftoverCutaway = (shot?.beats || []).some((b) => b.kind === "cutaway");
   const [muteAction, setMuteAction] = useState(
@@ -2285,7 +2284,9 @@ function ShotLineEditor({
   useEffect(() => {
     setEnginePromptOpen(false);
     if (shot?.id) {
-      setMvEngine(readMvClipEngine(jobId, shot.id));
+      setMvEngine(
+        resolveMvSendEngine({ jobId, shotId: shot.id, beatId: shot.beats?.[0]?.id }),
+      );
       setMuteAction(
         (shot.beats || []).some((b) => b.kind === "cutaway") ||
           readMvMuteAction(jobId, shot.id),
@@ -2486,6 +2487,7 @@ function ShotLineEditor({
                   jobId={jobId}
                   shotId={shot.id}
                   beatId={shot.beats[0]?.id || ""}
+                  engine={mvEngine}
                   promptOpen={enginePromptOpen}
                   muteOn={muteAction}
                   onMute={(on) => {
@@ -2493,6 +2495,7 @@ function ShotLineEditor({
                     writeMvMuteAction(jobId, shot.id, on);
                     if (on) setEnginePromptOpen(true);
                   }}
+                  onEngine={setMvEngine}
                   onOpen={(next) => {
                     setMvEngine(next);
                     setEnginePromptOpen(true);
@@ -2535,6 +2538,7 @@ function ShotLineEditor({
             jobId={jobId}
             shotId={shot.id}
             beatId={speakingBeats[0]?.id || shot.beats[0]?.id || ""}
+            engine={mvEngine}
             promptOpen={enginePromptOpen}
             muteOn={muteAction}
             onMute={(on) => {
@@ -2542,6 +2546,7 @@ function ShotLineEditor({
               writeMvMuteAction(jobId, shot.id, on);
               if (on) setEnginePromptOpen(true);
             }}
+            onEngine={setMvEngine}
             onOpen={(next) => {
               setMvEngine(next);
               setEnginePromptOpen(true);
@@ -2613,30 +2618,31 @@ function PlateEngineButtons({
   jobId,
   shotId,
   beatId,
+  engine: engineProp,
   promptOpen,
   muteOn,
   onMute,
+  onEngine,
   onOpen,
 }: {
   jobId: string;
   shotId: string;
   beatId: string;
+  engine?: MuteMvEngine;
   promptOpen?: boolean;
   muteOn?: boolean;
   onMute?: (on: boolean) => void;
+  onEngine?: (engine: MuteMvEngine) => void;
   onOpen?: (engine: MuteMvEngine) => void;
 }) {
-  const [engine, setEngine] = useState<MuteMvEngine>(() =>
-    shotId ? readMvClipEngine(jobId, shotId) : beatId ? readMvEngine(jobId, beatId) : "ltx",
+  const [engineLocal, setEngineLocal] = useState<MuteMvEngine>(() =>
+    resolveMvSendEngine({ jobId, shotId, beatId }),
   );
+  const engine = engineProp ?? engineLocal;
   const [h3Ready, setH3Ready] = useState(false);
 
   useEffect(() => {
-    if (shotId) {
-      setEngine(readMvClipEngine(jobId, shotId));
-      return;
-    }
-    if (beatId) setEngine(readMvEngine(jobId, beatId));
+    setEngineLocal(resolveMvSendEngine({ jobId, shotId, beatId }));
   }, [beatId, jobId, shotId]);
 
   useEffect(() => {
@@ -2658,14 +2664,16 @@ function PlateEngineButtons({
     if (h3Ready || engine !== "h3") return;
     if (shotId) writeMvClipEngine(jobId, shotId, "ltx");
     if (beatId) writeMvEngine(jobId, beatId, "ltx");
-    setEngine("ltx");
-  }, [beatId, engine, h3Ready, jobId, shotId]);
+    setEngineLocal("ltx");
+    onEngine?.("ltx");
+  }, [beatId, engine, h3Ready, jobId, onEngine, shotId]);
 
   function pick(next: MuteMvEngine) {
     if (next === "h3" && !h3Ready) return;
     if (shotId) writeMvClipEngine(jobId, shotId, next);
     if (beatId) writeMvEngine(jobId, beatId, next);
-    setEngine(next);
+    setEngineLocal(next);
+    onEngine?.(next);
     onOpen?.(next);
   }
 
@@ -3314,7 +3322,12 @@ function BeatLineEditor({
 
       {songDesk && muteLock && enginePromptOpen ? (
         <MuteMvMotionHole
-          engine={mvEngine || "ltx"}
+          engine={resolveMvSendEngine({
+            jobId,
+            shotId,
+            beatId: beat.id,
+            picked: mvEngine,
+          })}
           motionLock={muteLock}
           motionSlot={muteSlot}
           onMotionSlot={(next) => {

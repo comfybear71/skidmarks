@@ -981,6 +981,29 @@ export function writeMvEngine(jobId: string, beatId: string, engine: MuteMvEngin
   }
 }
 
+/** Hole header — LTX vs H3. No lips is mute on the same engine, not a third name. */
+export function muteMvMotionLabel(engine: MuteMvEngine): string {
+  return engine === "h3" ? "H3 Image motion" : "LTX Image motion";
+}
+
+/**
+ * Same OR as Send: live tap, then shot pick, then beat pick.
+ * Stops the hole staying on LTX after H3 is already stored.
+ */
+export function resolveMvSendEngine(opts: {
+  jobId: string;
+  shotId?: string;
+  beatId?: string;
+  picked?: MuteMvEngine | null;
+}): MuteMvEngine {
+  if (opts.picked === "h3") return "h3";
+  const shotId = (opts.shotId || "").trim();
+  if (shotId && readMvClipEngine(opts.jobId, shotId) === "h3") return "h3";
+  const beatId = (opts.beatId || "").trim();
+  if (beatId && readMvEngine(opts.jobId, beatId) === "h3") return "h3";
+  return "ltx";
+}
+
 /** His [ ] motion words stay when he switches LTX ↔ H3. */
 export function readMvMotionSlot(jobId: string, beatId: string): string | null {
   if (typeof window === "undefined") return null;

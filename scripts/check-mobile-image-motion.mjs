@@ -33,6 +33,8 @@ import {
   extractMuteMvMotionSlot,
   isSingingDefaultMotion,
   MUTE_MV_SLOT_PLACEHOLDER,
+  muteMvMotionLabel,
+  resolveMvSendEngine,
 } from "../src/lib/mobileImageMotion.ts";
 
 assert.match(LTX_LIP_SYNC_LEAD, /dication is perfect/);
@@ -414,6 +416,19 @@ assert.match(kept, /stands up from the crouch/);
 assert.match(kept, /vintage car already in the start image speeds off/);
 assert.doesNotMatch(kept, /Mouth stays closed/);
 
+assert.equal(muteMvMotionLabel("h3"), "H3 Image motion", "H3 titles the hole H3");
+assert.equal(muteMvMotionLabel("ltx"), "LTX Image motion", "LTX titles the hole LTX");
+assert.equal(
+  resolveMvSendEngine({ jobId: "job", picked: "h3" }),
+  "h3",
+  "a live H3 tap wins the hole title",
+);
+assert.equal(
+  resolveMvSendEngine({ jobId: "job", picked: "ltx" }),
+  "ltx",
+  "LTX tap stays LTX when nothing is stored",
+);
+assert.match(motionSrc, /export function muteMvMotionLabel/, "title helper is the one hole label");
 assert.match(motionSrc, /export function writeMvClipEngine/, "plate LTX / H3 store is session only");
 assert.match(motionSrc, /export function readMvClipEngine/);
 assert.match(motionSrc, /export function readMvMuteAction/, "No lips is session only");
