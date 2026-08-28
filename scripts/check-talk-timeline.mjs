@@ -24,6 +24,7 @@ import {
   talkAssignActNs,
   talkClipClock,
   talkClipDeskFrom,
+  clipsOnTalkAct,
   talkClipWidthPx,
   talkNextShotTitle,
   talkSceneBands,
@@ -499,6 +500,25 @@ assert.equal(placeActs[1].cellKeys.length, 0);
 assert.equal(placeActs[2].roman, "III");
 assert.equal(placeActs[2].title, "BBQ shelter");
 assert.equal(placeActs[2].lineCount, 0);
+const parkBeats = jokeAct1Shots.flatMap((sh) => sh.beats.map((b) => b.id));
+const mixedQueue = [
+  ...jokeAct1Shots.flatMap((sh) =>
+    sh.beats.map((b) => ({ beatId: b.id, shotId: sh.id, clipStatus: "done" })),
+  ),
+  { beatId: "bbq_a", shotId: "shot_bbq", clipStatus: "pending" },
+  { beatId: "bbq_b", shotId: "shot_bbq", clipStatus: "pending" },
+];
+const parkOnly = clipsOnTalkAct(mixedQueue, placeActs[0], jokeDesk.cells);
+assert.ok(
+  parkOnly.every((c) => parkBeats.includes(c.beatId)),
+  "animate meter on Act I must not include BBQ lines",
+);
+assert.equal(parkOnly.length, parkBeats.length);
+assert.equal(
+  clipsOnTalkAct(mixedQueue, placeActs[2], jokeDesk.cells).length,
+  0,
+  "empty BBQ act has no meter cells until clips sit on that place",
+);
 const fourActs = talkPlaceActsFrom(
   [
     { id: "scene_park", placeName: "Caravan park" },
@@ -535,6 +555,40 @@ assert.equal(afterBbq[0].title, "Caravan park");
 assert.equal(afterBbq[1].title, "BBQ shelter");
 assert.equal(afterBbq[1].roman, "II");
 assert.ok(afterBbq[1].cellKeys.includes("shot:bbq_12"));
+const unit9Tail = {
+  ...jokeDesk.cells[0],
+  key: "shot:unit9_a",
+  shotId: "unit9_a",
+  sceneId: "scene_unit9_tail",
+  sceneTitle: "Unit 9",
+  title: "SHOT 14 — Nuggets",
+  clipFile: "nuggets.mp4",
+};
+const unit9Twin = {
+  ...unit9Tail,
+  key: "shot:unit9_b",
+  shotId: "unit9_b",
+};
+const twoUnit9 = talkPlaceActsFrom(
+  [
+    { id: "scene_park", placeName: "Caravan park" },
+    { id: "scene_unit9", placeName: "Unit 9" },
+    { id: "scene_bbq", placeName: "BBQ shelter" },
+    { id: "scene_unit9_tail", placeName: "Unit 9" },
+  ],
+  [...jokeDesk.cells, bbqOrphan, unit9Tail, unit9Twin],
+);
+assert.equal(
+  twoUnit9.filter((a) => a.title === "Unit 9").length,
+  1,
+  "two Unit 9 scenes must not mint Act II and Act IV",
+);
+assert.equal(twoUnit9[1].title, "BBQ shelter");
+assert.equal(twoUnit9[1].roman, "II", "BBQ is Act II — leftover Unit 9 does not steal it");
+assert.equal(twoUnit9[2]?.title, "Unit 9");
+assert.equal(twoUnit9[2]?.roman, "III");
+assert.ok(twoUnit9[2].cellKeys.includes("shot:unit9_a"));
+assert.ok(twoUnit9[2].cellKeys.includes("shot:unit9_b"));
 assert.equal(
   talkPlaceActsFrom([], jokeDesk.cells).length,
   talkActScriptsFrom(jokeDesk.cells).length,
@@ -606,6 +660,15 @@ assert.match(talkUi, /Remove slot/);
 assert.match(talkUi, /Act \{act\.roman\}/);
 assert.match(talkUi, /talkPlaceActsFrom/);
 assert.match(talkUi, /talkSkidmarksActsFrom/);
+assert.match(talkUi, /onActIdChange/);
+assert.match(tree, /clipsOnTalkAct/);
+assert.match(tree, /onActIdChange=\{setTalkActId\}/);
+{
+  const meterCss = css.slice(css.indexOf(".m-animate-meter {"), css.indexOf(".m-animate-meter-cell {"));
+  assert.match(meterCss, /overflow-x:\s*auto/);
+  assert.match(meterCss, /touch-action:\s*pan-x pan-y/);
+  assert.doesNotMatch(meterCss, /max-width:\s*22rem/);
+}
 assert.match(talkUi, /resolvedActId/);
 assert.match(talkUi, /visibleCells/);
 assert.match(talkUi, /m-talk-act-count/);

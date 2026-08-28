@@ -604,6 +604,8 @@ export function TalkTimeline({
   compact = false,
   castOptions = [],
   placeOptions = [],
+  actId,
+  onActIdChange,
   onJobChange,
 }: {
   job: MobileGenJob;
@@ -613,6 +615,9 @@ export function TalkTimeline({
   castOptions?: TalkPickWho[];
   placeOptions?: TalkPickWhere[];
   onOpenPlate?: (shotId: string) => void;
+  /** Open act chip — parent uses this to scope the animate meter. */
+  actId?: string;
+  onActIdChange?: (id: string) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
   const desk = useMemo(
@@ -639,7 +644,11 @@ export function TalkTimeline({
   const [addActOpen, setAddActOpen] = useState(false);
   const [addActName, setAddActName] = useState("");
   const isSkidmarks = job.styleId === "skidmarks";
-  const [openActId, setOpenActId] = useState(isSkidmarks ? "stage-1" : "");
+  const [openActId, setOpenActIdState] = useState(isSkidmarks ? "stage-1" : "");
+  function setOpenActId(id: string) {
+    setOpenActIdState(id);
+    onActIdChange?.(id);
+  }
   const [openDoc, setOpenDoc] = useState<"" | "rules" | "blank">("");
   const [blankCopied, setBlankCopied] = useState(false);
   const cells = useMemo(() => talkClipLayout(desk.cells, measured), [desk.cells, measured]);
@@ -650,7 +659,7 @@ export function TalkTimeline({
         : talkPlaceActsFrom(job.scenes, cells),
     [cells, isSkidmarks, job.scenes],
   );
-  const resolvedActId = openActId || acts[0]?.id || "";
+  const resolvedActId = actId || openActId || acts[0]?.id || "";
   const openAct = acts.find((a) => a.id === resolvedActId) || null;
   const visibleCells = useMemo(() => {
     if (compact || !openAct) return cells;

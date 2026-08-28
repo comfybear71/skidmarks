@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import {
   MobilePrimaryButton,
   MobileTextInput,
@@ -48,6 +48,12 @@ import {
   readPlateDrag,
 } from "@/lib/crashPlateDrag";
 import { queuedSavedClips } from "@/lib/mobileClipQueue";
+import {
+  clipsOnTalkAct,
+  talkClipDeskFrom,
+  talkPlaceActsFrom,
+  talkSkidmarksActsFrom,
+} from "@/lib/talkClipTimeline";
 import { isJoKeyboardWarrior } from "@/lib/mobileImageMotion";
 import type { CrashStoryDoc } from "@/lib/crashStoryTypes";
 import type { MobileGenJob, MobileImageCandidate } from "@/lib/mobileGenJob";
@@ -1010,6 +1016,7 @@ export function StudioTree({
   );
   const [vibeBusy, setVibeBusy] = useState(false);
   const [vibeError, setVibeError] = useState("");
+  const [talkActId, setTalkActId] = useState("");
 
   function revealPlates(shotId?: string) {
     setPlatesOpen(true);
@@ -1251,7 +1258,27 @@ export function StudioTree({
       setPlating(false);
     }
   }
-  const queued = episodeQueuedClips({ ...job, clips: queuedSavedClips(job.clips) });
+  const queuedAll = episodeQueuedClips({ ...job, clips: queuedSavedClips(job.clips) });
+  const talkDesk = useMemo(() => {
+    if (isMusicVideoSongJob(job)) return null;
+    return talkClipDeskFrom({
+      story: deskStory,
+      styleId: job.styleId,
+      plated: songPlates,
+      clips: episodeQueuedClips(job, deskStory),
+    });
+  }, [deskStory, job, songPlates]);
+  const talkActs = useMemo(() => {
+    if (!talkDesk) return [];
+    return job.styleId === "skidmarks"
+      ? talkSkidmarksActsFrom(talkDesk.cells)
+      : talkPlaceActsFrom(job.scenes, talkDesk.cells);
+  }, [job.scenes, job.styleId, talkDesk]);
+  const talkAct =
+    talkActs.find((a) => a.id === (talkActId || talkActs[0]?.id || "")) || null;
+  const queued = talkAct
+    ? clipsOnTalkAct(queuedAll, talkAct, talkDesk?.cells || [])
+    : queuedAll;
   const vibePreset = getShowStylePreset(job.styleId);
   const vibeRealism = job.styleRealism ?? vibePreset.defaultRealism;
   const credit = musicVideoCreditLine(job);
@@ -1934,6 +1961,8 @@ export function StudioTree({
             story={deskStory}
             plated={songPlates}
             compact={!platesOpen}
+            actId={talkActId}
+            onActIdChange={setTalkActId}
             onJobChange={onJobChange}
             castOptions={job.speakers.map((name) => {
               const file = approvedCandidateFileName(job.castCandidates, name) || "";
@@ -2069,7 +2098,7 @@ export function StudioTree({
           <div style={{ padding: "8px 0" }}>
             <ShimmerText style={{ fontSize: "14px", fontWeight: 600 }}>
               {queued.length
-                ? `Animating… ${queued.filter((c) => c.clipStatus === "done" || c.clipStatus === "error").length}/${queued.length}`
+                ? `Animating… ${queued.filter((c) => c.clipStatus === "done" || c.clipStatus === "error").length}/${queued.length}${talkAct?.title ? ` · ${talkAct.title}` : ""}`
                 : "Animating… no lines queued"}
             </ShimmerText>
             {queued.length ? (
