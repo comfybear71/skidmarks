@@ -57,9 +57,14 @@ import {
   looksLikePlatePositionPrompt,
   pickLtxMotionBody,
   readLtxMotionDraft,
+  readMvClipEngine,
+  readMvEngine,
   storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
   writeLtxMotionDraft,
+  writeMvClipEngine,
+  writeMvEngine,
+  type MuteMvEngine,
 } from "@/lib/mobileImageMotion";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 import { isEmptyStageStaging } from "@/lib/emptyStagePlate";
@@ -2440,9 +2445,16 @@ function ShotLineEditor({
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {onAddToSong ? (
             <>
-              <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
-                {songAdding ? "Adding…" : "Add"}
-              </MobilePrimaryButton>
+              <div className="m-plate-add-engines">
+                <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
+                  {songAdding ? "Adding…" : "Add"}
+                </MobilePrimaryButton>
+                <PlateEngineButtons
+                  jobId={jobId}
+                  shotId={shot.id}
+                  beatId={shot.beats[0]?.id || ""}
+                />
+              </div>
               {onAddCast ? (
                 <MobilePrimaryButton tone="ghost" onClick={onAddCast}>
                   Add someone
@@ -2461,13 +2473,19 @@ function ShotLineEditor({
           )}
         </div>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+        <div className="m-plate-add-engines">
         {onAddToSong ? (
           <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
             {songAdding ? "Adding…" : "Add"}
           </MobilePrimaryButton>
         ) : null}
-        {styleId === "music_video" ? null : (
+        {styleId === "music_video" ? (
+          <PlateEngineButtons
+            jobId={jobId}
+            shotId={shot.id}
+            beatId={speakingBeats[0]?.id || shot.beats[0]?.id || ""}
+          />
+        ) : (
           <>
             <AnotherLineButton
               jobId={jobId}
@@ -2487,6 +2505,74 @@ function ShotLineEditor({
         </div>
       )}
     </div>
+  );
+}
+
+/** Add | LTX | H3 — pick stores for the next TRACK Send. Does not cook. */
+function PlateEngineButtons({
+  jobId,
+  shotId,
+  beatId,
+}: {
+  jobId: string;
+  shotId: string;
+  beatId: string;
+}) {
+  const [engine, setEngine] = useState<MuteMvEngine>(() =>
+    shotId ? readMvClipEngine(jobId, shotId) : beatId ? readMvEngine(jobId, beatId) : "ltx",
+  );
+  const [h3Ready, setH3Ready] = useState(false);
+
+  useEffect(() => {
+    if (shotId) {
+      setEngine(readMvClipEngine(jobId, shotId));
+      return;
+    }
+    if (beatId) setEngine(readMvEngine(jobId, beatId));
+  }, [beatId, jobId, shotId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/crash/mobile/scratch")
+      .then((res) => res.json())
+      .then((data: { minimax?: boolean }) => {
+        if (!cancelled && typeof data.minimax === "boolean") setH3Ready(data.minimax);
+      })
+      .catch(() => {
+        /* H3 stays dead */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (h3Ready || engine !== "h3") return;
+    if (shotId) writeMvClipEngine(jobId, shotId, "ltx");
+    if (beatId) writeMvEngine(jobId, beatId, "ltx");
+    setEngine("ltx");
+  }, [beatId, engine, h3Ready, jobId, shotId]);
+
+  function pick(next: MuteMvEngine) {
+    if (next === "h3" && !h3Ready) return;
+    if (shotId) writeMvClipEngine(jobId, shotId, next);
+    if (beatId) writeMvEngine(jobId, beatId, next);
+    setEngine(next);
+  }
+
+  return (
+    <>
+      <MobilePrimaryButton tone={engine === "ltx" ? "accent" : "ghost"} onClick={() => pick("ltx")}>
+        LTX
+      </MobilePrimaryButton>
+      <MobilePrimaryButton
+        tone={engine === "h3" ? "accent" : "ghost"}
+        disabled={!h3Ready}
+        onClick={() => pick("h3")}
+      >
+        H3
+      </MobilePrimaryButton>
+    </>
   );
 }
 
@@ -2808,6 +2894,7 @@ function BeatLineEditor({
 
   const emptiedPhoneMotionRef = useRef("");
   useEffect(() => {
+    if (songDesk) return;
     if (motionDraft !== null) return;
     if ((storedMotion || "").trim()) return;
     if (!storedMotionNeedsRebuild(storedMotion, positionBody)) return;
@@ -2819,7 +2906,7 @@ function BeatLineEditor({
     void persistMotion(next).catch(() => {
       emptiedPhoneMotionRef.current = "";
     });
-  }, [beat.id, defaultMotionBody, motionDraft, persistMotion, positionBody, storedMotion]);
+  }, [beat.id, defaultMotionBody, motionDraft, persistMotion, positionBody, songDesk, storedMotion]);
 
   const motionAssist = useMobileAssist(
     "image_motion",

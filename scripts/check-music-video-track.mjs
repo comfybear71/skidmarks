@@ -373,15 +373,27 @@ assert.match(motion, /pickSongSendMotionBody/);
   assert.equal(hung?.id, "cut_mtylzdo", "Send this still, not a later leftover row");
 }
 
-assert.match(trackUi, /m-track-engines/, "engine row sits on the selected still");
-assert.match(trackUi, />\s*LTX\s*</, "LTX is on the selected still");
-assert.match(trackUi, />\s*H3\s*</, "H3 button is on the selected still");
-assert.match(trackUi, />\s*Siray\s*</, "Siray button is on the selected still");
-assert.match(trackUi, />\s*Free\s*</, "Free / stock is on the selected still");
-assert.match(trackUi, /m-track-motion-slot/, "[ ] motion slot is what he edits");
-assert.match(trackUi, /MUTE_MV_SLOT_PLACEHOLDER/, "slot placeholder is stand up, car drives off");
-assert.match(trackUi, /clipEngine/, "Send can pick LTX / H3 / Siray");
+const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+const thumbs = readFileSync(join(here, "../src/components/mobile/PlateClipThumbs.tsx"), "utf8");
+assert.doesNotMatch(trackUi, /m-track-engines/, "engines do not sit on TRACK How long / Starts at / Send");
+assert.doesNotMatch(trackUi, />\s*Siray\s*</, "Siray is not on the TRACK pick");
+assert.doesNotMatch(trackUi, />\s*Free\s*</, "Free is not on the TRACK pick");
+assert.match(trackUi, /m-track-motion-slot/, "[ ] motion slot stays for Send");
+assert.match(editor, /function PlateEngineButtons/, "LTX / H3 sit on the plate Add row");
+assert.match(editor, /m-plate-add-engines/, "Add | LTX | H3 share one row");
+assert.match(editor, />\s*LTX\s*</, "LTX is a real button next to Add");
+assert.match(editor, />\s*H3\s*</, "H3 is a real button next to Add");
+assert.doesNotMatch(editor, />\s*Siray\s*</, "Siray stays off the plate");
+assert.doesNotMatch(editor, />\s*Free\s*</, "Free stays off the plate");
+assert.match(editor, /writeMvEngine/, "tap stores the engine for the next Send");
+assert.doesNotMatch(editor, /pickEngine/, "do not put LTX / H3 on CLIPS thumbs");
+assert.doesNotMatch(thumbs, /pickEngine/, "CLIPS / plate-1 thumb is not the engine row");
+assert.doesNotMatch(thumbs, /m-plate-clip-engine/, "CLIPS / plate-1 thumb is not the engine row");
+assert.match(trackUi, /readMvEngine/, "TRACK Send reads the plate LTX / H3 pick");
+assert.match(trackUi, /clipEngine/, "Send can still run LTX / H3");
 assert.doesNotMatch(trackUi, /Seedance/, "do not fake a Seedance button");
+assert.match(mobileCss, /\.m-plate-add-engines/, "Add | LTX | H3 stay on one row");
+assert.doesNotMatch(mobileCss, /\.m-plate-clip-engines/, "no engine chrome on the CLIPS thumb");
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
   /action === "clip-poll"/,
@@ -391,8 +403,5 @@ assert.match(
   readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8"),
   /buildMuteMvMotionLock/,
 );
-assert.match(
-  readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8"),
-  /styleId === "music_video" \? null/,
-  "+ another line / + cutaway stay off music_video only",
-);
+assert.match(editor, /styleId === "music_video"/, "music_video plate shows LTX / H3 instead of + another line");
+assert.match(editor, /AnotherLineButton/, "+ another line stays for non music_video");
