@@ -10,6 +10,7 @@ import {
   hangMissingPlateTimings,
   nextPlateHangWindow,
   swapNeighborPlateTimings,
+  applyLandedClipDuration,
   withPlateDuration,
   withPlateWindow,
   msToSec,
@@ -120,9 +121,9 @@ assert.match(tree, /compact=\{!platesOpen\}/);
 assert.match(trackUi, /WaveformCanvas/);
 assert.match(trackUi, /Add section/);
 assert.match(trackUi, /Put stills on the song/);
-assert.match(trackUi, /How long/);
-assert.match(trackUi, /Starts at/);
-assert.match(trackUi, /startSec/);
+assert.doesNotMatch(trackUi, /How long/);
+assert.doesNotMatch(trackUi, /Starts at/);
+assert.match(trackUi, /length after the clip/);
 assert.match(trackUi, /Send all/);
 assert.match(trackUi, /m-track-film/);
 assert.doesNotMatch(trackUi, /Use range/);
@@ -145,7 +146,8 @@ assert.match(trackUi, /Move right/);
 assert.match(trackUi, /move-plate/);
 assert.match(trackUi, /Stop send/);
 assert.match(trackUi, /Put stills on the song/);
-assert.match(trackUi, /set-plate-duration/);
+assert.doesNotMatch(trackUi, /set-plate-duration/);
+assert.match(trackUi, /waiting/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "move-plate"/,
@@ -303,6 +305,26 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(fromShots[1].startMs, 15000);
   assert.equal(fromShots[2].plateId, "shot_car");
   assert.equal(fromShots[2].startMs, 30000);
+
+  const landed = applyLandedClipDuration(
+    {
+      fileName: "song.mp3",
+      durationSec: 180,
+      sliceStartSec: 0,
+      sliceDurationSec: 15,
+      plateTimings: [
+        { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+      ],
+      cuts: [
+        { id: "c1", plateFile: "a.png", shotId: "a", startSec: 0, durationSec: 15, status: "done" },
+      ],
+    },
+    { cutId: "c1", durationSec: 8.4 },
+  );
+  assert.equal(landed.cuts?.[0]?.durationSec, 8.4);
+  assert.equal(landed.plateTimings?.[0]?.endMs, 8400);
+  assert.equal(landed.plateTimings?.[1]?.startMs, 8400);
 }
 
 assert.match(

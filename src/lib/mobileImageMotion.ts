@@ -746,3 +746,46 @@ export function buildScratchPadLtxMotion(opts: {
     ].join(" "),
   );
 }
+
+function ltxMotionDraftKey(jobId: string, beatId: string): string {
+  return `skidmarks.ltxMotion.${(jobId || "").trim()}.${(beatId || "").trim()}`;
+}
+
+/** His LTX words stay in the box across Open / Send / remount. */
+export function readLtxMotionDraft(jobId: string, beatId: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.sessionStorage.getItem(ltxMotionDraftKey(jobId, beatId));
+    return v && v.trim() ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeLtxMotionDraft(jobId: string, beatId: string, text: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(ltxMotionDraftKey(jobId, beatId), text);
+  } catch {
+    /* private mode */
+  }
+}
+
+export function clearLtxMotionDraft(jobId: string, beatId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(ltxMotionDraftKey(jobId, beatId));
+  } catch {
+    /* private mode */
+  }
+}
+
+export function pickLtxMotionBody(opts: {
+  draft: string | null;
+  stored: string;
+  defaultBody: string;
+}): string {
+  if (opts.draft !== null) return opts.draft;
+  if ((opts.stored || "").trim()) return opts.stored;
+  return opts.defaultBody;
+}

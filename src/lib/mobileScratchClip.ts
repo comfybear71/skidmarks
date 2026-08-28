@@ -45,6 +45,8 @@ import {
   songCutUsesSpokenLine,
   storyShotForSongCut,
 } from "./musicVideoSong";
+import { probeDurationSeconds } from "./mediaDuration";
+import { applyLandedClipDuration } from "./musicVideoTrack";
 
 async function ensureComfyReady(): Promise<string> {
   const { preferComfyCloudLtx } = await import("./ltxCloudIa2v");
@@ -341,12 +343,16 @@ export async function runScratchLtxClip(opts: {
         : c,
     );
     const clipName = path.basename(localMp4);
+    const probed =
+      probeDurationSeconds(localMp4) ||
+      (Number(opts.sliceDurationSec) > 0 ? Number(opts.sliceDurationSec) : undefined);
     job = (await patchMobileGenJob(jobId, {
       clips: next,
       scratchSong: patchScratchSongCut(job.scratchSong, opts.cutId, {
         clipFile: clipName,
         status: "done",
         error: "",
+        durationSec: probed,
       }),
     }))!;
   } catch (e) {
@@ -371,13 +377,22 @@ export async function runScratchLtxClip(opts: {
 function patchScratchSongCut(
   song: ScratchSong | null | undefined,
   cutId: string | undefined,
-  patch: { clipFile?: string; status?: "pending" | "running" | "done" | "error"; error?: string },
+  patch: {
+    clipFile?: string;
+    status?: "pending" | "running" | "done" | "error";
+    error?: string;
+    durationSec?: number;
+  },
 ): ScratchSong | null | undefined {
   if (!song || !cutId) return song;
-  return {
+  const next: ScratchSong = {
     ...song,
     cuts: (song.cuts || []).map((c) => (c.id === cutId ? { ...c, ...patch } : c)),
   };
+  if (patch.status === "done" && Number(patch.durationSec) > 0) {
+    return applyLandedClipDuration(next, { cutId, durationSec: Number(patch.durationSec) });
+  }
+  return next;
 }
 
 /** Early throw after marking running left the cut hung forever — flip it to error. */

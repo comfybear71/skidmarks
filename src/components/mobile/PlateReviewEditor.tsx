@@ -53,9 +53,13 @@ import type { ShowStyleId } from "@/lib/showStylePresets";
 import { applyStylePositionGold, stylePositionGold } from "@/lib/stylePositionGold";
 import {
   buildDefaultBeatMotion,
+  clearLtxMotionDraft,
   looksLikePlatePositionPrompt,
+  pickLtxMotionBody,
+  readLtxMotionDraft,
   storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
+  writeLtxMotionDraft,
 } from "@/lib/mobileImageMotion";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 import { isEmptyStageStaging } from "@/lib/emptyStagePlate";
@@ -2610,7 +2614,14 @@ function BeatLineEditor({
   // Bible already ran on Draw — keep this shut unless they need Redo still.
   const [positionOpen, setPositionOpen] = useState(false);
   const [positionDraft, setPositionDraft] = useState<string | null>(null);
-  const [motionDraft, setMotionDraft] = useState<string | null>(null);
+  const [motionDraft, setMotionDraftState] = useState<string | null>(() =>
+    readLtxMotionDraft(jobId, beat.id),
+  );
+  const setMotionDraft = (v: string | null) => {
+    if (v === null) clearLtxMotionDraft(jobId, beat.id);
+    else writeLtxMotionDraft(jobId, beat.id, v);
+    setMotionDraftState(v);
+  };
   const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
   const [bibleActiveIds, setBibleActiveIds] = useState<string[]>(() =>
     (positionBibleIds || []).filter(Boolean),
@@ -2731,9 +2742,11 @@ function BeatLineEditor({
     [beat.speaker, lookLock, positionBody, shotSpeakers, styleId, text],
   );
   const storedMotion = stripLtxLipSyncLead(beat.imageMotion || "");
-  const storedMotionOk =
-    Boolean(storedMotion) && !storedMotionNeedsRebuild(storedMotion, positionBody);
-  const motionBody = motionDraft ?? (storedMotionOk ? storedMotion : defaultMotionBody);
+  const motionBody = pickLtxMotionBody({
+    draft: motionDraft,
+    stored: storedMotion,
+    defaultBody: defaultMotionBody,
+  });
   const motionDirty = motionDraft !== null;
   const motionHint = useMemo(
     () =>
@@ -2792,6 +2805,7 @@ function BeatLineEditor({
   const emptiedPhoneMotionRef = useRef("");
   useEffect(() => {
     if (motionDraft !== null) return;
+    if ((storedMotion || "").trim()) return;
     if (!storedMotionNeedsRebuild(storedMotion, positionBody)) return;
     const next = defaultMotionBody.trim();
     if (!next) return;

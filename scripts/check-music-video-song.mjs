@@ -99,7 +99,7 @@ assert.doesNotMatch(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1,
   ];
   const whileOthersCook = songCookAlert(sixOfEight, { cooking: true });
   assert.equal(whileOthersCook.kind, "failed");
-  assert.match(whileOthersCook.title, /Clip 7 failed/);
+  assert.match(whileOthersCook.title, /That clip failed/);
   assert.match(whileOthersCook.title, /others still going/);
   assert.match(whileOthersCook.detail, /timed out after 1200s/);
   assert.match(whileOthersCook.short, /1 fail/);

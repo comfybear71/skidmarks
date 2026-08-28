@@ -545,14 +545,13 @@ export function songCookAlert(
 
   if (failed.length) {
     const first = failed[0]!;
-    const n = first.i + 1;
     const err = (first.c.error || "").trim() || "That clip failed.";
     const extra = failed.length > 1 ? ` (+${failed.length - 1} more)` : "";
     return {
       kind: "failed",
       title: stillGoing
-        ? `Clip ${n} failed — others still going`
-        : `Clip ${n} failed — cook stopped`,
+        ? "That clip failed — others still going"
+        : "That clip failed — cook stopped",
       detail: `${err}${extra}`,
       fingerprint: failed.map(({ c }) => `${c.id}:${(c.error || "").trim()}`).join("|"),
       short,
