@@ -157,6 +157,25 @@ assert.match(trackUi, /move-plate/);
 assert.match(trackUi, /Stop send/);
 assert.match(trackUi, /Put stills on the song/);
 assert.match(trackUi, /set-plate-duration/);
+assert.match(trackUi, /setHungPlateLength/);
+assert.match(trackUi, /HANG_LENGTH_CHIPS_SEC/);
+assert.match(trackUi, /m-track-len-chip/);
+assert.match(trackUi, /MINIMAX_H3_OVER_MAX_NOTE/);
+assert.match(trackUi, /refuseMinimaxH3OverMax/);
+assert.match(
+  readFileSync(join(here, "../src/lib/minimaxH3.ts"), "utf8"),
+  /H3 max 15/,
+);
+assert.match(mobileCss, /\.m-track-len-chip/);
+assert.doesNotMatch(trackUi, /m-track-pick-len input/);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /refuseMinimaxH3OverMax/,
+);
+assert.match(
+  readFileSync(join(here, "../src/lib/scratchSongWindow.ts"), "utf8"),
+  /HANG_LENGTH_CHIPS_SEC = \[5, 15, 25\]/,
+);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "move-plate"/,
@@ -294,6 +313,25 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(resized?.[1].startMs, 8000);
   assert.equal(resized?.[1].endMs, 23000);
   assert.equal(withPlateDuration([], "missing", 8000, 180000), null);
+
+  const five = withPlateDuration(
+    [
+      { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+    ],
+    "a",
+    5000,
+    180000,
+  );
+  assert.equal(five?.[0].endMs, 5000);
+  assert.equal(five?.[1].startMs, 5000);
+  const twentyFive = withPlateDuration(
+    [{ plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    "a",
+    25000,
+    180000,
+  );
+  assert.equal(twentyFive?.[0].endMs, 25000);
 
   const placed = withPlateWindow(
     [
@@ -544,6 +582,28 @@ assert.match(editor, />\s*No lips\s*</, "No lips sits next to H3");
 assert.match(editor, /writeMvMuteAction/, "No lips stores mute for the next Send");
 assert.match(editor, /muteMvEmptyFrame/, "plate lock drops the singer when nobody is in the still");
 assert.match(editor, /writeMvNobodyInShot/, "Nobody next to HERO/SUPPORT");
+assert.match(
+  editor,
+  /function EmptyMvMotionHole/,
+  "empty + Nobody still mounts the [ ] hole — no spoken beat required",
+);
+assert.match(
+  editor,
+  /styleId === "music_video" && \(enginePromptOpen \|\| muteAction\)/,
+  "LTX / H3 open the hole on an empty plate, not only when a speaker exists",
+);
+assert.match(
+  editor,
+  /emptyFrame:\s*true/,
+  "empty + Nobody lock is empty road, no people, mouth N/A",
+);
+{
+  const emptyHoleFn =
+    editor.match(/function EmptyMvMotionHole\([\s\S]*?\nfunction PlateSendButton/)?.[0] || "";
+  assert.match(emptyHoleFn, /MuteMvMotionHole/, "empty path renders the same [ ] hole");
+  assert.doesNotMatch(emptyHoleFn, /AnotherLineButton/, "empty hole does not show Walk away / another line");
+  assert.doesNotMatch(emptyHoleFn, /Add someone/, "empty hole does not require Add someone");
+}
 assert.match(trackUi, /muteMvEmptyFrame/, "Send uses the same empty-frame lock");
 assert.match(trackUi, /emptyFrame/);
 assert.match(
@@ -553,6 +613,11 @@ assert.match(
 );
 assert.match(trackUi, /readMvMuteAction/, "Send reads No lips");
 assert.match(trackUi, /mute: true/, "Send posts mute so LTX does not get the song");
+assert.match(trackUi, /songRunEmptyExtras/, "TRACK Send posts the on-screen Nobody lock");
+assert.match(trackUi, /emptyFrame: true/, "Nobody Send tells song run the frame is empty");
+assert.match(trackUi, /emptyFrame \? "" : speaker \|\| shot\?\.title/, "yellow JACK title does not override Nobody");
+assert.match(songRoute, /emptyFrame: body.emptyFrame === true/);
+assert.match(songRoute, /nobodyInShot: body.nobodyInShot === true/);
 assert.match(
   readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8"),
   /readMvMuteAction/,

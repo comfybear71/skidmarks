@@ -842,6 +842,16 @@ export const MUTE_MV_EMPTY_LEAD = GOLD_START_FRAME;
 export const MUTE_MV_EMPTY_TAIL =
   "Empty road as the start image. No people in frame. Mouth N/A. No dialogue. Not singing. Not lip-sync. Camera holds, no cuts. Same objects as the start image. No new people enter the frame.";
 
+/** Persist / Send already wrote the empty-road lock — cook must not name a person. */
+export function imageMotionLooksEmptyFrame(text: string): boolean {
+  const t = stripLtxLipSyncLead(text);
+  if (!t) return false;
+  return (
+    /empty road as the start image/i.test(t) ||
+    (/\bno people in frame\b/i.test(t) && /\bmouth n\/a\b/i.test(t))
+  );
+}
+
 export function isSingingDefaultMotion(text: string): boolean {
   const t = stripLtxLipSyncLead(text);
   if (!t) return false;
@@ -1093,11 +1103,20 @@ export function songSendNeedsRecook(opts: {
   existingClipFile: string;
   lastSent: string;
   nextSent: string;
+  /** Nobody / Support / empty-road — do not rehang a person cook. */
+  emptyFrame?: boolean;
 }): boolean {
   const file = (opts.existingClipFile || "").trim();
   if (!file) return true;
   const last = stripLtxLipSyncLead(opts.lastSent);
   const next = stripLtxLipSyncLead(opts.nextSent);
+  if (
+    opts.emptyFrame &&
+    /is prominent/i.test(last) &&
+    !imageMotionLooksEmptyFrame(last)
+  ) {
+    return true;
+  }
   if (last && last === next) return false;
   return true;
 }

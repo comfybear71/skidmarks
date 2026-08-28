@@ -3353,6 +3353,25 @@ span.scratch-history-blob {
   font-weight: 600;
 }
 
+.m-track-len-chip {
+  min-width: 2.75rem;
+  min-height: 2.4rem;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--chrome);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.m-track-len-chip.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
 .m-track-pick-tools {
   display: flex;
   flex-wrap: wrap;
