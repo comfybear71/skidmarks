@@ -182,7 +182,8 @@ export function syncSongCutsToDesk(opts: {
  * Plate-row / STILLS Add. File-first leftover of the OPEN shot after the
  * last hung bar, at the cooked mp4 length. Keeps every other done clipFile
  * and every other real plateTiming. Does not rebuild the desk as 15s
- * WAITING slices. Empty still (no mp4) gets one 15s bar only for itself.
+ * WAITING slices. Empty still (no mp4) hangs after the last end — no
+ * waiting cook.
  */
 export function applyAddPlateOnSong(opts: {
   shotId: string;
@@ -237,11 +238,12 @@ export function applyAddPlateOnSong(opts: {
     newCutId: opts.newCutId,
   });
   if (fileFirst.hung) {
+    const listed = onList.includes(shotId);
     return {
       cuts: fileFirst.cuts,
       plateTimings: fileFirst.plateTimings,
-      songPlateIds: onList,
-      rowSlices: slices,
+      songPlateIds: listed ? onList : withSongPlate(onList, shotId),
+      rowSlices: listed ? slices : withSongRowSlice(slices),
       skipShotIds: skipForHang,
       hung: true,
     };
@@ -261,7 +263,12 @@ export function applyAddPlateOnSong(opts: {
   }
   const kept = sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t));
   const startMs = kept.length ? Math.max(...kept.map((t) => t.endMs)) : 0;
-  const durMs = secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC);
+  const leftoverSec = Math.max(0, Number(opts.songSec) || 0) - msToSec(startMs);
+  const durationSec =
+    leftoverSec > 0
+      ? Math.min(SCRATCH_SONG_SLICE_DEFAULT_SEC, leftoverSec)
+      : SCRATCH_SONG_SLICE_DEFAULT_SEC;
+  const durMs = secToMs(durationSec);
   const plateTimings = [
     ...kept,
     {
@@ -271,16 +278,8 @@ export function applyAddPlateOnSong(opts: {
       sortIndex: kept.length,
     },
   ];
-  const pending: ScratchSongCut = {
-    id: opts.newCutId(),
-    plateFile: (opts.plateFile || "").trim(),
-    shotId,
-    startSec: msToSec(startMs),
-    durationSec: SCRATCH_SONG_SLICE_DEFAULT_SEC,
-    status: "pending",
-  };
   return {
-    cuts: [...opts.cuts, pending],
+    cuts: opts.cuts,
     plateTimings,
     songPlateIds: withSongPlate(onList, shotId),
     rowSlices: withSongRowSlice(slices),

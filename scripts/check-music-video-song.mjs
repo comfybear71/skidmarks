@@ -1070,6 +1070,131 @@ assert.doesNotMatch(
   );
 }
 {
+  let n = 0;
+  const firstLeftover = applyAddPlateOnSong({
+    shotId: "jack",
+    plateFile: "jack.png",
+    plateTimings: [
+      { plateId: "car", startMs: 0, endMs: 5000, sortIndex: 0 },
+    ],
+    cuts: [
+      {
+        id: "car1",
+        shotId: "car",
+        plateFile: "car.png",
+        startSec: 0,
+        durationSec: 5,
+        clipFile: "02_Car.mp4",
+        status: "done",
+      },
+    ],
+    clips: [
+      { shotId: "car", clipFile: "02_Car.mp4", clipStatus: "done", durationSec: 5 },
+      { shotId: "jack", clipFile: "03_Jack.mp4", clipStatus: "done", durationSec: 8 },
+    ],
+    skipShotIds: ["car~6ir"],
+    songPlateIds: ["car"],
+    rowSlices: [1],
+    songSec: 180,
+    newCutId: () => `cut_first_${++n}`,
+  });
+  assert.equal(firstLeftover.hung, true, "Add with leftover mp4 hangs it");
+  const hungJack = firstLeftover.cuts.find((c) => c.clipFile === "03_Jack.mp4");
+  assert.equal(hungJack?.status, "done");
+  assert.equal(hungJack?.startSec, 5);
+  assert.equal(hungJack?.durationSec, 8);
+  assert.equal(firstLeftover.cuts.find((c) => c.clipFile === "02_Car.mp4")?.status, "done");
+  assert.equal(
+    firstLeftover.cuts.filter((c) => c.status === "pending").length,
+    0,
+    "leftover Add writes plateTiming + cut — no waiting cook",
+  );
+  assert.equal(firstLeftover.plateTimings.length, 2);
+  assert.equal(firstLeftover.plateTimings[0]?.plateId, "car");
+  assert.equal(firstLeftover.plateTimings[1]?.plateId, "jack");
+  assert.equal(firstLeftover.plateTimings[1]?.startMs, 5000);
+  assert.equal(firstLeftover.plateTimings[1]?.endMs, 13000);
+  assert.ok(firstLeftover.songPlateIds.includes("jack"));
+}
+{
+  const noLeftover = applyAddPlateOnSong({
+    shotId: "jack3",
+    plateFile: "jack.png",
+    plateTimings: [
+      { plateId: "car", startMs: 0, endMs: 5000, sortIndex: 0 },
+      { plateId: "jack3", startMs: 5000, endMs: 10000, sortIndex: 1 },
+    ],
+    cuts: [
+      {
+        id: "car1",
+        shotId: "car",
+        plateFile: "car.png",
+        startSec: 0,
+        durationSec: 5,
+        clipFile: "02_Car.mp4",
+        status: "done",
+      },
+      {
+        id: "j1",
+        shotId: "jack3",
+        plateFile: "jack.png",
+        startSec: 5,
+        durationSec: 5,
+        clipFile: "03_Jack.mp4",
+        status: "done",
+      },
+    ],
+    clips: [
+      { shotId: "car", clipFile: "02_Car.mp4", clipStatus: "done", durationSec: 5 },
+      { shotId: "jack3", clipFile: "03_Jack.mp4", clipStatus: "done", durationSec: 5 },
+    ],
+    songPlateIds: ["car", "jack3"],
+    rowSlices: [1, 1],
+    songSec: 180,
+    newCutId: () => "cut_noop",
+  });
+  assert.equal(noLeftover.hung, false, "already hung + no leftover — no cook");
+  assert.equal(noLeftover.plateTimings.length, 2);
+  assert.equal(noLeftover.cuts.length, 2);
+  assert.equal(noLeftover.cuts.find((c) => c.clipFile === "02_Car.mp4")?.status, "done");
+}
+{
+  const stillOnly = applyAddPlateOnSong({
+    shotId: "empty",
+    plateFile: "empty.png",
+    plateTimings: [
+      { plateId: "car", startMs: 0, endMs: 5000, sortIndex: 0 },
+    ],
+    cuts: [
+      {
+        id: "car1",
+        shotId: "car",
+        plateFile: "car.png",
+        startSec: 0,
+        durationSec: 5,
+        clipFile: "02_Car.mp4",
+        status: "done",
+      },
+    ],
+    clips: [{ shotId: "car", clipFile: "02_Car.mp4", clipStatus: "done", durationSec: 5 }],
+    songPlateIds: ["car"],
+    rowSlices: [1],
+    songSec: 180,
+    newCutId: () => "cut_still",
+  });
+  assert.equal(stillOnly.hung, false);
+  assert.equal(stillOnly.plateTimings.length, 2, "no mp4 — still hangs after last end");
+  assert.equal(stillOnly.plateTimings[1]?.plateId, "empty");
+  assert.equal(stillOnly.plateTimings[1]?.startMs, 5000);
+  assert.equal(stillOnly.plateTimings[1]?.endMs, 20000);
+  assert.equal(stillOnly.cuts.find((c) => c.clipFile === "02_Car.mp4")?.status, "done");
+  assert.equal(
+    stillOnly.cuts.filter((c) => c.status === "pending").length,
+    0,
+    "still-only Add does not mint a WAITING cook",
+  );
+}
+{
   const skipBlock = songRoute.slice(songRoute.indexOf('action === "skip-plate"'));
   const nextAction = skipBlock.search(/\n\s+if \(action === "/);
   const block = nextAction >= 0 ? skipBlock.slice(0, nextAction) : skipBlock.slice(0, 1200);
