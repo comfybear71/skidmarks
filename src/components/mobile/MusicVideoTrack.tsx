@@ -861,9 +861,9 @@ export function MusicVideoTrack({
   onStart?: (lyrics: string) => void;
   /** Tap a plate — opens its Position and LTX prompts. */
   onOpenPlate?: (shotId: string) => void;
-  /** Collapsed + still needs the add-plate picker — open Plates first. */
+  /** Collapsed ADD PLATE still needs the picker — open Plates first. */
   onExpand?: () => void;
-  /** Cast and places for the + picker — thumbnails built by the tree. */
+  /** Cast and places for the ADD PLATE picker — thumbnails built by the tree. */
   castOptions?: { name: string; faceUrl: string }[];
   placeOptions?: { sceneId: string; name: string; thumbUrl: string }[];
   /** One person, one place, one plate. */
@@ -2103,24 +2103,6 @@ export function MusicVideoTrack({
             </p>
           ) : null}
 
-          {/* + creates a still. Hang is STILLS Add, or Hang on a CLIPS thumb.
-              Off-song ghosts copied STILLS and only confused the desk. */}
-          {!compact || Boolean(onCreatePlate) ? (
-            <div className="m-track-rail">
-              <button
-                type="button"
-                className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
-                onClick={() => {
-                  if (compact) onExpand?.();
-                  setPickOpen((v) => !v);
-                }}
-                aria-expanded={pickOpen}
-                aria-label="Add a plate"
-              >
-                +
-              </button>
-            </div>
-          ) : null}
           {picked ? (
             <div className="m-track-pick">
               <div className="m-track-pick-name">{picked.title}</div>
@@ -2227,7 +2209,23 @@ export function MusicVideoTrack({
             </div>
           ) : null}
 
+          {/* STILLS already lists leftover stills. TRACK does not copy them
+              as an off-row, and does not add a second + for the same job. */}
+          {(!compact || Boolean(onCreatePlate)) && !pickOpen ? (
+            <button
+              type="button"
+              className="m-track-btn"
+              onClick={() => {
+                if (compact) onExpand?.();
+                setPickOpen(true);
+              }}
+            >
+              ADD PLATE
+            </button>
+          ) : null}
+
           {/* New plate only: person / empty / place. Not every current still. */}
+
           {pickOpen ? (
             <div className="m-plate-pick">
               <div className="m-plate-pick-row">

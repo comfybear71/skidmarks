@@ -146,9 +146,14 @@ assert.doesNotMatch(trackUi, /Sending…/, "TRACK pick has no Send — Send sits
 assert.doesNotMatch(trackUi, /void sendPlate\(picked\.shotId\)/, "TRACK does not run Send");
 assert.match(trackUi, /Park this clip/);
 assert.match(trackUi, /requestSongCookStop/);
+assert.match(trackUi, /m-track-film/);
+assert.doesNotMatch(trackUi, /m-track-film-len">off</, "TRACK must not draw leftover stills as an off-row");
+assert.doesNotMatch(trackUi, /m-track-rail-add/, "TRACK must not draw a second + next to STILLS");
+assert.doesNotMatch(trackUi, /aria-label="Add a still"/);
+assert.doesNotMatch(trackUi, /aria-label="Add a plate"/, "TRACK + is gone — ADD PLATE is the picker");
+assert.match(trackUi, /ADD PLATE/);
 assert.doesNotMatch(trackUi, /filter\(\(cell\) => !cell\.onSong\)/, "TRACK does not list off-song stills");
 assert.doesNotMatch(trackUi, />off</, "TRACK has no off badge row of existing stills");
-assert.match(trackUi, /m-track-rail-add/);
 assert.doesNotMatch(trackUi, /Use range/);
 assert.doesNotMatch(trackUi, />Earlier</);
 assert.doesNotMatch(trackUi, />Later</);
