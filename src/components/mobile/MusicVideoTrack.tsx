@@ -2067,10 +2067,8 @@ export function MusicVideoTrack({
           ) : null}
           </TrackScroll>
 
-          {plateBlocks.length ? (
-            <p className="m-track-stretch-hint">
-              {stretchReadout || "Pull a handle on the bar to lengthen or shorten."}
-            </p>
+          {stretchReadout ? (
+            <p className="m-track-stretch-hint">{stretchReadout}</p>
           ) : null}
 
           {picked ? (

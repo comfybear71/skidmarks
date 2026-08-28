@@ -282,7 +282,12 @@ assert.match(
 assert.match(trackUi, /stretchPlateEdge/);
 assert.match(trackUi, /onStretchCommit/);
 assert.match(trackUi, /hitPlateEdge/);
-assert.match(trackUi, /Pull a handle on the bar/);
+assert.doesNotMatch(
+  trackUi,
+  /Pull a handle on the bar to lengthen or shorten/,
+  "TRACK must not lecture about a handle on a bar",
+);
+assert.doesNotMatch(trackUi, /Pull a handle on the bar/);
 assert.match(trackUi, /selectedPlateId/);
 assert.match(mobileCss, /\.m-track-stretch-hint/);
 assert.match(trackRoute, /set-plate-timings/);
