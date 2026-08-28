@@ -33,6 +33,8 @@ import {
   extractMuteMvMotionSlot,
   isSingingDefaultMotion,
   MUTE_MV_SLOT_PLACEHOLDER,
+  MUTE_MV_EMPTY_LEAD,
+  MUTE_MV_EMPTY_TAIL,
   muteMvMotionLabel,
   resolveMvSendEngine,
 } from "../src/lib/mobileImageMotion.ts";
@@ -432,6 +434,10 @@ assert.match(motionSrc, /export function muteMvMotionLabel/, "title helper is th
 assert.match(motionSrc, /export function writeMvClipEngine/, "plate LTX / H3 store is session only");
 assert.match(motionSrc, /export function readMvClipEngine/);
 assert.match(motionSrc, /export function readMvMuteAction/, "No lips is session only");
+assert.match(motionSrc, /export function readMvNobodyInShot/, "Nobody in this shot is session + shot tag");
+assert.match(motionSrc, /emptyFrame/);
+assert.match(clipSrc, /emptyFrame/);
+assert.match(clipSrc, /muteMvEmptyFrame/);
 assert.doesNotMatch(motionSrc, /job\.scratchSong/, "engine pick is not written onto the job");
 assert.equal(
   skipSongLipSyncLead({ speaker: "FRANK", singing: true, mute: true }),
@@ -462,6 +468,65 @@ assert.match(
     muteDefault: composeMuteMvMotion(muteLock, "walks away from camera"),
   }),
   /walks away from camera/,
+);
+
+const emptyLock = buildMuteMvMotionLock({
+  styleId: "music_video",
+  speaker: "JACK GHOST",
+  lookLock: "Male singer in deep noir shadow",
+  emptyFrame: true,
+});
+assert.equal(emptyLock.lead, MUTE_MV_EMPTY_LEAD);
+assert.match(emptyLock.tail, /Empty road as the start image/);
+assert.match(emptyLock.tail, /Mouth N\/A/);
+assert.match(emptyLock.tail, /No new people enter the frame/);
+assert.doesNotMatch(emptyLock.lead, /JACK GHOST/);
+assert.doesNotMatch(emptyLock.tail, /JACK GHOST/);
+assert.doesNotMatch(emptyLock.lead, /is prominent/);
+assert.doesNotMatch(emptyLock.tail, /is prominent/);
+assert.doesNotMatch(emptyLock.tail, /Only JACK GHOST in frame/);
+assert.doesNotMatch(emptyLock.lead + emptyLock.tail, /walks away from camera/i);
+assert.doesNotMatch(emptyLock.lead + emptyLock.tail, /lip-sync lead|perfect lip sync|Cyan mouth/i);
+const carSlot = "car speeds off toward the city";
+const emptyComposed = composeMuteMvMotion(emptyLock, carSlot);
+assert.match(emptyComposed, /car speeds off toward the city/);
+assert.doesNotMatch(emptyComposed, /JACK GHOST/);
+assert.doesNotMatch(emptyComposed, /is prominent/);
+assert.equal(extractMuteMvMotionSlot(emptyComposed, emptyLock), carSlot);
+assert.match(
+  extractMuteMvMotionSlot(jackStandUp, emptyLock),
+  /vintage car already in the start image speeds off/,
+);
+assert.doesNotMatch(extractMuteMvMotionSlot(jackStandUp, emptyLock), /JACK GHOST is prominent/);
+const emptySent = ensureGoldFrameLocks(emptyComposed);
+assert.doesNotMatch(emptySent, /Same person and objects/);
+assert.match(emptySent, /Same objects as the start image/);
+assert.doesNotMatch(
+  pickSongSendMotionBody({
+    stored: jackStandUp,
+    storedUsable: true,
+    singing: true,
+    singingDefault: jackSinging,
+    speakingDefault: "talk",
+    mute: true,
+    muteDefault: emptyComposed,
+    emptyFrame: true,
+  }),
+  /JACK GHOST/,
+  "empty-frame Send must not keep a stored JACK lock",
+);
+assert.match(
+  pickSongSendMotionBody({
+    stored: jackStandUp,
+    storedUsable: true,
+    singing: true,
+    singingDefault: jackSinging,
+    speakingDefault: "talk",
+    mute: true,
+    muteDefault: emptyComposed,
+    emptyFrame: true,
+  }),
+  /car speeds off toward the city/,
 );
 
 console.log("check-mobile-image-motion: ok");

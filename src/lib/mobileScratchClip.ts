@@ -10,6 +10,8 @@ import { candidateLookPrompt } from "./mobileJobReady";
 import {
   imageMotionNamesLeftovers,
   leftoverHydrateSpeakers,
+  muteMvEmptyFrame,
+  muteMvPadNames,
   shotSpeakersOnCard,
 } from "./mobilePlateLines";
 import { CRASH_DIR } from "./paths";
@@ -278,12 +280,27 @@ export async function runScratchLtxClip(opts: {
     ? (song?.cuts || []).find((c) => c.id === opts.cutId)
     : undefined;
   const performance = cutRow?.performance;
+  const padNames = muteMvPadNames({
+    roster: [...new Set([...(shotCast || []), speaker].filter(Boolean))],
+    staging: storyShot.staging,
+    summary: storyShot.summary,
+    castNames: storyShot.castNames,
+  });
+  const emptyFrame = muteMvEmptyFrame({
+    footageRole: storyShot.footageRole,
+    nobodyInShot: storyShot.nobodyInShot,
+    staging: storyShot.staging,
+    summary: storyShot.summary,
+    castNames: storyShot.castNames,
+    padNames,
+  });
   const muteLock = buildMuteMvMotionLock({
     styleId: job.styleId,
     speaker,
     lookLock,
     shotSpeakers: shotCast,
     staging: storyShot.staging,
+    emptyFrame,
   });
   const body = pickSongSendMotionBody({
     stored,
@@ -309,6 +326,7 @@ export async function runScratchLtxClip(opts: {
       muteLock,
       extractMuteMvMotionSlot(stored, muteLock),
     ),
+    emptyFrame,
   });
   const stagingText = storyShot.staging || "";
   const imageMotion = ltxSendPrompt(body, stagingText, {
@@ -317,10 +335,10 @@ export async function runScratchLtxClip(opts: {
       staging: stagingText,
       performance,
       singing,
-      mute: muteAction,
+      mute: muteAction || emptyFrame,
     }),
-    speaker,
-    shotSpeakers: shotCast,
+    speaker: emptyFrame ? "" : speaker,
+    shotSpeakers: emptyFrame ? [] : shotCast,
   });
 
   const existingFile = opts.cutId ? clipFileBasename(cutRow?.clipFile || "") : "";
@@ -399,8 +417,10 @@ export async function runScratchLtxClip(opts: {
       platePath,
       audioPath,
       imageMotion,
-      segmentText: buildSegmentText(speaker, speaking && !muteAction),
-      globalPrompt: muteAction ? muteLock.tail : buildGlobalPrompt(job.styleId),
+      segmentText: emptyFrame
+        ? "Same objects as the start image. No people."
+        : buildSegmentText(speaker, speaking && !muteAction),
+      globalPrompt: muteAction || emptyFrame ? muteLock.tail : buildGlobalPrompt(job.styleId),
       comfyUrl,
       styleId: job.styleId,
       beatId: beat.id,

@@ -84,8 +84,12 @@ export function ensureGoldFrameLocks(prompt: string): string {
     bits.push(GOLD_START_FRAME);
   }
   if (!/nothing new enters frame/i.test(body)) bits.push(GOLD_PROPS_LOCK);
-  if (!/same (person|people) and objects as the start image/i.test(body)) {
-    bits.push(GOLD_SAME_OBJECTS);
+  if (!/same (?:(?:person|people) and )?objects as the start image/i.test(body)) {
+    bits.push(
+      /no people in frame|empty road as the start image/i.test(body)
+        ? "Same objects as the start image."
+        : GOLD_SAME_OBJECTS,
+    );
   }
   if (!/no new people enter/i.test(body)) bits.push(GOLD_NO_NEW_PEOPLE);
   if (/\bsays:\s*"/i.test(body) && !/nobody mentioned in the spoken line/i.test(body)) {
@@ -806,7 +810,12 @@ export function pickSongSendMotionBody(opts: {
   speakingDefault: string;
   mute?: boolean;
   muteDefault?: string;
+  /** Car / scenery / Support — do not keep a stored JACK is-prominent lock. */
+  emptyFrame?: boolean;
 }): string {
+  if (opts.emptyFrame && (opts.muteDefault || "").trim()) {
+    return stripLtxLipSyncLead(opts.muteDefault || "");
+  }
   if (opts.mute && (opts.muteDefault || "").trim()) {
     if (opts.storedUsable && !isSingingDefaultMotion(opts.stored)) {
       return stripLtxLipSyncLead(opts.stored);
@@ -827,7 +836,11 @@ export type MuteMvMotionLock = { lead: string; tail: string };
 export const MUTE_MV_SLOT_PLACEHOLDER = "stand up, car drives off";
 
 const MUTE_MV_TAIL_START =
-  /Props and background stay exactly as the start image|No dialogue\. Mouth stays closed/i;
+  /Props and background stay exactly as the start image|No dialogue\. Mouth stays closed|Empty road as the start image|Mouth N\/A/i;
+
+export const MUTE_MV_EMPTY_LEAD = GOLD_START_FRAME;
+export const MUTE_MV_EMPTY_TAIL =
+  "Empty road as the start image. No people in frame. Mouth N/A. No dialogue. Not singing. Not lip-sync. Camera holds, no cuts. Same objects as the start image. No new people enter the frame.";
 
 export function isSingingDefaultMotion(text: string): boolean {
   const t = stripLtxLipSyncLead(text);
@@ -846,7 +859,15 @@ export function buildMuteMvMotionLock(opts: {
   lookLock?: string;
   shotSpeakers?: string[];
   staging?: string;
+  /** Support / nobody on the pad / car-scenery mute — do not name a person. */
+  emptyFrame?: boolean;
 }): MuteMvMotionLock {
+  if (opts.emptyFrame) {
+    return {
+      lead: MUTE_MV_EMPTY_LEAD,
+      tail: clean([MUTE_MV_EMPTY_TAIL, motionStyleLock(opts.styleId)].join(" ")),
+    };
+  }
   const name = clean(opts.speaker) || "The performer";
   const look = shortLtxLookLock(opts.lookLock || "");
   const who = look ? `${name}, ${look}` : name;
@@ -884,8 +905,8 @@ export function extractMuteMvMotionSlot(stored: string, lock: MuteMvMotionLock):
     mid = clean(mid.slice(lock.lead.length));
   } else {
     mid = clean(mid.replace(/^Use the provided start image as the first frame\.\s*/i, ""));
-    mid = clean(mid.replace(/^.+? is prominent(?:, [^.]{0,80})?\.\s*/i, ""));
   }
+  mid = clean(mid.replace(/^.+? is prominent(?:, [^.]{0,80})?\.\s*/i, ""));
   if (lock.tail) {
     const idx = mid.toLowerCase().indexOf(lock.tail.toLowerCase());
     if (idx >= 0) mid = clean(mid.slice(0, idx));
@@ -944,6 +965,31 @@ export function writeMvMuteAction(jobId: string, shotId: string, on: boolean): v
   if (typeof window === "undefined") return;
   try {
     const key = mvMuteActionKey(jobId, shotId);
+    if (on) window.sessionStorage.setItem(key, "1");
+    else window.sessionStorage.removeItem(key);
+  } catch {
+    /* private mode */
+  }
+}
+
+function mvNobodyInShotKey(jobId: string, shotId: string): string {
+  return `skidmarks.mvNobodyInShot.${(jobId || "").trim()}.${(shotId || "").trim()}`;
+}
+
+/** HERO car / scenery — drop the singer name from the mute lock on next Send. */
+export function readMvNobodyInShot(jobId: string, shotId: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(mvNobodyInShotKey(jobId, shotId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function writeMvNobodyInShot(jobId: string, shotId: string, on: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = mvNobodyInShotKey(jobId, shotId);
     if (on) window.sessionStorage.setItem(key, "1");
     else window.sessionStorage.removeItem(key);
   } catch {

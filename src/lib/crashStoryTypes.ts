@@ -57,6 +57,11 @@ export type CrashStoryShot = {
    * Omitted on older shots = hero.
    */
   footageRole?: ShotFootageRole;
+  /**
+   * This still has no person — car / road / scenery. Mute lock must not
+   * name the plate title (JACK GHOST) or say "is prominent".
+   */
+  nobodyInShot?: boolean;
   /** Words for the stock search links. Empty = title + summary + staging. */
   stockQuery?: string;
   /**

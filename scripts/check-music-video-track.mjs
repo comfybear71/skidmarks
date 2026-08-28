@@ -524,6 +524,10 @@ assert.match(editor, /styleId === "music_video"/, "music_video plate shows LTX /
 assert.match(editor, /AnotherLineButton/, "+ another line stays for non music_video");
 assert.match(editor, />\s*No lips\s*</, "No lips sits next to H3");
 assert.match(editor, /writeMvMuteAction/, "No lips stores mute for the next Send");
+assert.match(editor, /muteMvEmptyFrame/, "plate lock drops the singer when nobody is in the still");
+assert.match(editor, /writeMvNobodyInShot/, "Nobody next to HERO/SUPPORT");
+assert.match(trackUi, /muteMvEmptyFrame/, "Send uses the same empty-frame lock");
+assert.match(trackUi, /emptyFrame/);
 assert.match(
   editor,
   /beat\.kind === "cutaway" && styleId !== "music_video"/,
