@@ -22,7 +22,6 @@ import {
   withLyricCue,
   withoutLyricCue,
   plateTimingForShot,
-  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   cutForHungPlate,
   hangPlateShotId,
@@ -1654,11 +1653,13 @@ export function MusicVideoTrack({
         return;
       }
     }
-    // Add hangs the still. Send cooks that bar. Do not Add / hang / cook here.
+    // Hung mp4s already have a clock. Add is only for a still with no clip.
     if (!isRealPlateHang(timingNow())) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
-      return;
+      if (hungClipFileForPlate(jobRef.current, shotId)) {
+        await hangStillsOnWave();
+      } else {
+        await addPlateToTimeline(shotId);
+      }
     }
     const hungCut = () =>
       cutForHungPlate({
@@ -1675,8 +1676,6 @@ export function MusicVideoTrack({
       }
     }
     if (!cut?.id) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
       return;
     }
     if (cookLock.current) return;
