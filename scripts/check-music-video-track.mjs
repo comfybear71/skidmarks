@@ -180,6 +180,11 @@ assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "set-plate-duration"/,
 );
+assert.match(
+  trackRoute,
+  /durationSec\?: number/,
+  "How long is a number of seconds on the TRACK POST type",
+);
 
 const first = plateRailBox(0, 15000, 60000);
 assert.equal(first.leftPct, 0);
