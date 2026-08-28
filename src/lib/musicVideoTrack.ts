@@ -5,10 +5,13 @@
  */
 import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
 import { LTX_MAX_DURATION_SEC } from "./ltxDuration";
+import { clampMinimaxH3HangSec } from "./minimaxH3";
 import {
   clampSongSliceDuration,
   clampSongWindow,
   SCRATCH_SONG_SLICE_DEFAULT_SEC,
+  SCRATCH_SONG_SLICE_MAX_SEC,
+  SCRATCH_SONG_SLICE_MIN_SEC,
 } from "./scratchSongWindow";
 
 export type TrackSectionLabel =
@@ -424,13 +427,48 @@ export function cutForHungPlate(opts: {
   return mine[0];
 }
 
-/** LTX slice bounds — this cut's clock wins. Plate timings follow the song
- * up to the LTX safety ceiling. The old 15s rows still cap at 30s. */
+/** Hung bar length in seconds. Leftover 0.5s is not a length. */
+export function hungBarDurationSec(
+  timing?: { startMs?: number; endMs?: number } | null,
+): number | undefined {
+  if (!isRealPlateHang(timing)) return undefined;
+  const sec = msToSec(Number(timing!.endMs) - Number(timing!.startMs));
+  return sec > 0 ? sec : undefined;
+}
+
+/**
+ * Send uses this clock. H3 4–15 (7 and 9 stay 7 and 9). LTX 4–30.
+ * Never fall back to the H3 5s default when the bar is hung.
+ */
+export function cookDurationFromHungBar(
+  timing: { startMs?: number; endMs?: number } | null | undefined,
+  engine: "h3" | "ltx",
+): { durationSec: number; note: string } | { error: string } {
+  const hang = hungBarDurationSec(timing);
+  if (hang == null) return { error: "Hang the still on the song first." };
+  if (engine === "h3") return clampMinimaxH3HangSec(hang);
+  const durationSec = clampSongSliceDuration(hang, SCRATCH_SONG_SLICE_MAX_SEC);
+  if (hang > SCRATCH_SONG_SLICE_MAX_SEC) {
+    return { durationSec, note: `LTX max ${SCRATCH_SONG_SLICE_MAX_SEC} — cooking ${durationSec}` };
+  }
+  if (hang < SCRATCH_SONG_SLICE_MIN_SEC) {
+    return { durationSec, note: `LTX min ${SCRATCH_SONG_SLICE_MIN_SEC} — cooking ${durationSec}` };
+  }
+  return { durationSec, note: "" };
+}
+
+/** Hung bar clock wins. A stale cut at 5s must not cook 5 when the bar is 15. */
 export function sliceBoundsForPlate(opts: {
   song: ScratchSong;
   shotId: string;
   cut?: ScratchSongCut;
 }): { startSec: number; durationSec: number } {
+  const timing = (opts.song.plateTimings || []).find((p) => p.plateId === opts.shotId);
+  if (timing && timing.endMs > timing.startMs) {
+    const startSec = msToSec(timing.startMs);
+    const durationSec = msToSec(timing.endMs - timing.startMs);
+    return clampSongWindow(startSec, durationSec, opts.song.durationSec, LTX_MAX_DURATION_SEC);
+  }
   const timed = (opts.song.plateTimings || []).length > 0;
   const maxSec = timed ? LTX_MAX_DURATION_SEC : undefined;
   if (opts.cut) {
@@ -440,12 +478,6 @@ export function sliceBoundsForPlate(opts: {
       opts.song.durationSec,
       maxSec,
     );
-  }
-  const timing = (opts.song.plateTimings || []).find((p) => p.plateId === opts.shotId);
-  if (timing && timing.endMs > timing.startMs) {
-    const startSec = msToSec(timing.startMs);
-    const durationSec = msToSec(timing.endMs - timing.startMs);
-    return clampSongWindow(startSec, durationSec, opts.song.durationSec, LTX_MAX_DURATION_SEC);
   }
   return clampSongWindow(0, clampSongSliceDuration(opts.song.sliceDurationSec), opts.song.durationSec);
 }
@@ -607,7 +639,7 @@ export function hangPlateShotId(plateId: string): string {
 }
 
 export function extraTakeHangPlateId(shotId: string, clipFile: string): string {
-  const shot = (shotId || "").trim();
+  const shot = hangPlateShotId(shotId);
   const stem = hangClipBasename(clipFile).replace(/\.[^.]+$/, "");
   const tail = stem.replace(/[^a-zA-Z0-9]/g, "").slice(-12);
   if (!shot) return "";
@@ -696,8 +728,10 @@ function upsertClipHangCut(
 
 /**
  * File first — hang this mp4 on the wave. Same still, second take gets its
- * own clock (`shotId~tail`). Next gap. Known length else 15. Does not cook.
- * Does not invent 15s when this file already has a real in/out.
+ * own clock (`shotId~tail`). Next gap after the last hung end. Known length
+ * else 15. Does not cook. Does not invent 15s when this file already has
+ * a real in/out. Overlap with a hung bar (two takes both at 0:20) slides
+ * to the cursor — do not stack another 0:20.
  */
 export function hangOneClipOnWave(opts: {
   plateTimings?: PlateTiming[];
@@ -783,6 +817,7 @@ export function listUnhungDoneClips(opts: {
     (opts.skipShotIds || []).map((id) => hangPlateShotId(id)).filter(Boolean),
   );
   const clock = { cuts: opts.cuts, plateTimings: opts.plateTimings };
+  const impliedHung = impliedHungClipFiles(opts);
   const seen = new Set<string>();
   const out: UnhungDoneClip[] = [];
   const take = (
@@ -794,7 +829,7 @@ export function listUnhungDoneClips(opts: {
     const file = hangClipBasename(clipFile);
     const shot = hangPlateShotId(shotId);
     if (!file || !shot || skipped.has(shot) || seen.has(file)) return;
-    if (clipFileOnWave(clock, file)) return;
+    if (clipFileOnWave(clock, file) || impliedHung.has(file)) return;
     seen.add(file);
     out.push({
       shotId: shot,
@@ -818,8 +853,59 @@ export function listUnhungDoneClips(opts: {
 }
 
 /**
+ * Hung bar with no cut.clipFile still owns the first done mp4 on that
+ * still — TRACK can show 3 bars while STILLS says 3 WAITING. Extra takes
+ * on the same still stay leftover.
+ */
+function impliedHungClipFiles(opts: {
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+  }>;
+  cuts?: Array<{ shotId?: string; clipFile?: string }>;
+  plateTimings?: PlateTiming[];
+}): Set<string> {
+  const implied = new Set<string>();
+  const timings = sortPlateTimings(opts.plateTimings || []).filter((t) => isRealPlateHang(t));
+  const takenShots = new Set<string>();
+  for (const t of timings) {
+    const onSlot = (opts.cuts || []).find(
+      (c) => (c.shotId || "").trim() === t.plateId && hangClipBasename(c.clipFile || ""),
+    );
+    if (onSlot) {
+      implied.add(hangClipBasename(onSlot.clipFile || ""));
+      if (t.plateId === hangPlateShotId(t.plateId)) {
+        takenShots.add(t.plateId);
+      }
+    }
+  }
+  const firstByShot = new Map<string, string>();
+  for (const clip of opts.clips || []) {
+    if (clip.clipStatus && clip.clipStatus !== "done") continue;
+    const shot = hangPlateShotId(clip.shotId || "");
+    if (!shot || firstByShot.has(shot)) continue;
+    for (const raw of [...(clip.priorClipFiles || []), clip.clipFile || ""]) {
+      const file = hangClipBasename(raw);
+      if (!file) continue;
+      firstByShot.set(shot, file);
+      break;
+    }
+  }
+  for (const t of timings) {
+    const shot = hangPlateShotId(t.plateId);
+    if (t.plateId !== shot || takenShots.has(shot)) continue;
+    const first = firstByShot.get(shot);
+    if (first) implied.add(first);
+  }
+  return implied;
+}
+
+/**
  * File first — hang every unhung done mp4 at the next gap after the last
- * hung end. Same still, second take → 0:25 not another 0:20. Does not cook.
+ * hung end. Same still, second take → after 0:25, not another 0:20.
+ * Waiting 0/3 cuts do not block. Does not cook.
  */
 export function hangUnhungDoneClips(opts: {
   plateTimings?: PlateTiming[];
@@ -860,6 +946,94 @@ export function hangUnhungDoneClips(opts: {
     cuts = hung.cuts;
   }
   return { plateTimings: plateTimings || [], cuts };
+}
+
+/**
+ * STILLS ADD / plate-row Add / Open→Add: if this still already has an
+ * unhung mp4, hang that file after the last bar. Cut + plateTiming
+ * together. Does not mint a waiting cook. hung=false when there is no
+ * leftover file (caller may queue a still with no clip).
+ */
+export function addPlateFileFirstHang(opts: {
+  shotId: string;
+  plateFile?: string;
+  plateTimings?: PlateTiming[];
+  cuts: ScratchSongCut[];
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }>;
+  skipShotIds?: string[];
+  newCutId: () => string;
+}): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[]; hung: boolean } {
+  const shotId = hangPlateShotId(opts.shotId);
+  const leftover = listUnhungDoneClips({
+    clips: opts.clips,
+    cuts: opts.cuts,
+    plateTimings: opts.plateTimings,
+    skipShotIds: opts.skipShotIds,
+  }).filter((row) => row.shotId === shotId);
+  if (!shotId || !leftover.length) {
+    return {
+      plateTimings: sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t)),
+      cuts: opts.cuts,
+      hung: false,
+    };
+  }
+  const hung = hangUnhungDoneClips({
+    plateTimings: opts.plateTimings,
+    cuts: opts.cuts,
+    clips: opts.clips,
+    skipShotIds: opts.skipShotIds,
+    plateFileFor: (id) => (id === shotId ? (opts.plateFile || "").trim() : ""),
+    newCutId: opts.newCutId,
+    onlyShotId: shotId,
+  });
+  return { ...hung, hung: true };
+}
+
+/**
+ * Both Add buttons (STILLS + plate-row) share this. File first: leftover
+ * mp4 after the last hung end. Then hang the still if it has no unique slot.
+ * Waiting 0/3 cuts do not block. Does not cook.
+ */
+export function addPlateHangOnTrack(opts: {
+  plateTimings?: PlateTiming[];
+  cuts: ScratchSongCut[];
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }>;
+  shotId: string;
+  hangCuts: Array<Pick<ScratchSongCut, "shotId" | "startSec"> & { durationSec?: number }>;
+  extraIds: string[];
+  skipShotIds?: string[];
+  plateFileFor: (shotId: string) => string;
+  newCutId: () => string;
+}): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } {
+  const leftover = hangUnhungDoneClips({
+    plateTimings: opts.plateTimings,
+    cuts: opts.cuts,
+    clips: opts.clips,
+    skipShotIds: opts.skipShotIds,
+    plateFileFor: opts.plateFileFor,
+    newCutId: opts.newCutId,
+    onlyShotId: opts.shotId,
+  });
+  return {
+    plateTimings: hangMissingPlateTimings(
+      leftover.plateTimings,
+      opts.hangCuts,
+      opts.extraIds,
+    ),
+    cuts: leftover.cuts,
+  };
 }
 
 /**

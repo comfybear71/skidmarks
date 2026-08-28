@@ -281,7 +281,8 @@ assert.match(songUi, /songOrdinal/);
 assert.match(songUi, /\{n\} × 15s/);
 assert.match(songUi, /shortPlateLabel/);
 assert.match(songUi, /deskRowAllDone/);
-assert.match(songRoute, /put a plate on the list at 1 × 15s/);
+assert.match(songRoute, /still with no mp4 goes on the list at 1 × 15s/);
+assert.match(songRoute, /leftover mp4 file-first hangs after the last hung bar/);
 assert.match(songUi, /runOneCut/);
 assert.doesNotMatch(songUi, /Send next/);
 assert.doesNotMatch(songUi, /Music video — song cuts/);
@@ -865,8 +866,12 @@ assert.doesNotMatch(
   const addPlateBlock = songRoute.slice(songRoute.indexOf('action === "add-plate"'));
   const nextAction = addPlateBlock.search(/\n\s+if \(action === "/);
   const block = nextAction >= 0 ? addPlateBlock.slice(0, nextAction) : addPlateBlock.slice(0, 1200);
+  assert.match(block, /addPlateFileFirstHang/, "Add hangs an existing mp4 — does not cook");
+  assert.match(block, /fileFirst\.hung/);
+  assert.match(block, /alreadyHung/, "hung still with no leftover must not mint WAITING 4");
   assert.match(block, /syncSongCutsToDesk/);
-  assert.match(block, /hangMissingPlateTimings/, "Add hangs the still on the wave clock");
+  assert.match(block, /addPlateHangOnTrack/, "still with no leftover parks on the wave — no cook");
+  assert.match(block, /job\.clips/, "Add reads leftover rendered mp4s, not only waiting cuts");
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
 }
 {
@@ -903,6 +908,15 @@ assert.doesNotMatch(songUi, /Put back/);
 assert.match(songRoute, /add-plate/);
 assert.doesNotMatch(songUi, /parkPlate/);
 assert.match(editor, /addPlateToSong/);
+{
+  const start = editor.indexOf("async function addPlateToSong");
+  const end = editor.indexOf("\n  const songReady", start);
+  const fn = start >= 0 && end > start ? editor.slice(start, end) : "";
+  assert.match(fn, /action: "add-plate"/, "plate-row Add next to LTX posts add-plate");
+  assert.doesNotMatch(fn, /action: "run"/, "plate-row Add must not queue a cook");
+  assert.doesNotMatch(fn, /generate/, "plate-row Add must not generate");
+}
+assert.match(editor, /onAddToSong=\{\s*songReady && openShotId\s*\? \(\) => void addPlateToSong\(openShotId\)/);
 assert.doesNotMatch(editor, /Tap Add\. It goes on the song list/);
 assert.doesNotMatch(editor, /Position this plate/);
 assert.doesNotMatch(editor, /Song slices are under/);
