@@ -315,5 +315,15 @@ assert.match(
   /action === "hang-plates"/,
 );
 assert.match(trackUi, /hang-plates/);
+assert.match(trackUi, /remove-plate-timing/);
+assert.match(trackUi, /dropPlateFromWave/);
+assert.match(trackRoute, /parkMobileClipFile/);
+assert.match(trackRoute, /songPlateIds/);
+assert.match(songRoute, /hangCuts/);
+assert.match(
+  songRoute,
+  /leftover job\.shots/,
+  "hang-plates must not take every leftover shot row",
+);
 
 console.log("check-music-video-track: ok");

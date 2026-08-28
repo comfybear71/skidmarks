@@ -18,6 +18,7 @@ import {
   type TrackSectionMarker,
 } from "@/lib/musicVideoTrack";
 import { isMusicVideoSongJob } from "@/lib/musicVideoSong";
+import { parkMobileClipFile } from "@/lib/mobileClipPark";
 import { parseStockLook, stockLookIsOn } from "@/lib/stockLook";
 import { newId } from "@/lib/types";
 
@@ -71,7 +72,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   move-plate — swap this still with the earlier or later slot. No cook.
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
- *   remove-plate-timing — clear one plate schedule
+ *   remove-plate-timing — drop one clock off the wave. Park clip if any. Never delete.
  */
 /** Cue rows come off the phone — keep only well-formed, ordered pins. */
 function cleanLyricCues(raw: unknown): LyricCue[] {
@@ -332,11 +333,24 @@ export async function POST(req: Request) {
       if (!song) return NextResponse.json({ ok: true, job });
       const plateId = String(body.plateId || "").trim();
       if (!plateId) return NextResponse.json({ error: "Need plateId" }, { status: 400 });
+      const keptCuts: typeof song.cuts = [];
+      for (const c of song.cuts || []) {
+        if ((c.shotId || "").trim() === plateId) {
+          const file = (c.clipFile || "").trim();
+          if (file) parkMobileClipFile(file);
+          continue;
+        }
+        keptCuts.push(c);
+      }
+      const nextIds = Array.isArray(song.songPlateIds)
+        ? song.songPlateIds.filter((id) => id.trim() !== plateId)
+        : song.songPlateIds;
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,
           plateTimings: (song.plateTimings || []).filter((p) => p.plateId !== plateId),
-          cuts: (song.cuts || []).filter((c) => c.shotId !== plateId),
+          cuts: keptCuts,
+          ...(nextIds ? { songPlateIds: nextIds } : {}),
         },
         error: "",
       });

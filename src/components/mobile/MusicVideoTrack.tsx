@@ -1210,6 +1210,27 @@ export function MusicVideoTrack({
     }
   }
 
+  async function dropPlateFromWave(shotId: string) {
+    if (!song?.fileName) {
+      setNote("Nothing on the song to drop.");
+      return;
+    }
+    setBusy(`drop-${shotId}`);
+    setNote("");
+    try {
+      const updated = await trackAction("remove-plate-timing", {
+        jobId: job.id,
+        plateId: shotId,
+      });
+      if (updated) onJobChange(updated);
+      setNote("Off the wave. Still stays. Nothing deleted.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't drop that plate");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function redoPlate(shotId: string) {
     const cut = doneCutForPlate(shotId) || waitingCutForPlate(shotId);
     if (!cut?.id) {
@@ -1686,6 +1707,14 @@ export function MusicVideoTrack({
                       onClick={() => void movePlate(picked.shotId, "later")}
                     >
                       Move right
+                    </button>
+                    <button
+                      type="button"
+                      className="m-track-btn"
+                      disabled={Boolean(busy) || busy === `drop-${picked.shotId}`}
+                      onClick={() => void dropPlateFromWave(picked.shotId)}
+                    >
+                      {busy === `drop-${picked.shotId}` ? "…" : "Drop"}
                     </button>
                     {waitingCutForPlate(picked.shotId)?.id ? (
                       <button

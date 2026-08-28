@@ -434,14 +434,17 @@ assert.match(songRoute, /action === "add-plate"/);
 assert.match(songRoute, /storyShotForSongCut/);
 assert.equal(
   needsTrackHang({
-    cuts: [{ shotId: "a" }, { shotId: "b" }],
+    cuts: [
+      { shotId: "a", plateFile: "a.png" },
+      { shotId: "b", plateFile: "b.png" },
+    ],
     plateTimings: [{ plateId: "a" }],
   }),
   true,
 );
 assert.equal(
   needsTrackHang({
-    cuts: [{ shotId: "a" }],
+    cuts: [{ shotId: "a", plateFile: "a.png" }],
     plateTimings: [{ plateId: "a" }],
   }),
   false,
@@ -461,7 +464,36 @@ assert.deepEqual(
       { shotId: "shot_hat", plateFile: "b.png" },
     ],
   }),
-  ["shot_hat"],
+  [],
+  "leftover job.shots rows stay off the wave",
+);
+assert.deepEqual(
+  plateIdsWaitingForTrack({
+    song: {
+      plateTimings: [{ plateId: "jack" }],
+      songPlateIds: ["jack", "invisible"],
+    },
+    jobShots: [
+      { shotId: "jack", plateFile: "jack.png" },
+      { shotId: "invisible", plateFile: "im.png" },
+      { shotId: "shot_2uhuOp1", plateFile: "leftover.png" },
+      { shotId: "shot_2x5gyfo", plateFile: "" },
+    ],
+  }),
+  ["invisible"],
+);
+assert.deepEqual(
+  plateIdsWaitingForTrack({
+    song: { plateTimings: [], songPlateIds: ["shot_ghost"] },
+    jobShots: [{ shotId: "shot_ghost", plateFile: "" }],
+  }),
+  [],
+  "empty leftover ids are not hung",
+);
+assert.doesNotMatch(
+  readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8"),
+  /for \(const s of opts\.jobShots/,
+  "do not hang every job.shots row",
 );
 {
   const found = storyShotForSongCut({
