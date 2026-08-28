@@ -232,6 +232,7 @@ export function PlateReviewEditor({
   focusShotId,
   onSendStill,
   sendStillBusy,
+  sendStillNote,
 }: {
   job: MobileGenJob;
   onJobChange?: (job: MobileGenJob) => void;
@@ -245,6 +246,8 @@ export function PlateReviewEditor({
   /** Music-video plate-row Send — same cook TRACK used to run. */
   onSendStill?: (shotId: string) => Promise<void>;
   sendStillBusy?: boolean;
+  /** Cooking / fail line on the open plate — Sending… is not enough. */
+  sendStillNote?: string;
 }) {
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -1065,6 +1068,7 @@ export function PlateReviewEditor({
           songAdding={Boolean(openShotId && songAddFor === openShotId)}
           onSendStill={onSendStill}
           sendStillBusy={sendStillBusy}
+          sendStillNote={sendStillNote}
           onJobChange={onJobChange}
           onShotMeta={(patch) => {
             if (!openShotId) return;
@@ -2228,6 +2232,7 @@ function ShotLineEditor({
   songAdding,
   onSendStill,
   sendStillBusy,
+  sendStillNote,
   onJobChange,
   onShotMeta,
 }: {
@@ -2256,6 +2261,7 @@ function ShotLineEditor({
           songAdding?: boolean;
           onSendStill?: (shotId: string) => Promise<void>;
           sendStillBusy?: boolean;
+          sendStillNote?: string;
           onJobChange?: (job: MobileGenJob) => void;
           onShotMeta?: (patch: { footageRole?: ShotFootageRole; stockQuery?: string }) => void;
           onPlateRebuilt: (
@@ -2561,6 +2567,14 @@ function ShotLineEditor({
         )}
         </div>
       )}
+      {sendStillNote ? (
+        <p
+          className={sendStillBusy ? "m-song-cook-note" : "m-track-err"}
+          role="status"
+        >
+          {sendStillNote}
+        </p>
+      ) : null}
     </div>
   );
 }
