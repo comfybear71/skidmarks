@@ -74,9 +74,12 @@ import {
 } from "@/lib/stockLook";
 import {
   askSongCookNotifyPermission,
+  clearSongCookStop,
   pendingSongCuts,
+  requestSongCookStop,
   setSongCookFlag,
   songCookFlagOn,
+  songCookStopRequested,
   waitForSongCut,
 } from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
@@ -1134,6 +1137,7 @@ export function MusicVideoTrack({
       setNote("Add this still to the timeline first.");
       return;
     }
+    if (cookCancel.current || songCookStopRequested(job.id)) return;
     askSongCookNotifyPermission();
     setBusy(`send-${id}`);
     setNote("");
@@ -1143,7 +1147,7 @@ export function MusicVideoTrack({
         jobId: job.id,
         cutId: id,
         setJob: onJobChange,
-        cancelled: () => cookCancel.current,
+        cancelled: () => cookCancel.current || songCookStopRequested(job.id),
       });
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't send that cut");
@@ -1165,6 +1169,7 @@ export function MusicVideoTrack({
     if (cookLock.current) return;
     cookLock.current = true;
     cookCancel.current = false;
+    clearSongCookStop(job.id);
     try {
       await sendOneCutBody(cut.id);
     } finally {
@@ -1185,10 +1190,11 @@ export function MusicVideoTrack({
     }
     cookLock.current = true;
     cookCancel.current = false;
+    clearSongCookStop(job.id);
     setSongCookFlag(job.id, true);
     try {
       for (;;) {
-        if (cookCancel.current) break;
+        if (cookCancel.current || songCookStopRequested(job.id)) break;
         const next =
           hungWaitingCuts().find((c) => c.status !== "running") || hungWaitingCuts()[0];
         if (!next?.id) break;
@@ -1206,6 +1212,9 @@ export function MusicVideoTrack({
       setNote("Nothing to redo on that still.");
       return;
     }
+    requestSongCookStop(job.id);
+    cookCancel.current = true;
+    cookLock.current = false;
     setBusy(`redo-${cut.id}`);
     setNote("");
     try {
@@ -1670,14 +1679,15 @@ export function MusicVideoTrack({
                           : "Send"}
                       </button>
                     ) : null}
-                    {doneCutForPlate(picked.shotId)?.id ? (
+                    {doneCutForPlate(picked.shotId)?.id ||
+                    waitingCutForPlate(picked.shotId)?.clipFile ? (
                       <button
                         type="button"
                         className="m-track-btn"
-                        disabled={Boolean(busy) || busy.startsWith("send-")}
+                        disabled={busy.startsWith("redo-")}
                         onClick={() => void redoPlate(picked.shotId)}
                       >
-                        Redo
+                        {busy.startsWith("redo-") ? "…" : "Redo"}
                       </button>
                     ) : null}
                   </>

@@ -35,9 +35,12 @@ import {
 } from "@/lib/musicVideoSong";
 import {
   askSongCookNotifyPermission,
+  clearSongCookStop,
   pendingSongCuts,
+  requestSongCookStop,
   setSongCookFlag,
   songCookFlagOn,
+  songCookStopRequested,
   waitForSongCut,
 } from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
@@ -232,6 +235,7 @@ export function MusicVideoSongCuts({
     if (cookLock.current) return;
     cookLock.current = true;
     cookCancel.current = false;
+    clearSongCookStop(job.id);
     askSongCookNotifyPermission();
     setBusy(`send-${id}`);
     setNote("");
@@ -241,7 +245,7 @@ export function MusicVideoSongCuts({
         jobId: job.id,
         cutId: id,
         setJob: onJobChange,
-        cancelled: () => cookCancel.current,
+        cancelled: () => cookCancel.current || songCookStopRequested(job.id),
       });
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't send that cut");
@@ -279,6 +283,9 @@ export function MusicVideoSongCuts({
   }
 
   async function redoCut(cutId: string) {
+    requestSongCookStop(job.id);
+    cookCancel.current = true;
+    cookLock.current = false;
     setBusy(`redo-${cutId}`);
     setNote("");
     try {
@@ -508,11 +515,11 @@ export function MusicVideoSongCuts({
                         const done = mine.find((c) => c.status === "done" && c.clipFile);
                         const fail = mine.find((c) => c.status === "error");
                         const redo = fail || done;
-                        if (!redo?.id || workingNow) return null;
+                        if (!redo?.id) return null;
                         return (
                           <button
                             type="button"
-                            disabled={Boolean(busy)}
+                            disabled={busy === `redo-${redo.id}`}
                             onClick={() => void redoCut(redo.id)}
                           >
                             {busy === `redo-${redo.id}` ? "…" : "Redo"}

@@ -12,8 +12,8 @@ import {
   isEpisodeClipPlanError,
   planBinFailedEpisodeClips,
   planDismissEpisodeClip,
-  planRemoveEpisodeClipTake,
 } from "@/lib/mobileEpisodeClips";
+import { planParkDeskClipTake } from "@/lib/parkDeskClip";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
 import { readMobileStory } from "@/lib/mobileStoryStore";
 import { isOffEpisodeDeskShot } from "@/lib/mobileScratch";
@@ -67,7 +67,9 @@ export async function GET(req: Request) {
 /**
  * POST { jobId, action }
  *   remove-clip — park one playable take (✕ on the /m player). File goes to
- *     _cleared/, not deleted. Scratch pad still uses /scratch remove-clip.
+ *     _cleared/, not deleted. Music video also clears the matching song cut
+ *     so the Clips rail does not draw the file again. Scratch pad still
+ *     uses /scratch remove-clip.
  *   dismiss — bin a failed Generate with no mp4 (pink error, no player).
  *     Prior takes stay.
  *   bin-failed — dismiss every failed episode-desk clip. Scratch/campaign
@@ -104,7 +106,13 @@ export async function POST(req: Request) {
 
     const plan =
       action === "remove-clip"
-        ? planRemoveEpisodeClipTake(job.clips || [], body.beatId || "", body.fileName || "", isEpisode)
+        ? planParkDeskClipTake({
+            clips: job.clips || [],
+            song: job.scratchSong,
+            beatId: body.beatId || "",
+            fileName: body.fileName || "",
+            isEpisode,
+          })
         : action === "dismiss"
           ? planDismissEpisodeClip(job.clips || [], body.beatId || "", isEpisode)
           : planBinFailedEpisodeClips(job.clips || [], isEpisode);
@@ -124,6 +132,9 @@ export async function POST(req: Request) {
       clips: plan.next,
       error: failed,
     };
+    if (action === "remove-clip" && "nextSong" in plan && plan.nextSong) {
+      patch.scratchSong = plan.nextSong;
+    }
     const stillRunning = deskClips.some((c) => c.clipStatus === "running");
     if (job.phase === "error" && plan.clearedEpisodeErrors && !stillRunning) {
       patch.phase = "review";

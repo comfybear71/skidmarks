@@ -29,6 +29,8 @@ import {
 } from "@/lib/musicVideoSong";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
+import { isEpisodeClipPlanError } from "@/lib/mobileEpisodeClips";
+import { planParkDeskClipTake } from "@/lib/parkDeskClip";
 import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
@@ -578,21 +580,24 @@ export async function POST(req: Request) {
       if (!cut) {
         return NextResponse.json({ error: "That cut is not on the song." }, { status: 400 });
       }
-      if (cut.status === "running") {
-        return NextResponse.json({ error: "Stop send first." }, { status: 409 });
+      const plan = planParkDeskClipTake({
+        clips: job.clips || [],
+        song,
+        cutId,
+        fileName: cut.clipFile || "",
+      });
+      if (isEpisodeClipPlanError(plan)) {
+        return NextResponse.json({ error: plan.error }, { status: plan.status });
       }
-      const file = (cut.clipFile || "").trim();
-      if (file) parkMobileClipFile(file);
-      const cuts = (song.cuts || []).map((c) =>
-        c.id === cutId
-          ? { ...c, status: "pending" as const, clipFile: "", error: "" }
-          : c,
-      );
+      for (const file of plan.filesToPark) {
+        parkMobileClipFile(file);
+      }
       const updated = await patchMobileGenJob(jobId, {
-        scratchSong: { ...song, cuts },
+        clips: plan.next,
+        scratchSong: plan.nextSong || song,
         error: "",
       });
-      return NextResponse.json({ ok: true, job: updated });
+      return NextResponse.json({ ok: true, job: updated, stoppedCook: plan.stoppedCook });
     }
 
     if (action === "remove-stitch") {
