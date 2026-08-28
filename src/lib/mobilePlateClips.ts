@@ -4,6 +4,7 @@ import { mobileMediaFolder } from "./mobileJobFolder";
 import {
   clipHangTiming,
   formatTrackClock,
+  hangPlateShotId,
   isRealPlateHang,
   msToSec,
   resolvePlateTimings,
@@ -227,7 +228,11 @@ export function clipsUnderPlate(
   const out: MobileClipUnit[] = [];
   for (const clip of clips) {
     if (seen.has(clip.beatId)) continue;
-    if (clip.shotId === shotId || want.has(clip.beatId)) {
+    if (
+      clip.shotId === shotId ||
+      hangPlateShotId(clip.shotId || "") === shotId ||
+      want.has(clip.beatId)
+    ) {
       seen.add(clip.beatId);
       out.push(clip);
     }

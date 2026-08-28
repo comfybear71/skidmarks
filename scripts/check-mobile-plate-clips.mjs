@@ -14,6 +14,7 @@ import {
   stackedClipFiles,
   stableClipTakeLabel,
 } from "../src/lib/mobilePlateClips.ts";
+import { extraTakeHangPlateId } from "../src/lib/musicVideoTrack.ts";
 import { parkMobileClipFile } from "../src/lib/mobileClipPark.ts";
 import { extraTakeHangPlateId } from "../src/lib/musicVideoTrack.ts";
 
@@ -373,6 +374,28 @@ assert.deepEqual(
 );
 assert.deepEqual(clipRailLabels(twoOnNine.length), ["clip 1", "clip 2"]);
 assert.notEqual(twoOnNine[0].clipFile, twoOnNine[1].clipFile);
+
+{
+  const extraId = extraTakeHangPlateId("car", "02_car.mp4");
+  const cutOnlyCar = gatherClipsForStillsRail(
+    {
+      clips: [],
+      shots: [
+        { shotId: "jack1", sceneId: "scene-1" },
+        { shotId: "car", sceneId: "scene-1" },
+        { shotId: "jack", sceneId: "scene-1" },
+      ],
+      scratchSong: {
+        cuts: [{ id: "c2e", shotId: extraId, clipFile: "02_car.mp4", status: "done" }],
+      },
+    },
+    [{ shotId: "jack1" }, { shotId: "car" }, { shotId: "jack" }],
+  );
+  assert.ok(
+    cutOnlyCar.some((c) => c.clipFile === "02_car.mp4"),
+    "CLIPS must still show previous clip 2 after leftover hang uses shotId~tail",
+  );
+}
 
 /** Screenshot after #398: start stamps 0:00 / 0:15 / 0:20 / 0:20. Files are 16s, 5s, 5s, 5s. */
 const stuiesLengths = [

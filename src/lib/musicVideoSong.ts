@@ -145,9 +145,12 @@ export function syncSongCutsToDesk(opts: {
     if (c.status !== "done" || !(c.clipFile || "").trim()) continue;
     doneByKey.set(`${(c.shotId || "").trim()}|${c.startSec}|${c.durationSec}`, c);
   }
-  return rebuilt.map((c) => {
+  const usedFiles = new Set<string>();
+  const next = rebuilt.map((c) => {
     const prev = doneByKey.get(`${(c.shotId || "").trim()}|${c.startSec}|${c.durationSec}`);
     if (!prev) return c;
+    const file = (prev.clipFile || "").trim();
+    if (file) usedFiles.add(file);
     return {
       ...c,
       id: prev.id,
@@ -156,6 +159,16 @@ export function syncSongCutsToDesk(opts: {
       error: "",
     };
   });
+  // A 0:15 / 5s hung cut does not rematch a rebuilt 15s desk slice.
+  // Keep that file. Do not drop previous clip 2 when Add hangs leftover.
+  for (const c of cleared) {
+    if (c.status !== "done") continue;
+    const file = (c.clipFile || "").trim();
+    if (!file || usedFiles.has(file)) continue;
+    usedFiles.add(file);
+    next.push(c);
+  }
+  return next;
 }
 
 /** True when the cuts array is not desk-order / sequential clocks. */
