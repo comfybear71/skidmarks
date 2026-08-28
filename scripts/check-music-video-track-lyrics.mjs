@@ -140,6 +140,8 @@ console.log("check-music-video-track-lyrics OK");
     /platesOnTrackOpen/,
     "TRACK does not keep a foldable second stills shelf",
   );
+  assert.match(ui, /m-track-rail-on-wave/, "hung plates sit on the wave");
+  assert.doesNotMatch(ui, /m-track-film-len">off</, "off-song ghosts do not copy STILLS");
   assert.match(ui, /<DeskFold/, "long lists share the desk fold");
   assert.match(ui, /Import from lyrics/, "sections import from lyric tags");
   assert.match(ui, /lyricCuesFromSectionSheet/, "Import also pins Marquee from section windows");

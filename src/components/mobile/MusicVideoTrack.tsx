@@ -23,6 +23,7 @@ import {
   withoutLyricCue,
   plateTimingForShot,
   cutForHungPlate,
+  hangPlateShotId,
   isRealPlateHang,
   resolvePlateTimings,
   stretchPlateEdge,
@@ -982,11 +983,11 @@ export function MusicVideoTrack({
   )
     .filter((x) => isRealPlateHang(x))
     .map((x) => {
-      const row = plateRows.find((p) => p.shotId === x.plateId);
+      const row = plateRows.find((p) => p.shotId === hangPlateShotId(x.plateId));
       return { ...x, label: row?.title || x.plateId };
     });
   const plateBlocks: WavePlateBlock[] = (stretchTimings || savedPlateBlocks).map((t) => {
-    const row = plateRows.find((p) => p.shotId === t.plateId);
+    const row = plateRows.find((p) => p.shotId === hangPlateShotId(t.plateId));
     const saved = savedPlateBlocks.find((b) => b.plateId === t.plateId);
     return { ...t, label: row?.title || saved?.label || t.plateId };
   });
@@ -996,12 +997,12 @@ export function MusicVideoTrack({
     return plateBlocks
       .filter((block) => isRealPlateHang(block))
       .map((block) => {
-        const row = plateRows.find((p) => p.shotId === block.plateId);
+        const row = plateRows.find((p) => p.shotId === hangPlateShotId(block.plateId));
         return {
           shotId: block.plateId,
           title: row?.title || block.label,
           plateFile: row?.plateFile || "",
-          timing: row?.timing || block,
+          timing: block,
           onSong: true,
         };
       });
@@ -2073,9 +2074,9 @@ export function MusicVideoTrack({
             </p>
           ) : null}
 
-          {/* + makes a new plate (person / empty / place). Existing stills
-              stay in STILLS — this is not a second off-row gallery. */}
-          {(!compact || Boolean(onCreatePlate)) ? (
+          {/* + creates a still. Hang is STILLS Add, or Hang on a CLIPS thumb.
+              Off-song ghosts copied STILLS and only confused the desk. */}
+          {!compact || Boolean(onCreatePlate) ? (
             <div className="m-track-rail">
               <button
                 type="button"
@@ -2185,7 +2186,7 @@ export function MusicVideoTrack({
                   <button
                     type="button"
                     className="m-track-btn"
-                    onClick={() => onOpenPlate(picked.shotId)}
+                    onClick={() => onOpenPlate(hangPlateShotId(picked.shotId))}
                   >
                     Open
                   </button>

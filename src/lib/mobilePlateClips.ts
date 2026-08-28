@@ -2,7 +2,10 @@ import path from "path";
 import type { MobileClipUnit } from "./mobileGenJob";
 import { mobileMediaFolder } from "./mobileJobFolder";
 import {
+  clipHangTiming,
   formatTrackClock,
+  isRealPlateHang,
+  msToSec,
   resolvePlateTimings,
   sortPlateTimings,
   type PlateTiming,
@@ -66,9 +69,23 @@ export function stackedClipFiles(
 }
 
 type ClipClockSong = {
-  cuts?: { shotId?: string; clipFile?: string }[];
+  cuts?: { shotId?: string; clipFile?: string; durationSec?: number }[];
   plateTimings?: PlateTiming[];
 } | null;
+
+type ClipTakeClockOpts = {
+  fileName: string;
+  shotId?: string;
+  durationSec?: number;
+  songCuts?: { clipFile?: string; shotId?: string; durationSec?: number }[];
+  plateTimings?: PlateTiming[];
+};
+
+function positiveClipSec(n: unknown): number | null {
+  const sec = Number(n);
+  if (!Number.isFinite(sec) || sec <= 0) return null;
+  return sec;
+}
 
 type ClipClockDraft = { plateTimings?: PlateTiming[] } | null;
 
@@ -84,39 +101,81 @@ export function clipHangStartMs(
 ): number | null {
   const timings = sortPlateTimings(resolvePlateTimings(song, draft));
   if (!timings.length) return null;
-  const byId = (id: string) => timings.find((t) => t.plateId === (id || "").trim());
-  const shotHit = byId(clip.shotId || "");
-  if (shotHit && Number.isFinite(shotHit.startMs) && shotHit.startMs >= 0) {
-    return shotHit.startMs;
-  }
-  const file = stackedClipFiles(clip).at(-1);
-  if (!file) return null;
-  const cut = (song?.cuts || []).find((c) => clipFileBasename(c.clipFile || "") === file);
-  const cutHit = byId(cut?.shotId || "");
-  if (cutHit && Number.isFinite(cutHit.startMs) && cutHit.startMs >= 0) {
-    return cutHit.startMs;
+  const clock = {
+    cuts: song?.cuts,
+    plateTimings: timings,
+  };
+  const stacked = stackedClipFiles(clip);
+  const file = stacked.at(-1) || clipFileBasename(clip.clipFile || "");
+  const owned = file ? clipHangTiming(clock, file) : null;
+  if (owned) return owned.startMs;
+  const shotHit = timings.find((t) => t.plateId === (clip.shotId || "").trim());
+  if (shotHit && isRealPlateHang(shotHit)) {
+    const onShot = (song?.cuts || []).filter(
+      (c) =>
+        (c.shotId || "").trim() === (clip.shotId || "").trim() &&
+        clipFileBasename(c.clipFile || ""),
+    );
+    if (!onShot.length) return shotHit.startMs;
   }
   return null;
 }
 
+/** `16s` / `5s` — mp4 or cut length, never a wave start. */
+export function formatClipFileLengthSec(sec: number): string {
+  const n = positiveClipSec(sec);
+  if (n == null) return "";
+  return `${Math.round(n)}s`;
+}
+
 /**
- * Hung → TRACK clock (0:00 / 0:15 / 0:30). Not hung → "off".
- * Never cut.startSec (those cooks are 0). Never a filename tail (that was kI0).
+ * File / cut seconds first. Hang-window width only when those are missing.
+ * A 5s cook hung at 0:15 must stay 5, not the 15s box it sits in.
  */
-export function stableClipTakeLabel(opts: {
-  fileName: string;
-  shotId?: string;
-  songCuts?: { clipFile?: string; shotId?: string }[];
-  plateTimings?: PlateTiming[];
-}): string {
+export function clipTakeDurationSec(opts: ClipTakeClockOpts): number | null {
+  const asked = positiveClipSec(opts.durationSec);
+  if (asked != null) return asked;
   const file = clipFileBasename(opts.fileName);
-  if (!file) return "";
-  const ms = clipHangStartMs(
+  if (!file) return null;
+  const cut = (opts.songCuts || []).find((c) => clipFileBasename(c.clipFile || "") === file);
+  const cutDur = positiveClipSec(cut?.durationSec);
+  if (cutDur != null) return cutDur;
+  const startMs = clipHangStartMs(
     { shotId: opts.shotId || "", clipFile: file, priorClipFiles: [] },
     { cuts: opts.songCuts, plateTimings: opts.plateTimings },
   );
-  if (ms == null) return "off";
-  return formatTrackClock(ms);
+  if (startMs == null) return null;
+  const shotId = (opts.shotId || cut?.shotId || "").trim();
+  const timings = sortPlateTimings(opts.plateTimings || []);
+  const timing =
+    timings.find((t) => t.plateId === shotId) || timings.find((t) => t.startMs === startMs);
+  if (!timing) return null;
+  return positiveClipSec(msToSec(timing.endMs - timing.startMs));
+}
+
+/**
+ * Hung + length → `0:15 · 5s`. Not hung → "off".
+ * Never start-only (that read as a 15s file). Never a filename tail (kI0).
+ */
+export function formatClipTakeStamp(startMs: number | null, durationSec: number | null): string {
+  const length = durationSec != null ? formatClipFileLengthSec(durationSec) : "";
+  if (startMs == null) return "off";
+  if (length) return `${formatTrackClock(startMs)} · ${length}`;
+  return "off";
+}
+
+/**
+ * Hung → `0:00 · 16s` (wave start · mp4 length). Not hung → "off".
+ * Never cut.startSec as the only number. Never a filename tail (that was kI0).
+ */
+export function stableClipTakeLabel(opts: ClipTakeClockOpts): string {
+  const file = clipFileBasename(opts.fileName);
+  if (!file) return "";
+  const startMs = clipHangStartMs(
+    { shotId: opts.shotId || "", clipFile: file, priorClipFiles: [] },
+    { cuts: opts.songCuts, plateTimings: opts.plateTimings },
+  );
+  return formatClipTakeStamp(startMs, clipTakeDurationSec(opts));
 }
 
 /** Hung first by TRACK clock; leftovers stay in cook / first-seen order. */
