@@ -872,6 +872,27 @@ export function plateCutSpan(
   return { startSec: start, endSec: end };
 }
 
+/**
+ * Song-list clock. Cuts first. Still-only / No lips Add writes plateTimings
+ * and no cut — use that hang. Leftover 0.5s is not a clock. Never invent 15s.
+ */
+export function deskRowSongSpan(opts: {
+  cuts: Pick<ScratchSongCut, "startSec" | "durationSec">[];
+  shotId: string;
+  plateTimings?: { plateId?: string; startMs?: number; endMs?: number }[];
+}): { startSec: number; endSec: number } | null {
+  const fromCuts = plateCutSpan(opts.cuts);
+  if (fromCuts) return fromCuts;
+  const shot = hangPlateShotId((opts.shotId || "").trim());
+  if (!shot) return null;
+  const rows = opts.plateTimings || [];
+  const timing =
+    rows.find((t) => isRealPlateHang(t) && (t.plateId || "").trim() === shot) ||
+    rows.find((t) => isRealPlateHang(t) && hangPlateShotId((t.plateId || "").trim()) === shot);
+  if (!timing) return null;
+  return { startSec: msToSec(Number(timing.startMs)), endSec: msToSec(Number(timing.endMs)) };
+}
+
 export function formatSongSpan(startSec: number, endSec: number): string {
   return `${formatSongClock(startSec)}–${formatSongClock(endSec)}`;
 }
