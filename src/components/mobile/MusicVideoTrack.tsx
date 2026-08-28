@@ -78,7 +78,8 @@ import {
   resolveMvSendEngine,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
-import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
+import { MINIMAX_H3_ID, MINIMAX_H3_OVER_MAX_NOTE, refuseMinimaxH3OverMax } from "@/lib/minimaxH3";
+import { HANG_LENGTH_CHIPS_SEC } from "@/lib/scratchSongWindow";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 import { DeskFold, MobilePrimaryButton } from "./MobileUi";
@@ -884,8 +885,6 @@ export function MusicVideoTrack({
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [pickedId, setPickedId] = useState("");
   const [motionSaving, setMotionSaving] = useState(false);
-  const [startDraft, setStartDraft] = useState("0");
-  const [lengthDraft, setLengthDraft] = useState("15");
   const [openSectionId, setOpenSectionId] = useState("");
   const [playing, setPlaying] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
@@ -1086,16 +1085,10 @@ export function MusicVideoTrack({
     if (first) setPickedId(first);
   }, [filmItems, pickedId]);
 
-  useEffect(() => {
-    if (picked?.timing) {
-      setStartDraft(String(msToSec(picked.timing.startMs)));
-      setLengthDraft(String(msToSec(picked.timing.endMs - picked.timing.startMs)));
-      return;
-    }
-    if (picked) {
-      setStartDraft(String(msToSec(nextPlateHangWindow(song?.plateTimings).startMs)));
-    }
-  }, [picked?.shotId, picked?.timing?.endMs, picked?.timing?.startMs, picked, song?.plateTimings]);
+  const pickedLenSec =
+    pickedClock && pickedClock.endMs > pickedClock.startMs
+      ? msToSec(pickedClock.endMs - pickedClock.startMs)
+      : 0;
 
   const zipClips = useMemo(() => orderedJobClips(job), [job]);
   const zipHref = zipClips.length
@@ -1344,34 +1337,50 @@ export function MusicVideoTrack({
     );
   }
 
+  function sendEmptyFrameFor(shotId: string): boolean {
+    return muteLockEmptyFrame(job.id, storyShotFor(shotId), job.speakers || []);
+  }
+
+  function songRunEmptyExtras(shotId: string): Record<string, unknown> {
+    const empty = sendEmptyFrameFor(shotId);
+    return {
+      ...(readMvMuteAction(job.id, shotId) || empty ? { mute: true } : {}),
+      ...(empty ? { emptyFrame: true, nobodyInShot: true } : {}),
+    };
+  }
+
   async function persistMotionFor(shotId: string) {
     const targetBeatId = beatIdForShot(shotId);
     if (!targetBeatId) return "";
     const shot = storyShotFor(shotId);
-    const speaker = (shot?.beats[0]?.speaker || "").trim();
-    const speakers = shot
-      ? shotSpeakersOnCard({
-          shotId: shot.id,
-          title: shot.title,
-          staging: shot.staging,
-          summary: shot.summary,
-          plateFile: shot.plateFile,
-          jobSpeakers: job.speakers || [],
-          beats: shot.beats,
-        })
-      : [];
-    const look =
-      candidateLookPrompt(job.castCandidates || {}, speaker) ||
-      job.roster?.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())
-        ?.appearance ||
-      "";
+    const emptyFrame = sendEmptyFrameFor(shotId);
+    const speaker = emptyFrame ? "" : (shot?.beats[0]?.speaker || "").trim();
+    const speakers = emptyFrame
+      ? []
+      : shot
+        ? shotSpeakersOnCard({
+            shotId: shot.id,
+            title: shot.title,
+            staging: shot.staging,
+            summary: shot.summary,
+            plateFile: shot.plateFile,
+            jobSpeakers: job.speakers || [],
+            beats: shot.beats,
+          })
+        : [];
+    const look = emptyFrame
+      ? ""
+      : candidateLookPrompt(job.castCandidates || {}, speaker) ||
+        job.roster?.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())
+          ?.appearance ||
+        "";
     const lock = buildMuteMvMotionLock({
       styleId: (job.styleId || "music_video") as ShowStyleId,
-      speaker: speaker || shot?.title || "The performer",
+      speaker: emptyFrame ? "" : speaker || shot?.title || "The performer",
       lookLock: look,
       shotSpeakers: speakers.length ? speakers : undefined,
       staging: shot?.staging || "",
-      emptyFrame: muteLockEmptyFrame(job.id, shot, job.speakers || []),
+      emptyFrame,
     });
     const stored = shot?.beats[0]?.imageMotion || "";
     const live = readMvMotionSlot(job.id, targetBeatId);
@@ -1437,6 +1446,12 @@ export function MusicVideoTrack({
       timing && timing.endMs > timing.startMs
         ? msToSec(timing.endMs - timing.startMs)
         : undefined;
+    const refuse = refuseMinimaxH3OverMax(durationSec ?? 0);
+    if (refuse) {
+      setNote(refuse);
+      paintPlateSend(refuse);
+      return;
+    }
     askSongCookNotifyPermission();
     setBusy(`send-${cutId}`);
     paintPlateSend(plateCookNote(shotId));
@@ -1446,7 +1461,7 @@ export function MusicVideoTrack({
         beatId: targetBeatId || beatId,
         clipEngine: MINIMAX_H3_ID,
         ...(durationSec ? { durationSec } : {}),
-        ...(readMvMuteAction(job.id, shotId) ? { mute: true } : {}),
+        ...songRunEmptyExtras(shotId),
       });
       if (raw.pending) await pollI2v(cutId, shotId, targetBeatId);
       if (cookCancel.current || songCookStopRequested(job.id)) return;
@@ -1492,7 +1507,7 @@ export function MusicVideoTrack({
         cutId: id,
         beatId: targetBeatId || beatId,
         clipEngine: "ltx",
-        ...(readMvMuteAction(job.id, shotId) ? { mute: true } : {}),
+        ...songRunEmptyExtras(shotId),
       });
       await waitForSongCut({
         jobId: job.id,
@@ -1541,6 +1556,24 @@ export function MusicVideoTrack({
     if (!cut?.id) {
       setNote("Add this still to the song first, then Send.");
       return;
+    }
+    const useH3Now =
+      resolveMvSendEngine({
+        jobId: job.id,
+        shotId,
+        beatId: targetBeatId,
+      }) === "h3";
+    if (useH3Now) {
+      const hangSec = (() => {
+        const t = timingNow();
+        return t && t.endMs > t.startMs ? msToSec(t.endMs - t.startMs) : 0;
+      })();
+      const refuse = refuseMinimaxH3OverMax(hangSec);
+      if (refuse) {
+        setNote(refuse);
+        paintPlateSend(refuse);
+        return;
+      }
     }
     if (cookLock.current) return;
     cookLock.current = true;
@@ -1775,25 +1808,12 @@ export function MusicVideoTrack({
     }
   }
 
-  async function setPickedLength() {
-    if (!picked?.shotId) {
-      setNote("Tap a still first.");
+  async function setHungPlateLength(durationSec: number) {
+    if (!picked?.shotId || !pickedOnSong || !pickedClock) {
+      setNote("Hang the still on the song first.");
       return;
     }
-    if (!picked.onSong && !picked.timing) {
-      await addPlateToTimeline(picked.shotId);
-      return;
-    }
-    const durationSec = Number(lengthDraft);
-    const startSec = Number(startDraft);
-    if (!Number.isFinite(startSec) || startSec < 0) {
-      setNote("Type where this still starts on the song.");
-      return;
-    }
-    if (!Number.isFinite(durationSec) || durationSec <= 0) {
-      setNote("Type how many seconds this still covers.");
-      return;
-    }
+    const startSec = msToSec(pickedClock.startMs);
     setBusy(`len-${picked.shotId}`);
     setNote("");
     try {
@@ -2103,6 +2123,19 @@ export function MusicVideoTrack({
                     >
                       {busy === `drop-${picked.shotId}` ? "…" : "Off song"}
                     </button>
+                    <div className="m-track-pick-len" role="group" aria-label="Clip length">
+                      {HANG_LENGTH_CHIPS_SEC.map((sec) => (
+                        <button
+                          type="button"
+                          key={sec}
+                          className={`m-track-len-chip${pickedLenSec === sec ? " is-on" : ""}`}
+                          disabled={Boolean(busy)}
+                          onClick={() => void setHungPlateLength(sec)}
+                        >
+                          {sec}
+                        </button>
+                      ))}
+                    </div>
                     {/* Send lives on the JACK GHOST plate row — one cook. */}
                     {doneCutForPlate(picked.shotId)?.id ||
                     waitingCutForPlate(picked.shotId)?.clipFile ||
@@ -2148,6 +2181,9 @@ export function MusicVideoTrack({
                   </button>
                 ) : null}
               </div>
+              {pickedOnSong && pickedLenSec > 15 ? (
+                <p className="m-track-err">{MINIMAX_H3_OVER_MAX_NOTE}</p>
+              ) : null}
             </div>
           ) : null}
           </TrackScroll>

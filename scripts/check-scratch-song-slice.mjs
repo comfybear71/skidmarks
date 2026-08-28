@@ -11,8 +11,10 @@ import {
   songWindowLeftSec,
   remainingSongWindows,
   SCRATCH_SONG_BATCH_SHOTS,
+  HANG_LENGTH_CHIPS_SEC,
   SCRATCH_SONG_SLICE_DEFAULT_SEC,
   SCRATCH_SONG_SLICE_MAX_SEC,
+  SCRATCH_SONG_SLICE_MIN_SEC,
 } from "../src/lib/scratchSongWindow.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -28,7 +30,9 @@ const blob = readFileSync(join(here, "../src/app/api/crash/mobile/beat-audio/son
 const fetchErr = readFileSync(join(here, "../src/lib/studioFetchError.ts"), "utf8");
 
 assert.equal(SCRATCH_SONG_SLICE_DEFAULT_SEC, 15);
+assert.equal(SCRATCH_SONG_SLICE_MIN_SEC, 4);
 assert.equal(SCRATCH_SONG_SLICE_MAX_SEC, 30);
+assert.deepEqual([...HANG_LENGTH_CHIPS_SEC], [5, 15, 25]);
 assert.deepEqual(clampSongWindow(0, 15, 139.4), { startSec: 0, durationSec: 15 });
 assert.equal(formatSongClock(139.4), "2:19.4");
 const cuts = [{ durationSec: 15 }, { durationSec: 10 }, { durationSec: 30 }, { durationSec: 30 }, { durationSec: 30 }];
