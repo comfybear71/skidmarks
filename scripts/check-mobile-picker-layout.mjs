@@ -16,6 +16,28 @@ const layout = readFileSync(join(root, "src/app/(mobile)/layout.tsx"), "utf8");
 const card = readFileSync(join(root, "src/components/mobile/SingleCandidateCard.tsx"), "utf8");
 
 assert.match(tree, /className="m-picker-actions"/);
+{
+  const castAt = tree.indexOf("key={`cast-${castFocus}`}");
+  assert.ok(castAt > 0, "CAST CandidatePicker missing");
+  const castEnd = tree.indexOf("onUpload={(file) => onUploadCast", castAt);
+  assert.ok(castEnd > castAt, "CAST onUpload missing");
+  assert.doesNotMatch(
+    tree.slice(castAt, castEnd),
+    /hideUpload/,
+    "CAST card must show Add a photo — iPhone has no drag-drop",
+  );
+}
+assert.match(tree, /label="Add a photo"/);
+assert.match(tree, /Add a photo from this phone/);
+assert.match(
+  readFileSync(join(root, "src/app/(mobile)/m/page.tsx"), "utf8"),
+  /\/api\/crash\/mobile\/candidate-upload/,
+);
+assert.match(
+  readFileSync(join(root, "src/app/api/crash/mobile/candidate-upload/route.ts"), "utf8"),
+  /keepCandidateTakes/,
+  "Dropped photo must append — do not wipe earlier stills",
+);
 assert.match(tree, /className="m-picker-extra"/);
 assert.match(tree, /className="m-place-plate-extra"/);
 assert.match(tree, /className="m-place-plate-hint"/);
