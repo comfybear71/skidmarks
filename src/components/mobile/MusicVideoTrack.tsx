@@ -986,9 +986,36 @@ export function MusicVideoTrack({
     }
   }
 
+  async function hangStillsOnWave() {
+    if (!song?.fileName) {
+      setNote("Drop the song first.");
+      return;
+    }
+    setBusy("hang");
+    setNote("");
+    try {
+      const res = await fetch("/api/crash/mobile/song", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "hang-plates", jobId: job.id }),
+      });
+      const raw = (await res.json().catch(() => ({}))) as {
+        job?: MobileGenJob;
+        error?: string;
+      };
+      if (raw.job) onJobChange(raw.job);
+      if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't hang those stills");
+      setNote("Stills on the wave. Move them, then Send when you like the order.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't hang those stills");
+    } finally {
+      setBusy("");
+    }
+  }
+
   useEffect(() => {
     if (!song?.fileName) return;
-    if (!needsTrackHang(song)) return;
+    if (!needsTrackHang(song, job.shots)) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -1010,7 +1037,7 @@ export function MusicVideoTrack({
     return () => {
       cancelled = true;
     };
-  }, [job.id, onJobChange, song]);
+  }, [job.id, job.shots, onJobChange, song]);
 
   useEffect(() => {
     if (lyricImportTried.current) return;
@@ -1134,10 +1161,19 @@ export function MusicVideoTrack({
             cuts={song?.cuts || []}
             cooking={songCookFlagOn(job.id)}
           />
-          {(songCookFlagOn(job.id) ||
-            hasStuckSongCook(song?.cuts || []) ||
-            (song?.cuts || []).some((c) => c.status === "running")) ? (
-            <div className="m-track-stop-row">
+          <div className="m-track-stop-row">
+            {needsTrackHang(song, job.shots) && song?.fileName ? (
+              <MobilePrimaryButton
+                size="chip"
+                disabled={busy === "hang"}
+                onClick={() => void hangStillsOnWave()}
+              >
+                {busy === "hang" ? "Hanging…" : "Hang stills on the wave"}
+              </MobilePrimaryButton>
+            ) : null}
+            {(songCookFlagOn(job.id) ||
+              hasStuckSongCook(song?.cuts || []) ||
+              (song?.cuts || []).some((c) => c.status === "running")) ? (
               <MobilePrimaryButton
                 size="chip"
                 tone="ghost"
@@ -1146,8 +1182,8 @@ export function MusicVideoTrack({
               >
                 {busy === "stop" ? "Stopping…" : "Stop send"}
               </MobilePrimaryButton>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
           <div className="m-track-song-top">
             <span className="m-track-song-name">
               {musicVideoCreditLine(job) || songChipName(song?.fileName || parked?.file.name || "")}

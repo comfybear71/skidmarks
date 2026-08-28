@@ -3154,6 +3154,9 @@ span.scratch-history-blob {
    plain text with no tiles. */
 
 .m-track-stop-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin: 6px 0 8px;
 }
 

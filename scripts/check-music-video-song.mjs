@@ -35,6 +35,7 @@ import {
   songCutsOrderBroken,
   expectedDeskCutCount,
   needsTrackHang,
+  plateIdsWaitingForTrack,
   storyShotForSongCut,
 } from "../src/lib/musicVideoSong.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
@@ -444,6 +445,23 @@ assert.equal(
     plateTimings: [{ plateId: "a" }],
   }),
   false,
+);
+assert.equal(
+  needsTrackHang(
+    { cuts: [{ plateFile: "jack.png" }], plateTimings: [] },
+    [{ shotId: "shot_jack", plateFile: "jack.png" }],
+  ),
+  true,
+);
+assert.deepEqual(
+  plateIdsWaitingForTrack({
+    song: { plateTimings: [{ plateId: "shot_2uhu0p1" }], songPlateIds: [] },
+    jobShots: [
+      { shotId: "shot_2uhu0p1", plateFile: "a.png" },
+      { shotId: "shot_hat", plateFile: "b.png" },
+    ],
+  }),
+  ["shot_hat"],
 );
 {
   const found = storyShotForSongCut({

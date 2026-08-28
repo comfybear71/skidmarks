@@ -8,6 +8,8 @@ import {
   findSongCarrierBeatId,
   isMusicVideoSongJob,
   needsTrackHang,
+  plateIdsWaitingForTrack,
+  shotIdForSongCut,
   storyShotForSongCut,
   plateSliceWindows,
   clearStuckSongCooks,
@@ -374,12 +376,18 @@ export async function POST(req: Request) {
       if (!song?.fileName) {
         return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
       }
-      if (!needsTrackHang(song)) {
+      const jobShots = job.shots || [];
+      const cuts = (song.cuts || []).map((c) => {
+        const shotId = shotIdForSongCut(c, jobShots);
+        return shotId && shotId !== (c.shotId || "").trim() ? { ...c, shotId } : c;
+      });
+      if (!needsTrackHang({ ...song, cuts }, jobShots)) {
         return NextResponse.json({ ok: true, job });
       }
-      const plateTimings = hangMissingPlateTimings(song.plateTimings, song.cuts || []);
+      const extraIds = plateIdsWaitingForTrack({ song: { ...song, cuts }, jobShots });
+      const plateTimings = hangMissingPlateTimings(song.plateTimings, cuts, extraIds);
       const updated = await patchMobileGenJob(jobId, {
-        scratchSong: { ...song, plateTimings },
+        scratchSong: { ...song, cuts, plateTimings },
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated });
@@ -436,7 +444,14 @@ export async function POST(req: Request) {
         newCutId: () => newId("cut"),
       });
       const nextWin = nextCutAfter(cuts, song.durationSec);
-      const plateTimings = hangMissingPlateTimings(song.plateTimings, cuts);
+      const plateTimings = hangMissingPlateTimings(
+        song.plateTimings,
+        cuts,
+        plateIdsWaitingForTrack({
+          song: { ...song, cuts, songPlateIds: nextIds },
+          jobShots: job.shots,
+        }),
+      );
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,

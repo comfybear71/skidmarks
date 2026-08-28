@@ -128,6 +128,7 @@ assert.match(trackUi, /Earlier/);
 assert.match(trackUi, /Later/);
 assert.match(trackUi, /move-plate/);
 assert.match(trackUi, /Stop send/);
+assert.match(trackUi, /Hang stills on the wave/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "move-plate"/,
@@ -212,6 +213,17 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     rail.slice(1).map((t) => t.plateId),
     ["shot_a", "shot_b", "shot_c", "shot_d", "shot_e", "shot_f"],
   );
+
+  const fromShots = hangMissingPlateTimings(
+    [{ plateId: "shot_2uhu0p1", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    [],
+    ["shot_hat", "shot_car"],
+  );
+  assert.equal(fromShots.length, 3);
+  assert.equal(fromShots[1].plateId, "shot_hat");
+  assert.equal(fromShots[1].startMs, 15000);
+  assert.equal(fromShots[2].plateId, "shot_car");
+  assert.equal(fromShots[2].startMs, 30000);
 }
 
 assert.match(
