@@ -1374,34 +1374,50 @@ export function MusicVideoTrack({
     );
   }
 
+  function sendEmptyFrameFor(shotId: string): boolean {
+    return muteLockEmptyFrame(job.id, storyShotFor(shotId), job.speakers || []);
+  }
+
+  function songRunEmptyExtras(shotId: string): Record<string, unknown> {
+    const empty = sendEmptyFrameFor(shotId);
+    return {
+      ...(readMvMuteAction(job.id, shotId) || empty ? { mute: true } : {}),
+      ...(empty ? { emptyFrame: true, nobodyInShot: true } : {}),
+    };
+  }
+
   async function persistMotionFor(shotId: string) {
     const targetBeatId = beatIdForShot(shotId);
     if (!targetBeatId) return "";
     const shot = storyShotFor(shotId);
-    const speaker = (shot?.beats[0]?.speaker || "").trim();
-    const speakers = shot
-      ? shotSpeakersOnCard({
-          shotId: shot.id,
-          title: shot.title,
-          staging: shot.staging,
-          summary: shot.summary,
-          plateFile: shot.plateFile,
-          jobSpeakers: job.speakers || [],
-          beats: shot.beats,
-        })
-      : [];
-    const look =
-      candidateLookPrompt(job.castCandidates || {}, speaker) ||
-      job.roster?.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())
-        ?.appearance ||
-      "";
+    const emptyFrame = sendEmptyFrameFor(shotId);
+    const speaker = emptyFrame ? "" : (shot?.beats[0]?.speaker || "").trim();
+    const speakers = emptyFrame
+      ? []
+      : shot
+        ? shotSpeakersOnCard({
+            shotId: shot.id,
+            title: shot.title,
+            staging: shot.staging,
+            summary: shot.summary,
+            plateFile: shot.plateFile,
+            jobSpeakers: job.speakers || [],
+            beats: shot.beats,
+          })
+        : [];
+    const look = emptyFrame
+      ? ""
+      : candidateLookPrompt(job.castCandidates || {}, speaker) ||
+        job.roster?.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())
+          ?.appearance ||
+        "";
     const lock = buildMuteMvMotionLock({
       styleId: (job.styleId || "music_video") as ShowStyleId,
-      speaker: speaker || shot?.title || "The performer",
+      speaker: emptyFrame ? "" : speaker || shot?.title || "The performer",
       lookLock: look,
       shotSpeakers: speakers.length ? speakers : undefined,
       staging: shot?.staging || "",
-      emptyFrame: muteLockEmptyFrame(job.id, shot, job.speakers || []),
+      emptyFrame,
     });
     const stored = shot?.beats[0]?.imageMotion || "";
     const live = readMvMotionSlot(job.id, targetBeatId);
@@ -1476,7 +1492,7 @@ export function MusicVideoTrack({
         beatId: targetBeatId || beatId,
         clipEngine: MINIMAX_H3_ID,
         ...(durationSec ? { durationSec } : {}),
-        ...(readMvMuteAction(job.id, shotId) ? { mute: true } : {}),
+        ...songRunEmptyExtras(shotId),
       });
       if (raw.pending) await pollI2v(cutId, shotId, targetBeatId);
       if (cookCancel.current || songCookStopRequested(job.id)) return;
@@ -1522,7 +1538,7 @@ export function MusicVideoTrack({
         cutId: id,
         beatId: targetBeatId || beatId,
         clipEngine: "ltx",
-        ...(readMvMuteAction(job.id, shotId) ? { mute: true } : {}),
+        ...songRunEmptyExtras(shotId),
       });
       await waitForSongCut({
         jobId: job.id,

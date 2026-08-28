@@ -85,6 +85,8 @@ export async function POST(req: Request) {
     clipEngine?: string;
     durationSec?: number;
     mute?: boolean;
+    emptyFrame?: boolean;
+    nobodyInShot?: boolean;
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -380,6 +382,8 @@ export async function POST(req: Request) {
             sceneId,
             beatId,
             durationSec,
+            emptyFrame: body.emptyFrame === true,
+            nobodyInShot: body.nobodyInShot === true,
           });
           return NextResponse.json({
             ok: true,
@@ -423,6 +427,8 @@ export async function POST(req: Request) {
           sliceDurationSec: bounds.durationSec,
           cutId: cut.id,
           mute: body.mute === true,
+          emptyFrame: body.emptyFrame === true,
+          nobodyInShot: body.nobodyInShot === true,
         });
         return NextResponse.json({
           ok: true,

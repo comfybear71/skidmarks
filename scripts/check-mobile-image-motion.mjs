@@ -35,6 +35,7 @@ import {
   MUTE_MV_SLOT_PLACEHOLDER,
   MUTE_MV_EMPTY_LEAD,
   MUTE_MV_EMPTY_TAIL,
+  imageMotionLooksEmptyFrame,
   muteMvMotionLabel,
   resolveMvSendEngine,
 } from "../src/lib/mobileImageMotion.ts";
@@ -527,6 +528,35 @@ assert.match(
     emptyFrame: true,
   }),
   /car speeds off toward the city/,
+);
+assert.equal(imageMotionLooksEmptyFrame(emptyComposed), true);
+assert.equal(imageMotionLooksEmptyFrame(jackStandUp), false);
+assert.equal(
+  songSendNeedsRecook({
+    existingClipFile: "02_JACK_GHOST.mp4",
+    lastSent: jackStandUp,
+    nextSent: jackStandUp,
+    emptyFrame: true,
+  }),
+  true,
+  "Nobody Send must not rehang a JACK is-prominent mp4",
+);
+assert.doesNotMatch(
+  ltxSendPrompt(emptyComposed, "", {
+    skipLipSyncLead: true,
+    speaker: "",
+    shotSpeakers: [],
+  }),
+  /JACK GHOST/,
+  "empty-road POST must not name JACK",
+);
+assert.match(clipSrc, /opts\.emptyFrame === true/);
+assert.match(clipSrc, /imageMotionLooksEmptyFrame/);
+assert.match(clipSrc, /emptyFrame\s*\n\s*\? ""/);
+assert.match(
+  clipSrc,
+  /speaker: emptyFrame \? "" : speaker/,
+  "LTX speaker lock stays empty on Nobody",
 );
 
 console.log("check-mobile-image-motion: ok");
