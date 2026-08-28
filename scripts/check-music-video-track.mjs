@@ -331,8 +331,6 @@ assert.match(
   "hang-plates must not take every leftover shot row",
 );
 
-console.log("check-music-video-track: ok");
-
 const park = readFileSync(join(here, "../src/lib/parkDeskClip.ts"), "utf8");
 const clipRoute = readFileSync(join(here, "../src/app/api/crash/mobile/clip/route.ts"), "utf8");
 const motion = readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8");
@@ -417,70 +415,6 @@ assert.match(
   "hang-plates must not take every leftover shot row",
 );
 
-console.log("check-music-video-track: ok");
-
-const park = readFileSync(join(here, "../src/lib/parkDeskClip.ts"), "utf8");
-const clipRoute = readFileSync(join(here, "../src/app/api/crash/mobile/clip/route.ts"), "utf8");
-const motion = readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8");
-const scratchClip = readFileSync(join(here, "../src/lib/mobileScratchClip.ts"), "utf8");
-assert.match(park, /planParkDeskClipTake/);
-assert.match(park, /_cleared/);
-assert.match(clipRoute, /planParkDeskClipTake/);
-assert.match(motion, /pickLtxMotionBody/);
-assert.match(scratchClip, /That still is not ready/);
-assert.match(scratchClip, /Drop the song first/);
-assert.match(scratchClip, /pickSongSendMotionBody/);
-assert.match(scratchClip, /songSendNeedsRecook/);
-assert.match(scratchClip, /planParkDeskClipTake/);
-assert.match(trackUi, /cutForHungPlate/);
-assert.match(motion, /pickSongSendMotionBody/);
-{
-  const hung = cutForHungPlate({
-    cuts: [
-      {
-        id: "cut_mtylzdo",
-        shotId: "shot_1j8xafx",
-        startSec: 0,
-        durationSec: 15,
-        status: "done",
-        clipFile: "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
-      },
-      {
-        id: "cut_l27ecte",
-        shotId: "shot_1j8xafx",
-        startSec: 180,
-        durationSec: 15,
-        status: "pending",
-      },
-    ],
-    shotId: "shot_1j8xafx",
-    timing: { plateId: "shot_1j8xafx", startMs: 0, endMs: 15000, sortIndex: 0 },
-  });
-  assert.equal(hung?.id, "cut_mtylzdo", "Send this still, not a later leftover row");
-}
-
-const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
-const prompts = readFileSync(join(here, "../src/components/mobile/ShotPromptPanels.tsx"), "utf8");
-const thumbs = readFileSync(join(here, "../src/components/mobile/PlateClipThumbs.tsx"), "utf8");
-assert.doesNotMatch(trackUi, /m-track-engines/, "engines do not sit on TRACK How long / Starts at / Send");
-assert.doesNotMatch(trackUi, />\s*Siray\s*</, "Siray is not on the TRACK pick");
-assert.doesNotMatch(trackUi, />\s*Free\s*</, "Free is not on the TRACK pick");
-assert.match(prompts, /MuteMvEnginePanel/, "LTX / H3 sit on the plate prompt list");
-assert.match(prompts, />\s*LTX\s*</, "LTX is on the JACK GHOST plate block");
-assert.match(prompts, />\s*H3\s*</, "H3 is on the JACK GHOST plate block");
-assert.doesNotMatch(prompts, /Siray/, "Siray stays off the plate engine row");
-assert.doesNotMatch(prompts, />\s*Free\s*</, "Free stays off the plate engine row");
-assert.match(prompts, /m-track-motion-slot/, "[ ] motion hole sits under LTX / H3");
-assert.match(prompts, /MUTE_MV_SLOT_PLACEHOLDER/, "slot placeholder is stand up, car drives off");
-assert.match(editor, /MuteMvEnginePanel/, "music_video plate uses LTX / H3, not the LTX Image motion fold");
-assert.doesNotMatch(editor, /pickEngine/, "do not put LTX / H3 on CLIPS thumbs");
-assert.doesNotMatch(thumbs, /pickEngine/, "CLIPS / plate-1 thumb is not the engine row");
-assert.doesNotMatch(thumbs, /m-plate-clip-engine/, "CLIPS / plate-1 thumb is not the engine row");
-assert.match(trackUi, /readMvEngine/, "TRACK Send reads the plate LTX / H3 pick");
-assert.match(trackUi, /clipEngine/, "Send can still run LTX / H3");
-assert.doesNotMatch(trackUi, /Seedance/, "do not fake a Seedance button");
-assert.match(mobileCss, /\.shot-prompt-engines/, "plate engine buttons have a place under JACK GHOST");
-assert.doesNotMatch(mobileCss, /\.m-plate-clip-engines/, "no engine chrome on the CLIPS thumb");
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
   /action === "clip-poll"/,
@@ -495,3 +429,5 @@ assert.match(
   /styleId === "music_video" \? null/,
   "+ another line / + cutaway stay off music_video only",
 );
+
+console.log("check-music-video-track: ok");
