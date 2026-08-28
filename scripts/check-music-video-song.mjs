@@ -40,6 +40,7 @@ import {
   songCutUsesSpokenLine,
   syncSongCutsToDesk,
   applyAddPlateOnSong,
+  addPlateHangDurationSec,
   songCutsOrderBroken,
   expectedDeskCutCount,
   needsDoneClipHang,
@@ -49,6 +50,7 @@ import {
   removePlateFromSong,
   storyShotForSongCut,
 } from "../src/lib/musicVideoSong.ts";
+import { readHangLengthDraft, writeHangLengthDraft } from "../src/lib/hangLengthDraft.ts";
 import {
   extraStillHangPlateId,
   extraTakeHangPlateId,
@@ -71,6 +73,7 @@ const scratchRoute = readFileSync(join(here, "../src/app/api/crash/mobile/scratc
 const attach = readFileSync(join(here, "../src/lib/scratchSongAttach.ts"), "utf8");
 const clip = readFileSync(join(here, "../src/lib/mobileScratchClip.ts"), "utf8");
 const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+const songLib = readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8");
 
 assert.equal(isMusicVideoSongJob({ styleId: "music_video" }), true);
 assert.equal(isMusicVideoSongJob({ styleId: "skidmarks" }), false);
@@ -287,7 +290,7 @@ assert.match(songUi, /songOrdinal/);
 assert.match(songUi, /\{n\} × 15s/);
 assert.match(songUi, /shortPlateLabel/);
 assert.match(songUi, /deskRowAllDone/);
-assert.match(songRoute, /Still with no mp4 goes on[\s\S]{0,40}the list at 1 × 15s/);
+assert.match(songRoute, /Still with no mp4 hangs at body\.durationSec \(slider 5–40\)/);
 assert.match(songRoute, /leftover mp4 file-first hangs after the last hung bar/);
 assert.match(songUi, /runOneCut/);
 assert.doesNotMatch(songUi, /Send next/);
@@ -984,7 +987,10 @@ assert.doesNotMatch(
   assert.match(block, /alreadyHung/, "hung still with no leftover must not mint WAITING 4");
   assert.doesNotMatch(block, /syncSongCutsToDesk/, "Add must not rebuild the desk as WAITING 15s");
   assert.match(block, /job\.clips/, "Add reads leftover rendered mp4s, not only waiting cuts");
+  assert.match(block, /durationSec: body\.durationSec/, "add-plate hangs the slider seconds");
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
+  assert.doesNotMatch(block, /cookDurationFromHungBar/, "Add must not cook from the hung bar");
+  assert.doesNotMatch(block, /MINIMAX_H3_MAX_SEC/, "Add must not clamp TRACK to H3 15");
 }
 {
   let n = 0;
@@ -1235,6 +1241,54 @@ assert.doesNotMatch(
   );
 }
 {
+  writeHangLengthDraft("job_add", "jack_ghost", 20);
+  assert.equal(readHangLengthDraft("job_add", "jack_ghost"), 20, "Add reads the box that says 20");
+  assert.equal(addPlateHangDurationSec(20), 20, "slider 20 hangs 20");
+  assert.equal(addPlateHangDurationSec(40), 40, "slider 40 hangs 40");
+  assert.equal(addPlateHangDurationSec(undefined), 15, "missing slider still defaults 15");
+  assert.equal(addPlateHangDurationSec(50), 40, "Add cap is hang 40, not H3 15");
+  const slider20 = applyAddPlateOnSong({
+    shotId: "jack_ghost",
+    plateFile: "jack.png",
+    plateTimings: [{ plateId: "car", startMs: 0, endMs: 5000, sortIndex: 0 }],
+    cuts: [
+      {
+        id: "car1",
+        shotId: "car",
+        plateFile: "car.png",
+        startSec: 0,
+        durationSec: 5,
+        clipFile: "02_Car.mp4",
+        status: "done",
+      },
+    ],
+    clips: [{ shotId: "car", clipFile: "02_Car.mp4", clipStatus: "done", durationSec: 5 }],
+    songPlateIds: ["car"],
+    rowSlices: [1],
+    songSec: 180,
+    durationSec: 20,
+    newCutId: () => "cut_20",
+  });
+  assert.equal(slider20.plateTimings[1]?.plateId, "jack_ghost");
+  assert.equal(slider20.plateTimings[1]?.startMs, 5000);
+  assert.equal(slider20.plateTimings[1]?.endMs, 25000, "Add hangs the slider 20s — not 15");
+  assert.equal(
+    slider20.cuts.filter((c) => c.status === "pending").length,
+    0,
+    "slider Add does not cook",
+  );
+  assert.match(
+    songLib,
+    /const durMs = secToMs\(addPlateHangDurationSec\(opts\.durationSec\)\)/,
+    "still-only Add writes the slider clock",
+  );
+  assert.doesNotMatch(
+    songLib,
+    /const durMs = secToMs\(SCRATCH_SONG_SLICE_DEFAULT_SEC\)/,
+    "Add must not snap stills to 15 when the slider is 20",
+  );
+}
+{
   const skipBlock = songRoute.slice(songRoute.indexOf('action === "skip-plate"'));
   const nextAction = skipBlock.search(/\n\s+if \(action === "/);
   const block = nextAction >= 0 ? skipBlock.slice(0, nextAction) : skipBlock.slice(0, 1200);
@@ -1273,8 +1327,11 @@ assert.match(editor, /addPlateToSong/);
   const end = editor.indexOf("\n  const songReady", start);
   const fn = start >= 0 && end > start ? editor.slice(start, end) : "";
   assert.match(fn, /action: "add-plate"/, "plate-row Add next to LTX posts add-plate");
+  assert.match(fn, /durationSec: readHangLengthDraft/, "plate-row Add sends the slider seconds");
   assert.doesNotMatch(fn, /action: "run"/, "plate-row Add must not queue a cook");
   assert.doesNotMatch(fn, /generate/, "plate-row Add must not generate");
+  assert.doesNotMatch(fn, /cookDurationFromHungBar/, "Add is not a cook");
+  assert.doesNotMatch(fn, /MINIMAX_H3_MAX_SEC/, "Add must not clamp to H3 15");
 }
 assert.match(editor, /onAddToSong=\{\s*songReady && openShotId\s*\? \(\) => void addPlateToSong\(openShotId\)/);
 assert.doesNotMatch(editor, /Tap Add\. It goes on the song list/);

@@ -514,6 +514,7 @@ assert.match(ltxFold[0], /5s is fine/);
   assert.match(lenUi, /min=\{HANG_LENGTH_MIN_SEC\}/);
   assert.match(lenUi, /max=\{HANG_LENGTH_MAX_SEC\}/);
   assert.match(lenUi, /set-plate-duration/);
+  assert.match(lenUi, /writeHangLengthDraft/, "slider seconds are what Add hangs");
   assert.doesNotMatch(lenUi, /up to 30s/);
 }
 assert.match(motionSrc, /export function muteMvEngineFoldSummary/, "fold copy lives next to the hole title helper");

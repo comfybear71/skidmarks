@@ -546,6 +546,12 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   ]);
   assert.equal(nextWin.startMs, 15000);
   assert.equal(nextWin.endMs, 30000);
+  const next20 = nextPlateHangWindow(
+    [{ plateId: "shot_2uhu0p1", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    20,
+  );
+  assert.equal(next20.startMs, 15000);
+  assert.equal(next20.endMs, 35000, "TRACK Add hangs the slider 20s — not 15");
 
   const resized = withPlateDuration(
     [
@@ -1470,6 +1476,17 @@ assert.match(
   /applyAddPlateOnSong/,
   "Add keeps sibling clipFiles — no desk rebuild",
 );
+assert.match(
+  songRoute.slice(songRoute.indexOf('action === "add-plate"')),
+  /durationSec: body\.durationSec/,
+  "add-plate writes the slider seconds onto plateTimings",
+);
+assert.doesNotMatch(
+  songRoute.slice(songRoute.indexOf('action === "add-plate"')),
+  /MINIMAX_H3_MAX_SEC|clampMinimaxH3HangSec|cookDurationFromHungBar/,
+  "Add hang must not follow H3's 15s cook cap",
+);
+assert.match(trackUi, /durationSec: readHangLengthDraft/, "TRACK Add sends the slider seconds");
 assert.match(trackUi, /needsDoneClipHang/);
 assert.match(trackUi, /hungClipFileForPlate\(job, picked\.shotId\) \? null/);
 assert.match(trackUi, /isRealPlateHang/);
@@ -1541,6 +1558,7 @@ assert.match(motion, /pickSongSendMotionBody/);
 }
 
 const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+assert.match(editor, /durationSec: readHangLengthDraft/, "plate-row Add sends the slider seconds");
 const mobileUi = readFileSync(join(here, "../src/components/mobile/MobileUi.tsx"), "utf8");
 const panels = readFileSync(join(here, "../src/components/mobile/ShotPromptPanels.tsx"), "utf8");
 const thumbs = readFileSync(join(here, "../src/components/mobile/PlateClipThumbs.tsx"), "utf8");

@@ -91,6 +91,7 @@ import {
 } from "@/lib/musicVideoSong";
 import { CutawayBeatPanel } from "@/components/mobile/CutawayBeatPanel";
 import { PlateHangLenControl } from "@/components/mobile/PlateLenSlider";
+import { readHangLengthDraft } from "@/lib/hangLengthDraft";
 import { requestSongCookStop } from "@/lib/songCutCook";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import type { MusicVideoTrackDraft } from "@/lib/musicVideoTrack";
@@ -584,6 +585,7 @@ export function PlateReviewEditor({
           action: "add-plate",
           jobId: job.id,
           shotId,
+          durationSec: readHangLengthDraft(job.id, shotId),
         }),
       });
       const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);

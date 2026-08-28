@@ -6,6 +6,7 @@
 import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
 import { LTX_MAX_DURATION_SEC } from "./ltxDuration";
 import { clampMinimaxH3HangSec } from "./minimaxH3";
+import { addPlateHangDurationSec } from "./hangLengthDraft";
 import {
   clampSongSliceDuration,
   clampSongWindow,
@@ -558,11 +559,12 @@ export function nextPlateHangStartMs(existing: PlateTiming[] | undefined): numbe
 
 export function nextPlateHangWindow(
   existing: PlateTiming[] | undefined,
+  durationSec?: number,
 ): { startMs: number; endMs: number } {
   const startMs = nextPlateHangStartMs(existing);
   return {
     startMs,
-    endMs: startMs + secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC),
+    endMs: startMs + secToMs(addPlateHangDurationSec(durationSec)),
   };
 }
 
