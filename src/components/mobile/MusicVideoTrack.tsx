@@ -22,7 +22,6 @@ import {
   withLyricCue,
   withoutLyricCue,
   plateTimingForShot,
-  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   cutForHungPlate,
   hangPlateShotId,
@@ -70,7 +69,12 @@ import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
-import { peekAddPlateInFlight, runAddPlateInFlight } from "@/lib/addPlateInFlight";
+import {
+  lastAddPlateJob,
+  peekAddPlateInFlight,
+  preferLiveSongJob,
+  runAddPlateInFlight,
+} from "@/lib/addPlateInFlight";
 import { readApiJson } from "@/lib/studioFetchError";
 import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { muteMvEmptyFrame, muteMvPadNames, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
@@ -902,11 +906,12 @@ export function MusicVideoTrack({
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const jobRef = useRef(job);
-  jobRef.current = job;
+  jobRef.current = preferLiveSongJob(jobRef.current, job) || job;
   function takeSongJob(next: MobileGenJob | null | undefined) {
     if (!next) return;
-    jobRef.current = next;
-    onJobChange(next);
+    const kept = preferLiveSongJob(jobRef.current, next) || next;
+    jobRef.current = kept;
+    onJobChange(kept);
   }
   const sendPlateRef = useRef<(shotId: string) => Promise<void>>(async () => {});
   const sendNoteRef = useRef(onSendStillNote);
@@ -1651,12 +1656,16 @@ export function MusicVideoTrack({
       } catch {
         return;
       }
+    } else {
+      takeSongJob(lastAddPlateJob(job.id, shotId));
     }
-    // Add hangs the still. Send cooks that bar. Do not Add / hang / cook here.
+    // Hung mp4s already have a clock. Add is only for a still with no clip.
     if (!isRealPlateHang(timingNow())) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
-      return;
+      if (hungClipFileForPlate(jobRef.current, shotId)) {
+        await hangStillsOnWave();
+      } else {
+        await addPlateToTimeline(shotId);
+      }
     }
     const hungCut = () =>
       cutForHungPlate({
@@ -1673,8 +1682,6 @@ export function MusicVideoTrack({
       }
     }
     if (!cut?.id) {
-      setNote(ADD_STILL_THEN_SEND);
-      paintPlateSend(ADD_STILL_THEN_SEND);
       return;
     }
     if (cookLock.current) return;

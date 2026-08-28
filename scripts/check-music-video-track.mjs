@@ -34,7 +34,6 @@ import {
   plateSlicePx,
   secToMs,
   hungBarDurationSec,
-  ADD_STILL_THEN_SEND,
   cookDurationFromHungBar,
   ensurePlateDuration,
   sliceBoundsForPlate,
@@ -48,7 +47,9 @@ import {
   HANG_LENGTH_MIN_SEC,
 } from "../src/lib/scratchSongWindow.ts";
 import {
+  lastAddPlateJob,
   peekAddPlateInFlight,
+  preferLiveSongJob,
   runAddPlateInFlight,
 } from "../src/lib/addPlateInFlight.ts";
 
@@ -70,6 +71,25 @@ import {
   assert.equal(got?.id, "job_a");
   assert.equal(n, 1, "one hang write — Send does not start a second Add");
   assert.equal(peekAddPlateInFlight("job_a", "shot_a"), undefined, "clears when Add lands");
+  assert.equal(lastAddPlateJob("job_a", "shot_a")?.id, "job_a", "Send can still take the landed hang");
+}
+
+{
+  const hung = {
+    id: "job_b",
+    updatedAt: "2026-08-28T21:00:00.000Z",
+    scratchSong: { plateTimings: [{ plateId: "shot_a", startMs: 0, endMs: 10000 }] },
+  };
+  const stale = {
+    id: "job_b",
+    updatedAt: "2026-08-28T20:59:00.000Z",
+    scratchSong: { plateTimings: [] },
+  };
+  assert.equal(
+    preferLiveSongJob(hung, stale)?.scratchSong?.plateTimings?.length,
+    1,
+    "stale parent job must not wipe the hang",
+  );
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -187,7 +207,7 @@ assert.equal(hungBarDurationSec({ startMs: 0, endMs: 500 }), undefined);
   assert.match(twentyFive.note, /H3 max 15/);
   const missing = cookDurationFromHungBar(null, "h3");
   assert.ok("error" in missing);
-  assert.equal(missing.error, ADD_STILL_THEN_SEND);
+  assert.equal(missing.error, "Hang the still on the song first.");
   const tenLtx = cookDurationFromHungBar({ startMs: 0, endMs: 10000 }, "ltx");
   assert.ok(!("error" in tenLtx));
   assert.equal(tenLtx.durationSec, 10, "10s bar cooks 10 — do not invent 15");
@@ -1642,21 +1662,27 @@ assert.doesNotMatch(mobileCss, /\.m-plate-add-then-send/, "no lecture chrome und
     trackUi.match(/async function sendPlate\([\s\S]*?sendPlateRef\.current = sendPlate/)?.[0] || "";
   assert.match(sendPlateFn, /peekAddPlateInFlight/, "Send waits for an in-flight Add");
   assert.match(sendPlateFn, /takeSongJob\(await pendingAdd\)/, "Send takes the Add job before looking");
+  assert.match(sendPlateFn, /lastAddPlateJob/, "Send takes the landed hang after Add finishes");
   assert.match(
     sendPlateFn,
     /if \(!isRealPlateHang\(timingNow\(\)\)\)/,
     "Send checks the hung bar before cooking",
   );
-  assert.match(sendPlateFn, /ADD_STILL_THEN_SEND/, "unhung Send shows the desk rule on the plate");
   assert.doesNotMatch(
+    sendPlateFn,
+    /Add this still to the song first/,
+    "Send must not say he skipped Add after a hang",
+  );
+  assert.doesNotMatch(sendPlateFn, /ADD_STILL_THEN_SEND/, "no Add-first lecture on Send");
+  assert.match(
     sendPlateFn,
     /await addPlateToTimeline/,
-    "Send must not Add the still onto the song",
+    "Send hangs a still that is still off the song",
   );
-  assert.doesNotMatch(
+  assert.match(
     sendPlateFn,
     /await hangStillsOnWave/,
-    "Send must not auto-hang leftover mp4s",
+    "Send hangs a leftover mp4 that already has a clock file",
   );
 }
 assert.match(trackUi, /function takeSongJob/, "Add / schedule write the job onto jobRef");

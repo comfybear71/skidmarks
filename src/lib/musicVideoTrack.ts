@@ -480,15 +480,12 @@ export function hungBarDurationSec(
  * (7 and 9 stay 7 and 9). A 40s bar cooks 15 and says so — do not invent 40.
  * LTX 5–40. A 10s bar cooks 10. A 40s bar cooks 40. Never invent 15.
  */
-/** Shown on the plate when Send runs before Add hangs this still. */
-export const ADD_STILL_THEN_SEND = "Add this still to the song first, then Send.";
-
 export function cookDurationFromHungBar(
   timing: { startMs?: number; endMs?: number } | null | undefined,
   engine: "h3" | "ltx",
 ): { durationSec: number; note: string } | { error: string } {
   const hang = hungBarDurationSec(timing);
-  if (hang == null) return { error: ADD_STILL_THEN_SEND };
+  if (hang == null) return { error: "Hang the still on the song first." };
   if (engine === "h3") return clampMinimaxH3HangSec(hang);
   const durationSec = clampSongSliceDuration(hang, HANG_LENGTH_MAX_SEC);
   if (hang > HANG_LENGTH_MAX_SEC) {
