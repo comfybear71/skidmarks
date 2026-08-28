@@ -25,6 +25,7 @@ import {
   cutForHungPlate,
   hangPlateShotId,
   isRealPlateHang,
+  listUnhungDoneClips,
   resolvePlateTimings,
   stretchPlateEdge,
   hitPlateEdge,
@@ -1019,6 +1020,15 @@ export function MusicVideoTrack({
   }, [plateBlocks, plateRows]);
   const picked =
     filmItems.find((item) => item.shotId === pickedId) || filmItems[0] || null;
+  const leftoverOnPicked = Boolean(
+    picked &&
+      listUnhungDoneClips({
+        clips: job.clips || [],
+        cuts: song?.cuts || [],
+        plateTimings: song?.plateTimings,
+        skipShotIds: song?.skipShotIds,
+      }).some((row) => row.shotId === hangPlateShotId(picked.shotId)),
+  );
   const pickedOnSong = Boolean(picked && isRealPlateHang(picked.timing));
   const pickedClock =
     picked?.timing ||
@@ -1480,10 +1490,42 @@ export function MusicVideoTrack({
       setNote("Drop the song first.");
       return;
     }
+    const leftover = listUnhungDoneClips({
+      clips: job.clips || [],
+      cuts: song.cuts || [],
+      plateTimings: song.plateTimings,
+      skipShotIds: song.skipShotIds,
+    }).some((row) => row.shotId === hangPlateShotId(shotId));
     const existing = plateTimingForShot(song, job.trackDraft, shotId);
-    if (existing && isRealPlateHang(existing)) {
-      setPickedId(shotId);
-      setNote("Already on the song. Pull the handle, then Send.");
+    if (leftover || (existing && isRealPlateHang(existing))) {
+      const before = resolvePlateTimings(song, job.trackDraft).filter((t) =>
+        isRealPlateHang(t),
+      ).length;
+      setBusy(`add-${shotId}`);
+      try {
+        const res = await fetch("/api/crash/mobile/song", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "add-plate", jobId: job.id, shotId }),
+        });
+        const raw = (await res.json().catch(() => ({}))) as {
+          job?: MobileGenJob;
+          error?: string;
+        };
+        if (raw.job) onJobChange(raw.job);
+        if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't add that still");
+        const after = resolvePlateTimings(
+          raw.job?.scratchSong,
+          raw.job?.trackDraft,
+        ).filter((t) => isRealPlateHang(t)).length;
+        setPickedId(shotId);
+        if (after > before) setNote("");
+        else setNote("Already on the song. Pull the handle, then Send.");
+      } catch (e) {
+        setNote(e instanceof Error ? e.message : "Couldn't add that still");
+      } finally {
+        setBusy("");
+      }
       return;
     }
     const clock = resolvePlateTimings(song, job.trackDraft);
@@ -2176,6 +2218,16 @@ export function MusicVideoTrack({
                           X
                         </button>
                       </>
+                    ) : null}
+                    {leftoverOnPicked ? (
+                      <button
+                        type="button"
+                        className="m-track-btn"
+                        disabled={Boolean(busy)}
+                        onClick={() => void addPlateToTimeline(picked.shotId)}
+                      >
+                        {busy === `add-${picked.shotId}` ? "…" : "Add"}
+                      </button>
                     ) : null}
                   </>
                 ) : hungClipFileForPlate(job, picked.shotId) ? null : (

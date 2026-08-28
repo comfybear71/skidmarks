@@ -7,6 +7,7 @@ import {
   evenPlateTimings,
   formatTrackClock,
   formatTrackClockPrecise,
+  addPlateFileFirstHang,
   clipFileOnWave,
   extraTakeHangPlateId,
   hangClipDurationMs,
@@ -226,6 +227,8 @@ assert.match(trackUi, /saveStretchedBoxes/);
 assert.match(trackUi, /pickedOnSong/);
 assert.match(trackUi, /Already on the song/);
 assert.doesNotMatch(trackUi, /await songPost\("add-plate"/);
+assert.match(trackUi, /action: "add-plate"/, "already-hung Add posts add-plate for leftover takes");
+assert.match(trackUi, /leftoverOnPicked/);
 assert.doesNotMatch(trackUi, /Pictures stay put/);
 
 assert.match(mobileCss, /\.m-track-film/);
@@ -663,6 +666,128 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(hangClip3.plateTimings[3]?.endMs, 30000);
   assert.equal(hangClip3.cuts.find((c) => c.clipFile === "04_crouch.mp4")?.shotId, "jack");
 
+  /** One plate, two done files. First hung 0:20–0:25. Add hangs leftover after 0:25. */
+  function tallyPending(cuts) {
+    const tally = { parked: 0, done: 0 };
+    for (const c of cuts) {
+      if (c.status === "done") tally.done += 1;
+      else if (c.status !== "running" && c.status !== "error") tally.parked += 1;
+    }
+    return tally;
+  }
+  const onePlateCuts = [
+    {
+      id: "c-jack",
+      shotId: "jack",
+      plateFile: "jack.png",
+      startSec: 20,
+      durationSec: 5,
+      clipFile: "03_stand.mp4",
+      status: "done",
+    },
+  ];
+  const onePlateClips = [
+    { shotId: "jack", clipFile: "03_stand.mp4", clipStatus: "done", durationSec: 5 },
+    { shotId: "jack", clipFile: "04_drive.mp4", clipStatus: "done", durationSec: 8 },
+  ];
+  const onePlateBars = [{ plateId: "jack", startMs: 20000, endMs: 25000, sortIndex: 0 }];
+  const waitingBefore = tallyPending(onePlateCuts);
+  const addSecond = addPlateFileFirstHang({
+    shotId: "jack",
+    plateFile: "jack.png",
+    plateTimings: onePlateBars,
+    cuts: onePlateCuts,
+    clips: onePlateClips,
+    newCutId: () => "c-drive",
+  });
+  assert.equal(addSecond.hung, true, "Add hangs the leftover mp4");
+  assert.equal(addSecond.plateTimings.length, 2, "two bars from one still");
+  assert.equal(addSecond.plateTimings[0]?.startMs, 20000);
+  assert.equal(addSecond.plateTimings[0]?.endMs, 25000, "first bar stays 0:20–0:25");
+  assert.equal(addSecond.plateTimings[1]?.startMs, 25000, "second file after last bar");
+  assert.equal(addSecond.plateTimings[1]?.endMs, 33000, "real 8s file length, not 15");
+  assert.equal(
+    addSecond.plateTimings[1]?.plateId,
+    extraTakeHangPlateId("jack", "04_drive.mp4"),
+  );
+  assert.equal(tallyPending(addSecond.cuts).parked, waitingBefore.parked, "WAITING unchanged");
+  assert.equal(tallyPending(addSecond.cuts).done, 2);
+
+  const waitingCuts = [
+    {
+      id: "w1",
+      shotId: "jack1",
+      plateFile: "jack.png",
+      startSec: 0,
+      durationSec: 15,
+      clipFile: "",
+      status: "pending",
+    },
+    {
+      id: "w2",
+      shotId: "car",
+      plateFile: "car.png",
+      startSec: 15,
+      durationSec: 5,
+      clipFile: "",
+      status: "pending",
+    },
+    {
+      id: "w3",
+      shotId: "jack3",
+      plateFile: "jack.png",
+      startSec: 20,
+      durationSec: 5,
+      clipFile: "",
+      status: "pending",
+    },
+  ];
+  const hungBars = [
+    { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
+    { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+    { plateId: "jack3", startMs: 20000, endMs: 25000, sortIndex: 2 },
+  ];
+  const fourClips = [
+    { shotId: "jack1", clipFile: "01_Jack_15.mp4", clipStatus: "done", durationSec: 15 },
+    { shotId: "car", clipFile: "02_Car_5.mp4", clipStatus: "done", durationSec: 5 },
+    { shotId: "jack3", clipFile: "03_Jack_5.mp4", clipStatus: "done", durationSec: 5 },
+    { shotId: "jack3", clipFile: "04_Jack_stand.mp4", clipStatus: "done", durationSec: 8 },
+  ];
+  assert.equal(tallyPending(waitingCuts).parked, 3, "0/3 DONE · 3 WAITING");
+  const addLeftover = addPlateFileFirstHang({
+    shotId: "jack3",
+    plateFile: "jack.png",
+    plateTimings: hungBars,
+    cuts: waitingCuts,
+    clips: fourClips,
+    newCutId: () => "cut-leftover",
+  });
+  assert.equal(addLeftover.hung, true);
+  assert.equal(addLeftover.plateTimings.length, 4);
+  assert.deepEqual(
+    addLeftover.plateTimings.slice(0, 3).map((t) => [t.plateId, t.startMs, t.endMs]),
+    [
+      ["jack1", 0, 15000],
+      ["car", 15000, 20000],
+      ["jack3", 20000, 25000],
+    ],
+    "do not X the three good bars",
+  );
+  assert.equal(addLeftover.plateTimings[3]?.startMs, 25000);
+  assert.equal(addLeftover.plateTimings[3]?.endMs, 33000);
+  assert.equal(tallyPending(addLeftover.cuts).parked, 3, "waiting must not climb to 4");
+  assert.equal(tallyPending(addLeftover.cuts).done, 1);
+  const addAgain = addPlateFileFirstHang({
+    shotId: "jack3",
+    plateFile: "jack.png",
+    plateTimings: addLeftover.plateTimings,
+    cuts: addLeftover.cuts,
+    clips: fourClips,
+    newCutId: () => "cut-cook-5",
+  });
+  assert.equal(addAgain.hung, false, "no leftover left — do not cook");
+  assert.equal(tallyPending(addAgain.cuts).parked, 3, "second Add is not a 5th cook");
+
   const stillsStayOff = hangMissingPlateTimings(
     [{ plateId: "plate_1", startMs: 0, endMs: 15000, sortIndex: 0 }],
     [],
@@ -789,6 +914,16 @@ assert.match(
   songRoute.slice(songRoute.indexOf('action === "hang-plates"')),
   /hangUnhungDoneClips/,
   "hang-plates also places a second take after the last hung end",
+);
+assert.match(
+  songRoute.slice(songRoute.indexOf('action === "add-plate"')),
+  /addPlateFileFirstHang/,
+  "STILLS ADD hangs leftover mp4 — does not cook",
+);
+assert.match(
+  songRoute.slice(songRoute.indexOf('action === "add-plate"')),
+  /fileFirst\.hung/,
+  "Open→Add must not fall through to a WAITING cook when the file exists",
 );
 assert.match(
   songRoute.slice(songRoute.indexOf('action === "add-plate"')),
