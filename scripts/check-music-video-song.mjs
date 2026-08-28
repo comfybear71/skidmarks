@@ -305,9 +305,9 @@ assert.match(
   /muteMvEngineFoldLines\("h3"\)/,
   "open Free look shows the H3 desk facts",
 );
-assert.match(songUi, /m-free-look-field>\s*Theme\s*<input/, "Theme stays on Free look");
-assert.match(songUi, /m-free-look-field>\s*Colour\s*<input/, "Colour stays on Free look");
-assert.match(songUi, /m-free-look-field>\s*Type\s*<input/, "Type stays on Free look");
+assert.match(songUi, /m-free-look-field">\s*Theme\s*<input/, "Theme stays on Free look");
+assert.match(songUi, /m-free-look-field">\s*Colour\s*<input/, "Colour stays on Free look");
+assert.match(songUi, /m-free-look-field">\s*Type\s*<input/, "Type stays on Free look");
 assert.match(songUi, /Save look/, "Save look stays on Free look");
 assert.match(songUi, /m-free-look-h3/, "H3 material sits in the open Free look fold");
 assert.doesNotMatch(songUi, /\bHang\b/, "Free look does not grow a Hang button");
