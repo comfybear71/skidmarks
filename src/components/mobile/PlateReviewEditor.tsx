@@ -2645,7 +2645,6 @@ function PlateEngineButtons({
       </MobilePrimaryButton>
       <MobilePrimaryButton
         tone={muteOn ? "accent" : "ghost"}
-        title="Action only — mouth shut, no lip-sync. Uses LTX or H3, whichever is on."
         onClick={() => onMute?.(!muteOn)}
       >
         No lips
