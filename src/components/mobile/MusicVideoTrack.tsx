@@ -70,7 +70,7 @@ import {
   buildMuteMvMotionLock,
   composeMuteMvMotion,
   extractMuteMvMotionSlot,
-  readMvEngine,
+  readMvClipEngine,
   readMvMotionSlot,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
@@ -1338,7 +1338,7 @@ export function MusicVideoTrack({
       } finally {
         setMotionSaving(false);
       }
-      if (pickedBeatId && readMvEngine(job.id, pickedBeatId) === "h3") {
+      if (readMvClipEngine(job.id, shotId) === "h3") {
         await sendI2v(cut.id);
         return;
       }

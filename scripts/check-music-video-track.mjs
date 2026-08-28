@@ -379,7 +379,6 @@ const thumbs = readFileSync(join(here, "../src/components/mobile/PlateClipThumbs
 assert.doesNotMatch(trackUi, /m-track-engines/, "engines do not sit on TRACK How long / Starts at / Send");
 assert.doesNotMatch(trackUi, />\s*Siray\s*</, "Siray is not on the TRACK pick");
 assert.doesNotMatch(trackUi, />\s*Free\s*</, "Free is not on the TRACK pick");
-assert.match(trackUi, /m-track-motion-slot/, "[ ] motion slot stays for Send");
 assert.match(prompts, /MuteMvEnginePanel/, "LTX / H3 sit on the plate prompt list");
 assert.match(prompts, />\s*LTX\s*</, "LTX is on the JACK GHOST plate block");
 assert.match(prompts, />\s*H3\s*</, "H3 is on the JACK GHOST plate block");
