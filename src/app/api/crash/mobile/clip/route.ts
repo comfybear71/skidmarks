@@ -104,18 +104,47 @@ export async function POST(req: Request) {
     const isEpisode = (clip: { shotId: string }) =>
       !isOffEpisodeDeskShot(job, clip.shotId, story);
 
+    if (action === "remove-clip") {
+      const plan = planParkDeskClipTake({
+        clips: job.clips || [],
+        song: job.scratchSong,
+        beatId: body.beatId || "",
+        fileName: body.fileName || "",
+        isEpisode,
+      });
+      if (isEpisodeClipPlanError(plan)) {
+        return NextResponse.json({ error: plan.error }, { status: plan.status });
+      }
+      const parked: string[] = [];
+      for (const file of plan.filesToPark) {
+        const moved = parkMobileClipFile(file);
+        if (moved) parked.push(moved);
+      }
+      const deskClips = plan.next.filter((c) => isEpisode(c));
+      const failed = clipQueueError(deskClips);
+      const patch: Partial<MobileGenJob> = {
+        clips: plan.next,
+        error: failed,
+      };
+      if (plan.nextSong) patch.scratchSong = plan.nextSong;
+      const stillRunning = deskClips.some((c) => c.clipStatus === "running");
+      if (job.phase === "error" && plan.clearedEpisodeErrors && !stillRunning) {
+        patch.phase = "review";
+      }
+      const updated = await patchMobileGenJob(jobId, patch);
+      return NextResponse.json({
+        ok: true,
+        job: updated || { ...job, ...patch },
+        parked: parked.length ? parked : null,
+        parkedIn: parked.length ? "_cleared/" : null,
+        stoppedCook: plan.stoppedCook,
+      });
+    }
+
     const plan =
-      action === "remove-clip"
-        ? planParkDeskClipTake({
-            clips: job.clips || [],
-            song: job.scratchSong,
-            beatId: body.beatId || "",
-            fileName: body.fileName || "",
-            isEpisode,
-          })
-        : action === "dismiss"
-          ? planDismissEpisodeClip(job.clips || [], body.beatId || "", isEpisode)
-          : planBinFailedEpisodeClips(job.clips || [], isEpisode);
+      action === "dismiss"
+        ? planDismissEpisodeClip(job.clips || [], body.beatId || "", isEpisode)
+        : planBinFailedEpisodeClips(job.clips || [], isEpisode);
     if (isEpisodeClipPlanError(plan)) {
       return NextResponse.json({ error: plan.error }, { status: plan.status });
     }
@@ -132,9 +161,6 @@ export async function POST(req: Request) {
       clips: plan.next,
       error: failed,
     };
-    if (action === "remove-clip" && "nextSong" in plan && plan.nextSong) {
-      patch.scratchSong = plan.nextSong;
-    }
     const stillRunning = deskClips.some((c) => c.clipStatus === "running");
     if (job.phase === "error" && plan.clearedEpisodeErrors && !stillRunning) {
       patch.phase = "review";
