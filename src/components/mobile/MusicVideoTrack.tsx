@@ -1676,7 +1676,7 @@ export function MusicVideoTrack({
     let cut = hungCut();
     if (!cut?.id) {
       const timing = timingNow();
-      if (isRealPlateHang(timing)) {
+      if (timing && isRealPlateHang(timing)) {
         await schedulePlate(shotId, timing.startMs, timing.endMs, timing.sortIndex);
         cut = hungCut();
       }
