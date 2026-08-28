@@ -82,10 +82,10 @@ export const maxDuration = 900;
  *   hang-plates — hang done clipFiles on the wave (next gap, known length else 15). Extra take on the same still goes after the last hung end. Leftover 0.5s is not a hang. Stills with no mp4 stay off — Add those. No leftover job.shots. No cook.
  *   hang-clip — hang one existing mp4 (same still, second take gets its own clock). File first. No cook.
  *   redo-cut — park that clip, leave the still, wait for Send again.
- *   add-plate — leftover mp4 file-first hangs after the last hung bar
- *     (addPlateFileFirstHang). No waiting cook. Still with no mp4 goes on
- *     the list at 1 × 15s. Already hung + extra mp4 → hang that file after
- *     the last bar. Waiting 0/3 cuts do not block. No cook.
+ *   add-plate — still with no mp4 goes on the list at 1 × 15s. Existing
+ *     leftover mp4 file-first hangs after the last hung bar (addPlateFileFirstHang).
+ *     No waiting cook. Already hung + extra mp4 → hang that file after the
+ *     last bar. Waiting 0/3 cuts do not block. No cook.
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
  *   List edits clear stuck cooks first — a hung LTX must not lock Add forever.
