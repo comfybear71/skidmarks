@@ -51,6 +51,7 @@ import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
 import {
+  addPlateHangOnTrack,
   cutFromPlateTiming,
   hangMissingPlateTimings,
   hangOneClipOnWave,
@@ -80,7 +81,7 @@ export const maxDuration = 900;
  *   hang-plates — hang done clipFiles on the wave (next gap, known length else 15). Extra take on the same still goes after the last hung end. Leftover 0.5s is not a hang. Stills with no mp4 stay off — Add those. No leftover job.shots. No cook.
  *   hang-clip — hang one existing mp4 (same still, second take gets its own clock). File first. No cook.
  *   redo-cut — park that clip, leave the still, wait for Send again.
- *   add-plate — put a plate on the list at 1 × 15s. Already hung + extra mp4 → hang that file after the last bar. Do not stack a second take at the same clock. No cook.
+ *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row). Hang leftover rendered mp4 after the last bar (file first). Already hung + extra mp4 → hang that file after the last bar. Waiting 0/3 cuts do not block. No cook.
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
  *   List edits clear stuck cooks first — a hung LTX must not lock Add forever.
@@ -769,11 +770,33 @@ export async function POST(req: Request) {
       const hangCuts = cuts.filter((c) =>
         extraIds.includes(shotIdForSongCut(c, jobShots)),
       );
-      const plateTimings = hangMissingPlateTimings(song.plateTimings, hangCuts, extraIds);
+      const plateFileFor = (id: string) =>
+        plateFileByShotId[hangPlateShotId(id)] || plateFileByShotId[id] || "";
+      // File first — leftover take after the last hung end. Waiting 0/3
+      // must not block. Use original cuts so hung mp4s stay unique slots.
+      const hung = addPlateHangOnTrack({
+        plateTimings: song.plateTimings,
+        cuts: song.cuts || [],
+        clips: job.clips || [],
+        shotId,
+        hangCuts,
+        extraIds,
+        skipShotIds: withoutSkippedSongPlate(skipSongPlateIds(song), shotId),
+        plateFileFor,
+        newCutId: () => newId("cut"),
+      });
+      const deskFiles = new Set(
+        cuts.map((c) => clipFileBasename(c.clipFile || "")).filter(Boolean),
+      );
+      const extraCuts = hung.cuts.filter((c) => {
+        const file = clipFileBasename(c.clipFile || "");
+        return Boolean(file) && !deskFiles.has(file);
+      });
+      const plateTimings = hung.plateTimings;
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,
-          cuts,
+          cuts: [...cuts, ...extraCuts],
           plateTimings,
           songPlateIds: nextIds,
           rowSlices: slices,

@@ -823,7 +823,8 @@ assert.doesNotMatch(
   const nextAction = addPlateBlock.search(/\n\s+if \(action === "/);
   const block = nextAction >= 0 ? addPlateBlock.slice(0, nextAction) : addPlateBlock.slice(0, 1200);
   assert.match(block, /syncSongCutsToDesk/);
-  assert.match(block, /hangMissingPlateTimings/, "Add hangs the still on the wave clock");
+  assert.match(block, /addPlateHangOnTrack/, "Add hangs leftover take or the still on the wave");
+  assert.match(block, /job\.clips/, "Add reads leftover rendered mp4s, not only waiting cuts");
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
 }
 {

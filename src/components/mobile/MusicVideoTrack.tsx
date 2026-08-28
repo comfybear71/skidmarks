@@ -1019,7 +1019,7 @@ export function MusicVideoTrack({
     plateBlocks.find((b) => b.plateId === picked?.shotId) ||
     null;
   const pickedStory = useMemo(() => {
-    const id = (picked?.shotId || "").trim();
+    const id = hangPlateShotId((picked?.shotId || "").trim());
     if (!id || !story) return null;
     for (const scene of story.scenes || []) {
       const shot = scene.shots.find((sh) => sh.id === id);
@@ -1476,8 +1476,37 @@ export function MusicVideoTrack({
     }
     const existing = plateTimingForShot(song, job.trackDraft, shotId);
     if (existing && isRealPlateHang(existing)) {
-      setPickedId(shotId);
-      setNote("Already on the song. Pull the handle, then Send.");
+      const before = resolvePlateTimings(song, job.trackDraft).filter((t) =>
+        isRealPlateHang(t),
+      ).length;
+      setBusy(`add-${shotId}`);
+      try {
+        const res = await fetch("/api/crash/mobile/song", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "add-plate", jobId: job.id, shotId }),
+        });
+        const raw = (await res.json().catch(() => ({}))) as {
+          job?: MobileGenJob;
+          error?: string;
+        };
+        if (raw.job) onJobChange(raw.job);
+        if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't add that still");
+        const after = resolvePlateTimings(
+          raw.job?.scratchSong,
+          raw.job?.trackDraft,
+        ).filter((t) => isRealPlateHang(t)).length;
+        setPickedId(shotId);
+        setNote(
+          after > before
+            ? "On the song. Pull the handle, then Send."
+            : "Already on the song. Pull the handle, then Send.",
+        );
+      } catch (e) {
+        setNote(e instanceof Error ? e.message : "Couldn't add that still");
+      } finally {
+        setBusy("");
+      }
       return;
     }
     const clock = resolvePlateTimings(song, job.trackDraft);
