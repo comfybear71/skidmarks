@@ -407,6 +407,25 @@ assert.match(editor, />\s*H3\s*</, "H3 is a real button next to Add");
 assert.match(editor, /busy \? "Sending…" : "Send"/, "Send is on the same row as Add / LTX / H3");
 assert.match(editor, /onSendStill/, "plate Send uses the one TRACK cook");
 assert.match(editor, /Sending…/, "plate Send shows Sending while the cook runs");
+assert.match(editor, /sendStillNote/, "plate card can show a cook line under Send");
+assert.match(
+  editor,
+  /sendStillBusy \? "m-song-cook-note" : "m-track-err"/,
+  "cook line is dim while Sending, pink if it failed",
+);
+assert.match(trackUi, /onSendStillNote/, "TRACK paints the plate cook line");
+assert.match(
+  trackUi,
+  /Cooking — mouths shut\. This can take a few minutes\./,
+  "No lips Send says mouths shut, not a mute percent bar",
+);
+assert.match(trackUi, /Cooking — mouths shut\. Still going\./, "No lips Send ticks still going");
+assert.match(trackUi, /paintPlateSend/, "Send writes the plate line, not only TRACK setNote");
+assert.match(
+  tree,
+  /onSendStillNote=\{setSendStillNote\}/,
+  "tree passes the cook line to the open plate",
+);
 assert.doesNotMatch(editor, />\s*Siray\s*</, "Siray stays off the plate");
 assert.doesNotMatch(editor, />\s*Free\s*</, "Free stays off the plate");
 assert.match(editor, /writeMvEngine/, "tap stores the engine for the next Send");

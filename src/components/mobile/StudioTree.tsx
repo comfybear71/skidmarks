@@ -996,6 +996,7 @@ export function StudioTree({
   const [platesOpen, setPlatesOpen] = useState(true);
   const sendStillRef = useRef<(shotId: string) => Promise<void>>(async () => {});
   const [sendStillBusy, setSendStillBusy] = useState(false);
+  const [sendStillNote, setSendStillNote] = useState("");
   const [addingPlateFor, setAddingPlateFor] = useState<string | null>(null);
   const [addPlateError, setAddPlateError] = useState("");
   const [addPlateDoneFor, setAddPlateDoneFor] = useState<string | null>(null);
@@ -1960,6 +1961,7 @@ export function StudioTree({
               sendStillRef.current = fn;
             }}
             onSendStillBusy={setSendStillBusy}
+            onSendStillNote={setSendStillNote}
           />
         ) : (
           <TalkTimeline
@@ -2089,6 +2091,7 @@ export function StudioTree({
               focusShotId={focusPlateShotId}
               onSendStill={(shotId) => sendStillRef.current(shotId)}
               sendStillBusy={sendStillBusy}
+              sendStillNote={sendStillNote}
             />
           ) : null}
         </div>
