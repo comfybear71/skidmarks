@@ -62,11 +62,21 @@ import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
+import { LtxImageMotionPanel } from "@/components/mobile/ShotPromptPanels";
+import {
+  pickLtxMotionBody,
+  readLtxMotionDraft,
+  stripLtxLipSyncLead,
+  writeLtxMotionDraft,
+} from "@/lib/mobileImageMotion";
+import { stockSearchLinks } from "@/lib/stockFootage";
+import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 import { DeskFold, MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 import {
   EMPTY_STOCK_LOOK,
+  composeStockSearchQuery,
   parseStockLook,
   stockLookFoldLabel,
   stockLookIsOn,
@@ -82,6 +92,8 @@ import {
   waitForSongCut,
 } from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
+
+type MvEngine = "ltx" | "h3" | "siray" | "free";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
 const TRACK_WAVE_HEIGHT = 78;
@@ -746,6 +758,12 @@ export function MusicVideoTrack({
   const [marqueeOpen, setMarqueeOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [pickedId, setPickedId] = useState("");
+  const [engine, setEngine] = useState<MvEngine>("ltx");
+  const [h3Ready, setH3Ready] = useState(false);
+  const [sirayReady, setSirayReady] = useState(false);
+  const [motionDraft, setMotionDraft] = useState<string | null>(null);
+  const [ltxOpen, setLtxOpen] = useState(true);
+  const [motionSaving, setMotionSaving] = useState(false);
   const [freeLookOpen, setFreeLookOpen] = useState(() => stockLookIsOn(job.stockLook));
   const [freeLook, setFreeLook] = useState<StockLook>(() => parseStockLook(job.stockLook));
   const [openSectionId, setOpenSectionId] = useState("");
@@ -873,12 +891,62 @@ export function MusicVideoTrack({
         ? msToSec(picked.timing.endMs - picked.timing.startMs)
         : null)
     : null;
+  const pickedStory = useMemo(() => {
+    const id = (picked?.shotId || "").trim();
+    if (!id || !story) return null;
+    for (const scene of story.scenes || []) {
+      const shot = scene.shots.find((sh) => sh.id === id);
+      if (shot) return { shot, sceneId: scene.id, beat: shot.beats[0] || null };
+    }
+    return null;
+  }, [picked?.shotId, story]);
+  const pickedBeatId =
+    (pickedStory?.beat?.id || "").trim() ||
+    findSongCarrierBeatId(story, song?.fileName, picked?.shotId);
+  const storedMotion = stripLtxLipSyncLead(pickedStory?.beat?.imageMotion || "");
+  const motionBody = pickLtxMotionBody({
+    draft:
+      motionDraft !== null
+        ? motionDraft
+        : pickedBeatId
+          ? readLtxMotionDraft(job.id, pickedBeatId)
+          : null,
+    stored: storedMotion,
+    defaultBody: storedMotion,
+  });
 
   useEffect(() => {
     if (pickedId && filmItems.some((item) => item.shotId === pickedId)) return;
     const first = filmItems[0]?.shotId || "";
     if (first) setPickedId(first);
   }, [filmItems, pickedId]);
+
+  useEffect(() => {
+    setMotionDraft(null);
+    setLtxOpen(true);
+  }, [picked?.shotId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/crash/mobile/scratch")
+      .then((res) => res.json())
+      .then((data: { siray?: boolean; minimax?: boolean }) => {
+        if (cancelled) return;
+        if (typeof data.siray === "boolean") setSirayReady(data.siray);
+        if (typeof data.minimax === "boolean") setH3Ready(data.minimax);
+      })
+      .catch(() => {
+        /* hide unwired engines */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (engine === "h3" && !h3Ready) setEngine("ltx");
+    if (engine === "siray" && !sirayReady) setEngine("ltx");
+  }, [engine, h3Ready, sirayReady]);
 
   const zipClips = useMemo(() => orderedJobClips(job), [job]);
   const zipHref = zipClips.length
@@ -1100,18 +1168,50 @@ export function MusicVideoTrack({
   }
 
   async function songPost(action: string, extra: Record<string, unknown> = {}) {
-    const res = await fetch("/api/crash/mobile/song", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, jobId: job.id, ...extra }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/crash/mobile/song", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, jobId: job.id, ...extra }),
+      });
+    } catch (e) {
+      throw new Error(studioFetchError(e, "Couldn't reach Studio. The episode is still there — tap again."));
+    }
     const raw = (await res.json().catch(() => ({}))) as {
       job?: MobileGenJob;
       error?: string;
+      pending?: boolean;
     };
-    if (raw.job) onJobChange(raw.job);
+    if (raw.job) {
+      onJobChange(raw.job);
+      jobRef.current = raw.job;
+    }
     if (!res.ok) throw new Error(raw.error?.trim() || `Request failed (${res.status})`);
     return raw;
+  }
+
+  async function persistPickedMotion(body: string) {
+    if (!pickedBeatId) return body;
+    writeLtxMotionDraft(job.id, pickedBeatId, body);
+    const res = await fetch("/api/crash/mobile/beat-motion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId: job.id, beatId: pickedBeatId, imageMotion: body }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      imageMotion?: string;
+      job?: MobileGenJob;
+    };
+    if (!res.ok) throw new Error(data.error || "Couldn't keep Image motion");
+    if (data.job) {
+      onJobChange(data.job);
+      jobRef.current = data.job;
+    }
+    const saved = stripLtxLipSyncLead((data.imageMotion as string) || body);
+    setMotionDraft(null);
+    return saved;
   }
 
   async function addPlateToTimeline(shotId: string) {
@@ -1119,11 +1219,12 @@ export function MusicVideoTrack({
       setNote("Drop the song first.");
       return;
     }
-    const existing = plateTimingForShot(song, job.trackDraft, shotId);
+    const live = jobRef.current;
+    const existing = plateTimingForShot(live.scratchSong, live.trackDraft, shotId);
     const win =
       existing && existing.endMs > existing.startMs
         ? { startMs: existing.startMs, endMs: existing.endMs }
-        : nextPlateHangWindow(song.plateTimings);
+        : nextPlateHangWindow(live.scratchSong?.plateTimings);
     await schedulePlate(shotId, win.startMs, win.endMs, plateBlocks.length);
     setPickedId(shotId);
     setNote("On the song. Send when you like — length lands with the clip.");
@@ -1139,11 +1240,14 @@ export function MusicVideoTrack({
     setBusy(`send-${id}`);
     setNote("");
     try {
-      await songPost("run", { cutId: id, beatId });
+      await songPost("run", { cutId: id, beatId: pickedBeatId || beatId, clipEngine: "ltx" });
       await waitForSongCut({
         jobId: job.id,
         cutId: id,
-        setJob: onJobChange,
+        setJob: (next) => {
+          jobRef.current = next;
+          onJobChange(next);
+        },
         cancelled: () => cookCancel.current || songCookStopRequested(job.id),
       });
     } catch (e) {
@@ -1153,22 +1257,80 @@ export function MusicVideoTrack({
     }
   }
 
-  async function sendPlate(shotId: string) {
-    if (!hungShotIds().has(shotId.trim())) {
-      setNote("Add this still to the timeline first.");
+  async function pollI2v(cutId: string) {
+    for (let i = 0; i < 80; i++) {
+      if (cookCancel.current || songCookStopRequested(job.id)) return;
+      const raw = await songPost("clip-poll", { cutId, beatId: pickedBeatId || beatId });
+      if (!raw.pending) return;
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+    }
+    throw new Error("Still cooking. The episode is still there — tap Send again.");
+  }
+
+  async function sendI2v(cutId: string, pick: "h3" | "siray") {
+    const timing = plateTimingForShot(
+      jobRef.current.scratchSong,
+      jobRef.current.trackDraft,
+      picked?.shotId || "",
+    );
+    const durationSec =
+      timing && timing.endMs > timing.startMs
+        ? msToSec(timing.endMs - timing.startMs)
+        : undefined;
+    askSongCookNotifyPermission();
+    setBusy(`send-${cutId}`);
+    setNote("");
+    const raw = await songPost("run", {
+      cutId,
+      beatId: pickedBeatId || beatId,
+      clipEngine: pick === "h3" ? MINIMAX_H3_ID : "siray",
+      ...(pick === "h3" && durationSec ? { durationSec } : {}),
+    });
+    if (raw.pending) await pollI2v(cutId);
+  }
+
+  async function attachFreeClip(file: File) {
+    const homeBeat = pickedBeatId || beatId;
+    if (!homeBeat) {
+      setNote("Lock the episode and pick a still first.");
       return;
     }
-    const cut = cutForHungPlate({
-      cuts: jobRef.current.scratchSong?.cuts,
-      shotId,
-      timing: plateTimingForShot(
-        jobRef.current.scratchSong,
-        jobRef.current.trackDraft,
-        shotId,
-      ),
-    });
-    if (!cut?.id) {
-      setNote("Add this still to the timeline first.");
+    if (picked && !hungShotIds().has(picked.shotId)) {
+      await addPlateToTimeline(picked.shotId);
+    }
+    setBusy("send-free");
+    setNote("");
+    try {
+      const form = new FormData();
+      form.set("jobId", job.id);
+      form.set("beatId", homeBeat);
+      form.set("source", "stock");
+      form.set("file", file);
+      let res: Response;
+      try {
+        res = await fetch("/api/crash/mobile/clip/upload", { method: "POST", body: form });
+      } catch (e) {
+        throw new Error(studioFetchError(e, "Couldn't hang that clip"));
+      }
+      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+      if (data.job) {
+        onJobChange(data.job);
+        jobRef.current = data.job;
+      }
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't hang that clip");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function sendPlate(shotId: string) {
+    if (engine === "free") {
+      setNote("Drop a free clip on this still.");
+      return;
+    }
+    if (!song?.fileName) {
+      setNote("Drop the song first.");
       return;
     }
     if (cookLock.current) return;
@@ -1176,7 +1338,34 @@ export function MusicVideoTrack({
     cookCancel.current = false;
     clearSongCookStop(job.id);
     try {
+      if (motionDraft !== null || motionBody.trim()) {
+        setMotionSaving(true);
+        try {
+          await persistPickedMotion(motionBody);
+        } finally {
+          setMotionSaving(false);
+        }
+      }
+      if (!hungShotIds().has(shotId.trim())) {
+        await addPlateToTimeline(shotId);
+      }
+      const live = jobRef.current;
+      const cut = cutForHungPlate({
+        cuts: live.scratchSong?.cuts,
+        shotId,
+        timing: plateTimingForShot(live.scratchSong, live.trackDraft, shotId),
+      });
+      if (!cut?.id) {
+        setNote("Couldn't put this still on the song.");
+        return;
+      }
+      if (engine === "h3" || engine === "siray") {
+        await sendI2v(cut.id, engine);
+        return;
+      }
       await sendOneCutBody(cut.id);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't send that still");
     } finally {
       cookLock.current = false;
     }
@@ -1329,9 +1518,12 @@ export function MusicVideoTrack({
         endMs,
         sortIndex,
       });
-      if (updated) onJobChange(updated);
+      if (updated) {
+        onJobChange(updated);
+        jobRef.current = updated;
+      }
     } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't schedule that plate");
+      setNote(e instanceof Error ? e.message : "Couldn't put that still on the song");
     } finally {
       setBusy("");
     }
@@ -1581,6 +1773,107 @@ export function MusicVideoTrack({
                     ? "On the song — length after the clip"
                     : "Not on the song yet"}
               </div>
+              <div className="m-track-engines" role="group" aria-label="How to make this clip">
+                <button
+                  type="button"
+                  className={`m-track-engine${engine === "ltx" ? " is-on" : ""}`}
+                  onClick={() => setEngine("ltx")}
+                >
+                  LTX
+                </button>
+                {h3Ready ? (
+                  <button
+                    type="button"
+                    className={`m-track-engine${engine === "h3" ? " is-on" : ""}`}
+                    onClick={() => setEngine("h3")}
+                  >
+                    H3
+                  </button>
+                ) : null}
+                {sirayReady ? (
+                  <button
+                    type="button"
+                    className={`m-track-engine${engine === "siray" ? " is-on" : ""}`}
+                    onClick={() => setEngine("siray")}
+                  >
+                    Siray
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={`m-track-engine${engine === "free" ? " is-on" : ""}`}
+                  onClick={() => setEngine("free")}
+                >
+                  Free
+                </button>
+              </div>
+              {engine === "free" ? (
+                <div className="m-track-free">
+                  <p className="m-track-free-hint">
+                    Search a free clip, then drop the file on this still.
+                  </p>
+                  <div className="m-track-free-links">
+                    {stockSearchLinks(
+                      composeStockSearchQuery(freeLook, picked.title) || picked.title,
+                    ).map((link) => (
+                      <a
+                        key={link.id}
+                        className="m-track-btn"
+                        href={link.href}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
+                  <label className="m-track-free-drop">
+                    Drop a free clip
+                    <input
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+                      disabled={Boolean(busy)}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) void attachFreeClip(file);
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <>
+                  <LtxImageMotionPanel
+                    open={ltxOpen}
+                    onToggle={() => setLtxOpen((open) => !open)}
+                    body={motionBody}
+                    onChange={(value) => {
+                      setMotionDraft(value);
+                      if (pickedBeatId) writeLtxMotionDraft(job.id, pickedBeatId, value);
+                    }}
+                    keepDisabled={motionSaving || Boolean(busy)}
+                    keeping={motionSaving}
+                    dirty={motionDraft !== null}
+                    onKeep={() => {
+                      setMotionSaving(true);
+                      setNote("");
+                      void persistPickedMotion(motionBody)
+                        .catch((e) =>
+                          setNote(e instanceof Error ? e.message : "Couldn't keep Image motion"),
+                        )
+                        .finally(() => setMotionSaving(false));
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="m-track-send"
+                    disabled={Boolean(busy) || busy.startsWith("send-") || !picked.plateFile}
+                    onClick={() => void sendPlate(picked.shotId)}
+                  >
+                    {busy.startsWith("send-") ? "Sending…" : "Send"}
+                  </button>
+                </>
+              )}
               <div className="m-track-pick-tools">
                 {picked.onSong || picked.timing ? (
                   <>
@@ -1615,20 +1908,6 @@ export function MusicVideoTrack({
                     >
                       {busy === `drop-${picked.shotId}` ? "…" : "Off song"}
                     </button>
-                    {cutForHungPlate({
-                      cuts: job.scratchSong?.cuts,
-                      shotId: picked.shotId,
-                      timing: picked.timing,
-                    })?.id ? (
-                      <button
-                        type="button"
-                        className="m-track-btn"
-                        disabled={Boolean(busy) || busy.startsWith("send-")}
-                        onClick={() => void sendPlate(picked.shotId)}
-                      >
-                        {busy.startsWith("send-") ? "Sending…" : "Send"}
-                      </button>
-                    ) : null}
                     {doneCutForPlate(picked.shotId)?.id ||
                     waitingCutForPlate(picked.shotId)?.clipFile ||
                     waitingCutForPlate(picked.shotId)?.status === "error" ? (
@@ -1653,16 +1932,7 @@ export function MusicVideoTrack({
                       </>
                     ) : null}
                   </>
-                ) : (
-                  <button
-                    type="button"
-                    className="m-track-btn"
-                    disabled={Boolean(busy) || !picked.plateFile}
-                    onClick={() => void addPlateToTimeline(picked.shotId)}
-                  >
-                    Add
-                  </button>
-                )}
+                ) : null}
                 {onOpenPlate ? (
                   <button
                     type="button"

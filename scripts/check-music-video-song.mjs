@@ -295,7 +295,8 @@ assert.match(songUi, /m-song-plate-line/);
 assert.match(songUi, /--row-progress/);
 assert.doesNotMatch(songUi, /Cooking/);
 assert.doesNotMatch(songUi, /cooking \$\{/);
-assert.match(songUi, /Sending…/);
+assert.doesNotMatch(songUi, /Sending…/, "Song list is not where he Sends");
+assert.doesNotMatch(songUi, />Send</, "Song list has no Send button");
 assert.doesNotMatch(songUi, /SongCookAlertBanner/);
 assert.match(songUi, /askSongCookNotifyPermission/);
 assert.match(songUi, /is-error/);
@@ -669,5 +670,7 @@ assert.match(
   /durationSec\?: number/,
   "TRACK POST still types durationSec",
 );
+assert.match(trackUi, /m-track-send/, "one Send lives on TRACK");
+assert.match(trackUi, /m-track-engines/, "LTX / H3 / Siray / Free sit on the still");
 
 console.log("check-music-video-song: ok");

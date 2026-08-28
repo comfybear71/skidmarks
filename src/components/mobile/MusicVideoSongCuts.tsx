@@ -435,21 +435,6 @@ export function MusicVideoSongCuts({
                     </span>
                     <div className="m-song-plate-tools m-song-line-tools">
                       {(() => {
-                        const wait = mine.find(
-                          (c) => c.status !== "done" && (c.status !== "error" || !c.clipFile),
-                        );
-                        if (!wait?.id || rowDone) return null;
-                        return (
-                          <button
-                            type="button"
-                            disabled={Boolean(busy) || workingNow}
-                            onClick={() => void runOneCut(wait.id)}
-                          >
-                            {busy === `send-${wait.id}` ? "Sending…" : "Send"}
-                          </button>
-                        );
-                      })()}
-                      {(() => {
                         const done = mine.find((c) => c.status === "done" && c.clipFile);
                         const fail = mine.find((c) => c.status === "error");
                         const redo = fail || done;

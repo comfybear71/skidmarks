@@ -12,6 +12,8 @@ import path from "path";
 import { resolveGenOrPackPlate } from "./crashActivePack";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
 import { rememberClipTake } from "./mobilePlateClips";
+import { probeDurationSeconds } from "./mediaDuration";
+import { hangLandedClipOnMusicVideoJob } from "./stockClipHang";
 import { CRASH_DIR } from "./paths";
 import { stripLtxLipSyncLead } from "./mobileImageMotion";
 import { patchMobileGenJob, readMobileGenJob, type MobileClipUnit, type MobileGenJob } from "./mobileGenJob";
@@ -239,12 +241,32 @@ export async function finishScratchMinimaxClip(opts: {
     /* clip still usable this request */
   }
   const live = (await readMobileGenJob(jobId)) || opts.job;
+  const durationSec = probeDurationSeconds(localMp4);
   const next = (live.clips || []).map((c) =>
     c.beatId === task.beatId
-      ? { ...c, ...rememberClipTake(c, localMp4), clipStatus: "done" as const, error: "" }
+      ? {
+          ...c,
+          ...rememberClipTake(c, localMp4),
+          clipStatus: "done" as const,
+          error: "",
+          ...(durationSec ? { durationSec } : {}),
+        }
       : c,
   );
-  const job = (await patchMobileGenJob(jobId, { clips: next, scratchClip: null, error: "" }))!;
+  const hung = hangLandedClipOnMusicVideoJob({
+    job: { ...live, clips: next },
+    shotId: task.shotId,
+    beatId: task.beatId,
+    clipFile: fileName,
+    durationSec,
+    newCutId: () => sortableId("cut"),
+  });
+  const job = (await patchMobileGenJob(jobId, {
+    clips: next,
+    scratchClip: null,
+    error: "",
+    ...(hung ? { scratchSong: hung } : {}),
+  }))!;
   return { pending: false, job };
 }
 

@@ -353,8 +353,6 @@ assert.match(
   "hang-plates must not take every leftover shot row",
 );
 
-console.log("check-music-video-track: ok");
-
 const park = readFileSync(join(here, "../src/lib/parkDeskClip.ts"), "utf8");
 const clipRoute = readFileSync(join(here, "../src/app/api/crash/mobile/clip/route.ts"), "utf8");
 const motion = readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8");
@@ -397,3 +395,21 @@ assert.match(motion, /pickSongSendMotionBody/);
 
 assert.match(trackUi, /studioFetchError/, "TRACK must not print raw Failed to fetch");
 assert.match(trackUi, /Couldn't reach Studio/, "dropped TRACK POST keeps the episode");
+assert.match(trackUi, /m-track-engines/, "engine row sits on the selected still");
+assert.match(trackUi, />\s*LTX\s*</, "LTX is on the selected still");
+assert.match(trackUi, />\s*Free\s*</, "Free / stock is on the selected still");
+assert.match(trackUi, /LtxImageMotionPanel/, "LTX Image motion stays on the selected still");
+assert.match(trackUi, /m-track-send/, "one Send on the selected still");
+assert.match(trackUi, /clipEngine/, "Send can pick LTX / H3 / Siray");
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /action === "clip-poll"/,
+  "H3 / Siray poll on the song route, not a second list",
+);
+assert.match(
+  readFileSync(join(here, "../src/lib/stockClipHang.ts"), "utf8"),
+  /hangLandedClipOnMusicVideoJob/,
+  "H3 / Siray hang the mp4 on TRACK when it lands",
+);
+
+console.log("check-music-video-track: ok");

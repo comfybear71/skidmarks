@@ -2,7 +2,9 @@ import fs from "fs";
 import { execFileSync } from "child_process";
 import { clipFileBasename } from "./mobilePlateClips";
 import { resolveFfmpeg } from "./mobileStitch";
-import { msToSec } from "./musicVideoTrack";
+import { applyLandedClipDuration, msToSec } from "./musicVideoTrack";
+import type { MobileGenJob } from "./mobileGenJob";
+import { isMusicVideoSongJob } from "./musicVideoSong";
 import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
 
 /**
@@ -52,6 +54,37 @@ export function hangDoneClipOnTrack(opts: {
       },
     ],
   };
+}
+
+/** After H3 / Siray lands an mp4, stamp the TRACK cut + real length. */
+export function hangLandedClipOnMusicVideoJob(opts: {
+  job: MobileGenJob;
+  shotId?: string;
+  beatId?: string;
+  clipFile: string;
+  durationSec?: number;
+  newCutId: () => string;
+}): ScratchSong | null {
+  if (!isMusicVideoSongJob(opts.job)) return null;
+  const beatId = (opts.beatId || "").trim();
+  const fromClip = beatId
+    ? (opts.job.clips || []).find((c) => (c.beatId || "").trim() === beatId)
+    : undefined;
+  const shotId = (opts.shotId || fromClip?.shotId || "").trim();
+  if (!shotId) return null;
+  const plateFile =
+    (opts.job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim();
+  const hung = hangDoneClipOnTrack({
+    song: opts.job.scratchSong,
+    shotId,
+    plateFile,
+    clipFile: opts.clipFile,
+    newCutId: opts.newCutId,
+  });
+  if (!hung) return null;
+  const durationSec = Number(opts.durationSec);
+  if (!Number.isFinite(durationSec) || durationSec <= 0) return hung;
+  return applyLandedClipDuration(hung, { plateId: shotId, durationSec });
 }
 
 /** Stock often ships with music we cannot keep under our mix. */

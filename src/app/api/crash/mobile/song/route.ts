@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { readMobileStory } from "@/lib/mobileStoryStore";
 import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { failScratchSongCutRun, runScratchLtxClip } from "@/lib/mobileScratchClip";
+import { finishScratchSirayClip, submitScratchSirayClip } from "@/lib/sirayScratchClip";
+import {
+  finishScratchMinimaxClip,
+  isMinimaxScratchClipTask,
+  submitScratchMinimaxClip,
+} from "@/lib/minimaxScratchClip";
+import { parseScratchClipEngine } from "@/lib/sirayI2v";
+import { MINIMAX_H3_ID, snapMinimaxH3DurationSec } from "@/lib/minimaxH3";
+import { sirayConfigured } from "@/lib/sirayClient";
+import { minimaxVideoConfigured } from "@/lib/minimaxVideo";
 import { newId } from "@/lib/types";
 import { nextCutAfter, songWindowLabel, type ScratchSongCut } from "@/lib/scratchSongSlice";
 import {
@@ -50,7 +60,8 @@ export const maxDuration = 900;
  *   remove-plate-parked — drop pending/fail slices on one plate. Plate stays.
  *   unstick — running with no clip → pending (left the screen too long).
  *   unstick-all — clear stuck cooks and sync cuts to the desk list (kills ghost 0/16).
- *   run — one LTX slice. Client polls the job if the phone drops.
+ *   run — one still. LTX waits here. H3 / Siray submit and return pending.
+ *   clip-poll — one H3 / Siray tick until the mp4 lands.
  *   stitch — rejected. Finish is ordered unstitched mp4s.
  *   remove-stitch — park a leftover joined mp4 if one exists.
  *   hang-plates — write missing plateTimings for song-list / cut stills. No leftover job.shots. No cook.
@@ -69,6 +80,8 @@ export async function POST(req: Request) {
     count?: number;
     beatId?: string;
     listIndex?: number;
+    clipEngine?: string;
+    durationSec?: number;
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -340,6 +353,62 @@ export async function POST(req: Request) {
           scratchSong: { ...song, cuts: running },
           error: "",
         }))!;
+        const bounds = sliceBoundsForPlate({ song, shotId, cut });
+        let clipPick: ReturnType<typeof parseScratchClipEngine> = "ltx";
+        try {
+          clipPick = parseScratchClipEngine(body.clipEngine);
+        } catch (e) {
+          return NextResponse.json(
+            { error: e instanceof Error ? e.message : String(e) },
+            { status: 400 },
+          );
+        }
+        if (clipPick === MINIMAX_H3_ID) {
+          if (!minimaxVideoConfigured()) {
+            return NextResponse.json({ error: "H3 is not on this Studio." }, { status: 400 });
+          }
+          const durationSec = snapMinimaxH3DurationSec(
+            Number(body.durationSec ?? bounds.durationSec),
+          );
+          const drawn = await submitScratchMinimaxClip({
+            job,
+            story,
+            shotId,
+            sceneId,
+            beatId,
+            durationSec,
+          });
+          return NextResponse.json({
+            ok: true,
+            pending: true,
+            job: drawn.job,
+            cutId: cut.id,
+            backend: "minimax-h3",
+            clipEngine: MINIMAX_H3_ID,
+            durationSec,
+          });
+        }
+        if (clipPick !== "ltx" && clipPick !== "grok") {
+          if (!sirayConfigured()) {
+            return NextResponse.json({ error: "Siray is not on this Studio." }, { status: 400 });
+          }
+          const drawn = await submitScratchSirayClip({
+            job,
+            story,
+            shotId,
+            sceneId,
+            beatId,
+            i2v: clipPick,
+          });
+          return NextResponse.json({
+            ok: true,
+            pending: true,
+            job: drawn.job,
+            cutId: cut.id,
+            backend: "siray-i2v",
+            clipEngine: clipPick,
+          });
+        }
         const updated = await runScratchLtxClip({
           job,
           story,
@@ -347,13 +416,8 @@ export async function POST(req: Request) {
           sceneId,
           beatId,
           plateFile: cut.plateFile,
-          ...(() => {
-            const bounds = sliceBoundsForPlate({ song, shotId, cut });
-            return {
-              sliceStartSec: bounds.startSec,
-              sliceDurationSec: bounds.durationSec,
-            };
-          })(),
+          sliceStartSec: bounds.startSec,
+          sliceDurationSec: bounds.durationSec,
           cutId: cut.id,
         });
         return NextResponse.json({
@@ -376,6 +440,43 @@ export async function POST(req: Request) {
             error: msg,
             job: failed,
           },
+          { status: 502 },
+        );
+      }
+    }
+
+    if (action === "clip-poll") {
+      const task = job.scratchClip;
+      if (!task?.taskId) {
+        const wantBeat = String(body.beatId || "").trim();
+        const landed = (job.clips || []).find(
+          (c) =>
+            (!wantBeat || c.beatId === wantBeat) &&
+            c.clipFile &&
+            c.clipStatus === "done",
+        );
+        if (landed?.clipFile) {
+          return NextResponse.json({ ok: true, pending: false, recovered: true, job });
+        }
+        return NextResponse.json(
+          { error: "No clip in flight — tap Send again. The episode is still there." },
+          { status: 400 },
+        );
+      }
+      try {
+        const tick = isMinimaxScratchClipTask(task)
+          ? await finishScratchMinimaxClip({ job, task })
+          : await finishScratchSirayClip({ job, task });
+        return NextResponse.json({
+          ok: true,
+          pending: tick.pending,
+          job: tick.job,
+          backend: isMinimaxScratchClipTask(task) ? "minimax-h3" : "siray-i2v",
+        });
+      } catch (e) {
+        const latest = (await readMobileGenJob(jobId)) || job;
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : String(e), job: latest },
           { status: 502 },
         );
       }
