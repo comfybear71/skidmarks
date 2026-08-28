@@ -5,6 +5,7 @@ import { failScratchSongCutRun, runScratchLtxClip } from "@/lib/mobileScratchCli
 import { newId } from "@/lib/types";
 import { nextCutAfter, songWindowLabel, type ScratchSongCut } from "@/lib/scratchSongSlice";
 import {
+  beatForSongCut,
   findSongCarrierBeatId,
   isMusicVideoSongJob,
   needsTrackHang,
@@ -12,6 +13,7 @@ import {
   shotIdForSongCut,
   storyShotForSongCut,
   plateSliceWindows,
+  clearFalseSpokenLineSongFails,
   clearStuckSongCooks,
   rebuildSongCutsFromDesk,
   songDeskPlateIds,
@@ -29,6 +31,8 @@ import {
 } from "@/lib/musicVideoSong";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
+import { isEpisodeClipPlanError } from "@/lib/mobileEpisodeClips";
+import { planParkDeskClipTake } from "@/lib/parkDeskClip";
 import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
@@ -49,7 +53,7 @@ export const maxDuration = 900;
  *   run — one LTX slice. Client polls the job if the phone drops.
  *   stitch — rejected. Finish is ordered unstitched mp4s.
  *   remove-stitch — park a leftover joined mp4 if one exists.
- *   hang-plates — write missing plateTimings from waiting cuts. No cook.
+ *   hang-plates — write missing plateTimings for song-list / cut stills. No leftover job.shots. No cook.
  *   redo-cut — park that clip, leave the still, wait for Send again.
  *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row).
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
@@ -221,7 +225,7 @@ export async function POST(req: Request) {
       }
       // Plate clocks already laid the song. Do not rebuild them as 1 × 15s.
       if ((song.plateTimings || []).length) {
-        const cuts = clearStuckSongCooks(song.cuts || []);
+        const cuts = clearFalseSpokenLineSongFails(clearStuckSongCooks(song.cuts || []));
         const updated = await patchMobileGenJob(jobId, {
           scratchSong: { ...song, cuts },
           error: "",
@@ -238,7 +242,7 @@ export async function POST(req: Request) {
       const cuts = syncSongCutsToDesk({
         songPlateIds: onList,
         rowSlices: slices,
-        cuts: song.cuts || [],
+        cuts: clearFalseSpokenLineSongFails(song.cuts || []),
         plateFileByShotId,
         songSec: song.durationSec,
         newCutId: () => newId("cut"),
@@ -286,28 +290,44 @@ export async function POST(req: Request) {
         jobShots: job.shots,
         cut,
       });
+      const jobShot =
+        job.shots.find((s) => s.shotId === (cut.shotId || "").trim()) ||
+        job.shots.find(
+          (s) =>
+            Boolean((s.plateFile || "").trim()) &&
+            (s.plateFile || "").trim() === (cut.plateFile || "").trim(),
+        );
       const storyShot = found?.shot;
       const scene = found
         ? story.scenes.find((sc) => sc.id === found.sceneId)
         : undefined;
-      const shotId = (storyShot?.id || "").trim();
-      if (!scene || !storyShot || !shotId) {
+      const shotId = (jobShot?.shotId || storyShot?.id || "").trim();
+      const sceneId = (jobShot?.sceneId || scene?.id || found?.sceneId || "").trim();
+      if (!shotId) {
         return NextResponse.json({ error: "That plate is not on this episode." }, { status: 400 });
       }
       const trumpetBlock = forgottenTrumpetLtxBlockReason({
         job,
-        title: storyShot.title,
+        title: storyShot?.title,
         performance: cut.performance,
       });
       if (trumpetBlock) {
         return NextResponse.json({ error: trumpetBlock }, { status: 400 });
       }
       const wantBeat = String(body.beatId || "").trim();
+      const borrowed = beatForSongCut({
+        story,
+        storyShot,
+        beatId: wantBeat,
+        songFile: song.fileName,
+      });
       const beatId =
-        (wantBeat && storyShot.beats.some((b) => b.id === wantBeat) ? wantBeat : "") ||
+        (wantBeat && storyShot?.beats.some((b) => b.id === wantBeat) ? wantBeat : "") ||
+        borrowed?.id ||
         findSongCarrierBeatId(story, song.fileName, shotId) ||
-        storyShot.beats.find((b) => isMobileSavedVoiceFile(b.voiceFile))?.id ||
-        storyShot.beats[0]?.id ||
+        storyShot?.beats.find((b) => isMobileSavedVoiceFile(b.voiceFile))?.id ||
+        storyShot?.beats[0]?.id ||
+        (isMusicVideoSongJob(job) ? wantBeat || song.carrierBeatId || "song-cut" : "") ||
         "";
       if (!beatId) {
         return NextResponse.json({ error: "Lock the episode and draw a plate first." }, { status: 400 });
@@ -324,7 +344,7 @@ export async function POST(req: Request) {
           job,
           story,
           shotId,
-          sceneId: scene.id,
+          sceneId,
           beatId,
           plateFile: cut.plateFile,
           ...(() => {
@@ -385,7 +405,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, job });
       }
       const extraIds = plateIdsWaitingForTrack({ song: { ...song, cuts }, jobShots });
-      const plateTimings = hangMissingPlateTimings(song.plateTimings, cuts, extraIds);
+      const hangCuts = cuts.filter((c) =>
+        extraIds.includes(shotIdForSongCut(c, jobShots)),
+      );
+      const plateTimings = hangMissingPlateTimings(song.plateTimings, hangCuts, extraIds);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: { ...song, cuts, plateTimings },
         error: "",
@@ -425,12 +448,19 @@ export async function POST(req: Request) {
           staging: emptyStageFarOutStaging(placeName),
         });
         job = landed.job;
+        if (!job) {
+          return NextResponse.json({ error: "Couldn't add that still." }, { status: 500 });
+        }
       }
+      if (!job) {
+        return NextResponse.json({ error: "Couldn't add that still." }, { status: 500 });
+      }
+      const jobShots = job.shots;
       const onList = songDeskPlateIds(song);
       const slices = withSongRowSlice(songDeskRowSlices(song, onList));
       const nextIds = withSongPlate(onList, shotId);
       const plateFileByShotId: Record<string, string> = {};
-      for (const s of job.shots) {
+      for (const s of jobShots) {
         const f = (s.plateFile || "").trim();
         if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
       }
@@ -444,14 +474,14 @@ export async function POST(req: Request) {
         newCutId: () => newId("cut"),
       });
       const nextWin = nextCutAfter(cuts, song.durationSec);
-      const plateTimings = hangMissingPlateTimings(
-        song.plateTimings,
-        cuts,
-        plateIdsWaitingForTrack({
-          song: { ...song, cuts, songPlateIds: nextIds },
-          jobShots: job.shots,
-        }),
+      const extraIds = plateIdsWaitingForTrack({
+        song: { ...song, cuts, songPlateIds: nextIds },
+        jobShots,
+      });
+      const hangCuts = cuts.filter((c) =>
+        extraIds.includes(shotIdForSongCut(c, jobShots)),
       );
+      const plateTimings = hangMissingPlateTimings(song.plateTimings, hangCuts, extraIds);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,
@@ -578,21 +608,24 @@ export async function POST(req: Request) {
       if (!cut) {
         return NextResponse.json({ error: "That cut is not on the song." }, { status: 400 });
       }
-      if (cut.status === "running") {
-        return NextResponse.json({ error: "Stop send first." }, { status: 409 });
+      const plan = planParkDeskClipTake({
+        clips: job.clips || [],
+        song,
+        cutId,
+        fileName: cut.clipFile || "",
+      });
+      if (isEpisodeClipPlanError(plan)) {
+        return NextResponse.json({ error: plan.error }, { status: plan.status });
       }
-      const file = (cut.clipFile || "").trim();
-      if (file) parkMobileClipFile(file);
-      const cuts = (song.cuts || []).map((c) =>
-        c.id === cutId
-          ? { ...c, status: "pending" as const, clipFile: "", error: "" }
-          : c,
-      );
+      for (const file of plan.filesToPark) {
+        parkMobileClipFile(file);
+      }
       const updated = await patchMobileGenJob(jobId, {
-        scratchSong: { ...song, cuts },
+        clips: plan.next,
+        scratchSong: plan.nextSong || song,
         error: "",
       });
-      return NextResponse.json({ ok: true, job: updated });
+      return NextResponse.json({ ok: true, job: updated, stoppedCook: plan.stoppedCook });
     }
 
     if (action === "remove-stitch") {

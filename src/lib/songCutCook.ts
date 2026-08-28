@@ -93,6 +93,50 @@ export function setSongCookFlag(jobId: string, on: boolean): void {
   }
 }
 
+const cookStopIds = new Set<string>();
+
+function cookStopKey(jobId: string): string {
+  return `skidmarks.songCookStop.${(jobId || "").trim()}`;
+}
+
+/** ✕ / Redo — stop the phone send loop so the desk is not locked. */
+export function requestSongCookStop(jobId: string): void {
+  const id = (jobId || "").trim();
+  if (!id) return;
+  cookStopIds.add(id);
+  setSongCookFlag(id, false);
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(cookStopKey(id), "1");
+  } catch {
+    /* private mode */
+  }
+}
+
+export function songCookStopRequested(jobId: string): boolean {
+  const id = (jobId || "").trim();
+  if (!id) return false;
+  if (cookStopIds.has(id)) return true;
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(cookStopKey(id)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function clearSongCookStop(jobId: string): void {
+  const id = (jobId || "").trim();
+  if (!id) return;
+  cookStopIds.delete(id);
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(cookStopKey(id));
+  } catch {
+    /* private mode */
+  }
+}
+
 export function songCookFlagOn(jobId: string): boolean {
   if (typeof window === "undefined") return false;
   try {
@@ -152,7 +196,7 @@ export async function waitForSongCut(opts: {
   let latest: MobileGenJob | null = null;
   let sawRunning = false;
   while (Date.now() - started < timeout) {
-    if (opts.cancelled?.()) return latest;
+    if (opts.cancelled?.() || songCookStopRequested(opts.jobId)) return latest;
     await sleep(SONG_COOK_POLL_MS);
     const job = await refreshMobileJob(opts.jobId);
     if (!job) continue;
@@ -182,7 +226,7 @@ export async function cookPendingSongCuts(opts: {
   const unstickCount: Record<string, number> = {};
   try {
     for (;;) {
-      if (opts.cancelled?.()) return live;
+      if (opts.cancelled?.() || songCookStopRequested(opts.jobId)) return live;
       live = opts.getJob() || live;
       const pending = pendingSongCuts(live);
       if (!pending.length) {

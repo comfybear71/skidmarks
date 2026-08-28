@@ -29,8 +29,14 @@ import {
   deskRowAllDone,
   orderSongCutsTimeline,
   shortPlateLabel,
+  beatForSongCut,
+  clearFalseSpokenLineSongFails,
   clearStuckSongCooks,
   hasStuckSongCook,
+  isMissingScratchSpokenLine,
+  MISSING_SCRATCH_SPOKEN_LINE,
+  muteSongBeatStub,
+  songCutUsesSpokenLine,
   syncSongCutsToDesk,
   songCutsOrderBroken,
   expectedDeskCutCount,
@@ -93,7 +99,7 @@ assert.doesNotMatch(songCutTallyLine({ total: 3, parked: 1, cooking: 1, done: 1,
   ];
   const whileOthersCook = songCookAlert(sixOfEight, { cooking: true });
   assert.equal(whileOthersCook.kind, "failed");
-  assert.match(whileOthersCook.title, /Clip 7 failed/);
+  assert.match(whileOthersCook.title, /That clip failed/);
   assert.match(whileOthersCook.title, /others still going/);
   assert.match(whileOthersCook.detail, /timed out after 1200s/);
   assert.match(whileOthersCook.short, /1 fail/);
@@ -272,7 +278,9 @@ assert.match(songUi, /shortPlateLabel/);
 assert.match(songUi, /deskRowAllDone/);
 assert.match(songRoute, /put a plate on the list at 1 × 15s/);
 assert.match(songUi, /runOneCut/);
-assert.match(songUi, /Send next/);
+assert.doesNotMatch(songUi, /Send next/);
+assert.doesNotMatch(songUi, /Music video — song cuts/);
+assert.match(songUi, /Song list/);
 assert.match(songUi, /Stop send/);
 assert.match(songUi, /redo-cut/);
 assert.doesNotMatch(songUi, /visibilitychange/);
@@ -282,13 +290,13 @@ assert.doesNotMatch(songUi, /m-song-cut-chip/);
 const songCss = readFileSync(join(here, "../src/app/(mobile)/m/mobile.css"), "utf8");
 assert.match(songCss, /\.m-swipe-drop-action/);
 assert.match(songCss, /\.scratch-song-cut\.is-done \.scratch-song-cut-meta/);
-assert.match(songUi, /m-song-progress/);
+assert.doesNotMatch(songUi, /m-song-progress/);
 assert.match(songUi, /m-song-plate-line/);
 assert.match(songUi, /--row-progress/);
 assert.doesNotMatch(songUi, /Cooking/);
 assert.doesNotMatch(songUi, /cooking \$\{/);
 assert.match(songUi, /Sending…/);
-assert.match(songUi, /SongCookAlertBanner/);
+assert.doesNotMatch(songUi, /SongCookAlertBanner/);
 assert.match(songUi, /askSongCookNotifyPermission/);
 assert.match(songUi, /is-error/);
 assert.match(songUi, /unstick-all/);
@@ -305,6 +313,8 @@ assert.match(cookLib, /pushCookStatus/);
 assert.doesNotMatch(cookLib, /You can leave — it keeps going\./);
 assert.match(songRoute, /unstick-all/);
 assert.match(songRoute, /clearStuckSongCooks/);
+assert.match(songRoute, /clearFalseSpokenLineSongFails/);
+assert.match(songRoute, /beatForSongCut/);
 assert.match(songRoute, /failScratchSongCutRun/);
 assert.doesNotMatch(songRoute, /Wait for cooking/);
 assert.equal(
@@ -318,6 +328,77 @@ assert.deepEqual(
   ]).map((c) => c.status),
   ["pending", "done"],
 );
+assert.equal(songCutUsesSpokenLine({ styleId: "skidmarks" }), true);
+assert.equal(songCutUsesSpokenLine({ styleId: "music_video" }), false);
+assert.equal(songCutUsesSpokenLine({ styleId: "skidmarks", cutId: "cut_1" }), false);
+assert.equal(isMissingScratchSpokenLine(MISSING_SCRATCH_SPOKEN_LINE), true);
+assert.equal(isMissingScratchSpokenLine("Cloud job timed out after 1200s"), false);
+{
+  const cleared = clearFalseSpokenLineSongFails([
+    {
+      id: "6",
+      status: "error",
+      error: MISSING_SCRATCH_SPOKEN_LINE,
+      clipFile: "",
+    },
+    { id: "1", status: "done", error: "", clipFile: "a.mp4" },
+    { id: "7", status: "error", error: "Cloud job timed out after 1200s", clipFile: "" },
+  ]);
+  assert.equal(cleared[0].status, "pending");
+  assert.equal(cleared[0].error, "");
+  assert.equal(cleared[1].status, "done");
+  assert.equal(cleared[2].status, "error");
+  const afterClear = songCookAlert(cleared, { cooking: false });
+  assert.equal(afterClear.kind, "failed");
+  assert.match(afterClear.detail, /timed out after 1200s/);
+}
+{
+  const jackBeat = {
+    id: "beat_jack",
+    speaker: "JACK GHOST",
+    text: "",
+    voiceFile: "01_01_JACK_GHOST_dropped-line_mtcmz9iy.mp3",
+  };
+  const mutePlate = {
+    id: "shot_six",
+    title: "Idle",
+    plateFile: "idle.png",
+    beats: [{ id: "beat_six", speaker: "JACK GHOST", text: "" }],
+  };
+  const story = {
+    scenes: [
+      {
+        id: "scene_1",
+        shots: [
+          { id: "shot_one", title: "JACK GHOST", plateFile: "jack.png", beats: [jackBeat] },
+          mutePlate,
+        ],
+      },
+    ],
+  };
+  const borrowed = beatForSongCut({
+    story,
+    storyShot: mutePlate,
+    beatId: "beat_jack",
+    songFile: jackBeat.voiceFile,
+  });
+  assert.equal(borrowed?.id, "beat_jack");
+  assert.equal(borrowed?.voiceFile, jackBeat.voiceFile);
+  const bySong = beatForSongCut({
+    story,
+    storyShot: mutePlate,
+    beatId: "",
+    songFile: jackBeat.voiceFile,
+  });
+  assert.equal(bySong?.id, "beat_jack");
+  const stub = muteSongBeatStub({
+    cutId: "cut_6",
+    songFile: jackBeat.voiceFile,
+  });
+  assert.equal(stub.id, "cut_6");
+  assert.equal(stub.text, "");
+  assert.equal(stub.voiceFile, jackBeat.voiceFile);
+}
 assert.equal(expectedDeskCutCount([1]), 1);
 assert.equal(expectedDeskCutCount([4, 2]), 6);
 {
@@ -434,14 +515,17 @@ assert.match(songRoute, /action === "add-plate"/);
 assert.match(songRoute, /storyShotForSongCut/);
 assert.equal(
   needsTrackHang({
-    cuts: [{ shotId: "a" }, { shotId: "b" }],
+    cuts: [
+      { shotId: "a", plateFile: "a.png" },
+      { shotId: "b", plateFile: "b.png" },
+    ],
     plateTimings: [{ plateId: "a" }],
   }),
   true,
 );
 assert.equal(
   needsTrackHang({
-    cuts: [{ shotId: "a" }],
+    cuts: [{ shotId: "a", plateFile: "a.png" }],
     plateTimings: [{ plateId: "a" }],
   }),
   false,
@@ -461,7 +545,36 @@ assert.deepEqual(
       { shotId: "shot_hat", plateFile: "b.png" },
     ],
   }),
-  ["shot_hat"],
+  [],
+  "leftover job.shots rows stay off the wave",
+);
+assert.deepEqual(
+  plateIdsWaitingForTrack({
+    song: {
+      plateTimings: [{ plateId: "jack" }],
+      songPlateIds: ["jack", "invisible"],
+    },
+    jobShots: [
+      { shotId: "jack", plateFile: "jack.png" },
+      { shotId: "invisible", plateFile: "im.png" },
+      { shotId: "shot_2uhuOp1", plateFile: "leftover.png" },
+      { shotId: "shot_2x5gyfo", plateFile: "" },
+    ],
+  }),
+  ["invisible"],
+);
+assert.deepEqual(
+  plateIdsWaitingForTrack({
+    song: { plateTimings: [], songPlateIds: ["shot_ghost"] },
+    jobShots: [{ shotId: "shot_ghost", plateFile: "" }],
+  }),
+  [],
+  "empty leftover ids are not hung",
+);
+assert.doesNotMatch(
+  readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8"),
+  /for \(const s of opts\.jobShots/,
+  "do not hang every job.shots row",
 );
 {
   const found = storyShotForSongCut({
@@ -525,8 +638,8 @@ assert.doesNotMatch(editor, /Position this plate/);
 assert.doesNotMatch(editor, /Song slices are under/);
 assert.doesNotMatch(songUi, /Singer plates sing/);
 assert.doesNotMatch(songUi, /Tap a plate\. Tap Add/);
-assert.match(songUi, /scratch-song-mp3/);
-assert.match(songUi, /Song · \{song\.fileName\}/);
+assert.doesNotMatch(songUi, /scratch-song-mp3/);
+assert.doesNotMatch(songUi, /Song · \{song\.fileName\}/);
 assert.match(songCss, /\.scratch-song-mp3/);
 assert.match(songCss, /\.m-song-progress-fill/);
 assert.match(songUi, /setRowSlices\(row\.listIndex, n - 1\)/);

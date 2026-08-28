@@ -53,9 +53,13 @@ import type { ShowStyleId } from "@/lib/showStylePresets";
 import { applyStylePositionGold, stylePositionGold } from "@/lib/stylePositionGold";
 import {
   buildDefaultBeatMotion,
+  clearLtxMotionDraft,
   looksLikePlatePositionPrompt,
+  pickLtxMotionBody,
+  readLtxMotionDraft,
   storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
+  writeLtxMotionDraft,
 } from "@/lib/mobileImageMotion";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 import { isEmptyStageStaging } from "@/lib/emptyStagePlate";
@@ -68,6 +72,7 @@ import {
   songCutTallyLine,
   tallySongCuts,
 } from "@/lib/musicVideoSong";
+import { requestSongCookStop } from "@/lib/songCutCook";
 import { CutawayBeatPanel } from "@/components/mobile/CutawayBeatPanel";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 
@@ -511,6 +516,9 @@ export function PlateReviewEditor({
   async function postClipAction(body: Record<string, string>) {
     setActionError("");
     setClipBusy(true);
+    if (isMusicVideoSongJob(job) && body.action === "remove-clip") {
+      requestSongCookStop(job.id);
+    }
     try {
       const res = await fetch("/api/crash/mobile/clip", {
         method: "POST",
@@ -2606,7 +2614,9 @@ function BeatLineEditor({
   // Bible already ran on Draw — keep this shut unless they need Redo still.
   const [positionOpen, setPositionOpen] = useState(false);
   const [positionDraft, setPositionDraft] = useState<string | null>(null);
-  const [motionDraft, setMotionDraft] = useState<string | null>(null);
+  const [motionDraft, setMotionDraft] = useState<string | null>(() =>
+    readLtxMotionDraft(jobId, beat.id),
+  );
   const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
   const [bibleActiveIds, setBibleActiveIds] = useState<string[]>(() =>
     (positionBibleIds || []).filter(Boolean),
@@ -2727,9 +2737,11 @@ function BeatLineEditor({
     [beat.speaker, lookLock, positionBody, shotSpeakers, styleId, text],
   );
   const storedMotion = stripLtxLipSyncLead(beat.imageMotion || "");
-  const storedMotionOk =
-    Boolean(storedMotion) && !storedMotionNeedsRebuild(storedMotion, positionBody);
-  const motionBody = motionDraft ?? (storedMotionOk ? storedMotion : defaultMotionBody);
+  const motionBody = pickLtxMotionBody({
+    draft: motionDraft,
+    stored: storedMotion,
+    defaultBody: defaultMotionBody,
+  });
   const motionDirty = motionDraft !== null;
   const motionHint = useMemo(
     () =>
@@ -2787,7 +2799,9 @@ function BeatLineEditor({
 
   const emptiedPhoneMotionRef = useRef("");
   useEffect(() => {
+    if (styleId === "music_video") return;
     if (motionDraft !== null) return;
+    if ((storedMotion || "").trim()) return;
     if (!storedMotionNeedsRebuild(storedMotion, positionBody)) return;
     const next = defaultMotionBody.trim();
     if (!next) return;
@@ -2797,7 +2811,7 @@ function BeatLineEditor({
     void persistMotion(next).catch(() => {
       emptiedPhoneMotionRef.current = "";
     });
-  }, [beat.id, defaultMotionBody, motionDraft, persistMotion, positionBody, storedMotion]);
+  }, [beat.id, defaultMotionBody, motionDraft, persistMotion, positionBody, storedMotion, styleId]);
 
   const motionAssist = useMobileAssist(
     "image_motion",
@@ -3057,14 +3071,20 @@ function BeatLineEditor({
         open={ltxOpen}
         onToggle={() => setLtxOpen((open) => !open)}
         body={motionBody}
-        onChange={(v) => setMotionDraft(v)}
+        onChange={(v) => {
+          writeLtxMotionDraft(jobId, beat.id, v);
+          setMotionDraft(v);
+        }}
         keepDisabled={saving}
         keeping={saving}
         onKeep={() => {
           setSaving(true);
           setError("");
           void persistMotion(motionBody)
-            .then(() => setMotionDraft(null))
+            .then(() => {
+              clearLtxMotionDraft(jobId, beat.id);
+              setMotionDraft(null);
+            })
             .catch((e) => setError(e instanceof Error ? e.message : "Couldn't keep Image motion"))
             .finally(() => setSaving(false));
         }}

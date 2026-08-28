@@ -14,6 +14,7 @@ import {
   ensureGoldFrameLocks,
   storedMotionFightsEmptyHands,
   storedMotionReinventsLook,
+  pickLtxMotionBody,
   ltxSendPrompt,
   buildCutawayMotion,
   isCutawayMotion,
@@ -300,6 +301,19 @@ assert.equal(
     'Use the provided start image as the first frame. Nuggets, a front on off this character is prominent, mouth and head move naturally while speaking.',
   ),
   true,
+);
+
+assert.equal(
+  pickLtxMotionBody({ draft: "his words", stored: "old", defaultBody: "default" }),
+  "his words",
+);
+assert.equal(
+  pickLtxMotionBody({ draft: null, stored: "kept", defaultBody: "default" }),
+  "kept",
+);
+assert.equal(
+  pickLtxMotionBody({ draft: null, stored: "  ", defaultBody: "default" }),
+  "default",
 );
 
 console.log("check-mobile-image-motion: ok");
