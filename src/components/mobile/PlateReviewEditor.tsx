@@ -2547,6 +2547,14 @@ function ShotLineEditor({
                   onSend={onSendStill}
                 />
               </div>
+              {styleId === "music_video" && (enginePromptOpen || muteAction) ? (
+                <EmptyMvMotionHole
+                  jobId={jobId}
+                  shotId={shot.id}
+                  beatId={shot.beats[0]?.id || ""}
+                  engine={mvEngine}
+                />
+              ) : null}
               {onAddCast ? (
                 <MobilePrimaryButton tone="ghost" onClick={onAddCast}>
                   Add someone
@@ -2626,6 +2634,55 @@ function ShotLineEditor({
         </p>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Empty plate + Nobody: no spoken beat, so BeatLineEditor never mounts.
+ * LTX / H3 still open this hole. Lock is empty road — no people, mouth N/A.
+ */
+function EmptyMvMotionHole({
+  jobId,
+  shotId,
+  beatId,
+  engine,
+}: {
+  jobId: string;
+  shotId: string;
+  beatId: string;
+  engine: MuteMvEngine;
+}) {
+  const muteLock = useMemo(
+    () =>
+      buildMuteMvMotionLock({
+        styleId: "music_video",
+        speaker: "",
+        emptyFrame: true,
+      }),
+    [],
+  );
+  const [muteSlot, setMuteSlot] = useState(
+    () => readMvMotionSlot(jobId, beatId) || "",
+  );
+  useEffect(() => {
+    const drafted = readMvMotionSlot(jobId, beatId);
+    setMuteSlot(drafted || "");
+  }, [beatId, jobId]);
+  return (
+    <MuteMvMotionHole
+      engine={resolveMvSendEngine({
+        jobId,
+        shotId,
+        beatId,
+        picked: engine,
+      })}
+      motionLock={muteLock}
+      motionSlot={muteSlot}
+      onMotionSlot={(next) => {
+        setMuteSlot(next);
+        writeMvMotionSlot(jobId, beatId, next);
+      }}
+    />
   );
 }
 

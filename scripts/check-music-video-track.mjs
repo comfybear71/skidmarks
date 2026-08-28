@@ -526,6 +526,28 @@ assert.match(editor, />\s*No lips\s*</, "No lips sits next to H3");
 assert.match(editor, /writeMvMuteAction/, "No lips stores mute for the next Send");
 assert.match(editor, /muteMvEmptyFrame/, "plate lock drops the singer when nobody is in the still");
 assert.match(editor, /writeMvNobodyInShot/, "Nobody next to HERO/SUPPORT");
+assert.match(
+  editor,
+  /function EmptyMvMotionHole/,
+  "empty + Nobody still mounts the [ ] hole — no spoken beat required",
+);
+assert.match(
+  editor,
+  /styleId === "music_video" && \(enginePromptOpen \|\| muteAction\)/,
+  "LTX / H3 open the hole on an empty plate, not only when a speaker exists",
+);
+assert.match(
+  editor,
+  /emptyFrame:\s*true/,
+  "empty + Nobody lock is empty road, no people, mouth N/A",
+);
+{
+  const emptyHoleFn =
+    editor.match(/function EmptyMvMotionHole\([\s\S]*?\nfunction PlateSendButton/)?.[0] || "";
+  assert.match(emptyHoleFn, /MuteMvMotionHole/, "empty path renders the same [ ] hole");
+  assert.doesNotMatch(emptyHoleFn, /AnotherLineButton/, "empty hole does not show Walk away / another line");
+  assert.doesNotMatch(emptyHoleFn, /Add someone/, "empty hole does not require Add someone");
+}
 assert.match(trackUi, /muteMvEmptyFrame/, "Send uses the same empty-frame lock");
 assert.match(trackUi, /emptyFrame/);
 assert.match(
