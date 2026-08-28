@@ -123,7 +123,10 @@ assert.match(trackUi, /Put stills on the song/);
 assert.match(trackUi, /How long/);
 assert.match(trackUi, /Starts at/);
 assert.match(trackUi, /startSec/);
-assert.match(trackUi, /Send all/);
+assert.doesNotMatch(trackUi, /Send all/);
+assert.match(trackUi, />Send</);
+assert.match(trackUi, /Park this clip/);
+assert.match(trackUi, /requestSongCookStop/);
 assert.match(trackUi, /m-track-film/);
 assert.doesNotMatch(trackUi, /Use range/);
 assert.doesNotMatch(trackUi, />Earlier</);
@@ -317,3 +320,14 @@ assert.match(
 assert.match(trackUi, /hang-plates/);
 
 console.log("check-music-video-track: ok");
+
+const park = readFileSync(join(here, "../src/lib/parkDeskClip.ts"), "utf8");
+const clipRoute = readFileSync(join(here, "../src/app/api/crash/mobile/clip/route.ts"), "utf8");
+const motion = readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8");
+const scratchClip = readFileSync(join(here, "../src/lib/mobileScratchClip.ts"), "utf8");
+assert.match(park, /planParkDeskClipTake/);
+assert.match(park, /_cleared/);
+assert.match(clipRoute, /planParkDeskClipTake/);
+assert.match(motion, /pickLtxMotionBody/);
+assert.match(scratchClip, /That still is not ready/);
+assert.match(scratchClip, /Drop the song first/);

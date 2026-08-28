@@ -74,9 +74,11 @@ import {
 } from "@/lib/stockLook";
 import {
   askSongCookNotifyPermission,
-  pendingSongCuts,
+  clearSongCookStop,
+  requestSongCookStop,
   setSongCookFlag,
   songCookFlagOn,
+  songCookStopRequested,
   waitForSongCut,
 } from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
@@ -1063,7 +1065,7 @@ export function MusicVideoTrack({
       };
       if (raw.job) onJobChange(raw.job);
       if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't add those stills");
-      setNote("On the timeline. Move them, then Send one or Send all.");
+      setNote("On the song. Tap a still, set start and length, then Send.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't add those stills");
     } finally {
@@ -1077,11 +1079,6 @@ export function MusicVideoTrack({
         .map((t) => (t.plateId || "").trim())
         .filter(Boolean),
     );
-  }
-
-  function hungWaitingCuts() {
-    const hung = hungShotIds();
-    return pendingSongCuts(jobRef.current).filter((c) => hung.has((c.shotId || "").trim()));
   }
 
   function waitingCutForPlate(shotId: string) {
@@ -1153,7 +1150,7 @@ export function MusicVideoTrack({
         jobId: job.id,
         cutId: id,
         setJob: onJobChange,
-        cancelled: () => cookCancel.current,
+        cancelled: () => cookCancel.current || songCookStopRequested(job.id),
       });
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't send that cut");
@@ -1175,38 +1172,11 @@ export function MusicVideoTrack({
     if (cookLock.current) return;
     cookLock.current = true;
     cookCancel.current = false;
+    clearSongCookStop(job.id);
     try {
       await sendOneCutBody(cut.id);
     } finally {
       cookLock.current = false;
-    }
-  }
-
-  async function sendAllHung() {
-    if (cookLock.current) return;
-    const waiting = hungWaitingCuts();
-    if (!waiting.length) {
-      setNote(
-        needsTrackHang(song, job.shots)
-          ? "Add stills to the timeline first."
-          : "Nothing waiting on the timeline.",
-      );
-      return;
-    }
-    cookLock.current = true;
-    cookCancel.current = false;
-    setSongCookFlag(job.id, true);
-    try {
-      for (;;) {
-        if (cookCancel.current) break;
-        const next =
-          hungWaitingCuts().find((c) => c.status !== "running") || hungWaitingCuts()[0];
-        if (!next?.id) break;
-        await sendOneCutBody(next.id);
-      }
-    } finally {
-      cookLock.current = false;
-      setSongCookFlag(job.id, false);
     }
   }
 
@@ -1216,11 +1186,14 @@ export function MusicVideoTrack({
       setNote("Nothing to redo on that still.");
       return;
     }
+    requestSongCookStop(job.id);
+    cookCancel.current = true;
+    cookLock.current = false;
     setBusy(`redo-${cut.id}`);
     setNote("");
     try {
       await songPost("redo-cut", { cutId: cut.id });
-      setNote("Clip parked. Still stays on the timeline. Send again when you want.");
+      setNote("Clip parked. Still stays on the song. Send again when you want.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't redo that cut");
     } finally {
@@ -1294,7 +1267,7 @@ export function MusicVideoTrack({
   async function stopSend() {
     cookCancel.current = true;
     cookLock.current = false;
-    setSongCookFlag(job.id, false);
+    requestSongCookStop(job.id);
     setBusy("stop");
     setNote("");
     try {
@@ -1422,15 +1395,6 @@ export function MusicVideoTrack({
                 onClick={() => void hangStillsOnWave()}
               >
                 {busy === "hang" ? "Adding…" : "Put stills on the song"}
-              </MobilePrimaryButton>
-            ) : null}
-            {song?.fileName && hungWaitingCuts().length && !busy.startsWith("send-") ? (
-              <MobilePrimaryButton
-                size="chip"
-                disabled={Boolean(busy)}
-                onClick={() => void sendAllHung()}
-              >
-                Send all
               </MobilePrimaryButton>
             ) : null}
             {(songCookFlagOn(job.id) ||
@@ -1699,15 +1663,28 @@ export function MusicVideoTrack({
                           : "Send"}
                       </button>
                     ) : null}
-                    {doneCutForPlate(picked.shotId)?.id ? (
-                      <button
-                        type="button"
-                        className="m-track-btn"
-                        disabled={Boolean(busy) || busy.startsWith("send-")}
-                        onClick={() => void redoPlate(picked.shotId)}
-                      >
-                        Redo
-                      </button>
+                    {doneCutForPlate(picked.shotId)?.id ||
+                    waitingCutForPlate(picked.shotId)?.clipFile ||
+                    waitingCutForPlate(picked.shotId)?.status === "error" ? (
+                      <>
+                        <button
+                          type="button"
+                          className="m-track-btn"
+                          disabled={busy.startsWith("redo-")}
+                          onClick={() => void redoPlate(picked.shotId)}
+                        >
+                          {busy.startsWith("redo-") ? "…" : "Redo"}
+                        </button>
+                        <button
+                          type="button"
+                          className="m-track-btn"
+                          aria-label="Park this clip"
+                          disabled={busy.startsWith("redo-")}
+                          onClick={() => void redoPlate(picked.shotId)}
+                        >
+                          X
+                        </button>
+                      </>
                     ) : null}
                   </>
                 ) : (

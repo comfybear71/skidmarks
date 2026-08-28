@@ -432,6 +432,41 @@ export function storedMotionNeedsRebuild(
   return storedMotionFightsEmptyHands(motion, staging) || storedMotionReinventsLook(motion);
 }
 
+/**
+ * What the LTX Image motion box shows.
+ * Draft (what he is typing) always wins.
+ * Stored words win over a rebuilt default — never hide or replace text he
+ * already wrote. An empty stored body is the only time the default appears.
+ */
+export function pickLtxMotionBody(opts: {
+  draft: string | null;
+  stored: string;
+  defaultBody: string;
+}): string {
+  if (opts.draft !== null) return opts.draft;
+  if ((opts.stored || "").trim()) return opts.stored;
+  return opts.defaultBody;
+}
+
+const ltxMotionDrafts = new Map<string, string>();
+
+function ltxMotionDraftKey(jobId: string, beatId: string): string {
+  return `${jobId}\0${beatId}`;
+}
+
+export function readLtxMotionDraft(jobId: string, beatId: string): string | null {
+  const key = ltxMotionDraftKey(jobId, beatId);
+  return ltxMotionDrafts.has(key) ? ltxMotionDrafts.get(key)! : null;
+}
+
+export function writeLtxMotionDraft(jobId: string, beatId: string, text: string): void {
+  ltxMotionDrafts.set(ltxMotionDraftKey(jobId, beatId), text);
+}
+
+export function clearLtxMotionDraft(jobId: string, beatId: string): void {
+  ltxMotionDrafts.delete(ltxMotionDraftKey(jobId, beatId));
+}
+
 function inFrameNames(speaker: string, shotSpeakers?: string[]): string[] {
   const names = (shotSpeakers || []).map(clean).filter(Boolean);
   if (!names.length) return [clean(speaker)].filter(Boolean);
