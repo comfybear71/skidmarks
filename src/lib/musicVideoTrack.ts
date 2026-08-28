@@ -213,32 +213,59 @@ export function sortPlateTimings(list: PlateTiming[]): PlateTiming[] {
   return [...list].sort((a, b) => a.sortIndex - b.sortIndex || a.startMs - b.startMs);
 }
 
+function clockOrderPlateTimings(list: PlateTiming[]): PlateTiming[] {
+  return [...list].sort((a, b) => a.startMs - b.startMs || a.sortIndex - b.sortIndex);
+}
+
 /**
- * Swap this still with the neighbour slot. Time boxes stay. The picture
- * moves. Null if it is already first or last.
+ * Slide this bar into the empty clock on that side. Identities stay —
+ * plateId and clipFile do not swap with the neighbour. Length stays.
+ * Neighbours stay put. Null if there is no gap to fill — flush bars
+ * do not swap identities.
  */
-export function swapNeighborPlateTimings(
+export function slidePlateIntoGap(
   timings: PlateTiming[],
   plateId: string,
   direction: -1 | 1,
+  songEndMs = Infinity,
 ): PlateTiming[] | null {
-  const sorted = sortPlateTimings(timings);
-  const i = sorted.findIndex((t) => t.plateId === plateId);
-  const j = i + direction;
-  if (i < 0 || j < 0 || j >= sorted.length) return null;
-  const a = sorted[i]!;
-  const b = sorted[j]!;
-  return sortPlateTimings(
-    sorted.map((t) => {
-      if (t.plateId === a.plateId) {
-        return { ...t, startMs: b.startMs, endMs: b.endMs, sortIndex: b.sortIndex };
-      }
-      if (t.plateId === b.plateId) {
-        return { ...t, startMs: a.startMs, endMs: a.endMs, sortIndex: a.sortIndex };
-      }
-      return t;
-    }),
-  );
+  const id = (plateId || "").trim();
+  if (!id || (direction !== -1 && direction !== 1)) return null;
+  const hung = clockOrderPlateTimings(timings).filter((t) => isRealPlateHang(t));
+  const i = hung.findIndex((t) => t.plateId === id);
+  if (i < 0) return null;
+  const cur = hung[i]!;
+  const dur = cur.endMs - cur.startMs;
+  if (!(dur > MIN_PLATE_BOX_MS)) return null;
+
+  let startMs = cur.startMs;
+  let endMs = cur.endMs;
+  if (direction < 0) {
+    const prev = hung[i - 1];
+    const targetStart = prev ? prev.endMs : 0;
+    if (cur.startMs <= targetStart) return null;
+    startMs = targetStart;
+    endMs = startMs + dur;
+  } else {
+    const next = hung[i + 1];
+    if (!next) return null;
+    const cap = Number.isFinite(songEndMs) && songEndMs > 0 ? Math.round(songEndMs) : Infinity;
+    const targetEnd = Math.min(next.startMs, cap);
+    if (!Number.isFinite(targetEnd) || cur.endMs >= targetEnd) return null;
+    endMs = targetEnd;
+    startMs = endMs - dur;
+    if (startMs < 0) {
+      startMs = 0;
+      endMs = dur;
+    }
+    if (next && endMs > next.startMs) return null;
+    const prev = hung[i - 1];
+    if (prev && startMs < prev.endMs) return null;
+  }
+  if (startMs === cur.startMs && endMs === cur.endMs) return null;
+
+  const next = timings.map((t) => (t.plateId === id ? { ...t, startMs, endMs } : { ...t }));
+  return clockOrderPlateTimings(next).map((t, sortIndex) => ({ ...t, sortIndex }));
 }
 
 /** How wide a second of song is on the phone wave. A 3-minute track is

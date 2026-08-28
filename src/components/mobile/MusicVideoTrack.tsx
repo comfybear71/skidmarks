@@ -43,6 +43,7 @@ import {
   sectionTint,
   sectionTitle,
   plateRailBox,
+  slidePlateIntoGap,
   sortPlateTimings,
   sortSectionMarkers,
   trackPlayheadScrollLeft,
@@ -2102,7 +2103,7 @@ export function MusicVideoTrack({
                       className="m-track-btn"
                       disabled={
                         Boolean(busy) ||
-                        plateBlocks.findIndex((b) => b.plateId === picked.shotId) <= 0
+                        !slidePlateIntoGap(plateBlocks, picked.shotId, -1, effectiveDurationMs)
                       }
                       onClick={() => void movePlate(picked.shotId, "earlier")}
                     >
@@ -2113,8 +2114,7 @@ export function MusicVideoTrack({
                       className="m-track-btn"
                       disabled={
                         Boolean(busy) ||
-                        plateBlocks.findIndex((b) => b.plateId === picked.shotId) >=
-                          plateBlocks.length - 1
+                        !slidePlateIntoGap(plateBlocks, picked.shotId, 1, effectiveDurationMs)
                       }
                       onClick={() => void movePlate(picked.shotId, "later")}
                     >
