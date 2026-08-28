@@ -1540,6 +1540,7 @@ assert.match(motion, /pickSongSendMotionBody/);
 }
 
 const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+const mobileUi = readFileSync(join(here, "../src/components/mobile/MobileUi.tsx"), "utf8");
 const panels = readFileSync(join(here, "../src/components/mobile/ShotPromptPanels.tsx"), "utf8");
 const thumbs = readFileSync(join(here, "../src/components/mobile/PlateClipThumbs.tsx"), "utf8");
 assert.doesNotMatch(trackUi, /m-track-engines/, "engines do not sit on the TRACK pick");
@@ -1626,6 +1627,9 @@ assert.match(
 assert.match(editor, /styleId === "music_video"/, "music_video plate shows LTX / H3 instead of + another line");
 assert.match(editor, /AnotherLineButton/, "+ another line stays for non music_video");
 assert.match(editor, />\s*No lips\s*</, "No lips sits next to H3");
+assert.match(editor, /tone=\{muteOn \? "accent" : "danger"\}/, "No lips off is red");
+assert.match(mobileUi, /tone\?: "accent" \| "ghost" \| "danger"/, "primary button has danger tone");
+assert.match(mobileUi, /--magenta-hot/, "danger tone uses the existing hot token");
 assert.match(editor, /writeMvMuteAction/, "No lips stores mute for the next Send");
 assert.match(editor, /mute=\{Boolean\(muteOn\)\}/, "hole mute flag follows No lips");
 assert.match(editor, /singingBody=\{motionBody\}/, "No lips off shows the singing stack");
