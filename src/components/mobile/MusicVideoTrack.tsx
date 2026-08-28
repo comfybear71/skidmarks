@@ -39,6 +39,7 @@ import {
   sectionNeedsStartHere,
   sectionTint,
   sectionTitle,
+  plateRailBox,
   sortPlateTimings,
   sortSectionMarkers,
   trackPlayheadScrollLeft,
@@ -2020,52 +2021,94 @@ export function MusicVideoTrack({
             </div>
           )}
           {plateBlocks.length ? (
+            <div className="m-track-rail m-track-rail-on-wave">
+              <div className="m-track-rail-scroll m-track-rail-align">
+                {filmItems
+                  .filter((cell) => cell.onSong && cell.timing)
+                  .map((cell) => {
+                    const timing = cell.timing!;
+                    const box = plateRailBox(
+                      timing.startMs,
+                      timing.endMs,
+                      effectiveDurationMs || 1,
+                    );
+                    const durSec = msToSec(timing.endMs - timing.startMs);
+                    const on = picked?.shotId === cell.shotId;
+                    return (
+                      <button
+                        type="button"
+                        key={cell.shotId}
+                        className={`m-track-rail-cell is-align is-timed${on ? " is-on" : ""}`}
+                        style={{ left: `${box.leftPct}%`, width: `${box.widthPct}%` }}
+                        onClick={() => setPickedId(cell.shotId)}
+                        title={cell.title}
+                      >
+                        {hungClipFileForPlate(job, cell.shotId) || cell.plateFile ? (
+                          <ClipFrameThumb
+                            clipSrc={
+                              hungClipFileForPlate(job, cell.shotId)
+                                ? mobileClipSrc(job, hungClipFileForPlate(job, cell.shotId))
+                                : ""
+                            }
+                            stillSrc={
+                              cell.plateFile ? mobileLocationStillUrl(job, cell.plateFile) : ""
+                            }
+                          />
+                        ) : (
+                          <span className="m-track-rail-empty" />
+                        )}
+                        <span className="m-track-rail-label">{cell.title}</span>
+                        <span className="m-track-film-len">{durSec}s</span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          ) : null}
+          </TrackScroll>
+
+          {plateBlocks.length ? (
             <p className="m-track-stretch-hint">
               {stretchReadout || "Pull a handle on the bar to lengthen or shorten."}
             </p>
           ) : null}
 
-          {/* Same order and widths as the coloured bars on the wave.
-              Compact still shows the rail so hung clips keep their own thumbs.
-              + stays up even with no plates yet — that is how a band
-              member gets onto the song. */}
-          {(filmItems.length || !compact || Boolean(onCreatePlate)) ? (
+          {/* Off-song stills stay a phone-width strip. Hung stills sit on the
+              wave above — same left/width as the teal bar (endMs − startMs). */}
+          {(filmItems.some((cell) => !cell.onSong) || !compact || Boolean(onCreatePlate)) ? (
             <div className="m-track-rail">
               <div className="m-track-film">
-                {filmItems.map((cell) => {
-                  const durSec = cell.timing
-                    ? msToSec(cell.timing.endMs - cell.timing.startMs)
-                    : 0;
-                  const on = picked?.shotId === cell.shotId;
-                  return (
-                    <button
-                      type="button"
-                      key={cell.shotId}
-                      className={`m-track-film-cell${cell.onSong ? " is-on-song" : ""}${on ? " is-on" : ""}`}
-                      onClick={() => setPickedId(cell.shotId)}
-                      title={cell.title}
-                    >
-                      {hungClipFileForPlate(job, cell.shotId) || cell.plateFile ? (
-                        <ClipFrameThumb
-                          clipSrc={
-                            hungClipFileForPlate(job, cell.shotId)
-                              ? mobileClipSrc(job, hungClipFileForPlate(job, cell.shotId))
-                              : ""
-                          }
-                          stillSrc={
-                            cell.plateFile ? mobileLocationStillUrl(job, cell.plateFile) : ""
-                          }
-                        />
-                      ) : (
-                        <span className="m-track-rail-empty" />
-                      )}
-                      <span className="m-track-rail-label">{cell.title}</span>
-                      <span className="m-track-film-len">
-                        {cell.onSong && durSec > 0 ? `${durSec}s` : "off"}
-                      </span>
-                    </button>
-                  );
-                })}
+                {filmItems
+                  .filter((cell) => !cell.onSong)
+                  .map((cell) => {
+                    const on = picked?.shotId === cell.shotId;
+                    return (
+                      <button
+                        type="button"
+                        key={cell.shotId}
+                        className={`m-track-film-cell${on ? " is-on" : ""}`}
+                        onClick={() => setPickedId(cell.shotId)}
+                        title={cell.title}
+                      >
+                        {hungClipFileForPlate(job, cell.shotId) || cell.plateFile ? (
+                          <ClipFrameThumb
+                            clipSrc={
+                              hungClipFileForPlate(job, cell.shotId)
+                                ? mobileClipSrc(job, hungClipFileForPlate(job, cell.shotId))
+                                : ""
+                            }
+                            stillSrc={
+                              cell.plateFile ? mobileLocationStillUrl(job, cell.plateFile) : ""
+                            }
+                          />
+                        ) : (
+                          <span className="m-track-rail-empty" />
+                        )}
+                        <span className="m-track-rail-label">{cell.title}</span>
+                        <span className="m-track-film-len">off</span>
+                      </button>
+                    );
+                  })}
               </div>
               <button
                 type="button"
@@ -2186,7 +2229,6 @@ export function MusicVideoTrack({
               ) : null}
             </div>
           ) : null}
-          </TrackScroll>
 
           {/* One person, one place, one plate — picked here rather than three
               scrolls down inside a Locations card. */}

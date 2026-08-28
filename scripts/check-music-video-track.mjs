@@ -18,9 +18,11 @@ import {
   msToSec,
   orderedDoneCutsForStitch,
   plateRailBox,
+  plateSlicePx,
   secToMs,
   sliceBoundsForPlate,
   sortPlateTimings,
+  trackWaveCssWidth,
   cutForHungPlate,
 } from "../src/lib/musicVideoTrack.ts";
 
@@ -237,6 +239,22 @@ assert.equal(first.widthPct, 25);
 const late = plateRailBox(232000, 247500, 267500);
 assert.ok(Math.abs(late.leftPct - (232000 / 267500) * 100) < 0.0001);
 assert.ok(Math.abs(late.widthPct - (15500 / 267500) * 100) < 0.0001);
+
+// Visual scale: 15s on a 5:27 song is 420px at 28px/s — not a 92px / ~3s cell.
+{
+  const songMs = 327_000;
+  const viewW = 390;
+  const waveW = trackWaveCssWidth(songMs, viewW);
+  assert.equal(waveW, 327 * 28, "5:27 at 28px/s is 9156px, not the phone width");
+  assert.equal(plateSlicePx(0, 15_000, songMs, waveW), 420);
+  const box = plateRailBox(0, 15_000, songMs);
+  assert.ok(Math.abs((box.widthPct / 100) * waveW - 420) < 0.51);
+  assert.equal(plateSlicePx(0, 3_000, songMs, waveW), 84, "3s is 84px; do not fake 15s as that");
+  assert.match(trackUi, /plateRailBox\(/, "hung pictures use the same clock box as the teal bar");
+  assert.match(trackUi, /m-track-rail-align/, "hung pictures sit on the wave inner, not a 92px strip");
+  assert.match(mobileCss, /\.m-track-scroll \{[\s\S]*?min-width: 0/, "wave scroller can shrink so 28px/s scrolls");
+  assert.match(mobileCss, /\.m-track-rail-on-wave/);
+}
 
 assert.equal(formatTrackClockPrecise(247500), "4:07.5");
 assert.equal(formatTrackClockPrecise(0), "0:00.0");
