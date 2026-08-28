@@ -12,7 +12,7 @@ import { parseScratchClipEngine } from "@/lib/sirayI2v";
 import { MINIMAX_H3_ID, snapMinimaxH3DurationSec } from "@/lib/minimaxH3";
 import { sirayConfigured } from "@/lib/sirayClient";
 import { minimaxVideoConfigured } from "@/lib/minimaxVideo";
-import { hangDoneClipOnTrack } from "@/lib/stockClipHang";
+import { clipOwnsHangPlate, hangDoneClipOnTrack } from "@/lib/stockClipHang";
 import { clipFileBasename } from "@/lib/mobilePlateClips";
 import { newId } from "@/lib/types";
 import { nextCutAfter, songWindowLabel, type ScratchSongCut } from "@/lib/scratchSongSlice";
@@ -463,7 +463,9 @@ export async function POST(req: Request) {
         if (landed?.clipFile) {
           const shotId = String(body.shotId || landed.shotId || "").trim();
           const hung =
-            shotId && job.scratchSong
+            shotId &&
+            job.scratchSong &&
+            clipOwnsHangPlate(landed.shotId || "", shotId)
               ? hangDoneClipOnTrack({
                   song: job.scratchSong,
                   shotId,
@@ -471,6 +473,7 @@ export async function POST(req: Request) {
                     (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim(),
                   clipFile: clipFileBasename(landed.clipFile),
                   newCutId: () => newId("cut"),
+                  ownerShotId: landed.shotId || "",
                 })
               : null;
           const recovered = hung
@@ -506,7 +509,10 @@ export async function POST(req: Request) {
           (task.shotId || "").trim() ||
           (landed?.shotId || "").trim();
         const hung =
-          shotId && tick.job.scratchSong && landed?.clipFile
+          shotId &&
+          tick.job.scratchSong &&
+          landed?.clipFile &&
+          clipOwnsHangPlate(landed.shotId || "", shotId)
             ? hangDoneClipOnTrack({
                 song: tick.job.scratchSong,
                 shotId,
@@ -514,6 +520,7 @@ export async function POST(req: Request) {
                   (tick.job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim(),
                 clipFile: clipFileBasename(landed.clipFile),
                 newCutId: () => newId("cut"),
+                ownerShotId: landed.shotId || "",
               })
             : null;
         const next = hung

@@ -221,4 +221,73 @@ assert.equal(isEpisodeClipPlanError(synth), false);
 assert.equal(synth.nextSong.cuts[0].status, "pending");
 assert.deepEqual(synth.filesToPark, ["01_JACK_GHOST.mp4"]);
 
+
+const dupSong = {
+  fileName: "jack-ghost.mp3",
+  durationSec: 180,
+  sliceStartSec: 0,
+  sliceDurationSec: 15,
+  plateTimings: [
+    { plateId: "plate-crouch", startMs: 0, endMs: 45000, sortIndex: 0 },
+    { plateId: "plate-car", startMs: 45000, endMs: 60000, sortIndex: 1 },
+  ],
+  cuts: [
+    {
+      id: "c1",
+      plateFile: "crouch.png",
+      shotId: "plate-crouch",
+      startSec: 0,
+      durationSec: 15,
+      clipFile: "",
+      status: "pending",
+      error: "",
+    },
+    {
+      id: "c4",
+      plateFile: "car.png",
+      shotId: "plate-car",
+      startSec: 45,
+      durationSec: 15,
+      clipFile: "01_JACK_GHOST.mp4",
+      status: "done",
+      error: "",
+    },
+  ],
+};
+const crouchGhost = clip({
+  beatId: "beat-crouch",
+  shotId: "plate-crouch",
+  clipFile: "01_JACK_GHOST.mp4",
+  clipStatus: "done",
+});
+const carHung = clip({
+  beatId: "beat-car",
+  shotId: "plate-car",
+  clipFile: "01_JACK_GHOST.mp4",
+  clipStatus: "done",
+});
+const xExtra = planParkDeskClipTake({
+  clips: [crouchGhost, carHung],
+  song: dupSong,
+  beatId: "beat-crouch",
+  fileName: "01_JACK_GHOST.mp4",
+});
+assert.equal(isEpisodeClipPlanError(xExtra), false);
+assert.equal(xExtra.next.find((c) => c.beatId === "beat-crouch")?.clipFile, "");
+assert.equal(xExtra.next.find((c) => c.beatId === "beat-car")?.clipFile, "01_JACK_GHOST.mp4");
+assert.equal(xExtra.nextSong.cuts.find((c) => c.id === "c4")?.clipFile, "01_JACK_GHOST.mp4");
+assert.equal(xExtra.nextSong.cuts.find((c) => c.id === "c4")?.status, "done");
+assert.deepEqual(xExtra.filesToPark, []);
+
+const xHung = planParkDeskClipTake({
+  clips: [crouchGhost, carHung],
+  song: dupSong,
+  beatId: "beat-car",
+  fileName: "01_JACK_GHOST.mp4",
+});
+assert.equal(isEpisodeClipPlanError(xHung), false);
+assert.equal(xHung.next.every((c) => !stackedClipFiles(c).includes("01_JACK_GHOST.mp4")), true);
+assert.equal(xHung.nextSong.cuts.find((c) => c.id === "c4")?.status, "pending");
+assert.deepEqual(xHung.filesToPark, ["01_JACK_GHOST.mp4"]);
+
 console.log("check-mobile-episode-clips: ok");

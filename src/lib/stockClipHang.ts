@@ -5,6 +5,15 @@ import { resolveFfmpeg } from "./mobileStitch";
 import { msToSec } from "./musicVideoTrack";
 import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
 
+/** Hang this cook on its own still — never stamp the same mp4 onto the next plate. */
+export function clipOwnsHangPlate(clipShotId: string, hangShotId: string): boolean {
+  const clip = (clipShotId || "").trim();
+  const hang = (hangShotId || "").trim();
+  if (!hang) return false;
+  if (!clip) return true;
+  return clip === hang;
+}
+
 /**
  * Put a finished stock/BYO mp4 on the TRACK cut that already has this
  * shot's clock. Does not invent 15s rows when plateTimings is empty.
@@ -15,11 +24,24 @@ export function hangDoneClipOnTrack(opts: {
   plateFile: string;
   clipFile: string;
   newCutId: () => string;
+  /** Plate that already owns this mp4 in job.clips. Empty = stock / BYO hang. */
+  ownerShotId?: string;
 }): ScratchSong | null {
   if (!opts.song) return null;
   const shotId = (opts.shotId || "").trim();
   const clipFile = clipFileBasename(opts.clipFile);
   if (!shotId || !clipFile) return opts.song;
+  if (!clipOwnsHangPlate(opts.ownerShotId || "", shotId)) return opts.song;
+  const alreadyOnOther = (opts.song.cuts || []).some((c) => {
+    const other = (c.shotId || "").trim();
+    return (
+      other &&
+      other !== shotId &&
+      c.status === "done" &&
+      clipFileBasename(c.clipFile || "") === clipFile
+    );
+  });
+  if (alreadyOnOther) return opts.song;
 
   const stampCut = (cut: ScratchSongCut): ScratchSongCut =>
     (cut.shotId || "").trim() === shotId

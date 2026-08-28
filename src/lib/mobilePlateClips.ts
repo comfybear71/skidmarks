@@ -118,6 +118,45 @@ export function clipsUnderPlate(
 }
 
 /**
+ * One mp4 → one CLIPS row. Prefer the hung plate (done song cut with
+ * that file). A leftover job.clips row on the next still must not draw
+ * the same cook as plate 1 and plate 2.
+ */
+export function uniqueClipsByFile(
+  clips: MobileClipUnit[],
+  song?: {
+    cuts?: { shotId?: string; clipFile?: string; status?: string }[];
+  } | null,
+): MobileClipUnit[] {
+  const hung = new Set<string>();
+  for (const cut of song?.cuts || []) {
+    const file = clipFileBasename(cut.clipFile || "");
+    const shot = (cut.shotId || "").trim();
+    if (file && shot && cut.status === "done") hung.add(`${file}::${shot}`);
+  }
+  const seenBeat = new Set<string>();
+  const best = new Map<string, MobileClipUnit>();
+  const order: string[] = [];
+  for (const clip of clips) {
+    if (seenBeat.has(clip.beatId)) continue;
+    seenBeat.add(clip.beatId);
+    const files = stackedClipFiles(clip);
+    if (!files.length) continue;
+    const file = files[files.length - 1]!;
+    const prev = best.get(file);
+    if (!prev) {
+      best.set(file, clip);
+      order.push(file);
+      continue;
+    }
+    const clipHung = hung.has(`${file}::${(clip.shotId || "").trim()}`);
+    const prevHung = hung.has(`${file}::${(prev.shotId || "").trim()}`);
+    if (clipHung && !prevHung) best.set(file, clip);
+  }
+  return order.map((file) => best.get(file)!);
+}
+
+/**
  * /m Clips fold under Stills. TRACK hang writes cuts + plateTimings.
  * If we only look at job.clips, a hung mute clip hides the whole dropdown.
  * ✕ must park the song cut too (`planParkDeskClipTake`) or this list
@@ -159,7 +198,7 @@ export function clipsForStillsDesk(job: {
       durationSec: cut.durationSec,
     });
   }
-  return clips;
+  return uniqueClipsByFile(clips, job.scratchSong);
 }
 
 /** Every plate's mp4s, left to right — do not filter to the open still. */
@@ -172,7 +211,7 @@ export function gatherClipsForStillsRail(
   for (const p of plates) {
     out.push(...clipsUnderPlate(p.shotId, p.beatIds || [], deskClips));
   }
-  return out;
+  return uniqueClipsByFile(out, job.scratchSong);
 }
 
 /** STILLS order — plate 1, plate 2, … on each CLIPS thumb. */
