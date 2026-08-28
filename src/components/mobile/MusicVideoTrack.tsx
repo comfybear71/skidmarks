@@ -61,7 +61,7 @@ import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
-import { readApiJson } from "@/lib/studioFetchError";
+import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 import { DeskFold, MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
@@ -268,11 +268,16 @@ async function trackAction(
   action: string,
   body: Record<string, unknown>,
 ): Promise<MobileGenJob | null> {
-  const res = await fetch("/api/crash/mobile/track", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, ...body }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/crash/mobile/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...body }),
+    });
+  } catch (e) {
+    throw new Error(studioFetchError(e, "Couldn't reach Studio. The episode is still there — tap again."));
+  }
   const raw = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
   if (!res.ok) throw new Error(raw.error?.trim() || `Request failed (${res.status})`);
   return raw.job || null;
@@ -934,7 +939,7 @@ export function MusicVideoTrack({
           /* duration already from attach */
         }
       } catch (e) {
-        setNote(e instanceof Error ? e.message : "Couldn't read the waveform");
+        setNote(studioFetchError(e, "Couldn't read the waveform"));
       } finally {
         setBusy("");
       }

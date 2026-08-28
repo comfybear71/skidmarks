@@ -653,6 +653,9 @@ assert.match(songUi, /<DeskFold/, "song cuts use the same desk fold");
 assert.match(editor, /label="Stills"/, "stills strip folds on every style");
 assert.match(editor, /label="Clips"/, "clips rail folds on every style");
 assert.match(editor, /Download clips zip/, "clips fold can zip the episode");
+assert.match(editor, /playableDeskClipCount/, "clips fold uses hung cuts, not only zipClips");
+assert.match(editor, /playableClipCount \?/, "a failed story GET must not hide the Clips fold");
+assert.doesNotMatch(editor, /!collapsed && zipClips.length/, "do not hide clips behind zipClips / story");
 assert.doesNotMatch(
   editor,
   /isMusicVideoSongJob\(job\) && plateClipRail/,

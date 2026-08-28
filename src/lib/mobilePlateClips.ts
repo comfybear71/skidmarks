@@ -125,11 +125,12 @@ export function clipsUnderPlate(
  */
 export function clipsForStillsDesk(job: {
   clips?: MobileClipUnit[];
-  shots?: { shotId: string; sceneId: string }[];
+  shots?: { shotId: string; sceneId: string; plateFile?: string }[];
   scratchSong?: {
     cuts?: {
       id?: string;
       shotId?: string;
+      plateFile?: string;
       clipFile?: string;
       status?: string;
       durationSec?: number;
@@ -137,17 +138,24 @@ export function clipsForStillsDesk(job: {
   } | null;
 }): MobileClipUnit[] {
   const clips = [...(job.clips || [])];
+  const seenFile = new Set(clips.flatMap((c) => stackedClipFiles(c)));
   const seenShot = new Set(
     clips.filter((c) => clipFileBasename(c.clipFile || "")).map((c) => (c.shotId || "").trim()),
   );
   for (const cut of job.scratchSong?.cuts || []) {
-    const shotId = (cut.shotId || "").trim();
     const file = clipFileBasename(cut.clipFile || "");
-    if (!shotId || !file || cut.status !== "done" || seenShot.has(shotId)) continue;
-    seenShot.add(shotId);
+    const viaPlate = (cut.plateFile || "").trim();
+    const viaShot =
+      viaPlate &&
+      (job.shots || []).find((s) => (s.plateFile || "").trim() === viaPlate)?.shotId;
+    const shotId = (cut.shotId || "").trim() || (viaShot || "").trim();
+    if (!file || cut.status !== "done" || seenFile.has(file)) continue;
+    if (shotId && seenShot.has(shotId)) continue;
+    seenFile.add(file);
+    if (shotId) seenShot.add(shotId);
     const shot = (job.shots || []).find((s) => s.shotId === shotId);
     clips.push({
-      beatId: cut.id || `cut:${shotId}`,
+      beatId: cut.id || `cut:${shotId || file}`,
       shotId,
       sceneId: shot?.sceneId || "",
       clipFile: file,
