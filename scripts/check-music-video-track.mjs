@@ -24,7 +24,7 @@ import {
   nextPlateHangWindow,
   resolvePlateTimings,
   stretchPlateEdge,
-  swapNeighborPlateTimings,
+  slidePlateIntoGap,
   withPlateDuration,
   withPlateWindow,
   msToSec,
@@ -48,6 +48,7 @@ const songRoute = readFileSync(join(here, "../src/app/api/crash/mobile/song/rout
 const mobileCss = readFileSync(join(here, "../src/app/(mobile)/m/mobile.css"), "utf8");
 const attach = readFileSync(join(here, "../src/lib/scratchSongAttach.ts"), "utf8");
 const songLib = readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8");
+const trackLib = readFileSync(join(here, "../src/lib/musicVideoTrack.ts"), "utf8");
 
 assert.equal(secToMs(4.5), 4500);
 assert.equal(msToSec(4500), 4.5);
@@ -282,27 +283,113 @@ assert.match(
   /action === "move-plate"/,
 );
 {
-  const moved = swapNeighborPlateTimings(
-    [
-      { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
-      { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
-    ],
-    "b",
-    -1,
-  );
-  assert.equal(moved?.[0].plateId, "b");
-  assert.equal(moved?.[0].startMs, 0);
-  assert.equal(moved?.[1].plateId, "a");
-  assert.equal(moved?.[1].startMs, 15000);
+  // Move left fills the empty clock. Identities stay. Length stays.
+  const desk = [
+    { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+    { plateId: "b", startMs: 22000, endMs: 27000, sortIndex: 1 },
+    { plateId: "jack1", startMs: 27000, endMs: 32000, sortIndex: 2 },
+    { plateId: "jack2", startMs: 32000, endMs: 37000, sortIndex: 3 },
+  ];
+  const left = slidePlateIntoGap(desk, "b", -1);
+  assert.equal(left?.find((t) => t.plateId === "a")?.startMs, 0);
+  assert.equal(left?.find((t) => t.plateId === "a")?.endMs, 15000);
+  assert.equal(left?.find((t) => t.plateId === "b")?.startMs, 15000);
+  assert.equal(left?.find((t) => t.plateId === "b")?.endMs, 20000, "selected bar stays 5s");
+  assert.equal(left?.find((t) => t.plateId === "jack1")?.startMs, 27000);
+  assert.equal(left?.find((t) => t.plateId === "jack1")?.endMs, 32000);
+  assert.equal(left?.find((t) => t.plateId === "jack2")?.startMs, 32000);
+  assert.equal(left?.find((t) => t.plateId === "jack2")?.endMs, 37000);
+  assert.equal(left?.[0]?.plateId, "a", "first bar stays first");
+  {
+    let cuts = [
+      {
+        id: "cut_a",
+        plateFile: "a.png",
+        shotId: "a",
+        startSec: 0,
+        durationSec: 15,
+        clipFile: "01_first.mp4",
+        status: "done",
+        error: "",
+      },
+      {
+        id: "cut_b",
+        plateFile: "b.png",
+        shotId: "b",
+        startSec: 22,
+        durationSec: 5,
+        clipFile: "02_car.mp4",
+        status: "done",
+        error: "",
+      },
+    ];
+    for (const timing of left || []) {
+      cuts = cutFromPlateTiming(cuts, timing, `${timing.plateId}.png`, () => "cut_x");
+    }
+    assert.equal(cuts.find((c) => c.shotId === "a")?.clipFile, "01_first.mp4");
+    assert.equal(cuts.find((c) => c.shotId === "b")?.clipFile, "02_car.mp4");
+    assert.equal(cuts.find((c) => c.shotId === "b")?.startSec, 15);
+    assert.equal(cuts.find((c) => c.shotId === "b")?.durationSec, 5);
+    assert.equal(cuts.find((c) => c.shotId === "a")?.startSec, 0);
+  }
+  assert.equal(left?.find((t) => t.startMs === 15000)?.plateId, "b");
   assert.equal(
-    swapNeighborPlateTimings(
-      [{ plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 }],
-      "a",
+    slidePlateIntoGap(
+      [
+        { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+      ],
+      "b",
       -1,
     ),
     null,
+    "flush bars do not swap identities",
+  );
+  const right = slidePlateIntoGap(
+    [
+      { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "b", startMs: 15000, endMs: 20000, sortIndex: 1 },
+      { plateId: "c", startMs: 30000, endMs: 35000, sortIndex: 2 },
+    ],
+    "b",
+    1,
+  );
+  assert.equal(right?.find((t) => t.plateId === "a")?.startMs, 0);
+  assert.equal(right?.find((t) => t.plateId === "b")?.startMs, 25000);
+  assert.equal(right?.find((t) => t.plateId === "b")?.endMs, 30000, "Move right keeps length");
+  assert.equal(right?.find((t) => t.plateId === "c")?.plateId, "c");
+  assert.equal(right?.find((t) => t.plateId === "c")?.startMs, 30000);
+  assert.equal(
+    slidePlateIntoGap(
+      [
+        { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "b", startMs: 15000, endMs: 20000, sortIndex: 1 },
+        { plateId: "c", startMs: 20000, endMs: 25000, sortIndex: 2 },
+      ],
+      "b",
+      1,
+    ),
+    null,
+    "Move right does not swap into the next clip",
+  );
+  assert.equal(
+    slidePlateIntoGap(
+      [
+        { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "b", startMs: 22000, endMs: 27000, sortIndex: 1 },
+      ],
+      "b",
+      1,
+      180000,
+    ),
+    null,
+    "last bar does not jump to the song end",
   );
 }
+assert.match(trackRoute, /slidePlateIntoGap/);
+assert.doesNotMatch(trackRoute, /swapNeighborPlateTimings/);
+assert.match(trackUi, /slidePlateIntoGap/);
+assert.doesNotMatch(trackLib, /swapNeighborPlateTimings/);
 
 // Floor A: hang first, pull a handle, then Send. No typed How long box.
 assert.match(trackUi, /stretchPlateEdge/);

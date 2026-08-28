@@ -10,7 +10,7 @@ import {
   hangPlateShotId,
   secToMs,
   songFromTrackDraft,
-  swapNeighborPlateTimings,
+  slidePlateIntoGap,
   withPlateDuration,
   withPlateWindow,
   type LyricCue,
@@ -70,7 +70,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
  *   set-plate-duration — 5 / 10 / 15 chips or typed seconds (7, 9). Followers slide. No cook.
- *   move-plate — swap this still with the earlier or later slot. No cook.
+ *   move-plate — slide this bar into the empty clock on that side. No swap. No cook.
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
  *   set-plate-timings — persist a drag-handle stretch. Other stills keep their times. No cook.
@@ -266,10 +266,15 @@ export async function POST(req: Request) {
       if (!direction) {
         return NextResponse.json({ error: "Need earlier or later." }, { status: 400 });
       }
-      const plateTimings = swapNeighborPlateTimings(song.plateTimings || [], plateId, direction);
+      const plateTimings = slidePlateIntoGap(
+        song.plateTimings || [],
+        plateId,
+        direction,
+        secToMs(song.durationSec),
+      );
       if (!plateTimings) {
         return NextResponse.json(
-          { error: "That plate is already at the end of the song." },
+          { error: "No empty clock on that side." },
           { status: 400 },
         );
       }
