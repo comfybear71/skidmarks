@@ -1,7 +1,12 @@
 import path from "path";
 import type { MobileClipUnit } from "./mobileGenJob";
 import { mobileMediaFolder } from "./mobileJobFolder";
-import { formatSongClock } from "./scratchSongWindow";
+import {
+  formatTrackClock,
+  resolvePlateTimings,
+  sortPlateTimings,
+  type PlateTiming,
+} from "./musicVideoTrack";
 
 export function mobileClipSrc(
   job: { id: string; styleId: string; folderName: string },
@@ -60,27 +65,81 @@ export function stackedClipFiles(
   return out;
 }
 
+type ClipClockSong = {
+  cuts?: { shotId?: string; clipFile?: string }[];
+  plateTimings?: PlateTiming[];
+} | null;
+
+type ClipClockDraft = { plateTimings?: PlateTiming[] } | null;
+
 /**
- * Label that does not renumber when a middle take is deleted.
- * Prefer the song-cut clock (1:00.0) when this mp4 is a song slice;
- * otherwise a short stable tail of the filename — never "4/10" position.
+ * TRACK hang clock for this mp4 — `plateTimings.startMs`, not cut.startSec.
+ * Cooks often write startSec: 0, which is why every thumb said 0:00.0.
+ * Missing hang → null (stamp "off"). Never invent 15s.
+ */
+export function clipHangStartMs(
+  clip: Pick<MobileClipUnit, "shotId" | "clipFile" | "priorClipFiles">,
+  song?: ClipClockSong,
+  draft?: ClipClockDraft,
+): number | null {
+  const timings = sortPlateTimings(resolvePlateTimings(song, draft));
+  if (!timings.length) return null;
+  const byId = (id: string) => timings.find((t) => t.plateId === (id || "").trim());
+  const shotHit = byId(clip.shotId || "");
+  if (shotHit && Number.isFinite(shotHit.startMs) && shotHit.startMs >= 0) {
+    return shotHit.startMs;
+  }
+  const file = stackedClipFiles(clip).at(-1);
+  if (!file) return null;
+  const cut = (song?.cuts || []).find((c) => clipFileBasename(c.clipFile || "") === file);
+  const cutHit = byId(cut?.shotId || "");
+  if (cutHit && Number.isFinite(cutHit.startMs) && cutHit.startMs >= 0) {
+    return cutHit.startMs;
+  }
+  return null;
+}
+
+/**
+ * Hung → TRACK clock (0:00 / 0:15 / 0:30). Not hung → "off".
+ * Never cut.startSec (those cooks are 0). Never a filename tail (that was kI0).
  */
 export function stableClipTakeLabel(opts: {
   fileName: string;
-  songCuts?: { clipFile?: string; startSec?: number }[];
+  shotId?: string;
+  songCuts?: { clipFile?: string; shotId?: string }[];
+  plateTimings?: PlateTiming[];
 }): string {
   const file = clipFileBasename(opts.fileName);
   if (!file) return "";
-  const cut = (opts.songCuts || []).find(
-    (c) => clipFileBasename(c.clipFile || "") === file,
+  const ms = clipHangStartMs(
+    { shotId: opts.shotId || "", clipFile: file, priorClipFiles: [] },
+    { cuts: opts.songCuts, plateTimings: opts.plateTimings },
   );
-  if (cut && Number.isFinite(cut.startSec)) {
-    return formatSongClock(Number(cut.startSec));
-  }
-  const stem = file.replace(/\.[^.]+$/, "");
-  const parts = stem.split(/[_-]/).filter(Boolean);
-  const tail = parts[parts.length - 1] || stem;
-  return tail.length >= 2 ? tail.slice(-8) : stem.slice(-6);
+  if (ms == null) return "off";
+  return formatTrackClock(ms);
+}
+
+/** Hung first by TRACK clock; leftovers stay in cook / first-seen order. */
+export function orderClipsOnSongClock(
+  clips: MobileClipUnit[],
+  song?: ClipClockSong,
+  draft?: ClipClockDraft,
+): MobileClipUnit[] {
+  return clips
+    .map((clip, index) => ({ clip, index, ms: clipHangStartMs(clip, song, draft) }))
+    .sort((a, b) => {
+      if (a.ms != null && b.ms != null && a.ms !== b.ms) return a.ms - b.ms;
+      if (a.ms != null && b.ms == null) return -1;
+      if (a.ms == null && b.ms != null) return 1;
+      return a.index - b.index;
+    })
+    .map((row) => row.clip);
+}
+
+/** CLIPS strip — clip 1, clip 2, … in rail order. Not story plate 8. */
+export function clipRailLabels(count: number): string[] {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  return Array.from({ length: n }, (_, i) => `clip ${i + 1}`);
 }
 
 /** Keep the old mp4 on the stack when a new LTX take lands. Files stay in Blob. */
@@ -176,7 +235,9 @@ export function clipsForStillsDesk(job: {
       status?: string;
       durationSec?: number;
     }[];
+    plateTimings?: PlateTiming[];
   } | null;
+  trackDraft?: { plateTimings?: PlateTiming[] } | null;
 }): MobileClipUnit[] {
   const clips = [...(job.clips || [])];
   const seenShot = new Set(
@@ -201,27 +262,28 @@ export function clipsForStillsDesk(job: {
   return uniqueClipsByFile(clips, job.scratchSong);
 }
 
-/** Every plate's mp4s, left to right — do not filter to the open still. */
+/** Every plate's mp4s — hang clock first, then cook order. Not STILLS 1…8…9. */
 export function gatherClipsForStillsRail(
   job: Parameters<typeof clipsForStillsDesk>[0],
   plates: { shotId: string; beatIds?: string[] }[],
 ): MobileClipUnit[] {
   const deskClips = clipsForStillsDesk(job);
-  const out: MobileClipUnit[] = [];
-  for (const p of plates) {
-    out.push(...clipsUnderPlate(p.shotId, p.beatIds || [], deskClips));
+  const matched: MobileClipUnit[] = [];
+  const seenBeat = new Set<string>();
+  for (const clip of deskClips) {
+    for (const p of plates) {
+      if (!clipsUnderPlate(p.shotId, p.beatIds || [], [clip]).length) continue;
+      if (seenBeat.has(clip.beatId)) break;
+      seenBeat.add(clip.beatId);
+      matched.push(clip);
+      break;
+    }
   }
-  return uniqueClipsByFile(out, job.scratchSong);
-}
-
-/** STILLS order — plate 1, plate 2, … on each CLIPS thumb. */
-export function plateRailLabels(plates: { shotId: string }[]): Record<string, string> {
-  const out: Record<string, string> = {};
-  plates.forEach((p, i) => {
-    const id = (p.shotId || "").trim();
-    if (id) out[id] = `plate ${i + 1}`;
-  });
-  return out;
+  return orderClipsOnSongClock(
+    uniqueClipsByFile(matched, job.scratchSong),
+    job.scratchSong,
+    job.trackDraft,
+  );
 }
 
 /** Drop one take from a clip row — newest remaining take becomes clipFile. */

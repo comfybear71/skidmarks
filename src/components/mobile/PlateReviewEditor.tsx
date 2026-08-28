@@ -9,7 +9,7 @@ import {
   ShimmerText,
   mobileCard,
 } from "./MobileUi";
-import { PLATE_TILE_PX, PlateClipThumbs, gatherClipsForStillsRail, plateRailLabels } from "./PlateClipThumbs";
+import { PLATE_TILE_PX, PlateClipThumbs, gatherClipsForStillsRail } from "./PlateClipThumbs";
 import { stackedClipFiles } from "@/lib/mobilePlateClips";
 import { orderedJobClips } from "@/lib/orderedJobClips";
 import { useMobileAssist } from "./useMobileAssist";
@@ -349,7 +349,6 @@ export function PlateReviewEditor({
       clips,
       poster,
       posterByShotId,
-      plateLabelByShotId: plateRailLabels(shots),
       thumbCount: clips.reduce((n, c) => n + stackedClipFiles(c).length, 0),
     };
     // displayShot closes over story + shots; list those rather than the fn.
@@ -948,7 +947,6 @@ export function PlateReviewEditor({
                 clips={plateClipRail.clips}
                 poster={plateClipRail.poster}
                 posterByShotId={plateClipRail.posterByShotId}
-                plateLabelByShotId={plateClipRail.plateLabelByShotId}
                 preload
                 layout="strip"
                 removeDisabled={clipBusy}
