@@ -124,6 +124,7 @@ assert.match(trackUi, /Put stills on the song/);
 assert.doesNotMatch(trackUi, /How long/);
 assert.doesNotMatch(trackUi, /Starts at/);
 assert.match(trackUi, /length after the clip/);
+assert.match(trackUi, /Park this clip. Still stays on the song./);
 assert.match(trackUi, /Send all/);
 assert.match(trackUi, /m-track-film/);
 assert.doesNotMatch(trackUi, /Use range/);
@@ -337,5 +338,15 @@ assert.match(
   /action === "hang-plates"/,
 );
 assert.match(trackUi, /hang-plates/);
+assert.match(trackUi, /remove-plate-timing/);
+assert.match(trackUi, /dropPlateFromWave/);
+assert.match(trackRoute, /parkMobileClipFile/);
+assert.match(trackRoute, /songPlateIds/);
+assert.match(songRoute, /hangCuts/);
+assert.match(
+  songRoute,
+  /leftover job\.shots/,
+  "hang-plates must not take every leftover shot row",
+);
 
 console.log("check-music-video-track: ok");
