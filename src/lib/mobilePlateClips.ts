@@ -350,6 +350,43 @@ export function gatherClipsForStillsRail(
   );
 }
 
+/**
+ * Off song / TRACK unhang — mp4 stays on the CLIPS rail.
+ * If the take only lived on the song cut, append it to job.clips.
+ * Never parks. Never writes _cleared/.
+ */
+export function keepClipsAfterUnhang(opts: {
+  clips: MobileClipUnit[];
+  removedCuts: {
+    id?: string;
+    shotId?: string;
+    clipFile?: string;
+    durationSec?: number;
+  }[];
+  shots?: { shotId: string; sceneId?: string }[];
+}): MobileClipUnit[] {
+  const have = new Set(opts.clips.flatMap((c) => stackedClipFiles(c)));
+  const next = [...opts.clips];
+  for (const cut of opts.removedCuts) {
+    const file = clipFileBasename(cut.clipFile || "");
+    if (!file || have.has(file)) continue;
+    const shot = hangPlateShotId((cut.shotId || "").trim());
+    const sceneId =
+      (opts.shots || []).find((s) => (s.shotId || "").trim() === shot)?.sceneId || "";
+    next.push({
+      beatId: (cut.id || "").trim() || `cut:${shot || file}`,
+      shotId: shot || (cut.shotId || "").trim(),
+      sceneId,
+      clipFile: file,
+      clipStatus: "done",
+      error: "",
+      ...(cut.durationSec != null ? { durationSec: cut.durationSec } : {}),
+    });
+    have.add(file);
+  }
+  return next;
+}
+
 /** Drop one take from a clip row — newest remaining take becomes clipFile. */
 export function dropClipTakeFromRow(clip: MobileClipUnit, fileName: string): MobileClipUnit {
   const want = clipFileBasename(fileName);

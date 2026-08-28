@@ -395,9 +395,9 @@ export function realPlateStillFile(
 }
 
 /**
- * Off song — take one still off the wave and the song list.
- * Other clocks stay put. No new 15s row. Clip files are returned so
- * the route can park them in _cleared/. The still stays in STILLS.
+ * Off song / TRACK X — take one bar off the wave and the song list.
+ * Other clocks stay put. No new 15s row. Cuts leave the song; the mp4
+ * stays on job.clips / CLIPS. No _cleared/. The still stays in STILLS.
  */
 export function removePlateFromSong(opts: {
   plateId: string;
@@ -413,7 +413,8 @@ export function removePlateFromSong(opts: {
   songPlateIds: string[];
   rowSlices: number[];
   skipShotIds: string[];
-  parkedClipFiles: string[];
+  keptCuts: ScratchSongCut[];
+  keptClipFiles: string[];
 } {
   const plateId = (opts.plateId || "").trim();
   const jobShots = opts.jobShots || [];
@@ -429,12 +430,11 @@ export function removePlateFromSong(opts: {
     songPlateIds.push(onList[i]!);
     rowSlices.push(slices[i] ?? MUSIC_VIDEO_SLICE_DEFAULT);
   }
-  const parkedClipFiles: string[] = [];
+  const keptCuts: ScratchSongCut[] = [];
   const cuts: ScratchSongCut[] = [];
   for (const c of opts.cuts || []) {
     if (shotIdForSongCut(c, jobShots) === plateId) {
-      const file = (c.clipFile || "").trim();
-      if (file) parkedClipFiles.push(file);
+      keptCuts.push(c);
       continue;
     }
     cuts.push(c);
@@ -445,7 +445,8 @@ export function removePlateFromSong(opts: {
     songPlateIds,
     rowSlices,
     skipShotIds: withSkippedSongPlate(skipSongPlateIds({ skipShotIds: opts.skipShotIds }), plateId),
-    parkedClipFiles,
+    keptCuts,
+    keptClipFiles: keptCuts.map((c) => (c.clipFile || "").trim()).filter(Boolean),
   };
 }
 

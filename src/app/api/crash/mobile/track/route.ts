@@ -19,7 +19,7 @@ import {
   type TrackSectionMarker,
 } from "@/lib/musicVideoTrack";
 import { isMusicVideoSongJob, removePlateFromSong } from "@/lib/musicVideoSong";
-import { parkMobileClipFile } from "@/lib/mobileClipPark";
+import { keepClipsAfterUnhang } from "@/lib/mobilePlateClips";
 import { parseStockLook, stockLookIsOn } from "@/lib/stockLook";
 import { newId } from "@/lib/types";
 
@@ -74,7 +74,9 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
  *   set-plate-timings — persist a drag-handle stretch. Other stills keep their times. No cook.
- *   remove-plate-timing — take one still off the wave and song list. Park clip if any. Never delete. Do not append.
+ *   remove-plate-timing — take one bar off the wave and song list.
+ *     Cut + plateTiming leave. job.clips / CLIPS stay. No _cleared/.
+ *     Never delete. Do not append.
  */
 /** Cue rows come off the phone — keep only well-formed, ordered pins. */
 function cleanLyricCues(raw: unknown): LyricCue[] {
@@ -372,8 +374,13 @@ export async function POST(req: Request) {
         skipShotIds: song.skipShotIds,
         jobShots: job.shots,
       });
-      for (const file of next.parkedClipFiles) parkMobileClipFile(file);
+      const clips = keepClipsAfterUnhang({
+        clips: job.clips || [],
+        removedCuts: next.keptCuts,
+        shots: job.shots,
+      });
       const updated = await patchMobileGenJob(jobId, {
+        clips,
         scratchSong: {
           ...song,
           plateTimings: next.plateTimings,

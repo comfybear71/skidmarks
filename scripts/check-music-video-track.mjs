@@ -47,6 +47,7 @@ const trackRoute = readFileSync(join(here, "../src/app/api/crash/mobile/track/ro
 const songRoute = readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8");
 const mobileCss = readFileSync(join(here, "../src/app/(mobile)/m/mobile.css"), "utf8");
 const attach = readFileSync(join(here, "../src/lib/scratchSongAttach.ts"), "utf8");
+const songLib = readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8");
 
 assert.equal(secToMs(4.5), 4500);
 assert.equal(msToSec(4500), 4.5);
@@ -192,7 +193,18 @@ assert.match(trackUi, /startSec/);
 assert.doesNotMatch(trackUi, /Send all/);
 assert.doesNotMatch(trackUi, /Sending…/, "TRACK pick has no Send — Send sits on the plate row");
 assert.doesNotMatch(trackUi, /void sendPlate\(picked\.shotId\)/, "TRACK does not run Send");
-assert.match(trackUi, /Park this clip/);
+assert.match(trackUi, /Take off the song/);
+assert.match(
+  trackUi,
+  /aria-label="Take off the song"[\s\S]{0,220}dropPlateFromWave/,
+  "TRACK X unhangs — it must not park the mp4",
+);
+assert.doesNotMatch(
+  trackUi,
+  /aria-label="Take off the song"[\s\S]{0,220}redoPlate/,
+  "TRACK X is not Redo / park",
+);
+assert.doesNotMatch(trackUi, /Park this clip/);
 assert.match(trackUi, /requestSongCookStop/);
 assert.match(trackUi, /m-track-film/);
 assert.doesNotMatch(trackUi, /m-track-film-len">off</, "TRACK must not draw leftover stills as an off-row");
@@ -1204,7 +1216,15 @@ assert.doesNotMatch(
 assert.match(trackUi, /remove-plate-timing/);
 assert.match(trackUi, /dropPlateFromWave/);
 assert.match(trackUi, /Off song/);
-assert.match(trackRoute, /parkMobileClipFile/);
+assert.match(trackUi, /Off the wave\. Clip stays/);
+assert.doesNotMatch(songLib, /the route can park them/);
+assert.match(trackRoute, /keepClipsAfterUnhang/);
+assert.doesNotMatch(
+  trackRoute.slice(trackRoute.indexOf('action === "remove-plate-timing"')),
+  /parkMobileClipFile/,
+  "Off song / TRACK X must not park the mp4",
+);
+assert.doesNotMatch(trackRoute, /parkMobileClipFile/);
 assert.match(trackRoute, /songPlateIds/);
 assert.match(trackRoute, /removePlateFromSong/);
 assert.match(trackRoute, /durationSec\?: number/);

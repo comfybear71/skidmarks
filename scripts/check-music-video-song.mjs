@@ -48,7 +48,8 @@ import {
   removePlateFromSong,
   storyShotForSongCut,
 } from "../src/lib/musicVideoSong.ts";
-import { hangMissingPlateTimings } from "../src/lib/musicVideoTrack.ts";
+import { extraTakeHangPlateId, hangMissingPlateTimings } from "../src/lib/musicVideoTrack.ts";
+import { gatherClipsForStillsRail, keepClipsAfterUnhang } from "../src/lib/mobilePlateClips.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
 import { songCookStorageKey } from "../src/lib/songCutCook.ts";
@@ -791,7 +792,8 @@ assert.match(
   assert.equal(off.plateTimings[0]?.endMs, 26500, "do not compact the hole");
   assert.deepEqual(off.songPlateIds, ["invisible"]);
   assert.deepEqual(off.skipShotIds, ["jack"]);
-  assert.deepEqual(off.parkedClipFiles, ["01_JACK_GHOST.mp4"]);
+  assert.deepEqual(off.keptClipFiles, ["01_JACK_GHOST.mp4"]);
+  assert.equal(off.keptCuts.length, 1);
   assert.equal(off.cuts.length, 1);
   assert.equal(off.cuts[0]?.shotId, "invisible");
   const waiting = plateIdsWaitingForTrack({
@@ -849,8 +851,103 @@ assert.match(
     jobShots: [{ shotId: "jack", plateFile: "jack.png" }],
   });
   assert.equal(nameless.cuts.length, 0, "cut with empty shotId still leaves when the file matches");
-  assert.deepEqual(nameless.parkedClipFiles, ["jack.mp4"]);
+  assert.deepEqual(nameless.keptClipFiles, ["jack.mp4"]);
   assert.deepEqual(nameless.songPlateIds, []);
+}
+{
+  const extraId = extraTakeHangPlateId("car", "04_Gothic_town.mp4");
+  const offExtra = removePlateFromSong({
+    plateId: extraId,
+    plateTimings: [
+      { plateId: "jack", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+      { plateId: "jack2", startMs: 20000, endMs: 25000, sortIndex: 2 },
+      { plateId: extraId, startMs: 25000, endMs: 40000, sortIndex: 3 },
+    ],
+    cuts: [
+      {
+        id: "c1",
+        shotId: "jack",
+        plateFile: "jack.png",
+        startSec: 0,
+        durationSec: 16,
+        status: "done",
+        clipFile: "01_Jack.mp4",
+      },
+      {
+        id: "c2",
+        shotId: "car",
+        plateFile: "car.png",
+        startSec: 15,
+        durationSec: 4,
+        status: "done",
+        clipFile: "02_City.mp4",
+      },
+      {
+        id: "c3",
+        shotId: "jack2",
+        plateFile: "jack2.png",
+        startSec: 20,
+        durationSec: 4,
+        status: "done",
+        clipFile: "03_Look.mp4",
+      },
+      {
+        id: "c4",
+        shotId: extraId,
+        plateFile: "car.png",
+        startSec: 25,
+        durationSec: 4,
+        status: "done",
+        clipFile: "04_Gothic_town.mp4",
+      },
+    ],
+    songPlateIds: ["jack", "car", "jack2"],
+    jobShots: [
+      { shotId: "jack", plateFile: "jack.png" },
+      { shotId: "car", plateFile: "car.png" },
+      { shotId: "jack2", plateFile: "jack2.png" },
+    ],
+  });
+  assert.deepEqual(
+    offExtra.plateTimings.map((t) => t.plateId),
+    ["jack", "car", "jack2"],
+    "TRACK X / Off song takes only that bar off",
+  );
+  assert.deepEqual(offExtra.keptClipFiles, ["04_Gothic_town.mp4"]);
+  assert.equal(offExtra.cuts.length, 3);
+  assert.equal(
+    offExtra.cuts.some((c) => c.clipFile === "04_Gothic_town.mp4"),
+    false,
+  );
+  const clips = keepClipsAfterUnhang({
+    clips: [
+      { beatId: "b1", shotId: "jack", sceneId: "s", clipFile: "01_Jack.mp4", clipStatus: "done", error: "" },
+      { beatId: "b2", shotId: "car", sceneId: "s", clipFile: "02_City.mp4", clipStatus: "done", error: "" },
+      { beatId: "b3", shotId: "jack2", sceneId: "s", clipFile: "03_Look.mp4", clipStatus: "done", error: "" },
+      { beatId: "b4", shotId: "car", sceneId: "s", clipFile: "04_Gothic_town.mp4", clipStatus: "done", error: "" },
+    ],
+    removedCuts: offExtra.keptCuts,
+  });
+  assert.deepEqual(
+    clips.map((c) => c.clipFile),
+    ["01_Jack.mp4", "02_City.mp4", "03_Look.mp4", "04_Gothic_town.mp4"],
+    "unhang keeps the mp4 on job.clips",
+  );
+  const rail = gatherClipsForStillsRail(
+    {
+      clips,
+      shots: [
+        { shotId: "jack", sceneId: "s" },
+        { shotId: "car", sceneId: "s" },
+        { shotId: "jack2", sceneId: "s" },
+      ],
+      scratchSong: { cuts: offExtra.cuts, plateTimings: offExtra.plateTimings },
+    },
+    [{ shotId: "jack" }, { shotId: "car" }, { shotId: "jack2" }],
+  );
+  assert.equal(rail.length, 4, "CLIPS rail stays at 4 after Off song");
+  assert.ok(rail.some((c) => c.clipFile === "04_Gothic_town.mp4"));
 }
 assert.doesNotMatch(
   readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8"),
