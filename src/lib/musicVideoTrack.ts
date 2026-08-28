@@ -475,9 +475,6 @@ export function hungBarDurationSec(
   return sec > 0 ? sec : undefined;
 }
 
-/** Desk rule on the plate next to Add | LTX | H3 | Send. Send will not cook until Add hangs this still. */
-export const ADD_STILL_THEN_SEND = "Add this still to the song first, then Send.";
-
 /**
  * Send uses this clock. H3 follows the hung bar up to the API max 15
  * (7 and 9 stay 7 and 9). A 40s bar cooks 15 and says so — do not invent 40.
@@ -488,7 +485,7 @@ export function cookDurationFromHungBar(
   engine: "h3" | "ltx",
 ): { durationSec: number; note: string } | { error: string } {
   const hang = hungBarDurationSec(timing);
-  if (hang == null) return { error: ADD_STILL_THEN_SEND };
+  if (hang == null) return { error: "Hang the still on the song first." };
   if (engine === "h3") return clampMinimaxH3HangSec(hang);
   const durationSec = clampSongSliceDuration(hang, HANG_LENGTH_MAX_SEC);
   if (hang > HANG_LENGTH_MAX_SEC) {
