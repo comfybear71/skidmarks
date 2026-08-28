@@ -306,6 +306,34 @@ export function talkPlaceActsFrom(
 }
 
 /**
+ * Animate meter for the open talking act — not every Saved line on the pack.
+ * An act chip is shots; a clip matches that shot or one of its beats.
+ */
+export function clipsOnTalkAct<T extends { beatId: string; shotId?: string }>(
+  clips: T[],
+  act: Pick<TalkActScript, "cellKeys" | "sceneId"> | null | undefined,
+  cells: TalkClipCell[],
+): T[] {
+  if (!act) return clips;
+  const keys = new Set((act.cellKeys || []).filter(Boolean));
+  const shotIds = new Set<string>();
+  const beatIds = new Set<string>();
+  for (const cell of cells || []) {
+    if (keys.size && !keys.has(cell.key)) continue;
+    if (!keys.size && act.sceneId && cell.sceneId !== act.sceneId) continue;
+    if (cell.shotId) shotIds.add(cell.shotId);
+    if (cell.beatId) beatIds.add(cell.beatId);
+    for (const take of talkCellTakes(cell)) {
+      if (take.beatId) beatIds.add(take.beatId);
+    }
+  }
+  if (!shotIds.size && !beatIds.size) return [];
+  return clips.filter(
+    (c) => beatIds.has(c.beatId) || Boolean(c.shotId && shotIds.has(c.shotId)),
+  );
+}
+
+/**
  * Acts from `[ACT]` tags. Place stretches are only a fallback when no
  * construction act tags exist. Does not rewrite story.
  */
