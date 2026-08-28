@@ -6,6 +6,8 @@ import {
   clearClipRowTakes,
   clipFileBasename,
   dropClipTakeFromRow,
+  gatherClipsForStillsRail,
+  plateRailLabels,
   rememberClipTake,
   stackedClipFiles,
   stableClipTakeLabel,
@@ -89,10 +91,35 @@ const clearedDir = path.join(CRASH_DIR, "ltx", "_cleared");
 assert.ok(fs.readdirSync(clearedDir).some((name) => name.endsWith("park_me.mp4")));
 assert.equal(clipFileBasename("/tmp/foo/bar.mp4"), "bar.mp4");
 
+const twoPlates = gatherClipsForStillsRail(
+  {
+    clips: [
+      { ...clip, beatId: "beat-1", shotId: "shot-1", clipFile: "p1.mp4", priorClipFiles: [] },
+      { ...clip, beatId: "beat-2", shotId: "shot-2", clipFile: "p2.mp4", priorClipFiles: [] },
+    ],
+    shots: [
+      { shotId: "shot-1", sceneId: "scene-1" },
+      { shotId: "shot-2", sceneId: "scene-1" },
+    ],
+  },
+  [{ shotId: "shot-1" }, { shotId: "shot-2" }],
+);
+assert.equal(twoPlates.length, 2);
+assert.deepEqual(
+  twoPlates.flatMap((c) => stackedClipFiles(c)),
+  ["p1.mp4", "p2.mp4"],
+);
+assert.deepEqual(plateRailLabels([{ shotId: "shot-1" }, { shotId: "shot-2" }]), {
+  "shot-1": "plate 1",
+  "shot-2": "plate 2",
+});
+
 const thumbs = fs.readFileSync(new URL("../src/components/mobile/PlateClipThumbs.tsx", import.meta.url), "utf8");
 assert.match(thumbs, /createPortal/);
 assert.match(thumbs, /scratch-clip-overlay/);
 assert.match(thumbs, /stableClipTakeLabel/);
+assert.match(thumbs, /plateLabelByShotId/);
+assert.match(thumbs, /m-plate-clip-plate/);
 assert.doesNotMatch(thumbs, /pickEngine/, "LTX / H3 do not sit on CLIPS thumbs");
 assert.doesNotMatch(thumbs, /m-plate-clip-engine/, "LTX / H3 do not sit on CLIPS thumbs");
 assert.doesNotMatch(thumbs, /How long/);
@@ -103,6 +130,10 @@ const editor = fs.readFileSync(new URL("../src/components/mobile/PlateReviewEdit
 assert.match(editor, /m-plate-clips-bleed/);
 assert.match(editor, /m-plate-clip-rail/);
 assert.match(editor, /layout="strip"/);
+assert.match(editor, /gatherClipsForStillsRail/);
+assert.match(editor, /plateLabelByShotId/);
+assert.doesNotMatch(editor, /shots\.filter\(\(s\) => s\.shotId === focus\)/);
+assert.doesNotMatch(editor, /focusLabel/);
 assert.doesNotMatch(editor, /pickEngine/, "LTX / H3 do not sit on CLIPS thumbs");
 assert.doesNotMatch(editor, /width: `\$\{PLATE_TILE_PX\}px`[\s\S]{0,200}Clips/);
 assert.match(editor, /requestSongCookStop/);
@@ -114,6 +145,10 @@ assert.match(clipRoute, /scratchSong/);
 const css = fs.readFileSync(new URL("../src/app/(mobile)/m/mobile.css", import.meta.url), "utf8");
 assert.match(css, /\.m-plate-clips-bleed/);
 assert.match(css, /\.m-plate-clip-rail/);
+assert.match(css, /\.m-plate-clip-rail\s*\{[^}]*overflow-x:\s*auto/s);
+assert.match(css, /\.m-plate-clip-rail\s*\{[^}]*touch-action:\s*pan-x pan-y/s);
+assert.match(css, /\.m-plate-clip-rail\s*\{[^}]*flex-wrap:\s*nowrap/s);
+assert.match(css, /\.m-plate-clip-thumb/);
 assert.match(css, /touch-action: pan-x pan-y/);
 assert.match(css, /width: calc\(100% \+ 32px\)/);
 assert.doesNotMatch(css, /\.m-plate-clip-engines/, "no engine chrome on the CLIPS thumb");

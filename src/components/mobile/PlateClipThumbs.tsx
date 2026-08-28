@@ -6,15 +6,22 @@ import type { MobileClipUnit } from "@/lib/mobileGenJob";
 import { mobileClipSrc, stackedClipFiles, stableClipTakeLabel } from "@/lib/mobilePlateClips";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 
-export { clipsForStillsDesk, clipsUnderPlate, mobileClipSrc, stackedClipFiles } from "@/lib/mobilePlateClips";
+export {
+  clipsForStillsDesk,
+  clipsUnderPlate,
+  gatherClipsForStillsRail,
+  mobileClipSrc,
+  plateRailLabels,
+  stackedClipFiles,
+} from "@/lib/mobilePlateClips";
 /** Match the still and the mp4 — this width on a phone. */
 export const PLATE_TILE_PX = 160;
 
 /**
  * /m strip: square plate, then 16:9 players under it — same width.
  * `layout="strip"` — oldest take left, newest right, swipe sideways
- * across the full /m Clips bleed (and Scratch pad). Default stack kept
- * for callers that want it.
+ * across the full /m Clips bleed (and Scratch pad). New mp4s append.
+ * Default stack kept for callers that want it.
  * Labels use song clock / file id — never "4/10" that renumbers on delete.
  * Every Generate take stays. Empty pending slots stay hidden.
  * Play opens a body portal — native controls inside the overflow rail
@@ -26,6 +33,7 @@ export function PlateClipThumbs({
   preload,
   poster,
   posterByShotId,
+  plateLabelByShotId,
   layout = "stack",
   onRemoveTake,
   removeDisabled,
@@ -42,6 +50,8 @@ export function PlateClipThumbs({
   poster?: string;
   /** One still per shot so the Clips rail is not eighteen copies of shot 01. */
   posterByShotId?: Record<string, string>;
+  /** STILLS order — "plate 1", "plate 2" under each appended thumb. */
+  plateLabelByShotId?: Record<string, string>;
   layout?: "stack" | "strip";
   /** /m and Scratch — park one take (mp4 stays in _cleared/ or Blob). */
   onRemoveTake?: (opts: { beatId: string; fileName: string }) => void;
@@ -57,6 +67,7 @@ export function PlateClipThumbs({
       beatId: clip.beatId,
       poster: shotPoster,
       takeLabel: stableClipTakeLabel({ fileName: file, songCuts }),
+      plateLabel: (clip.shotId && plateLabelByShotId?.[clip.shotId]) || "",
       preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
     }));
   });
@@ -73,18 +84,20 @@ export function PlateClipThumbs({
       }}
     >
       {files.map((row) => (
-        <ClipPlayer
-          key={row.key}
-          src={mobileClipSrc(job, row.file)}
-          poster={row.poster}
-          takeLabel={row.takeLabel}
-          onRemove={
-            onRemoveTake
-              ? () => onRemoveTake({ beatId: row.beatId, fileName: row.file })
-              : undefined
-          }
-          removeDisabled={removeDisabled}
-        />
+        <div key={row.key} className="m-plate-clip-thumb">
+          <ClipPlayer
+            src={mobileClipSrc(job, row.file)}
+            poster={row.poster}
+            takeLabel={row.takeLabel}
+            onRemove={
+              onRemoveTake
+                ? () => onRemoveTake({ beatId: row.beatId, fileName: row.file })
+                : undefined
+            }
+            removeDisabled={removeDisabled}
+          />
+          {row.plateLabel ? <span className="m-plate-clip-plate">{row.plateLabel}</span> : null}
+        </div>
       ))}
     </div>
   );
