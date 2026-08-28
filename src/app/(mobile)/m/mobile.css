@@ -3631,11 +3631,6 @@ span.scratch-history-blob {
   box-shadow: 0 0 0 1px var(--acid);
 }
 
-.m-track-rail-cell.is-on {
-  border-color: var(--acid);
-  box-shadow: 0 0 0 1px var(--acid);
-}
-
 .m-track-rail-cell.is-align {
   position: absolute;
   top: 0;
