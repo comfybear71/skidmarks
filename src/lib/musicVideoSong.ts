@@ -3,7 +3,10 @@
  * Clock math lives in scratchSongWindow (phone-safe).
  */
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
-import { isLeftoverPlateHang } from "./musicVideoTrack";
+import {
+  isLeftoverPlateHang,
+  listUnhungDoneClips,
+} from "./musicVideoTrack";
 import {
   formatSongClock,
   remainingSongWindows,
@@ -573,6 +576,7 @@ export function plateIdsNeedingDoneClipHang(opts: {
   clips?: {
     shotId?: string;
     clipFile?: string;
+    priorClipFiles?: string[];
     clipStatus?: string;
     durationSec?: number;
   }[];
@@ -609,11 +613,22 @@ export function needsDoneClipHang(
   clips?: {
     shotId?: string;
     clipFile?: string;
+    priorClipFiles?: string[];
     clipStatus?: string;
     durationSec?: number;
   }[],
 ): boolean {
-  return plateIdsNeedingDoneClipHang({ song, clips, jobShots }).length > 0;
+  if (plateIdsNeedingDoneClipHang({ song, clips, jobShots }).length > 0) return true;
+  return (
+    listUnhungDoneClips({
+      clips,
+      cuts: song?.cuts,
+      plateTimings: song?.plateTimings as
+        | { plateId: string; startMs: number; endMs: number; sortIndex: number }[]
+        | undefined,
+      skipShotIds: song?.skipShotIds,
+    }).length > 0
+  );
 }
 
 /** TRACK wave is plateTimings. Waiting stills with no clock are off the rail. */

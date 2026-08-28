@@ -229,6 +229,8 @@ assert.match(thumbs, /clipTakeDurationSec/);
 assert.doesNotMatch(thumbs, /formatSongClock/);
 assert.match(thumbs, /`clip \$\{i \+ 1\}`/);
 assert.match(thumbs, /m-plate-clip-plate/);
+assert.match(thumbs, /onHangClip/);
+assert.match(thumbs, /m-plate-clip-hang/);
 assert.doesNotMatch(thumbs, /plateLabelByShotId/);
 assert.doesNotMatch(thumbs, /plate \$\{/);
 assert.doesNotMatch(thumbs, /pickEngine/, "LTX / H3 do not sit on CLIPS thumbs");
@@ -250,6 +252,8 @@ assert.doesNotMatch(editor, /pickEngine/, "LTX / H3 do not sit on CLIPS thumbs")
 assert.doesNotMatch(editor, /width: `\$\{PLATE_TILE_PX\}px`[\s\S]{0,200}Clips/);
 assert.match(editor, /requestSongCookStop/);
 assert.match(editor, /action: "remove-clip"/);
+assert.match(editor, /action: "hang-clip"/);
+assert.match(editor, /onHangClip/);
 const clipRoute = fs.readFileSync(new URL("../src/app/api/crash/mobile/clip/route.ts", import.meta.url), "utf8");
 assert.match(clipRoute, /planParkDeskClipTake/);
 assert.match(clipRoute, /scratchSong/);
@@ -259,6 +263,7 @@ const songRoute = fs.readFileSync(
   "utf8",
 );
 assert.match(songRoute, /clipOwnsHangPlate/, "clip-poll must not hang a cook onto the next still");
+assert.match(songRoute, /action === "hang-clip"/);
 assert.deepEqual(
   uniqueClipsByFile(
     [
@@ -379,6 +384,90 @@ assert.deepEqual(stuiesLengths, ["0:00 · 16s", "0:15 · 5s", "0:20 · 5s", "0:2
 assert.ok(stuiesLengths.every((label) => !/^0:\d{2}$/.test(label)), "start-only stamp is a lie");
 assert.ok(!stuiesLengths.some((label) => /kI0|dzd/i.test(label)));
 
+/** Screenshots: clip 3 + clip 4 both say 0:20 until the leftover owns its own bar. */
+const jackCuts = [
+  { clipFile: "01_jack.mp4", shotId: "jack1" },
+  { clipFile: "02_car.mp4", shotId: "car" },
+  { clipFile: "03_stand.mp4", shotId: "jack" },
+];
+const jackTimings = [
+  { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
+  { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+  { plateId: "jack", startMs: 20000, endMs: 25000, sortIndex: 2 },
+];
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "03_stand.mp4",
+    shotId: "jack",
+    durationSec: 5,
+    songCuts: jackCuts,
+    plateTimings: jackTimings,
+  }),
+  "0:20 · 5s",
+);
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "04_crouch.mp4",
+    shotId: "jack",
+    durationSec: 5,
+    songCuts: jackCuts,
+    plateTimings: jackTimings,
+  }),
+  "off",
+  "leftover take must not steal the 3rd bar's 0:20",
+);
+const afterHangCuts = [
+  ...jackCuts,
+  { clipFile: "04_crouch.mp4", shotId: "jack~04crouch" },
+];
+const afterHangTimings = [
+  ...jackTimings,
+  { plateId: "jack~04crouch", startMs: 25000, endMs: 30000, sortIndex: 3 },
+];
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "03_stand.mp4",
+    shotId: "jack",
+    durationSec: 5,
+    songCuts: afterHangCuts,
+    plateTimings: afterHangTimings,
+  }),
+  "0:20 · 5s",
+);
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "04_crouch.mp4",
+    shotId: "jack",
+    durationSec: 5,
+    songCuts: afterHangCuts,
+    plateTimings: afterHangTimings,
+  }),
+  "0:25 · 5s",
+  "hung leftover stamps 0:25 · 5s, not another 0:20",
+);
+assert.equal(
+  clipHangStartMs(twoOnNine[0], {
+    cuts: [
+      { id: "d1", shotId: "plate-9", clipFile: "09_first.mp4" },
+      { id: "d2", shotId: "plate-9", clipFile: "09_second.mp4" },
+    ],
+    plateTimings: [{ plateId: "plate-9", startMs: 30000, endMs: 45000, sortIndex: 0 }],
+  }),
+  30000,
+  "first take owns the still's clock",
+);
+assert.equal(
+  clipHangStartMs(twoOnNine[1], {
+    cuts: [
+      { id: "d1", shotId: "plate-9", clipFile: "09_first.mp4" },
+      { id: "d2", shotId: "plate-9", clipFile: "09_second.mp4" },
+    ],
+    plateTimings: [{ plateId: "plate-9", startMs: 30000, endMs: 45000, sortIndex: 0 }],
+  }),
+  null,
+  "second take is off until Hang — same still, own clock",
+);
+
 const css = fs.readFileSync(new URL("../src/app/(mobile)/m/mobile.css", import.meta.url), "utf8");
 assert.match(css, /\.m-plate-clips-bleed/);
 assert.match(css, /\.m-plate-clip-rail/);
@@ -386,6 +475,7 @@ assert.match(css, /\.m-plate-clip-rail\s*\{[^}]*overflow-x:\s*auto/s);
 assert.match(css, /\.m-plate-clip-rail\s*\{[^}]*touch-action:\s*pan-x pan-y/s);
 assert.match(css, /\.m-plate-clip-rail\s*\{[^}]*flex-wrap:\s*nowrap/s);
 assert.match(css, /\.m-plate-clip-thumb/);
+assert.match(css, /\.m-plate-clip-hang/);
 assert.match(css, /touch-action: pan-x pan-y/);
 assert.match(css, /width: calc\(100% \+ 32px\)/);
 assert.doesNotMatch(css, /\.m-plate-clip-engines/, "no engine chrome on the CLIPS thumb");

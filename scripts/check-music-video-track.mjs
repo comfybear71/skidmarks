@@ -7,8 +7,14 @@ import {
   evenPlateTimings,
   formatTrackClock,
   formatTrackClockPrecise,
+  clipFileOnWave,
+  extraTakeHangPlateId,
   hangClipDurationMs,
   hangMissingPlateTimings,
+  hangOneClipOnWave,
+  hangPlateShotId,
+  hangUnhungDoneClips,
+  listUnhungDoneClips,
   isLeftoverPlateHang,
   isRealPlateHang,
   hitPlateEdge,
@@ -416,6 +422,247 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     "known mp4 length else 15",
   );
 
+  const twoTakes = hangOneClipOnWave({
+    plateTimings: [{ plateId: "plate-9", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    cuts: [
+      {
+        id: "c1",
+        shotId: "plate-9",
+        plateFile: "9.png",
+        startSec: 0,
+        durationSec: 15,
+        clipFile: "09_kl0.mp4",
+        status: "done",
+      },
+      {
+        id: "c2",
+        shotId: "plate-9",
+        plateFile: "9.png",
+        startSec: 0,
+        durationSec: 8,
+        clipFile: "09_dzd.mp4",
+        status: "done",
+      },
+    ],
+    shotId: "plate-9",
+    plateFile: "9.png",
+    clipFile: "09_dzd.mp4",
+    durationSec: 8,
+    newCutId: () => "c-new",
+  });
+  assert.equal(twoTakes?.plateTimings.length, 2, "second take gets its own clock");
+  assert.equal(twoTakes?.plateTimings[0]?.plateId, "plate-9");
+  assert.equal(twoTakes?.plateTimings[1]?.plateId, extraTakeHangPlateId("plate-9", "09_dzd.mp4"));
+  assert.equal(twoTakes?.plateTimings[1]?.startMs, 15000, "next gap — do not pile on 0:00");
+  assert.equal(twoTakes?.plateTimings[1]?.endMs, 23000, "real 8s, not a fake 15");
+  assert.equal(hangPlateShotId(twoTakes?.plateTimings[1]?.plateId || ""), "plate-9");
+  assert.equal(twoTakes?.cuts.length, 2, "do not wipe the first take");
+  assert.equal(twoTakes?.cuts[0]?.clipFile, "09_kl0.mp4");
+  assert.equal(twoTakes?.cuts[1]?.clipFile, "09_dzd.mp4");
+  assert.equal(twoTakes?.cuts[1]?.shotId, extraTakeHangPlateId("plate-9", "09_dzd.mp4"));
+  assert.equal(clipFileOnWave(twoTakes, "09_kl0.mp4"), true);
+  assert.equal(clipFileOnWave(twoTakes, "09_dzd.mp4"), true);
+  const again = hangOneClipOnWave({
+    plateTimings: twoTakes?.plateTimings,
+    cuts: twoTakes?.cuts || [],
+    shotId: "plate-9",
+    plateFile: "9.png",
+    clipFile: "09_dzd.mp4",
+    durationSec: 8,
+    newCutId: () => "c-dup",
+  });
+  assert.equal(again?.plateTimings.length, 2, "already hung — no second bar");
+
+  const jackGhost = hangOneClipOnWave({
+    plateTimings: [
+      { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+      { plateId: "jack3", startMs: 20000, endMs: 25000, sortIndex: 2 },
+    ],
+    cuts: [
+      {
+        id: "c1",
+        shotId: "jack1",
+        plateFile: "1.png",
+        startSec: 0,
+        durationSec: 15,
+        clipFile: "clip1.mp4",
+        status: "done",
+      },
+      {
+        id: "c2",
+        shotId: "car",
+        plateFile: "2.png",
+        startSec: 15,
+        durationSec: 5,
+        clipFile: "clip2.mp4",
+        status: "done",
+      },
+      {
+        id: "c3",
+        shotId: "jack3",
+        plateFile: "3.png",
+        startSec: 20,
+        durationSec: 5,
+        clipFile: "clip3.mp4",
+        status: "done",
+      },
+    ],
+    shotId: "jack3",
+    plateFile: "3.png",
+    clipFile: "clip4.mp4",
+    durationSec: 5,
+    newCutId: () => "c4",
+  });
+  assert.equal(jackGhost?.plateTimings.length, 4, "extra take is a 4th bar");
+  assert.equal(jackGhost?.plateTimings[2]?.startMs, 20000, "3rd bar stays 0:20");
+  assert.equal(jackGhost?.plateTimings[2]?.endMs, 25000);
+  assert.equal(jackGhost?.plateTimings[3]?.startMs, 25000, "clip 4 after last hung end — not another 0:20");
+  assert.equal(jackGhost?.plateTimings[3]?.endMs, 30000, "real 5s, not a fake 15");
+  assert.equal(jackGhost?.cuts.length, 4, "do not delete clip 3");
+  assert.deepEqual(listUnhungDoneClips({
+    clips: [
+      { shotId: "jack3", clipFile: "clip4.mp4", priorClipFiles: ["clip3.mp4"], clipStatus: "done", durationSec: 5 },
+    ],
+    cuts: [
+      { shotId: "jack3", clipFile: "clip3.mp4", status: "done", durationSec: 5 },
+    ],
+    plateTimings: [
+      { plateId: "jack3", startMs: 20000, endMs: 25000, sortIndex: 2 },
+    ],
+  }).map((r) => r.clipFile), ["clip4.mp4"]);
+  const autoHung = hangUnhungDoneClips({
+    plateTimings: [
+      { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+      { plateId: "jack3", startMs: 20000, endMs: 25000, sortIndex: 2 },
+    ],
+    cuts: [
+      {
+        id: "c3",
+        shotId: "jack3",
+        plateFile: "3.png",
+        startSec: 20,
+        durationSec: 5,
+        clipFile: "clip3.mp4",
+        status: "done",
+      },
+    ],
+    clips: [
+      {
+        shotId: "jack3",
+        clipFile: "clip4.mp4",
+        priorClipFiles: ["clip3.mp4"],
+        clipStatus: "done",
+        durationSec: 5,
+      },
+    ],
+    plateFileFor: () => "3.png",
+    newCutId: () => "c4",
+  });
+  assert.equal(autoHung.plateTimings.at(-1)?.startMs, 25000, "auto-place extra take after 0:25");
+  assert.equal(autoHung.plateTimings.at(-1)?.endMs, 30000);
+
+  /** Screenshots: TRACK 3 bars, CLIPS 4, clip 3 + clip 4 both stamped 0:20. */
+  const stuiesThreeBars = [
+    { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
+    { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+    { plateId: "jack", startMs: 20000, endMs: 25000, sortIndex: 2 },
+  ];
+  const stuiesCutsClip3Hung = [
+    {
+      id: "c1",
+      shotId: "jack1",
+      plateFile: "1.png",
+      startSec: 0,
+      durationSec: 15,
+      clipFile: "01_jack.mp4",
+      status: "done",
+    },
+    {
+      id: "c2",
+      shotId: "car",
+      plateFile: "2.png",
+      startSec: 15,
+      durationSec: 5,
+      clipFile: "02_car.mp4",
+      status: "done",
+    },
+    {
+      id: "c3",
+      shotId: "jack",
+      plateFile: "3.png",
+      startSec: 20,
+      durationSec: 5,
+      clipFile: "03_stand.mp4",
+      status: "done",
+    },
+  ];
+  const stuiesFourClips = [
+    { shotId: "jack1", clipFile: "01_jack.mp4", clipStatus: "done", durationSec: 15 },
+    { shotId: "car", clipFile: "02_car.mp4", clipStatus: "done", durationSec: 5 },
+    { shotId: "jack", clipFile: "03_stand.mp4", clipStatus: "done", durationSec: 5 },
+    { shotId: "jack", clipFile: "04_crouch.mp4", clipStatus: "done", durationSec: 5 },
+  ];
+  assert.deepEqual(
+    listUnhungDoneClips({
+      clips: stuiesFourClips,
+      cuts: stuiesCutsClip3Hung,
+      plateTimings: stuiesThreeBars,
+    }).map((r) => r.clipFile),
+    ["04_crouch.mp4"],
+    "clip 3 is the 3rd bar — leftover is clip 4",
+  );
+  const hangClip4 = hangUnhungDoneClips({
+    plateTimings: stuiesThreeBars,
+    cuts: stuiesCutsClip3Hung,
+    clips: stuiesFourClips,
+    plateFileFor: (id) => (id === "car" ? "2.png" : id === "jack1" ? "1.png" : "3.png"),
+    newCutId: () => "c4",
+  });
+  assert.deepEqual(
+    hangClip4.plateTimings.slice(0, 3).map((t) => [t.plateId, t.startMs, t.endMs]),
+    [
+      ["jack1", 0, 15000],
+      ["car", 15000, 20000],
+      ["jack", 20000, 25000],
+    ],
+    "do not move or overwrite the three good bars",
+  );
+  assert.equal(hangClip4.plateTimings.length, 4);
+  assert.equal(hangClip4.plateTimings[3]?.startMs, 25000, "clip 4 starts at 0:25");
+  assert.equal(hangClip4.plateTimings[3]?.endMs, 30000, "clip 4 is 5s, not 15");
+  assert.equal(hangClip4.cuts.find((c) => c.clipFile === "03_stand.mp4")?.shotId, "jack");
+  assert.equal(
+    hangClip4.cuts.find((c) => c.clipFile === "04_crouch.mp4")?.shotId,
+    extraTakeHangPlateId("jack", "04_crouch.mp4"),
+  );
+
+  const stuiesCutsClip4Hung = stuiesCutsClip3Hung.map((c) =>
+    c.clipFile === "03_stand.mp4" ? { ...c, clipFile: "04_crouch.mp4" } : c,
+  );
+  assert.deepEqual(
+    listUnhungDoneClips({
+      clips: stuiesFourClips,
+      cuts: stuiesCutsClip4Hung,
+      plateTimings: stuiesThreeBars,
+    }).map((r) => r.clipFile),
+    ["03_stand.mp4"],
+    "if clip 4 is the 3rd bar, leftover is clip 3",
+  );
+  const hangClip3 = hangUnhungDoneClips({
+    plateTimings: stuiesThreeBars,
+    cuts: stuiesCutsClip4Hung,
+    clips: stuiesFourClips,
+    plateFileFor: (id) => (id === "car" ? "2.png" : id === "jack1" ? "1.png" : "3.png"),
+    newCutId: () => "c3b",
+  });
+  assert.equal(hangClip3.plateTimings[2]?.startMs, 20000);
+  assert.equal(hangClip3.plateTimings[2]?.endMs, 25000);
+  assert.equal(hangClip3.plateTimings[3]?.startMs, 25000, "clip 3 after 0:25 when clip 4 is the 3rd bar");
+  assert.equal(hangClip3.plateTimings[3]?.endMs, 30000);
+  assert.equal(hangClip3.cuts.find((c) => c.clipFile === "04_crouch.mp4")?.shotId, "jack");
+
   const stillsStayOff = hangMissingPlateTimings(
     [{ plateId: "plate_1", startMs: 0, endMs: 15000, sortIndex: 0 }],
     [],
@@ -532,6 +779,22 @@ assert.match(
 assert.match(trackUi, /needsDoneClipHang/);
 assert.match(trackUi, /hungClipFileForPlate\(job, picked\.shotId\) \? null/);
 assert.match(trackUi, /isRealPlateHang/);
+assert.match(trackUi, /!compact \|\| Boolean\(onCreatePlate\)/);
+assert.doesNotMatch(trackUi, /m-track-film-len">off</);
+assert.match(songRoute, /action === "hang-clip"/);
+assert.match(songRoute, /hangOneClipOnWave/);
+assert.match(songRoute, /hangUnhungDoneClips/);
+assert.match(songRoute, /alreadyHung/);
+assert.match(
+  songRoute.slice(songRoute.indexOf('action === "hang-plates"')),
+  /hangUnhungDoneClips/,
+  "hang-plates also places a second take after the last hung end",
+);
+assert.match(
+  songRoute.slice(songRoute.indexOf('action === "add-plate"')),
+  /alreadyHung/,
+  "STILLS ADD must not stack a second take at the same 0:20",
+);
 
 console.log("check-music-video-track: ok");
 

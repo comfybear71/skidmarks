@@ -135,7 +135,8 @@ console.log("check-music-video-track-lyrics OK");
   assert.ok(ui.includes("playing && ribbon"), "nothing moves before Play");
   assert.match(ui, /sectionsOpen/, "the section list folds away");
   assert.match(ui, /openSectionId/, "each section row folds");
-  assert.match(ui, /platesOnTrackOpen/, "plates on the track fold away");
+  assert.match(ui, /m-track-rail-on-wave/, "hung plates sit on the wave");
+  assert.doesNotMatch(ui, /m-track-film-len">off</, "off-song ghosts do not copy STILLS");
   assert.match(ui, /<DeskFold/, "long lists share the desk fold");
   assert.match(ui, /Import from lyrics/, "sections import from lyric tags");
   assert.match(ui, /lyricCuesFromSectionSheet/, "Import also pins Marquee from section windows");
@@ -734,7 +735,7 @@ console.log("check-music-video-lyric-tags OK");
   // Collapsed Plates used to hide the + when nothing was hung yet.
   assert.match(
     ui,
-    /plateBlocks\.length \|\| !compact \|\| Boolean\(onCreatePlate\)/,
+    /!compact \|\| Boolean\(onCreatePlate\)/,
     "the + stays on the wave before any plate exists",
   );
   assert.match(ui, /if \(compact\) onExpand\?/, "collapsed + opens Plates so the picker is on screen");

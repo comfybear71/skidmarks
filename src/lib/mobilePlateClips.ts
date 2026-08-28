@@ -2,7 +2,9 @@ import path from "path";
 import type { MobileClipUnit } from "./mobileGenJob";
 import { mobileMediaFolder } from "./mobileJobFolder";
 import {
+  clipHangTiming,
   formatTrackClock,
+  isRealPlateHang,
   msToSec,
   resolvePlateTimings,
   sortPlateTimings,
@@ -99,17 +101,22 @@ export function clipHangStartMs(
 ): number | null {
   const timings = sortPlateTimings(resolvePlateTimings(song, draft));
   if (!timings.length) return null;
-  const byId = (id: string) => timings.find((t) => t.plateId === (id || "").trim());
-  const shotHit = byId(clip.shotId || "");
-  if (shotHit && Number.isFinite(shotHit.startMs) && shotHit.startMs >= 0) {
-    return shotHit.startMs;
-  }
-  const file = stackedClipFiles(clip).at(-1);
-  if (!file) return null;
-  const cut = (song?.cuts || []).find((c) => clipFileBasename(c.clipFile || "") === file);
-  const cutHit = byId(cut?.shotId || "");
-  if (cutHit && Number.isFinite(cutHit.startMs) && cutHit.startMs >= 0) {
-    return cutHit.startMs;
+  const clock = {
+    cuts: song?.cuts,
+    plateTimings: timings,
+  };
+  const stacked = stackedClipFiles(clip);
+  const file = stacked.at(-1) || clipFileBasename(clip.clipFile || "");
+  const owned = file ? clipHangTiming(clock, file) : null;
+  if (owned) return owned.startMs;
+  const shotHit = timings.find((t) => t.plateId === (clip.shotId || "").trim());
+  if (shotHit && isRealPlateHang(shotHit)) {
+    const onShot = (song?.cuts || []).filter(
+      (c) =>
+        (c.shotId || "").trim() === (clip.shotId || "").trim() &&
+        clipFileBasename(c.clipFile || ""),
+    );
+    if (!onShot.length) return shotHit.startMs;
   }
   return null;
 }

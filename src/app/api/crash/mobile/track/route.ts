@@ -7,6 +7,7 @@ import {
 } from "@/lib/forgottenWhoPlays";
 import {
   cutFromPlateTiming,
+  hangPlateShotId,
   secToMs,
   songFromTrackDraft,
   swapNeighborPlateTimings,
@@ -207,7 +208,7 @@ export async function POST(req: Request) {
         ...(song.plateTimings || []).filter((p) => p.plateId !== plateId),
         timing,
       ];
-      const shot = job.shots.find((s) => s.shotId === plateId);
+      const shot = job.shots.find((s) => s.shotId === hangPlateShotId(plateId));
       const plateFile = (shot?.plateFile || "").trim();
       let cuts = song.cuts || [];
       if (plateFile && plateFile !== "__error__") {
@@ -239,7 +240,9 @@ export async function POST(req: Request) {
       }
       let cuts = song.cuts || [];
       for (const timing of plateTimings) {
-        const plateFile = (job.shots.find((s) => s.shotId === timing.plateId)?.plateFile || "").trim();
+        const plateFile = (
+          job.shots.find((s) => s.shotId === hangPlateShotId(timing.plateId))?.plateFile || ""
+        ).trim();
         if (!plateFile || plateFile === "__error__") continue;
         cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
       }
@@ -270,7 +273,9 @@ export async function POST(req: Request) {
       }
       let cuts = song.cuts || [];
       for (const timing of plateTimings) {
-        const plateFile = (job.shots.find((s) => s.shotId === timing.plateId)?.plateFile || "").trim();
+        const plateFile = (
+          job.shots.find((s) => s.shotId === hangPlateShotId(timing.plateId))?.plateFile || ""
+        ).trim();
         if (!plateFile || plateFile === "__error__") continue;
         cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
       }
@@ -340,7 +345,9 @@ export async function POST(req: Request) {
       }
       let cuts = song.cuts || [];
       for (const timing of plateTimings) {
-        const plateFile = (job.shots.find((s) => s.shotId === timing.plateId)?.plateFile || "").trim();
+        const plateFile = (
+          job.shots.find((s) => s.shotId === hangPlateShotId(timing.plateId))?.plateFile || ""
+        ).trim();
         if (!plateFile || plateFile === "__error__") continue;
         cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
       }
