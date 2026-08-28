@@ -118,6 +118,20 @@ export function plateLineBeats<T extends LineBeat>(opts: {
 }
 
 /**
+ * Music-video still card: one header + one Position fold.
+ * Extra spoken / No-lips rows stay in the pack — they do not each
+ * paint another "Position prompt (Redo still)". Talking desk still
+ * gets one editor per line.
+ */
+export function songDeskEditorBeats<T extends LineBeat>(
+  beats: T[],
+  songDesk: boolean,
+): T[] {
+  if (!songDesk) return beats;
+  return beats.slice(0, 1);
+}
+
+/**
  * Park one spoken take. If that was the last real line on the plate, leave
  * an empty box for the same speaker so they can Save again. Leftover pack
  * hydrate beats do not count as a real line.

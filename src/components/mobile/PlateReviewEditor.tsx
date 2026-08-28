@@ -43,6 +43,7 @@ import type { StockLook } from "@/lib/stockLook";
 import {
   leftoverHydrateBeat,
   plateLineBeats,
+  songDeskEditorBeats,
   shotSpeakersOnCard,
   speakersAlreadyInPlate,
   castPopupFaceGrey,
@@ -2310,6 +2311,11 @@ function ShotLineEditor({
     jobSpeakers,
     beats: shot.beats,
   });
+  // Same shot.staging Position — do not paint it once per spoken row.
+  const editorBeats = songDeskEditorBeats(
+    speakingBeats,
+    styleId === "music_video",
+  );
 
   return (
     <div style={{ ...mobileCard, padding: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -2334,47 +2340,49 @@ function ShotLineEditor({
       />
       {speakingBeats.map((beat) => {
         const clip = clips.find((c) => c.beatId === beat.id);
+        if (!(clip?.clipStatus === "error" && clip.error)) return null;
         return (
-          <div key={beat.id}>
-            {clip?.clipStatus === "error" && clip.error ? (
-              <div
+          <div
+            key={`clip-err-${beat.id}`}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "8px",
+            }}
+          >
+            <div style={{ flex: 1, fontSize: "12px", color: "var(--magenta-hot)" }}>
+              {clip.error}
+            </div>
+            {onDismissClipError ? (
+              <button
+                type="button"
+                aria-label="Bin failed clip"
+                title="Bin this failed Generate. File parks in _cleared/ — not deleted."
+                disabled={clipRemoveDisabled}
+                onClick={() => onDismissClipError(beat.id)}
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "8px",
-                  marginBottom: "6px",
+                  flex: "0 0 auto",
+                  width: "22px",
+                  height: "22px",
+                  padding: 0,
+                  borderRadius: "2px",
+                  border: "1px solid var(--acid)",
+                  background: "transparent",
+                  color: "var(--acid)",
+                  fontSize: "11px",
+                  lineHeight: 1,
+                  cursor: clipRemoveDisabled ? "not-allowed" : "pointer",
+                  opacity: clipRemoveDisabled ? 0.45 : 1,
                 }}
               >
-                <div style={{ flex: 1, fontSize: "12px", color: "var(--magenta-hot)" }}>
-                  {clip.error}
-                </div>
-                {onDismissClipError ? (
-                  <button
-                    type="button"
-                    aria-label="Bin failed clip"
-                    title="Bin this failed Generate. File parks in _cleared/ — not deleted."
-                    disabled={clipRemoveDisabled}
-                    onClick={() => onDismissClipError(beat.id)}
-                    style={{
-                      flex: "0 0 auto",
-                      width: "22px",
-                      height: "22px",
-                      padding: 0,
-                      borderRadius: "2px",
-                      border: "1px solid var(--acid)",
-                      background: "transparent",
-                      color: "var(--acid)",
-                      fontSize: "11px",
-                      lineHeight: 1,
-                      cursor: clipRemoveDisabled ? "not-allowed" : "pointer",
-                      opacity: clipRemoveDisabled ? 0.45 : 1,
-                    }}
-                  >
-                    ✕
-                  </button>
-                ) : null}
-              </div>
+                ✕
+              </button>
             ) : null}
+          </div>
+        );
+      })}
+      {editorBeats.map((beat) => (
+          <div key={beat.id}>
             {beat.kind === "cutaway" && styleId !== "music_video" ? (
             <CutawayBeatPanel
             key={beat.id}
@@ -2412,8 +2420,7 @@ function ShotLineEditor({
             shotId={shot.id}
             enginePromptOpen={
               styleId === "music_video" &&
-              (enginePromptOpen || muteAction) &&
-              beat.id === (speakingBeats[0]?.id || "")
+              (enginePromptOpen || muteAction)
             }
             mvEngine={mvEngine}
             jobVoices={jobVoices}
@@ -2460,8 +2467,7 @@ function ShotLineEditor({
           />
             )}
           </div>
-        );
-      })}
+      ))}
       {!speakingBeats.length ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {onAddToSong ? (

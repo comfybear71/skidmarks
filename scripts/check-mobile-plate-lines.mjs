@@ -4,6 +4,7 @@ import {
   beatsAfterRemoveLine,
   packDialogueSpeaker,
   plateLineBeats,
+  songDeskEditorBeats,
   plateCastStagingNote,
   speakerMentionedOnPlate,
   speakersAlreadyInPlate,
@@ -363,5 +364,13 @@ const turkeys = {
   beats: [{ id: "beat_t", speaker: "Bush Turkeys", voiceFile: "" }],
 };
 assert.deepEqual(shotSpeakersOnCard(turkeys), []);
+
+const jackRows = [
+  { id: "beat_jack", speaker: "JACK GHOST" },
+  { id: "beat_jack_mute", speaker: "JACK GHOST" },
+];
+assert.deepEqual(songDeskEditorBeats(jackRows, true), [jackRows[0]]);
+assert.equal(songDeskEditorBeats(jackRows, false).length, 2);
+assert.deepEqual(songDeskEditorBeats([], true), []);
 
 console.log("check-mobile-plate-lines: ok");
