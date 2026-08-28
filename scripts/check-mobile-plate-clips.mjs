@@ -557,14 +557,9 @@ const trackUi = fs.readFileSync(
   "utf8",
 );
 assert.match(trackUi, /dropPlateFromWave/);
-assert.match(
-  trackUi,
-  /aria-label="Take off the song"[\s\S]{0,220}dropPlateFromWave/,
-  "TRACK X unhangs and keeps the clip",
-);
-assert.doesNotMatch(
-  trackUi,
-  /aria-label="Take off the song"[\s\S]{0,220}redoPlate/,
-);
+assert.match(trackUi, /: "Remove"/, "Remove unhangs and keeps the clip");
+assert.doesNotMatch(trackUi, /Off song/, "Off song left the hung row");
+assert.doesNotMatch(trackUi, /Take off the song/, "TRACK X left the hung row");
+assert.doesNotMatch(trackUi, /redoPlate/, "Redo left the hung row");
 
 console.log("check-mobile-plate-clips: ok");
