@@ -9,7 +9,6 @@ import {
   formatTrackClock,
   formatTrackClockPrecise,
   msToSec,
-  secToMs,
   nextPlateHangWindow,
   evenLineStartMs,
   evenLyricHoldMs,
@@ -751,7 +750,6 @@ export function MusicVideoTrack({
   const [pickWhere, setPickWhere] = useState("");
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
-  const [rangeChosen, setRangeChosen] = useState(false);
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const jobRef = useRef(job);
@@ -1501,7 +1499,6 @@ export function MusicVideoTrack({
               onSelectRange={(startMs, endMs) => {
                 setRangeStartMs(startMs);
                 setRangeEndMs(endMs);
-                setRangeChosen(true);
               }}
             />
           ) : (
