@@ -57,8 +57,10 @@ import { applyStylePositionGold, stylePositionGold } from "@/lib/stylePositionGo
 import {
   buildDefaultBeatMotion,
   buildMuteMvMotionLock,
+  buildScratchSongLtxMotion,
   clearLtxMotionDraft,
   extractMuteMvMotionSlot,
+  imageMotionLooksMuteLock,
   looksLikePlatePositionPrompt,
   pickLtxMotionBody,
   readLtxMotionDraft,
@@ -2516,6 +2518,7 @@ function ShotLineEditor({
             beat={beat}
             clipStatus={clips.find((c) => c.beatId === beat.id)?.clipStatus}
             songDesk={styleId === "music_video"}
+            muteOn={muteAction}
             positionPrompt={shot.staging || ""}
             positionBibleIds={resolveShotBibleIds(shot)}
             onPositionSaved={(staging, plate) =>
@@ -2579,7 +2582,7 @@ function ShotLineEditor({
                   onSend={onSendStill}
                 />
               </div>
-              {styleId === "music_video" && (enginePromptOpen || muteAction) ? (
+              {styleId === "music_video" && muteAction ? (
                 <EmptyMvMotionHole
                   jobId={jobId}
                   shotId={shot.id}
@@ -2913,6 +2916,7 @@ function BeatLineEditor({
   beat,
   clipStatus,
   songDesk,
+  muteOn,
   positionPrompt,
   positionBibleIds,
   onPositionSaved,
@@ -2933,6 +2937,7 @@ function BeatLineEditor({
   beat: CrashStoryBeat;
   clipStatus?: MobileClipUnit["clipStatus"];
   songDesk?: boolean;
+  muteOn?: boolean;
   positionPrompt: string;
   positionBibleIds?: string[];
   onPositionSaved: (
@@ -3085,16 +3090,23 @@ function BeatLineEditor({
   const defaultMotionBody = useMemo(
     () =>
       stripLtxLipSyncLead(
-        buildDefaultBeatMotion({
-          styleId: styleId as ShowStyleId,
-          speaker: beat.speaker,
-          line: text,
-          lookLock,
-          shotSpeakers,
-          staging: positionBody,
-        }),
+        songDesk
+          ? buildScratchSongLtxMotion({
+              styleId: (styleId || "music_video") as ShowStyleId,
+              speaker: beat.speaker,
+              lookLock,
+              staging: positionBody,
+            })
+          : buildDefaultBeatMotion({
+              styleId: styleId as ShowStyleId,
+              speaker: beat.speaker,
+              line: text,
+              lookLock,
+              shotSpeakers,
+              staging: positionBody,
+            }),
       ),
-    [beat.speaker, lookLock, positionBody, shotSpeakers, styleId, text],
+    [beat.speaker, lookLock, positionBody, shotSpeakers, songDesk, styleId, text],
   );
   const storedMotion = stripLtxLipSyncLead(beat.imageMotion || "");
   const muteLock = useMemo(
@@ -3123,7 +3135,10 @@ function BeatLineEditor({
   }, [beat.id, jobId, songDesk, storedMotion]);
   const motionBody = pickLtxMotionBody({
     draft: motionDraft,
-    stored: storedMotion,
+    stored:
+      songDesk && !muteOn && imageMotionLooksMuteLock(storedMotion)
+        ? ""
+        : storedMotion,
     defaultBody: defaultMotionBody,
   });
   const motionDirty = motionDraft !== null;
@@ -3466,6 +3481,8 @@ function BeatLineEditor({
             writeMvMotionSlot(jobId, beat.id, next);
           }}
           disabled={saving}
+          mute={Boolean(muteOn)}
+          singingBody={motionBody}
         />
       ) : songDesk ? null : (
       <LtxImageMotionPanel

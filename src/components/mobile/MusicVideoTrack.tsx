@@ -74,8 +74,10 @@ import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { muteMvEmptyFrame, muteMvPadNames, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import {
   buildMuteMvMotionLock,
+  buildScratchSongLtxMotion,
   composeMuteMvMotion,
   extractMuteMvMotionSlot,
+  imageMotionLooksMuteLock,
   readMvMotionSlot,
   readMvMuteAction,
   readMvNobodyInShot,
@@ -1375,19 +1377,33 @@ export function MusicVideoTrack({
         job.roster?.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())
           ?.appearance ||
         "";
-    const lock = buildMuteMvMotionLock({
-      styleId: (job.styleId || "music_video") as ShowStyleId,
-      speaker: emptyFrame ? "" : speaker || shot?.title || "The performer",
-      lookLock: look,
-      shotSpeakers: speakers.length ? speakers : undefined,
-      staging: shot?.staging || "",
-      emptyFrame,
-    });
+    const muteOn = Boolean(readMvMuteAction(job.id, shotId) || emptyFrame);
     const stored = shot?.beats[0]?.imageMotion || "";
-    const live = readMvMotionSlot(job.id, targetBeatId);
-    const slot = live !== null ? live : extractMuteMvMotionSlot(stored, lock);
-    const body = composeMuteMvMotion(lock, slot);
-    writeMvMotionSlot(job.id, targetBeatId, slot);
+    const cut = waitingCutForPlate(shotId) || doneCutForPlate(shotId);
+    let body = stored;
+    if (muteOn) {
+      const lock = buildMuteMvMotionLock({
+        styleId: (job.styleId || "music_video") as ShowStyleId,
+        speaker: emptyFrame ? "" : speaker || shot?.title || "The performer",
+        lookLock: look,
+        shotSpeakers: speakers.length ? speakers : undefined,
+        staging: shot?.staging || "",
+        emptyFrame,
+      });
+      const live = readMvMotionSlot(job.id, targetBeatId);
+      const slot = live !== null ? live : extractMuteMvMotionSlot(stored, lock);
+      writeMvMotionSlot(job.id, targetBeatId, slot);
+      body = composeMuteMvMotion(lock, slot);
+    } else if (imageMotionLooksMuteLock(stored) || !stored.trim()) {
+      body = buildScratchSongLtxMotion({
+        styleId: (job.styleId || "music_video") as ShowStyleId,
+        speaker: speaker || shot?.title || "The performer",
+        lookLock: look,
+        staging: shot?.staging || "",
+        performance: cut?.performance,
+        startSec: cut?.startSec,
+      });
+    }
     const res = await fetch("/api/crash/mobile/beat-motion", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -798,10 +798,23 @@ export function pickLtxMotionBody(opts: {
   return opts.defaultBody;
 }
 
+/** Mute / No lips lock — mouth shut, not a verse. */
+export function imageMotionLooksMuteLock(text: string): boolean {
+  const t = stripLtxLipSyncLead(text);
+  if (!t) return false;
+  if (
+    /empty road as the start image/i.test(t) ||
+    (/\bno people in frame\b/i.test(t) && /\bmouth n\/a\b/i.test(t))
+  ) {
+    return true;
+  }
+  return /\bmouth stays closed\b/i.test(t) && /\bnot singing\b/i.test(t);
+}
+
 /**
- * Music-video Send: the LTX box wins. A singing default must not overwrite
- * words he already kept (stand up, car drives off). Gold "Only NAME in frame"
- * is part of that box — not a dumped Position prompt.
+ * Music-video Send: No lips off (singing / song slice) uses the singing stack.
+ * A stored mute lock ("Not singing") must not ride along — that cook cannot
+ * be a verse. No lips on keeps the mute [ ] words. Empty-road stays empty-road.
  */
 export function pickSongSendMotionBody(opts: {
   stored: string;
@@ -822,6 +835,9 @@ export function pickSongSendMotionBody(opts: {
       return stripLtxLipSyncLead(opts.stored);
     }
     return stripLtxLipSyncLead(opts.muteDefault || "");
+  }
+  if (opts.singing && imageMotionLooksMuteLock(opts.stored)) {
+    return opts.singingDefault;
   }
   if (opts.storedUsable) return stripLtxLipSyncLead(opts.stored);
   if (opts.singing) return opts.singingDefault;
