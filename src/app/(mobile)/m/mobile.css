@@ -3290,6 +3290,108 @@ span.scratch-history-blob {
   gap: 6px;
 }
 
+.m-track-engines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 8px;
+}
+
+.m-track-engine {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.m-track-engine.is-on {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+.m-track-engine:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.m-track-free-hint {
+  margin: 8px 0 6px;
+  color: var(--chrome-dim);
+  font-size: 12px;
+}
+
+.m-track-free-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.m-track-free-drop {
+  display: block;
+  margin: 8px 0 10px;
+  color: var(--chrome);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.m-track-free-drop input {
+  display: block;
+  margin-top: 6px;
+}
+
+.m-track-motion {
+  margin: 4px 0 10px;
+}
+
+.m-track-motion-label {
+  margin-bottom: 6px;
+  color: var(--chrome);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.m-track-motion-lock {
+  margin: 0;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.m-track-motion-slot {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.m-track-motion-slot-mark {
+  flex: 0 0 auto;
+  color: var(--acid);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.m-track-motion-slot textarea {
+  flex: 1 1 auto;
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 1px solid var(--acid);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--chrome);
+  font-size: 14px;
+  font-weight: 600;
+  resize: vertical;
+}
+
 .m-track-rail-add {
   flex: 0 0 auto;
   width: 46px;

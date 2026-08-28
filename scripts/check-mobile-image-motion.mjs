@@ -27,6 +27,11 @@ import {
   songStoredMotionUsable,
   looksLikePlatePositionPrompt,
   buildScratchSongLtxMotion,
+  buildMuteMvMotionLock,
+  composeMuteMvMotion,
+  extractMuteMvMotionSlot,
+  isSingingDefaultMotion,
+  MUTE_MV_SLOT_PLACEHOLDER,
 } from "../src/lib/mobileImageMotion.ts";
 
 assert.match(LTX_LIP_SYNC_LEAD, /dication is perfect/);
@@ -383,5 +388,29 @@ assert.equal(
   }),
   true,
 );
+
+const muteLock = buildMuteMvMotionLock({
+  styleId: "music_video",
+  speaker: "JACK GHOST",
+  lookLock: "Male singer in deep noir shadow",
+});
+assert.match(muteLock.lead, /Use the provided start image as the first frame/);
+assert.match(muteLock.lead, /JACK GHOST/);
+assert.match(muteLock.lead, /empty hands, no phone/);
+assert.match(muteLock.tail, /Mouth stays closed/);
+assert.match(muteLock.tail, /Not singing/);
+assert.match(muteLock.tail, /nothing new enters frame/);
+assert.equal(MUTE_MV_SLOT_PLACEHOLDER, "stand up, car drives off");
+const composed = composeMuteMvMotion(muteLock, "stand up, car drives off");
+assert.match(composed, /stand up, car drives off/);
+assert.match(composed, /Mouth stays closed/);
+assert.equal(extractMuteMvMotionSlot(composed, muteLock), "stand up, car drives off");
+assert.equal(extractMuteMvMotionSlot(jackSinging, muteLock), "");
+assert.equal(isSingingDefaultMotion(jackSinging), true);
+assert.equal(isSingingDefaultMotion(composed), false);
+const kept = extractMuteMvMotionSlot(jackStandUp, muteLock);
+assert.match(kept, /stands up from the crouch/);
+assert.match(kept, /vintage car already in the start image speeds off/);
+assert.doesNotMatch(kept, /Mouth stays closed/);
 
 console.log("check-mobile-image-motion: ok");

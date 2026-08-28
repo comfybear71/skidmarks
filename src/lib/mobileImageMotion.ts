@@ -807,6 +807,108 @@ export function pickSongSendMotionBody(opts: {
   return opts.speakingDefault;
 }
 
+/**
+ * Mute music-video Image motion: lock is fixed, [ ] is the only edit.
+ * Switching LTX ↔ H3 must keep the slot words.
+ */
+export type MuteMvMotionLock = { lead: string; tail: string };
+
+export const MUTE_MV_SLOT_PLACEHOLDER = "stand up, car drives off";
+
+const MUTE_MV_TAIL_START =
+  /Props and background stay exactly as the start image|No dialogue\. Mouth stays closed/i;
+
+export function isSingingDefaultMotion(text: string): boolean {
+  const t = stripLtxLipSyncLead(text);
+  if (!t) return false;
+  if (/\bmouth stays closed\b/i.test(t) && /\bnot singing\b/i.test(t)) return false;
+  return (
+    /\bsings this slice\b/i.test(t) ||
+    /\bcyan mouth line\b/i.test(t) ||
+    /\bmouth and head move naturally with the music, singing\b/i.test(t)
+  );
+}
+
+export function buildMuteMvMotionLock(opts: {
+  styleId: ShowStyleId;
+  speaker: string;
+  lookLock?: string;
+  shotSpeakers?: string[];
+  staging?: string;
+}): MuteMvMotionLock {
+  const name = clean(opts.speaker) || "The performer";
+  const look = shortLtxLookLock(opts.lookLock || "");
+  const who = look ? `${name}, ${look}` : name;
+  const staging = opts.staging || "";
+  const hands =
+    directorWantsEmptyHands(staging) || !stagingNamesHeldProp(staging, opts.styleId)
+      ? "empty hands, no phone"
+      : "same held object as the start image";
+  return {
+    lead: clean(`${GOLD_START_FRAME} ${who} is prominent, ${hands}.`),
+    tail: clean(
+      [
+        onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
+        GOLD_PROPS_LOCK,
+        GOLD_NO_TEXT,
+        "No dialogue. Mouth stays closed. Not singing. Not lip-sync. Camera holds, no cuts. Same person and objects as the start image.",
+        GOLD_NO_NEW_PEOPLE,
+        motionStyleLock(opts.styleId),
+      ].join(" "),
+    ),
+  };
+}
+
+export function composeMuteMvMotion(lock: MuteMvMotionLock, slot: string): string {
+  const move = clean(slot);
+  return move ? clean(`${lock.lead} ${move} ${lock.tail}`) : clean(`${lock.lead} ${lock.tail}`);
+}
+
+export function extractMuteMvMotionSlot(stored: string, lock: MuteMvMotionLock): string {
+  const body = stripLtxLipSyncLead(stored);
+  if (!body) return "";
+  if (isSingingDefaultMotion(body)) return "";
+  let mid = body;
+  if (lock.lead && mid.toLowerCase().startsWith(lock.lead.toLowerCase())) {
+    mid = clean(mid.slice(lock.lead.length));
+  } else {
+    mid = clean(mid.replace(/^Use the provided start image as the first frame\.\s*/i, ""));
+    mid = clean(mid.replace(/^.+? is prominent(?:, [^.]{0,80})?\.\s*/i, ""));
+  }
+  if (lock.tail) {
+    const idx = mid.toLowerCase().indexOf(lock.tail.toLowerCase());
+    if (idx >= 0) mid = clean(mid.slice(0, idx));
+  }
+  const tailAt = mid.search(MUTE_MV_TAIL_START);
+  if (tailAt >= 0) mid = clean(mid.slice(0, tailAt));
+  mid = clean(mid.replace(/\s*Only .+? in frame, no one else appears\.?\s*$/i, ""));
+  return mid;
+}
+
+function mvMotionSlotKey(jobId: string, beatId: string): string {
+  return `skidmarks.mvMotionSlot.${(jobId || "").trim()}.${(beatId || "").trim()}`;
+}
+
+/** His [ ] motion words stay when he switches LTX ↔ H3. */
+export function readMvMotionSlot(jobId: string, beatId: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.sessionStorage.getItem(mvMotionSlotKey(jobId, beatId));
+    return v !== null ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeMvMotionSlot(jobId: string, beatId: string, text: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(mvMotionSlotKey(jobId, beatId), text);
+  } catch {
+    /* private mode */
+  }
+}
+
 /** Kept LTX words — leftover Comfy/Land names still dump the box. */
 export function songStoredMotionUsable(
   stored: string,
