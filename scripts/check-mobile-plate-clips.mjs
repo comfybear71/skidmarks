@@ -15,6 +15,7 @@ import {
   stableClipTakeLabel,
 } from "../src/lib/mobilePlateClips.ts";
 import { parkMobileClipFile } from "../src/lib/mobileClipPark.ts";
+import { extraTakeHangPlateId } from "../src/lib/musicVideoTrack.ts";
 
 const clip = {
   beatId: "beat-1",
@@ -60,7 +61,7 @@ assert.equal(
       { plateId: "shot-60", startMs: 60000, endMs: 75000, sortIndex: 1 },
     ],
   }),
-  "1:00",
+  "1:00 · 15s",
 );
 assert.equal(
   stableClipTakeLabel({
@@ -88,9 +89,36 @@ const afterDel = stableClipTakeLabel({
   shotId: "keep",
   plateTimings: [{ plateId: "keep", startMs: 75000, endMs: 90000, sortIndex: 0 }],
 });
-assert.equal(beforeDel, "1:15");
-assert.equal(afterDel, "1:15");
+assert.equal(beforeDel, "1:15 · 15s");
+assert.equal(afterDel, "1:15 · 15s");
 assert.equal(beforeDel, afterDel);
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "five_at_15.mp4",
+    shotId: "p2",
+    durationSec: 5,
+    plateTimings: [{ plateId: "p2", startMs: 15000, endMs: 30000, sortIndex: 0 }],
+  }),
+  "0:15 · 5s",
+  "5s file hung at 0:15 must stamp 5s, not look like 15s",
+);
+assert.notEqual(
+  stableClipTakeLabel({
+    fileName: "five_at_15.mp4",
+    shotId: "p2",
+    durationSec: 5,
+    plateTimings: [{ plateId: "p2", startMs: 15000, endMs: 30000, sortIndex: 0 }],
+  }),
+  "0:15",
+);
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "01_Babe_dzd.mp4",
+    songCuts: [{ clipFile: "01_Babe_dzd.mp4", startSec: 0 }],
+  }),
+  "off",
+  "filename tail dzd must not come back",
+);
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plate-clips-"));
 process.env.DATA_DIR = dir;
@@ -197,7 +225,9 @@ assert.equal(sharedBeat[0].shotId, "shot-2");
 const thumbs = fs.readFileSync(new URL("../src/components/mobile/PlateClipThumbs.tsx", import.meta.url), "utf8");
 assert.match(thumbs, /createPortal/);
 assert.match(thumbs, /scratch-clip-overlay/);
-assert.match(thumbs, /stableClipTakeLabel/);
+assert.match(thumbs, /formatClipTakeStamp/);
+assert.match(thumbs, /clipTakeDurationSec/);
+assert.doesNotMatch(thumbs, /formatSongClock/);
 assert.match(thumbs, /`clip \$\{i \+ 1\}`/);
 assert.match(thumbs, /m-plate-clip-plate/);
 assert.match(thumbs, /onHangClip/);
@@ -291,12 +321,32 @@ assert.deepEqual(
       ],
     }),
   ),
-  ["0:00", "0:15", "0:30"],
+  ["0:00 · 15s", "0:15 · 15s", "0:30 · 15s"],
 );
 assert.deepEqual(clipRailLabels(stuiesThree.length), ["clip 1", "clip 2", "clip 3"]);
 assert.equal(clipHangStartMs(stuiesThree[1], {
   plateTimings: [{ plateId: "plate-8", startMs: 15000, endMs: 30000, sortIndex: 1 }],
 }), 15000);
+
+const leftoverClock = clipHangStartMs(
+  { shotId: "jack3", clipFile: "04_Jack_stand.mp4", priorClipFiles: [] },
+  {
+    cuts: [
+      { shotId: "jack3", clipFile: "03_Jack_5.mp4" },
+      { shotId: extraTakeHangPlateId("jack3", "04_Jack_stand.mp4"), clipFile: "04_Jack_stand.mp4" },
+    ],
+    plateTimings: [
+      { plateId: "jack3", startMs: 20000, endMs: 25000, sortIndex: 0 },
+      {
+        plateId: extraTakeHangPlateId("jack3", "04_Jack_stand.mp4"),
+        startMs: 25000,
+        endMs: 33000,
+        sortIndex: 1,
+      },
+    ],
+  },
+);
+assert.equal(leftoverClock, 25000, "leftover take uses its own bar — not the 0:20 first take");
 
 /** Two different mp4s on the same still (both used to say plate 9). */
 const twoOnNine = gatherClipsForStillsRail(
@@ -324,6 +374,37 @@ assert.deepEqual(
 assert.deepEqual(clipRailLabels(twoOnNine.length), ["clip 1", "clip 2"]);
 assert.notEqual(twoOnNine[0].clipFile, twoOnNine[1].clipFile);
 
+/** Screenshot after #398: start stamps 0:00 / 0:15 / 0:20 / 0:20. Files are 16s, 5s, 5s, 5s. */
+const stuiesLengths = [
+  {
+    fileName: "01_first.mp4",
+    shotId: "p1",
+    durationSec: 16,
+    plateTimings: [{ plateId: "p1", startMs: 0, endMs: 15000, sortIndex: 0 }],
+  },
+  {
+    fileName: "02_second.mp4",
+    shotId: "p2",
+    durationSec: 5,
+    plateTimings: [{ plateId: "p2", startMs: 15000, endMs: 20000, sortIndex: 1 }],
+  },
+  {
+    fileName: "03_third.mp4",
+    shotId: "p3",
+    durationSec: 5,
+    plateTimings: [{ plateId: "p3", startMs: 20000, endMs: 25000, sortIndex: 2 }],
+  },
+  {
+    fileName: "04_fourth.mp4",
+    shotId: "p4",
+    durationSec: 5,
+    plateTimings: [{ plateId: "p4", startMs: 20000, endMs: 25000, sortIndex: 3 }],
+  },
+].map((row) => stableClipTakeLabel(row));
+assert.deepEqual(stuiesLengths, ["0:00 · 16s", "0:15 · 5s", "0:20 · 5s", "0:20 · 5s"]);
+assert.ok(stuiesLengths.every((label) => !/^0:\d{2}$/.test(label)), "start-only stamp is a lie");
+assert.ok(!stuiesLengths.some((label) => /kI0|dzd/i.test(label)));
+
 /** Screenshots: clip 3 + clip 4 both say 0:20 until the leftover owns its own bar. */
 const jackCuts = [
   { clipFile: "01_jack.mp4", shotId: "jack1" },
@@ -339,15 +420,17 @@ assert.equal(
   stableClipTakeLabel({
     fileName: "03_stand.mp4",
     shotId: "jack",
+    durationSec: 5,
     songCuts: jackCuts,
     plateTimings: jackTimings,
   }),
-  "0:20",
+  "0:20 · 5s",
 );
 assert.equal(
   stableClipTakeLabel({
     fileName: "04_crouch.mp4",
     shotId: "jack",
+    durationSec: 5,
     songCuts: jackCuts,
     plateTimings: jackTimings,
   }),
@@ -366,20 +449,22 @@ assert.equal(
   stableClipTakeLabel({
     fileName: "03_stand.mp4",
     shotId: "jack",
+    durationSec: 5,
     songCuts: afterHangCuts,
     plateTimings: afterHangTimings,
   }),
-  "0:20",
+  "0:20 · 5s",
 );
 assert.equal(
   stableClipTakeLabel({
     fileName: "04_crouch.mp4",
     shotId: "jack",
+    durationSec: 5,
     songCuts: afterHangCuts,
     plateTimings: afterHangTimings,
   }),
-  "0:25",
-  "hung leftover stamps 0:25, not another 0:20",
+  "0:25 · 5s",
+  "hung leftover stamps 0:25 · 5s, not another 0:20",
 );
 assert.equal(
   clipHangStartMs(twoOnNine[0], {

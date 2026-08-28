@@ -7,6 +7,7 @@ import {
   placeChipLabel,
   placeDetailTitle,
   placeLookWords,
+  uniquePlacePickOptions,
 } from "../src/lib/mobilePlaceLabels.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -37,5 +38,25 @@ assert.match(tree, /placeChipLabel\(scene\.placeName\)/);
 assert.match(tree, /displayTitle=\{placeDetailTitle/);
 assert.match(tree, /lookDetail=\{placeLookWords/);
 assert.match(tree, /m-place-look-fold/);
+assert.match(tree, /uniquePlacePickOptions/);
+
+{
+  const dark = "/api/crash/mobile/location-still?name=Dark%20imag.png";
+  const seven = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
+    sceneId: `scene_${n}`,
+    name: "Dark imag...",
+    thumbUrl: dark,
+  }));
+  const one = uniquePlacePickOptions(seven);
+  assert.equal(one.length, 1);
+  assert.equal(one[0].sceneId, "scene_1");
+  const mixed = uniquePlacePickOptions([
+    ...seven,
+    { sceneId: "scene_bar", name: "The bar", thumbUrl: "/bar.png" },
+    { sceneId: "scene_bar_clone", name: "The bar", thumbUrl: "/bar-other.png" },
+  ]);
+  assert.equal(mixed.length, 2);
+  assert.equal(mixed[1].sceneId, "scene_bar");
+}
 
 console.log("mobile place labels ok");

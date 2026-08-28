@@ -25,7 +25,6 @@ import {
   cutForHungPlate,
   hangPlateShotId,
   isRealPlateHang,
-  listUnhungDoneClips,
   resolvePlateTimings,
   stretchPlateEdge,
   hitPlateEdge,
@@ -67,6 +66,7 @@ import {
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
+import { uniquePlacePickOptions } from "@/lib/mobilePlaceLabels";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
 import { readApiJson } from "@/lib/studioFetchError";
@@ -892,7 +892,7 @@ export function MusicVideoTrack({
   const [openSectionId, setOpenSectionId] = useState("");
   const [playing, setPlaying] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
-  const [pickWho, setPickWho] = useState("");
+  const [pickWho, setPickWho] = useState<string | null>(null);
   const [pickWhere, setPickWhere] = useState("");
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
@@ -991,11 +991,10 @@ export function MusicVideoTrack({
     const saved = savedPlateBlocks.find((b) => b.plateId === t.plateId);
     return { ...t, label: row?.title || saved?.label || t.plateId };
   });
+  // Hung stills sit on the wave. Unhung stills stay in STILLS — TRACK
+  // must not grow a second shelf of JACK GHOST / Plate 5 / off cards.
   const filmItems = useMemo(() => {
-    const hungIds = new Set(
-      plateBlocks.filter((b) => isRealPlateHang(b)).map((b) => b.plateId),
-    );
-    const hung = plateBlocks
+    return plateBlocks
       .filter((block) => isRealPlateHang(block))
       .map((block) => {
         const row = plateRows.find((p) => p.shotId === hangPlateShotId(block.plateId));
@@ -1007,35 +1006,20 @@ export function MusicVideoTrack({
           onSong: true,
         };
       });
-    const waiting = plateRows
-      .filter((row) => !hungIds.has(row.shotId))
-      .map((row) => ({
-        shotId: row.shotId,
-        title: row.title,
-        plateFile: row.plateFile,
-        timing: isRealPlateHang(row.timing) ? row.timing : null,
-        onSong: false,
-      }));
-    return [...hung, ...waiting];
   }, [plateBlocks, plateRows]);
+  const addPlaces = useMemo(
+    () => uniquePlacePickOptions(placeOptions),
+    [placeOptions],
+  );
   const picked =
     filmItems.find((item) => item.shotId === pickedId) || filmItems[0] || null;
-  const leftoverOnPicked = Boolean(
-    picked &&
-      listUnhungDoneClips({
-        clips: job.clips || [],
-        cuts: song?.cuts || [],
-        plateTimings: song?.plateTimings,
-        skipShotIds: song?.skipShotIds,
-      }).some((row) => row.shotId === hangPlateShotId(picked.shotId)),
-  );
   const pickedOnSong = Boolean(picked && isRealPlateHang(picked.timing));
   const pickedClock =
     picked?.timing ||
     plateBlocks.find((b) => b.plateId === picked?.shotId) ||
     null;
   const pickedStory = useMemo(() => {
-    const id = (picked?.shotId || "").trim();
+    const id = hangPlateShotId((picked?.shotId || "").trim());
     if (!id || !story) return null;
     for (const scene of story.scenes || []) {
       const shot = scene.shots.find((sh) => sh.id === id);
@@ -1490,14 +1474,8 @@ export function MusicVideoTrack({
       setNote("Drop the song first.");
       return;
     }
-    const leftover = listUnhungDoneClips({
-      clips: job.clips || [],
-      cuts: song.cuts || [],
-      plateTimings: song.plateTimings,
-      skipShotIds: song.skipShotIds,
-    }).some((row) => row.shotId === hangPlateShotId(shotId));
     const existing = plateTimingForShot(song, job.trackDraft, shotId);
-    if (leftover || (existing && isRealPlateHang(existing))) {
+    if (existing && isRealPlateHang(existing)) {
       const before = resolvePlateTimings(song, job.trackDraft).filter((t) =>
         isRealPlateHang(t),
       ).length;
@@ -1519,8 +1497,11 @@ export function MusicVideoTrack({
           raw.job?.trackDraft,
         ).filter((t) => isRealPlateHang(t)).length;
         setPickedId(shotId);
-        if (after > before) setNote("");
-        else setNote("Already on the song. Pull the handle, then Send.");
+        setNote(
+          after > before
+            ? "On the song. Pull the handle, then Send."
+            : "Already on the song. Pull the handle, then Send.",
+        );
       } catch (e) {
         setNote(e instanceof Error ? e.message : "Couldn't add that still");
       } finally {
@@ -2134,7 +2115,7 @@ export function MusicVideoTrack({
                   setPickOpen((v) => !v);
                 }}
                 aria-expanded={pickOpen}
-                aria-label="Add a still"
+                aria-label="Add a plate"
               >
                 +
               </button>
@@ -2219,16 +2200,6 @@ export function MusicVideoTrack({
                         </button>
                       </>
                     ) : null}
-                    {leftoverOnPicked ? (
-                      <button
-                        type="button"
-                        className="m-track-btn"
-                        disabled={Boolean(busy)}
-                        onClick={() => void addPlateToTimeline(picked.shotId)}
-                      >
-                        {busy === `add-${picked.shotId}` ? "…" : "Add"}
-                      </button>
-                    ) : null}
                   </>
                 ) : hungClipFileForPlate(job, picked.shotId) ? null : (
                   <button
@@ -2256,8 +2227,7 @@ export function MusicVideoTrack({
             </div>
           ) : null}
 
-          {/* One person, one place, one plate — picked here rather than three
-              scrolls down inside a Locations card. */}
+          {/* New plate only: person / empty / place. Not every current still. */}
           {pickOpen ? (
             <div className="m-plate-pick">
               <div className="m-plate-pick-row">
@@ -2277,9 +2247,17 @@ export function MusicVideoTrack({
                     <span className="m-plate-pick-name">{who.name}</span>
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className={`m-plate-pick-cell${pickWho === "" ? " is-on" : ""}`}
+                  onClick={() => setPickWho("")}
+                >
+                  <span className="m-plate-pick-blank" />
+                  <span className="m-plate-pick-name">Empty</span>
+                </button>
               </div>
               <div className="m-plate-pick-row">
-                {placeOptions.map((place) => (
+                {addPlaces.map((place) => (
                   <button
                     type="button"
                     key={place.sceneId}
@@ -2300,24 +2278,34 @@ export function MusicVideoTrack({
                 <MobilePrimaryButton
                   size="chip"
                   disabled={
-                    !pickWho ||
+                    pickWho === null ||
                     !pickWhere ||
                     (!job.folderName && !isMusicVideoSongJob(job))
                   }
                   onClick={() => {
-                    onCreatePlate?.(pickWhere, pickWho);
+                    onCreatePlate?.(pickWhere, pickWho || "");
                     setPickOpen(false);
-                    setPickWho("");
+                    setPickWho(null);
                     setPickWhere("");
                   }}
                 >
                   {job.folderName
-                    ? `Add ${pickWho || "plate"}`
+                    ? pickWho
+                      ? `Add ${pickWho}`
+                      : "Add empty"
                     : isMusicVideoSongJob(job)
                       ? "Start the video & add"
                       : "Lock first"}
                 </MobilePrimaryButton>
-                <button type="button" className="m-track-btn" onClick={() => setPickOpen(false)}>
+                <button
+                  type="button"
+                  className="m-track-btn"
+                  onClick={() => {
+                    setPickOpen(false);
+                    setPickWho(null);
+                    setPickWhere("");
+                  }}
+                >
                   Cancel
                 </button>
               </div>

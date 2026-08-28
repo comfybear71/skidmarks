@@ -603,7 +603,7 @@ export function hangPlateShotId(plateId: string): string {
 }
 
 export function extraTakeHangPlateId(shotId: string, clipFile: string): string {
-  const shot = (shotId || "").trim();
+  const shot = hangPlateShotId(shotId);
   const stem = hangClipBasename(clipFile).replace(/\.[^.]+$/, "");
   const tail = stem.replace(/[^a-zA-Z0-9]/g, "").slice(-12);
   if (!shot) return "";
@@ -690,8 +690,10 @@ function upsertClipHangCut(
 
 /**
  * File first — hang this mp4 on the wave. Same still, second take gets its
- * own clock (`shotId~tail`). Next gap. Known length else 15. Does not cook.
- * Does not invent 15s when this file already has a real in/out.
+ * own clock (`shotId~tail`). Next gap after the last hung end. Known length
+ * else 15. Does not cook. Does not invent 15s when this file already has
+ * a real in/out. Overlap with a hung bar (two takes both at 0:20) slides
+ * to the cursor — do not stack another 0:20.
  */
 export function hangOneClipOnWave(opts: {
   plateTimings?: PlateTiming[];
@@ -772,11 +774,7 @@ export function listUnhungDoneClips(opts: {
     (opts.skipShotIds || []).map((id) => hangPlateShotId(id)).filter(Boolean),
   );
   const clock = { cuts: opts.cuts, plateTimings: opts.plateTimings };
-  const impliedHung = impliedHungClipFiles({
-    clips: opts.clips,
-    cuts: opts.cuts,
-    plateTimings: opts.plateTimings,
-  });
+  const impliedHung = impliedHungClipFiles(opts);
   const seen = new Set<string>();
   const out: UnhungDoneClip[] = [];
   const take = (
@@ -809,51 +807,6 @@ export function listUnhungDoneClips(opts: {
     take(cut.shotId || "", cut.clipFile || "", cut.plateFile, cut.durationSec);
   }
   return out;
-}
-
-/**
- * File first — hang every unhung done mp4 at the next gap after the last
- * hung end. Same still, second take → 0:25 not another 0:20. Does not cook.
- */
-export function hangUnhungDoneClips(opts: {
-  plateTimings?: PlateTiming[];
-  cuts: ScratchSongCut[];
-  clips?: Array<{
-    shotId?: string;
-    clipFile?: string;
-    priorClipFiles?: string[];
-    clipStatus?: string;
-    durationSec?: number;
-  }>;
-  skipShotIds?: string[];
-  plateFileFor: (shotId: string) => string;
-  newCutId: () => string;
-  onlyShotId?: string;
-}): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } {
-  let plateTimings = opts.plateTimings;
-  let cuts = opts.cuts;
-  const only = hangPlateShotId(opts.onlyShotId || "");
-  const rows = listUnhungDoneClips({
-    clips: opts.clips,
-    cuts,
-    plateTimings,
-    skipShotIds: opts.skipShotIds,
-  }).filter((row) => !only || row.shotId === only);
-  for (const row of rows) {
-    const hung = hangOneClipOnWave({
-      plateTimings,
-      cuts,
-      shotId: row.shotId,
-      plateFile: (opts.plateFileFor(row.shotId) || row.plateFile || "").trim(),
-      clipFile: row.clipFile,
-      durationSec: row.durationSec,
-      newCutId: opts.newCutId,
-    });
-    if (!hung) continue;
-    plateTimings = hung.plateTimings;
-    cuts = hung.cuts;
-  }
-  return { plateTimings: plateTimings || [], cuts };
 }
 
 /**
@@ -907,6 +860,52 @@ function impliedHungClipFiles(opts: {
 }
 
 /**
+ * File first — hang every unhung done mp4 at the next gap after the last
+ * hung end. Same still, second take → after 0:25, not another 0:20.
+ * Waiting 0/3 cuts do not block. Does not cook.
+ */
+export function hangUnhungDoneClips(opts: {
+  plateTimings?: PlateTiming[];
+  cuts: ScratchSongCut[];
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }>;
+  skipShotIds?: string[];
+  plateFileFor: (shotId: string) => string;
+  newCutId: () => string;
+  onlyShotId?: string;
+}): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } {
+  let plateTimings = opts.plateTimings;
+  let cuts = opts.cuts;
+  const only = hangPlateShotId(opts.onlyShotId || "");
+  const rows = listUnhungDoneClips({
+    clips: opts.clips,
+    cuts,
+    plateTimings,
+    skipShotIds: opts.skipShotIds,
+  }).filter((row) => !only || row.shotId === only);
+  for (const row of rows) {
+    const hung = hangOneClipOnWave({
+      plateTimings,
+      cuts,
+      shotId: row.shotId,
+      plateFile: (opts.plateFileFor(row.shotId) || row.plateFile || "").trim(),
+      clipFile: row.clipFile,
+      durationSec: row.durationSec,
+      newCutId: opts.newCutId,
+    });
+    if (!hung) continue;
+    plateTimings = hung.plateTimings;
+    cuts = hung.cuts;
+  }
+  return { plateTimings: plateTimings || [], cuts };
+}
+
+/**
  * STILLS ADD / plate-row Add / Open→Add: if this still already has an
  * unhung mp4, hang that file after the last bar. Cut + plateTiming
  * together. Does not mint a waiting cook. hung=false when there is no
@@ -951,6 +950,47 @@ export function addPlateFileFirstHang(opts: {
     onlyShotId: shotId,
   });
   return { ...hung, hung: true };
+}
+
+/**
+ * Both Add buttons (STILLS + plate-row) share this. File first: leftover
+ * mp4 after the last hung end. Then hang the still if it has no unique slot.
+ * Waiting 0/3 cuts do not block. Does not cook.
+ */
+export function addPlateHangOnTrack(opts: {
+  plateTimings?: PlateTiming[];
+  cuts: ScratchSongCut[];
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }>;
+  shotId: string;
+  hangCuts: Array<Pick<ScratchSongCut, "shotId" | "startSec"> & { durationSec?: number }>;
+  extraIds: string[];
+  skipShotIds?: string[];
+  plateFileFor: (shotId: string) => string;
+  newCutId: () => string;
+}): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } {
+  const leftover = hangUnhungDoneClips({
+    plateTimings: opts.plateTimings,
+    cuts: opts.cuts,
+    clips: opts.clips,
+    skipShotIds: opts.skipShotIds,
+    plateFileFor: opts.plateFileFor,
+    newCutId: opts.newCutId,
+    onlyShotId: opts.shotId,
+  });
+  return {
+    plateTimings: hangMissingPlateTimings(
+      leftover.plateTimings,
+      opts.hangCuts,
+      opts.extraIds,
+    ),
+    cuts: leftover.cuts,
+  };
 }
 
 /**
