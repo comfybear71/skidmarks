@@ -53,9 +53,13 @@ import type { ShowStyleId } from "@/lib/showStylePresets";
 import { applyStylePositionGold, stylePositionGold } from "@/lib/stylePositionGold";
 import {
   buildDefaultBeatMotion,
+  clearLtxMotionDraft,
+  hasLtxMotionDraft,
   looksLikePlatePositionPrompt,
-  storedMotionNeedsRebuild,
+  pickLtxMotionBody,
+  readLtxMotionDraft,
   stripLtxLipSyncLead,
+  writeLtxMotionDraft,
 } from "@/lib/mobileImageMotion";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 import { isEmptyStageStaging } from "@/lib/emptyStagePlate";
@@ -111,6 +115,41 @@ function fieldLabel(text: string) {
 
 /** One removed shot, kept around just long enough to put back. */
 type RemovedShot = { sceneId: string; shot: CrashStoryShot };
+
+/** Story GET / poll must not wipe a beat's Image motion he already wrote. */
+function mergeStoryKeepingLtxMotion(
+  local: CrashStoryDoc | null,
+  incoming: CrashStoryDoc,
+  jobId: string,
+): CrashStoryDoc {
+  if (!local) return incoming;
+  const localByBeat = new Map<string, string>();
+  for (const sc of local.scenes) {
+    for (const sh of sc.shots) {
+      for (const b of sh.beats) {
+        if ((b.imageMotion || "").trim()) localByBeat.set(b.id, b.imageMotion || "");
+      }
+    }
+  }
+  return {
+    ...incoming,
+    scenes: incoming.scenes.map((sc) => ({
+      ...sc,
+      shots: sc.shots.map((sh) => ({
+        ...sh,
+        beats: sh.beats.map((b) => {
+          const kept = localByBeat.get(b.id);
+          if (!kept) return b;
+          const incomingMotion = (b.imageMotion || "").trim();
+          if (hasLtxMotionDraft(jobId, b.id) || !incomingMotion) {
+            return { ...b, imageMotion: kept };
+          }
+          return b;
+        }),
+      })),
+    })),
+  };
+}
 
 async function fetchStory(styleId: string, folderName: string): Promise<CrashStoryDoc | null> {
   const res = await fetch(
@@ -251,7 +290,7 @@ export function PlateReviewEditor({
       .then((s) => {
         if (cancelled) return;
         if (s) {
-          setStory(s);
+          setStory((cur) => mergeStoryKeepingLtxMotion(cur, s, job.id));
           setLoadError("");
         } else setLoadError("Couldn't load the plates. Tap + — the episode is still there.");
       })
@@ -263,7 +302,7 @@ export function PlateReviewEditor({
     return () => {
       cancelled = true;
     };
-  }, [job.styleId, job.folderName, shotIdsKey]);
+  }, [job.styleId, job.folderName, shotIdsKey, job.id]);
 
   useEffect(() => {
     const id = (focusShotId || "").trim();
@@ -404,7 +443,7 @@ export function PlateReviewEditor({
       const data = (await res.json()) as { error?: string; job?: MobileGenJob; shotId?: string };
       if (!res.ok) throw new Error(data.error || "Couldn't add that card");
       const fresh = await fetchStory(job.styleId, job.folderName);
-      if (fresh) setStory(fresh);
+      if (fresh) setStory((cur) => mergeStoryKeepingLtxMotion(cur, fresh, job.id));
       if (data.job) onJobChange?.(data.job);
       if (data.shotId) setOpenShotId(data.shotId);
     } catch (e) {
@@ -464,7 +503,7 @@ export function PlateReviewEditor({
         if (data.job) onJobChange?.(data.job);
       }
       const fresh = await fetchStory(job.styleId, job.folderName);
-      if (fresh) setStory(fresh);
+      if (fresh) setStory((cur) => mergeStoryKeepingLtxMotion(cur, fresh, job.id));
       setRemovedBuffer([]);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Couldn't undo that");
@@ -546,7 +585,7 @@ export function PlateReviewEditor({
       const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
       if (data.job) onJobChange?.(data.job);
       const fresh = await fetchStory(job.styleId, job.folderName);
-      if (fresh) setStory(fresh);
+      if (fresh) setStory((cur) => mergeStoryKeepingLtxMotion(cur, fresh, job.id));
     } catch (e) {
       setActionError(studioFetchError(e, "Couldn't add this plate to the song"));
     } finally {
@@ -1002,7 +1041,7 @@ export function PlateReviewEditor({
               };
             });
             void fetchStory(job.styleId, job.folderName).then((fresh) => {
-              if (fresh) setStory(fresh);
+              if (fresh) setStory((cur) => mergeStoryKeepingLtxMotion(cur, fresh, job.id));
             });
             setCastPickerShotId(null);
             if (id) setOpenShotId(id);
@@ -2606,7 +2645,14 @@ function BeatLineEditor({
   // Bible already ran on Draw — keep this shut unless they need Redo still.
   const [positionOpen, setPositionOpen] = useState(false);
   const [positionDraft, setPositionDraft] = useState<string | null>(null);
-  const [motionDraft, setMotionDraft] = useState<string | null>(null);
+  const [motionDraft, setMotionDraftState] = useState<string | null>(() =>
+    readLtxMotionDraft(jobId, beat.id),
+  );
+  const setMotionDraft = (v: string | null) => {
+    if (v === null) clearLtxMotionDraft(jobId, beat.id);
+    else writeLtxMotionDraft(jobId, beat.id, v);
+    setMotionDraftState(v);
+  };
   const [bibleMode, setBibleMode] = useState<ScratchBiblePickMode>("replace");
   const [bibleActiveIds, setBibleActiveIds] = useState<string[]>(() =>
     (positionBibleIds || []).filter(Boolean),
@@ -2727,9 +2773,11 @@ function BeatLineEditor({
     [beat.speaker, lookLock, positionBody, shotSpeakers, styleId, text],
   );
   const storedMotion = stripLtxLipSyncLead(beat.imageMotion || "");
-  const storedMotionOk =
-    Boolean(storedMotion) && !storedMotionNeedsRebuild(storedMotion, positionBody);
-  const motionBody = motionDraft ?? (storedMotionOk ? storedMotion : defaultMotionBody);
+  const motionBody = pickLtxMotionBody({
+    draft: motionDraft,
+    stored: storedMotion,
+    defaultBody: defaultMotionBody,
+  });
   const motionDirty = motionDraft !== null;
   const motionHint = useMemo(
     () =>
@@ -2785,19 +2833,9 @@ function BeatLineEditor({
     }
   }
 
-  const emptiedPhoneMotionRef = useRef("");
   useEffect(() => {
-    if (motionDraft !== null) return;
-    if (!storedMotionNeedsRebuild(storedMotion, positionBody)) return;
-    const next = defaultMotionBody.trim();
-    if (!next) return;
-    const key = `${beat.id}:${next}`;
-    if (emptiedPhoneMotionRef.current === key) return;
-    emptiedPhoneMotionRef.current = key;
-    void persistMotion(next).catch(() => {
-      emptiedPhoneMotionRef.current = "";
-    });
-  }, [beat.id, defaultMotionBody, motionDraft, persistMotion, positionBody, storedMotion]);
+    setMotionDraftState(readLtxMotionDraft(jobId, beat.id));
+  }, [jobId, beat.id]);
 
   const motionAssist = useMobileAssist(
     "image_motion",
@@ -3058,6 +3096,7 @@ function BeatLineEditor({
         onToggle={() => setLtxOpen((open) => !open)}
         body={motionBody}
         onChange={(v) => setMotionDraft(v)}
+        dirty={motionDirty}
         keepDisabled={saving}
         keeping={saving}
         onKeep={() => {

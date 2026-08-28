@@ -14,6 +14,11 @@ import {
   ensureGoldFrameLocks,
   storedMotionFightsEmptyHands,
   storedMotionReinventsLook,
+  pickLtxMotionBody,
+  readLtxMotionDraft,
+  writeLtxMotionDraft,
+  clearLtxMotionDraft,
+  hasLtxMotionDraft,
   ltxSendPrompt,
   buildCutawayMotion,
   isCutawayMotion,
@@ -301,5 +306,54 @@ assert.equal(
   ),
   true,
 );
+
+const jackAdded = "Jack stands up from a crouch. The car speeds off toward the city.";
+const rebuiltDefault =
+  "Use the provided start image as the first frame. Jack Ghost is prominent.";
+assert.equal(
+  pickLtxMotionBody({ draft: jackAdded, stored: "", defaultBody: rebuiltDefault }),
+  jackAdded,
+  "typing in the box must not lose to a rebuilt default",
+);
+assert.equal(
+  pickLtxMotionBody({ draft: null, stored: jackAdded, defaultBody: rebuiltDefault }),
+  jackAdded,
+  "stored words win over a rebuilt default",
+);
+assert.equal(
+  pickLtxMotionBody({
+    draft: null,
+    stored: "she is cleaner and a little bit younger",
+    defaultBody: rebuiltDefault,
+  }),
+  "she is cleaner and a little bit younger",
+  "a rebuild flag must not hide text he already wrote",
+);
+assert.equal(
+  pickLtxMotionBody({ draft: null, stored: "", defaultBody: rebuiltDefault }),
+  rebuiltDefault,
+);
+assert.equal(
+  pickLtxMotionBody({ draft: "", stored: jackAdded, defaultBody: rebuiltDefault }),
+  "",
+  "an emptied box stays empty until he types again",
+);
+writeLtxMotionDraft("job1", "beat1", jackAdded);
+assert.equal(hasLtxMotionDraft("job1", "beat1"), true);
+assert.equal(readLtxMotionDraft("job1", "beat1"), jackAdded);
+clearLtxMotionDraft("job1", "beat1");
+assert.equal(hasLtxMotionDraft("job1", "beat1"), false);
+assert.equal(readLtxMotionDraft("job1", "beat1"), null);
+
+const editorSrc = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+assert.match(editorSrc, /pickLtxMotionBody/);
+assert.match(editorSrc, /dirty=\{motionDirty\}/);
+assert.match(editorSrc, /mergeStoryKeepingLtxMotion/);
+assert.doesNotMatch(editorSrc, /storedMotionOk/);
+assert.doesNotMatch(editorSrc, /emptiedPhoneMotionRef/);
+assert.doesNotMatch(editorSrc, /storedMotionNeedsRebuild/);
+
+const scratchSrc = readFileSync(join(here, "../src/app/(mobile)/scratch/page.tsx"), "utf8");
+assert.match(scratchSrc, /pickLtxMotionBody/);
 
 console.log("check-mobile-image-motion: ok");

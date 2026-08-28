@@ -8,7 +8,14 @@ import {
   CUTAWAY_SFX_MAX_SEC,
   CUTAWAY_SFX_MIN_SEC,
 } from "@/lib/cutawayActions";
-import { buildCutawayMotion, stripLtxLipSyncLead } from "@/lib/mobileImageMotion";
+import {
+  buildCutawayMotion,
+  clearLtxMotionDraft,
+  pickLtxMotionBody,
+  readLtxMotionDraft,
+  stripLtxLipSyncLead,
+  writeLtxMotionDraft,
+} from "@/lib/mobileImageMotion";
 import type { CrashStoryBeat } from "@/lib/crashStoryTypes";
 import type { MobileClipUnit, MobileGenJob } from "@/lib/mobileGenJob";
 import type { ShowStyleId } from "@/lib/showStylePresets";
@@ -56,7 +63,14 @@ export function CutawayBeatPanel({
   const [voiceFile, setVoiceFile] = useState(
     isMobileSavedVoiceFile(beat.voiceFile) ? beat.voiceFile || "" : "",
   );
-  const [motionDraft, setMotionDraft] = useState<string | null>(null);
+  const [motionDraft, setMotionDraftState] = useState<string | null>(() =>
+    readLtxMotionDraft(jobId, beat.id),
+  );
+  const setMotionDraft = (v: string | null) => {
+    if (v === null) clearLtxMotionDraft(jobId, beat.id);
+    else writeLtxMotionDraft(jobId, beat.id, v);
+    setMotionDraftState(v);
+  };
   const [ltxOpen, setLtxOpen] = useState(true);
   const [busy, setBusy] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -73,7 +87,12 @@ export function CutawayBeatPanel({
     shotSpeakers,
     staging,
   });
-  const motionBody = motionDraft ?? (storedMotion || defaultMotion);
+  const motionBody = pickLtxMotionBody({
+    draft: motionDraft,
+    stored: storedMotion,
+    defaultBody: defaultMotion,
+  });
+  const motionDirty = motionDraft !== null;
 
   useEffect(() => {
     let cancelled = false;
@@ -297,6 +316,7 @@ export function CutawayBeatPanel({
         onToggle={() => setLtxOpen((open) => !open)}
         body={motionBody}
         onChange={(v) => setMotionDraft(v)}
+        dirty={motionDirty}
         keepDisabled={busy}
         keeping={busy}
         placeholder="No dialogue. Mouth stays closed. The move only."

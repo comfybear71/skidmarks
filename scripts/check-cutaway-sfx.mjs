@@ -88,6 +88,8 @@ const panel = readFileSync(
 assert.match(panel, /Do not Redo Position/);
 assert.match(panel, /cutaway-sfx/);
 assert.match(panel, /cutawayActions/);
+assert.match(panel, /pickLtxMotionBody/);
+assert.match(panel, /dirty=\{motionDirty\}/);
 assert.doesNotMatch(panel, /from \"@\/lib\/cutawaySfx\"/);
 
 console.log("check-cutaway-sfx: ok");
