@@ -37,7 +37,14 @@ import {
   type MobileClipUnit,
   type MobileGenJob,
 } from "./mobileGenJob";
-import type { CrashStoryDoc } from "./crashStoryTypes";
+import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
+import {
+  beatForSongCut,
+  MISSING_SCRATCH_SPOKEN_LINE,
+  muteSongBeatStub,
+  songCutUsesSpokenLine,
+  storyShotForSongCut,
+} from "./musicVideoSong";
 
 async function ensureComfyReady(): Promise<string> {
   const { preferComfyCloudLtx } = await import("./ltxCloudIa2v");
@@ -70,10 +77,16 @@ export async function runScratchLtxClip(opts: {
   const { story, shotId, sceneId, beatId } = opts;
   let job = opts.job;
   const jobId = job.id;
-  const shot = job.shots.find((s) => s.shotId === shotId);
-  const scene = story.scenes.find((sc) => sc.id === sceneId);
-  const storyShot = scene?.shots.find((sh) => sh.id === shotId);
-  const beat = storyShot?.beats.find((b) => b.id === beatId);
+  const songEarly = job.scratchSong;
+  const muteSong = !songCutUsesSpokenLine({
+    styleId: job.styleId,
+    cutId: opts.cutId,
+  });
+  const shot =
+    job.shots.find((s) => s.shotId === shotId) ||
+    (muteSong && (opts.plateFile || "").trim()
+      ? job.shots.find((s) => (s.plateFile || "").trim() === (opts.plateFile || "").trim())
+      : undefined);
   if (!shot) throw new Error("That plate is not on this job");
   const wantPlate = (opts.plateFile || shot.plateFile || "").trim();
   if (!wantPlate || wantPlate === "__error__") {
@@ -81,10 +94,46 @@ export async function runScratchLtxClip(opts: {
       shot.error ? `Plate failed — ${shot.error}` : "Draw the still first",
     );
   }
+  const scene = story.scenes.find((sc) => sc.id === sceneId);
+  let storyShot: CrashStoryShot | undefined =
+    scene?.shots.find((sh) => sh.id === shotId) ||
+    (muteSong
+      ? storyShotForSongCut({
+          story,
+          jobShots: job.shots,
+          cut: { shotId, plateFile: wantPlate },
+        })?.shot
+      : undefined);
+  let beat: CrashStoryBeat | undefined =
+    storyShot?.beats.find((b) => b.id === beatId) ||
+    (muteSong
+      ? beatForSongCut({
+          story,
+          storyShot,
+          beatId,
+          songFile: songEarly?.fileName,
+        }) || undefined
+      : undefined);
+  if (muteSong && !beat && (songEarly?.fileName || "").trim()) {
+    beat = muteSongBeatStub({
+      beatId,
+      cutId: opts.cutId,
+      songFile: songEarly?.fileName,
+    });
+  }
+  if (!storyShot && muteSong) {
+    storyShot = {
+      id: shot.shotId,
+      title: "",
+      summary: "",
+      staging: "",
+      plateFile: wantPlate,
+      beats: beat ? [beat] : [],
+      sfx: [],
+    };
+  }
   if (!storyShot || !beat) {
-    throw new Error(
-      "That line is missing from the scratch plate — Draw again, or drop the song so the spoken line is on this plate.",
-    );
+    throw new Error(MISSING_SCRATCH_SPOKEN_LINE);
   }
 
   const mediaFolder = mobileMediaFolder(job);
