@@ -3,6 +3,11 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { MobileClipUnit } from "@/lib/mobileGenJob";
+import {
+  readMvClipEngine,
+  writeMvClipEngine,
+  type MvClipEngine,
+} from "@/lib/mobileImageMotion";
 import { mobileClipSrc, stackedClipFiles, stableClipTakeLabel } from "@/lib/mobilePlateClips";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 
@@ -29,6 +34,7 @@ export function PlateClipThumbs({
   layout = "stack",
   onRemoveTake,
   removeDisabled,
+  pickEngine,
 }: {
   job: {
     id: string;
@@ -46,7 +52,10 @@ export function PlateClipThumbs({
   /** /m and Scratch — park one take (mp4 stays in _cleared/ or Blob). */
   onRemoveTake?: (opts: { beatId: string; fileName: string }) => void;
   removeDisabled?: boolean;
+  /** Music-video Clips fold — LTX / H3 for the next Send of this still. */
+  pickEngine?: boolean;
 }) {
+  const [h3Ready, setH3Ready] = useState(false);
   const songCuts = job.scratchSong?.cuts || [];
   const files = clips.flatMap((clip, i) => {
     const stacked = stackedClipFiles(clip);
@@ -55,11 +64,29 @@ export function PlateClipThumbs({
       key: `${clip.beatId}-${file}`,
       file,
       beatId: clip.beatId,
+      shotId: (clip.shotId || "").trim(),
       poster: shotPoster,
       takeLabel: stableClipTakeLabel({ fileName: file, songCuts }),
       preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
     }));
   });
+
+  useEffect(() => {
+    if (!pickEngine) return;
+    let cancelled = false;
+    fetch("/api/crash/mobile/scratch")
+      .then((res) => res.json())
+      .then((data: { minimax?: boolean }) => {
+        if (!cancelled && typeof data.minimax === "boolean") setH3Ready(data.minimax);
+      })
+      .catch(() => {
+        /* H3 stays dead */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pickEngine]);
+
   if (!files.length) return null;
   const row = layout === "strip";
   return (
@@ -72,20 +99,78 @@ export function PlateClipThumbs({
         flex: "0 0 auto",
       }}
     >
-      {files.map((row) => (
-        <ClipPlayer
-          key={row.key}
-          src={mobileClipSrc(job, row.file)}
-          poster={row.poster}
-          takeLabel={row.takeLabel}
-          onRemove={
-            onRemoveTake
-              ? () => onRemoveTake({ beatId: row.beatId, fileName: row.file })
-              : undefined
-          }
-          removeDisabled={removeDisabled}
-        />
-      ))}
+      {files.map((item, i) => {
+        const lastOfShot =
+          Boolean(pickEngine && item.shotId) &&
+          !files.slice(i + 1).some((f) => f.shotId === item.shotId);
+        return (
+          <div key={item.key} className={pickEngine ? "m-plate-clip-unit" : undefined}>
+            <ClipPlayer
+              src={mobileClipSrc(job, item.file)}
+              poster={item.poster}
+              takeLabel={item.takeLabel}
+              onRemove={
+                onRemoveTake
+                  ? () => onRemoveTake({ beatId: item.beatId, fileName: item.file })
+                  : undefined
+              }
+              removeDisabled={removeDisabled}
+            />
+            {lastOfShot ? (
+              <ClipEnginePick jobId={job.id} shotId={item.shotId} h3Ready={h3Ready} />
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ClipEnginePick({
+  jobId,
+  shotId,
+  h3Ready,
+}: {
+  jobId: string;
+  shotId: string;
+  h3Ready: boolean;
+}) {
+  const [engine, setEngine] = useState<MvClipEngine>(() => readMvClipEngine(jobId, shotId));
+
+  useEffect(() => {
+    setEngine(readMvClipEngine(jobId, shotId));
+  }, [jobId, shotId]);
+
+  useEffect(() => {
+    if (h3Ready || engine !== "h3") return;
+    writeMvClipEngine(jobId, shotId, "ltx");
+    setEngine("ltx");
+  }, [engine, h3Ready, jobId, shotId]);
+
+  function pick(next: MvClipEngine) {
+    if (next === "h3" && !h3Ready) return;
+    writeMvClipEngine(jobId, shotId, next);
+    setEngine(next);
+  }
+
+  return (
+    <div className="m-plate-clip-engines" role="group" aria-label="How to make the next clip">
+      <button
+        type="button"
+        className={`m-plate-clip-engine${engine === "ltx" ? " is-on" : ""}`}
+        onClick={() => pick("ltx")}
+      >
+        LTX
+      </button>
+      <button
+        type="button"
+        className={`m-plate-clip-engine${engine === "h3" ? " is-on" : ""}`}
+        disabled={!h3Ready}
+        title={h3Ready ? "MiniMax H3" : "H3 is not on this Studio"}
+        onClick={() => pick("h3")}
+      >
+        H3
+      </button>
     </div>
   );
 }

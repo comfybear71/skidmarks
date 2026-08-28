@@ -889,6 +889,32 @@ function mvMotionSlotKey(jobId: string, beatId: string): string {
   return `skidmarks.mvMotionSlot.${(jobId || "").trim()}.${(beatId || "").trim()}`;
 }
 
+export type MvClipEngine = "ltx" | "h3";
+
+function mvClipEngineKey(jobId: string, shotId: string): string {
+  return `skidmarks.mvClipEngine.${(jobId || "").trim()}.${(shotId || "").trim()}`;
+}
+
+/** Next Send of this still — LTX or H3. Not written onto the job. */
+export function readMvClipEngine(jobId: string, shotId: string): MvClipEngine {
+  if (typeof window === "undefined") return "ltx";
+  try {
+    const v = window.sessionStorage.getItem(mvClipEngineKey(jobId, shotId));
+    return v === "h3" ? "h3" : "ltx";
+  } catch {
+    return "ltx";
+  }
+}
+
+export function writeMvClipEngine(jobId: string, shotId: string, engine: MvClipEngine): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(mvClipEngineKey(jobId, shotId), engine);
+  } catch {
+    /* private mode */
+  }
+}
+
 /** His [ ] motion words stay when he switches LTX ↔ H3. */
 export function readMvMotionSlot(jobId: string, beatId: string): string | null {
   if (typeof window === "undefined") return null;

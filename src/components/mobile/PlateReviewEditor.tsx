@@ -950,6 +950,7 @@ export function PlateReviewEditor({
                 posterByShotId={plateClipRail.posterByShotId}
                 preload
                 layout="strip"
+                pickEngine={isMusicVideoSongJob(job)}
                 removeDisabled={clipBusy}
                 onRemoveTake={({ beatId, fileName }) =>
                   void postClipAction({ action: "remove-clip", beatId, fileName })
