@@ -1087,7 +1087,7 @@ export function muteMvEngineFoldSummary(engine: MuteMvEngine): string {
 export function muteMvEngineFoldLines(engine: MuteMvEngine): string[] {
   if (engine === "h3") {
     return [
-      `Length: ${MINIMAX_H3_MIN_SEC}–${MINIMAX_H3_MAX_SEC}s. No 25s. Use LTX for 25.`,
+      `Length: ${MINIMAX_H3_MIN_SEC}–${MINIMAX_H3_MAX_SEC}s.`,
       "First + last frame. Pick a last still — H3 walks from this plate to that one.",
       "Camera is [Command] in the prompt — no drone field. Pedestal up is the aerial lift.",
       "Official moves: Truck L/R, Pan L/R, Push in, Pull out, Pedestal up/down, Tilt up/down, Zoom in/out, Shake, Tracking, Static. Combine up to 3.",
