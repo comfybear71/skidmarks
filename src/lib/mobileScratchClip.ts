@@ -28,6 +28,7 @@ import {
   ltxSendPrompt,
   stripLtxLipSyncLead,
   looksLikePlatePositionPrompt,
+  imageMotionLooksEmptyFrame,
   pickSongSendMotionBody,
   songSendNeedsRecook,
   songStoredMotionUsable,
@@ -92,6 +93,9 @@ export async function runScratchLtxClip(opts: {
   cutId?: string;
   /** No lips / mute cinema — action only. Do not feed the song mp3. */
   mute?: boolean;
+  /** TRACK Nobody / empty-road lock — do not wait on Neon story. */
+  emptyFrame?: boolean;
+  nobodyInShot?: boolean;
 }): Promise<MobileGenJob> {
   const { story, shotId, sceneId, beatId } = opts;
   let job = opts.job;
@@ -188,13 +192,33 @@ export async function runScratchLtxClip(opts: {
     jobSpeakers: job.speakers,
     beats: storyShot.beats,
   });
+  const storedEarly = stripLtxLipSyncLead(beat.imageMotion || "");
+  const padNames = muteMvPadNames({
+    roster: [...new Set([...(shotCast || []), (clipRow?.speaker || beat.speaker || "").trim()].filter(Boolean))],
+    staging: storyShot.staging,
+    summary: storyShot.summary,
+    castNames: storyShot.castNames,
+  });
+  const emptyFrame =
+    opts.emptyFrame === true ||
+    opts.nobodyInShot === true ||
+    muteMvEmptyFrame({
+      footageRole: storyShot.footageRole,
+      nobodyInShot: storyShot.nobodyInShot || opts.nobodyInShot,
+      staging: storyShot.staging,
+      summary: storyShot.summary,
+      castNames: storyShot.castNames,
+      padNames,
+    }) ||
+    imageMotionLooksEmptyFrame(storedEarly);
   const muteAction =
     songCutIsMuteAction({
-      mute: opts.mute,
+      mute: opts.mute || emptyFrame,
       styleId: job.styleId,
       beatKind: beat.kind,
     }) || isCutawayMotion(beat.imageMotion || "");
   const singing =
+    !emptyFrame &&
     !muteAction &&
     Boolean(songFile) &&
     (isDroppedPlaceholderLine(line) || job.styleId === "music_video" || Boolean(opts.cutId));
@@ -202,19 +226,21 @@ export async function runScratchLtxClip(opts: {
   // carrier-beat speaker that can name someone off-camera → wrong look / "intruder".
   // One person on the pad → that person. Several → beat speaker if they are on
   // the pad, else first on the pad. Never invent silhouette rules from Position text.
+  // Yellow plate title (JACK GHOST) is not a person when Nobody / empty-road is on.
   const beatSpeaker = (clipRow?.speaker || beat.speaker || "").trim();
   const onPad = (name: string) =>
     shotCast.some((n) => n.trim().toLowerCase() === name.trim().toLowerCase());
-  const speaker = (
-    singing
-      ? (shotCast.length === 1
-          ? shotCast[0]
-          : beatSpeaker && onPad(beatSpeaker)
-            ? beatSpeaker
-            : shotCast[0] || beatSpeaker)
-      : beatSpeaker || shotCast[0]
-  )
-    .trim();
+  const speaker = emptyFrame
+    ? ""
+    : (
+        singing
+          ? (shotCast.length === 1
+              ? shotCast[0]
+              : beatSpeaker && onPad(beatSpeaker)
+                ? beatSpeaker
+                : shotCast[0] || beatSpeaker)
+          : beatSpeaker || shotCast[0]
+      ).trim();
   if (looksLikePlatePositionPrompt(line) && !singing && !muteAction) {
     throw new Error("That's the still position, not speech. Wipe the line box, type what they say, then Save.");
   }
@@ -267,7 +293,7 @@ export async function runScratchLtxClip(opts: {
   const lookLock =
     candidateLookPrompt(job.castCandidates, speaker) ||
     job.roster.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())?.appearance;
-  const stored = stripLtxLipSyncLead(beat.imageMotion || "");
+  const stored = storedEarly;
   // Song Send uses the LTX box when he kept words. Empty box still rebuilds
   // the identity lock so later takes do not invent a new face. Gold
   // "Only NAME in frame" on a song cut is not a dumped Position prompt.
@@ -280,25 +306,11 @@ export async function runScratchLtxClip(opts: {
     ? (song?.cuts || []).find((c) => c.id === opts.cutId)
     : undefined;
   const performance = cutRow?.performance;
-  const padNames = muteMvPadNames({
-    roster: [...new Set([...(shotCast || []), speaker].filter(Boolean))],
-    staging: storyShot.staging,
-    summary: storyShot.summary,
-    castNames: storyShot.castNames,
-  });
-  const emptyFrame = muteMvEmptyFrame({
-    footageRole: storyShot.footageRole,
-    nobodyInShot: storyShot.nobodyInShot,
-    staging: storyShot.staging,
-    summary: storyShot.summary,
-    castNames: storyShot.castNames,
-    padNames,
-  });
   const muteLock = buildMuteMvMotionLock({
     styleId: job.styleId,
     speaker,
     lookLock,
-    shotSpeakers: shotCast,
+    shotSpeakers: emptyFrame ? [] : shotCast,
     staging: storyShot.staging,
     emptyFrame,
   });
@@ -350,6 +362,7 @@ export async function runScratchLtxClip(opts: {
       existingClipFile: existingFile,
       lastSent,
       nextSent,
+      emptyFrame,
     })
   ) {
     return job;

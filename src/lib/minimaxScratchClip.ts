@@ -13,7 +13,7 @@ import { resolveGenOrPackPlate } from "./crashActivePack";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
 import { rememberClipTake } from "./mobilePlateClips";
 import { CRASH_DIR } from "./paths";
-import { stripLtxLipSyncLead } from "./mobileImageMotion";
+import { imageMotionLooksEmptyFrame, stripLtxLipSyncLead } from "./mobileImageMotion";
 import { patchMobileGenJob, readMobileGenJob, type MobileClipUnit, type MobileGenJob } from "./mobileGenJob";
 import { mobileMediaFolder } from "./mobileJobFolder";
 import type { CrashStoryDoc } from "./crashStoryTypes";
@@ -95,6 +95,8 @@ export async function submitScratchMinimaxClip(opts: {
   beatId: string;
   durationSec?: number;
   endPlateFile?: string;
+  emptyFrame?: boolean;
+  nobodyInShot?: boolean;
 }): Promise<{
   job: MobileGenJob;
   task: ScratchClipTask;
@@ -129,10 +131,15 @@ export async function submitScratchMinimaxClip(opts: {
   if (endName && !endPath) throw new Error("Last still file is missing on disk");
 
   const voiceFile = (beat.voiceFile || "").trim();
-  const speaker = (beat.speaker || "").trim();
+  const motion = stripLtxLipSyncLead(beat.imageMotion || "");
+  const emptyFrame =
+    opts.emptyFrame === true ||
+    opts.nobodyInShot === true ||
+    Boolean(storyShot.nobodyInShot) ||
+    imageMotionLooksEmptyFrame(motion);
+  const speaker = emptyFrame ? "" : (beat.speaker || "").trim();
   const line = (beat.text || "").trim();
   const durationSec = snapMinimaxH3DurationSec(opts.durationSec ?? 5);
-  const motion = stripLtxLipSyncLead(beat.imageMotion || "");
   const prompt = [
     buildSirayI2vPrompt({
       speaker,

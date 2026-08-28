@@ -535,6 +535,11 @@ assert.match(
 );
 assert.match(trackUi, /readMvMuteAction/, "Send reads No lips");
 assert.match(trackUi, /mute: true/, "Send posts mute so LTX does not get the song");
+assert.match(trackUi, /songRunEmptyExtras/, "TRACK Send posts the on-screen Nobody lock");
+assert.match(trackUi, /emptyFrame: true/, "Nobody Send tells song run the frame is empty");
+assert.match(trackUi, /emptyFrame \? "" : speaker \|\| shot\?\.title/, "yellow JACK title does not override Nobody");
+assert.match(songRoute, /emptyFrame: body.emptyFrame === true/);
+assert.match(songRoute, /nobodyInShot: body.nobodyInShot === true/);
 assert.match(
   readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8"),
   /readMvMuteAction/,
