@@ -362,25 +362,83 @@ export function realPlateStillFile(
 }
 
 /**
+ * Off song — take one still off the wave and the song list.
+ * Other clocks stay put. No new 15s row. Clip files are returned so
+ * the route can park them in _cleared/. The still stays in STILLS.
+ */
+export function removePlateFromSong(opts: {
+  plateId: string;
+  plateTimings?: { plateId: string; startMs: number; endMs: number; sortIndex: number }[];
+  cuts?: ScratchSongCut[];
+  songPlateIds?: string[];
+  rowSlices?: number[];
+  skipShotIds?: string[];
+  jobShots?: { shotId: string; plateFile?: string }[];
+}): {
+  plateTimings: { plateId: string; startMs: number; endMs: number; sortIndex: number }[];
+  cuts: ScratchSongCut[];
+  songPlateIds: string[];
+  rowSlices: number[];
+  skipShotIds: string[];
+  parkedClipFiles: string[];
+} {
+  const plateId = (opts.plateId || "").trim();
+  const jobShots = opts.jobShots || [];
+  const onList = songDeskPlateIds({
+    songPlateIds: opts.songPlateIds,
+    cuts: opts.cuts,
+  });
+  const slices = songDeskRowSlices({ rowSlices: opts.rowSlices }, onList);
+  const songPlateIds: string[] = [];
+  const rowSlices: number[] = [];
+  for (let i = 0; i < onList.length; i++) {
+    if ((onList[i] || "").trim() === plateId) continue;
+    songPlateIds.push(onList[i]!);
+    rowSlices.push(slices[i] ?? MUSIC_VIDEO_SLICE_DEFAULT);
+  }
+  const parkedClipFiles: string[] = [];
+  const cuts: ScratchSongCut[] = [];
+  for (const c of opts.cuts || []) {
+    if (shotIdForSongCut(c, jobShots) === plateId) {
+      const file = (c.clipFile || "").trim();
+      if (file) parkedClipFiles.push(file);
+      continue;
+    }
+    cuts.push(c);
+  }
+  return {
+    plateTimings: (opts.plateTimings || []).filter((p) => (p.plateId || "").trim() !== plateId),
+    cuts,
+    songPlateIds,
+    rowSlices,
+    skipShotIds: withSkippedSongPlate(skipSongPlateIds({ skipShotIds: opts.skipShotIds }), plateId),
+    parkedClipFiles,
+  };
+}
+
+/**
  * Shot ids he put on the song (song list / cuts with a real still)
  * that have no TRACK clock. Leftover job.shots rows stay off the wave.
+ * Off song skipShotIds stay off — hang-plates must not append them.
  */
 export function plateIdsWaitingForTrack(opts: {
   song?: {
     cuts?: { shotId?: string; plateFile?: string }[];
     plateTimings?: { plateId?: string }[];
     songPlateIds?: string[];
+    skipShotIds?: string[];
   } | null;
   jobShots?: { shotId: string; plateFile?: string }[];
 }): string[] {
   const jobShots = opts.jobShots || [];
+  const skipped = new Set(skipSongPlateIds(opts.song));
   const have = new Set(
     (opts.song?.plateTimings || []).map((t) => (t.plateId || "").trim()).filter(Boolean),
   );
   const want: string[] = [];
   const push = (id: string, cut?: { plateFile?: string }) => {
     const clean = id.trim();
-    if (!clean || have.has(clean) || want.includes(clean)) return;
+    if (!clean || skipped.has(clean) || have.has(clean) || want.includes(clean)) return;
     if (!realPlateStillFile(clean, jobShots, cut)) return;
     want.push(clean);
   };
@@ -397,6 +455,7 @@ export function needsTrackHang(
     cuts?: { shotId?: string; plateFile?: string }[];
     plateTimings?: { plateId?: string }[];
     songPlateIds?: string[];
+    skipShotIds?: string[];
   } | null,
   jobShots?: { shotId: string; plateFile?: string }[],
 ): boolean {

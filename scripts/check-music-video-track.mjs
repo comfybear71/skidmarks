@@ -326,6 +326,13 @@ assert.match(trackUi, /dropPlateFromWave/);
 assert.match(trackUi, /Off song/);
 assert.match(trackRoute, /parkMobileClipFile/);
 assert.match(trackRoute, /songPlateIds/);
+assert.match(trackRoute, /removePlateFromSong/);
+assert.match(trackRoute, /durationSec\?: number/);
+assert.doesNotMatch(
+  trackRoute.slice(trackRoute.indexOf('action === "remove-plate-timing"')),
+  /hangMissingPlateTimings|nextPlateHangWindow|add-plate/,
+  "Off song must not hang or append a new row",
+);
 assert.match(songRoute, /hangCuts/);
 assert.match(
   songRoute,

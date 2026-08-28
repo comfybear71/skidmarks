@@ -38,7 +38,7 @@ export type ScratchSong = {
   songPlateIds?: string[];
   /** N × 15s per list row — same length/order as songPlateIds. */
   rowSlices?: number[];
-  /** Legacy hide-list. Desk no longer uses this. */
+  /** Off song — still stays in STILLS; hang-plates must not put it back. */
   skipShotIds?: string[];
   /** TRACK timeline — normalized waveform peaks 0..1 */
   waveformPeaks?: number[];
