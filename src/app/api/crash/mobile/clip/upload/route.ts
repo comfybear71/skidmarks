@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { readMobileGenJob, patchMobileGenJob, type MobileClipUnit } from "@/lib/mobileGenJob";
-import { humanOrderedClipName, rememberClipTake } from "@/lib/mobilePlateClips";
+import { nextHumanClipName, rememberClipTake, takenClipFileNames } from "@/lib/mobilePlateClips";
 import { uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { readMobileStory } from "@/lib/mobileStoryStore";
 import { newId, sortableId } from "@/lib/types";
@@ -85,13 +85,12 @@ export async function POST(req: Request) {
 
     const dir = path.join(CRASH_DIR, "ltx");
     fs.mkdirSync(dir, { recursive: true });
-    const existing = clips.filter((c) => c.clipFile).length + 1;
     const fileName =
       source === "stock"
-        ? humanOrderedClipName({
-            index: existing,
+        ? nextHumanClipName({
             speaker: "stock",
             title: home?.title || "clip",
+            taken: takenClipFileNames({ clips, cuts: job.scratchSong?.cuts }),
           })
         : `${sortableId("byoclip")}.mp4`;
     const localPath = path.join(dir, fileName);

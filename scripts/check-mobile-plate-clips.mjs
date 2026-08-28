@@ -12,7 +12,9 @@ import {
   keepClipsAfterUnhang,
   uniqueClipsByFile,
   rememberClipTake,
+  nextHumanClipName,
   stackedClipFiles,
+  uniqueClipFileCount,
   stableClipTakeLabel,
 } from "../src/lib/mobilePlateClips.ts";
 import { extraTakeHangPlateId } from "../src/lib/musicVideoTrack.ts";
@@ -48,6 +50,23 @@ assert.equal(emptied2.clipStatus, "pending");
 const remembered = rememberClipTake(clearClipRowTakes(clip), "clip_new.mp4");
 assert.equal(remembered.clipFile, "clip_new.mp4");
 assert.deepEqual(remembered.priorClipFiles, []);
+
+assert.equal(
+  nextHumanClipName({
+    speaker: "Jack",
+    title: "Ghost",
+    taken: ["01_Jack.mp4", "02_Car.mp4", "03_Jack.mp4", "04_Jack_5s.mp4", "05_Jack.mp4"],
+  }),
+  "06_Jack_Ghost.mp4",
+  "new cook must not reuse 04_ or 05_",
+);
+assert.equal(
+  nextHumanClipName({
+    speaker: "Jack",
+    taken: ["04_Jack.mp4", "05_Jack.mp4"],
+  }),
+  "06_Jack.mp4",
+);
 
 assert.equal(
   stableClipTakeLabel({
@@ -276,6 +295,27 @@ assert.deepEqual(
   ).map((c) => c.shotId),
   ["p2"],
 );
+
+/** Screenshot: CLIPS 5 / 4 thumbs after recook reused 05_ and stamped clip 4. */
+const collapsed = uniqueClipsByFile([
+  { ...clip, beatId: "b1", shotId: "jack1", clipFile: "01_Jack.mp4", priorClipFiles: [] },
+  { ...clip, beatId: "b2", shotId: "car", clipFile: "02_Car.mp4", priorClipFiles: [] },
+  { ...clip, beatId: "b3", shotId: "jack3", clipFile: "03_Jack.mp4", priorClipFiles: [] },
+  {
+    ...clip,
+    beatId: "b4",
+    shotId: "jack4",
+    clipFile: "05_Jack.mp4",
+    priorClipFiles: ["04_Jack_5s.mp4"],
+  },
+  { ...clip, beatId: "b5", shotId: "jack4~05", clipFile: "05_Jack.mp4", priorClipFiles: [] },
+]);
+assert.deepEqual(
+  collapsed.map((c) => c.clipFile),
+  ["01_Jack.mp4", "02_Car.mp4", "03_Jack.mp4", "04_Jack_5s.mp4", "05_Jack.mp4"],
+  "clip 4's 5s file stays a thumb when the new take reused 05_",
+);
+assert.equal(uniqueClipFileCount(collapsed), 5, "CLIPS count matches thumbs");
 
 /** His CLIPS 3: stills plate 1 / 8 / 9, cooks all startSec 0, hung at 0 / 15 / 30. */
 const stuiesThree = gatherClipsForStillsRail(

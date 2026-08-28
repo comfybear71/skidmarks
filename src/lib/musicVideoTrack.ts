@@ -845,9 +845,20 @@ export function hangOneClipOnWave(opts: {
     return Boolean(owned) && owned !== clipFile;
   });
   const shotTaken = existing.some((t) => t.plateId === shotId) || otherOwnsShot;
-  const plateId = shotTaken ? extraTakeHangPlateId(shotId, clipFile) : shotId;
-  if (!plateId || existing.some((t) => t.plateId === plateId)) {
+  let plateId = shotTaken ? extraTakeHangPlateId(shotId, clipFile) : shotId;
+  if (!plateId) {
     return { plateTimings: existing, cuts: opts.cuts };
+  }
+  // Same tail (`JackGhost`) used to reuse clip 5's slot and no-op the hang
+  // — then Send stamped the new mp4 onto clip 4. Mint a free id.
+  if (existing.some((t) => t.plateId === plateId)) {
+    let n = 2;
+    let next = `${plateId}${n}`;
+    while (existing.some((t) => t.plateId === next)) {
+      n += 1;
+      next = `${plateId}${n}`;
+    }
+    plateId = next;
   }
   const cutForFile = (opts.cuts || []).find((c) => hangClipBasename(c.clipFile || "") === clipFile);
   const durMs = hangClipDurationMs(opts.durationSec, cutForFile?.durationSec);

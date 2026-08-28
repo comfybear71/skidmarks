@@ -117,6 +117,93 @@ assert(
   "owner still wins — do not attach to the next still",
 );
 
+const fourThenFive = hangDoneClipOnTrack({
+  song: {
+    fileName: "song.mp3",
+    durationSec: 120,
+    sliceStartSec: 0,
+    sliceDurationSec: 15,
+    plateTimings: [
+      { plateId: "jack1", startMs: 0, endMs: 16000, sortIndex: 0 },
+      { plateId: "car", startMs: 15000, endMs: 19000, sortIndex: 1 },
+      { plateId: "jack3", startMs: 20000, endMs: 24000, sortIndex: 2 },
+      { plateId: "jack4", startMs: 25000, endMs: 30000, sortIndex: 3 },
+    ],
+    cuts: [
+      {
+        id: "c1",
+        plateFile: "1.png",
+        shotId: "jack1",
+        startSec: 0,
+        durationSec: 16,
+        clipFile: "01_Jack.mp4",
+        status: "done",
+      },
+      {
+        id: "c2",
+        plateFile: "2.png",
+        shotId: "car",
+        startSec: 15,
+        durationSec: 4,
+        clipFile: "02_Car.mp4",
+        status: "done",
+      },
+      {
+        id: "c3",
+        plateFile: "3.png",
+        shotId: "jack3",
+        startSec: 20,
+        durationSec: 4,
+        clipFile: "03_Jack.mp4",
+        status: "done",
+      },
+      {
+        id: "c4",
+        plateFile: "4.png",
+        shotId: "jack4",
+        startSec: 25,
+        durationSec: 5,
+        clipFile: "04_Jack_5s.mp4",
+        status: "done",
+      },
+      {
+        id: "c5",
+        plateFile: "4.png",
+        shotId: "jack4~05Jack",
+        startSec: 30,
+        durationSec: 8,
+        clipFile: "05_Jack.mp4",
+        status: "done",
+      },
+    ],
+  },
+  shotId: "jack4",
+  plateFile: "4.png",
+  clipFile: "06_Jack_21s.mp4",
+  durationSec: 21,
+  newCutId: () => "c6",
+});
+assert(
+  fourThenFive?.cuts.find((c) => c.id === "c4")?.clipFile === "04_Jack_5s.mp4",
+  "new cook must not overwrite clip 4",
+);
+assert(
+  fourThenFive?.cuts.find((c) => c.id === "c5")?.clipFile === "05_Jack.mp4",
+  "new cook must not overwrite clip 5",
+);
+assert(
+  (fourThenFive?.cuts || []).filter((c) => c.clipFile === "06_Jack_21s.mp4").length === 1,
+  "new video is a new cut",
+);
+assert(
+  (fourThenFive?.cuts || []).filter((c) => (c.clipFile || "").trim()).length === 6,
+  "append — five kept plus the new mp4",
+);
+assert(
+  (fourThenFive?.plateTimings || []).every((t) => t.plateId !== "jack4" || t.endMs === 30000),
+  "clip 4's 5s bar stays 5s",
+);
+
 
 const ww1 = parseStockLook({
   theme: "first world war",

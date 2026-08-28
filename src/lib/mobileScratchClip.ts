@@ -3,7 +3,12 @@ import path from "path";
 import { resolveGenOrPackPlate } from "./crashActivePack";
 import { resolveMobileBeatAudio } from "./resolveMobileBeatAudio";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
-import { clipFileBasename, humanOrderedClipName, rememberClipTake } from "./mobilePlateClips";
+import {
+  clipFileBasename,
+  nextHumanClipName,
+  rememberClipTake,
+  takenClipFileNames,
+} from "./mobilePlateClips";
 import { runLtxSmoke } from "./ltxSmoke";
 import { resolveComfyUrl, probeComfyUrl } from "./comfyClient";
 import { candidateLookPrompt } from "./mobileJobReady";
@@ -59,10 +64,8 @@ import {
 import { probeDurationSeconds } from "./mediaDuration";
 import { writeSilentMp3 } from "./silentAudio";
 import { ltxDurationFrames } from "./ltxDuration";
-import { applyLandedClipDuration } from "./musicVideoTrack";
-import { parkMobileClipFile } from "./mobileClipPark";
-import { isEpisodeClipPlanError } from "./mobileEpisodeClips";
-import { planParkDeskClipTake } from "./parkDeskClip";
+import { applyLandedClipDuration, hangOneClipOnWave } from "./musicVideoTrack";
+import { newId, sortableId } from "./types";
 
 async function ensureComfyReady(): Promise<string> {
   const { preferComfyCloudLtx } = await import("./ltxCloudIa2v");
@@ -367,58 +370,45 @@ export async function runScratchLtxClip(opts: {
   ) {
     return job;
   }
-  if (existingFile && opts.cutId) {
-    const plan = planParkDeskClipTake({
-      clips: job.clips || [],
-      song: job.scratchSong,
-      cutId: opts.cutId,
-      fileName: existingFile,
-    });
-    if (!isEpisodeClipPlanError(plan)) {
-      for (const file of plan.filesToPark) {
-        parkMobileClipFile(file);
-      }
-      job = (await patchMobileGenJob(jobId, {
-        clips: plan.next,
-        scratchSong: plan.nextSong || job.scratchSong,
-        error: "",
-      }))!;
-    }
+  // A new cook appends. Parking clip 4 then naming from the done-cut count
+  // wrote 05_ over clip 5 and stamped that file onto clip 4.
+  const appendTake = Boolean(existingFile);
+
+  if (!appendTake) {
+    const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
+      ? (job.clips || []).map((c) =>
+          c.beatId === beatId
+            ? {
+                ...c,
+                shotId,
+                sceneId,
+                speaker,
+                line,
+                voiceFile,
+                imageMotion,
+                clipStatus: "pending",
+                error: "",
+              }
+            : c,
+        )
+      : [
+          ...(job.clips || []),
+          {
+            beatId,
+            shotId,
+            sceneId,
+            clipFile: "",
+            clipStatus: "pending",
+            error: "",
+            speaker,
+            line,
+            voiceFile,
+            imageMotion,
+          },
+        ];
+
+    job = (await patchMobileGenJob(jobId, { clips, error: "" }))!;
   }
-
-  const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
-    ? (job.clips || []).map((c) =>
-        c.beatId === beatId
-          ? {
-              ...c,
-              shotId,
-              sceneId,
-              speaker,
-              line,
-              voiceFile,
-              imageMotion,
-              clipStatus: "pending",
-              error: "",
-            }
-          : c,
-      )
-    : [
-        ...(job.clips || []),
-        {
-          beatId,
-          shotId,
-          sceneId,
-          clipFile: "",
-          clipStatus: "pending",
-          error: "",
-          speaker,
-          line,
-          voiceFile,
-          imageMotion,
-        },
-      ];
-
-  job = (await patchMobileGenJob(jobId, { clips, error: "" }))!;
 
   // Scratch retries always start from the pad still — never the last frame of a
   // prior clip (that chains bad poses: sitting, phone, cropped head, walkers).
@@ -439,11 +429,13 @@ export async function runScratchLtxClip(opts: {
       beatId: beat.id,
       durationFrames: muteAction ? ltxDurationFrames(window.durationSec) : undefined,
     });
-    const doneCuts = (job.scratchSong?.cuts || []).filter((c) => (c.clipFile || "").trim()).length;
-    const humanName = humanOrderedClipName({
-      index: doneCuts + 1,
+    const humanName = nextHumanClipName({
       speaker: (storyShot?.title || speaker).trim() || speaker,
       title: job.songTitle || job.artist || "",
+      taken: takenClipFileNames({
+        clips: job.clips,
+        cuts: job.scratchSong?.cuts,
+      }),
     });
     let localMp4 = result.localMp4;
     const humanPath = path.join(path.dirname(result.localMp4), humanName);
@@ -462,31 +454,67 @@ export async function runScratchLtxClip(opts: {
       /* clip still usable this request */
     }
     const fileSec = probeDurationSeconds(localMp4);
-    const next = job.clips.map((c) =>
-      c.beatId === beatId
-        ? {
-            ...c,
-            ...rememberClipTake(c, localMp4),
-            clipStatus: "done" as const,
-            ...(fileSec ? { durationSec: fileSec } : {}),
-          }
-        : c,
-    );
     const clipName = path.basename(localMp4);
     const probed =
       fileSec ||
       (Number(opts.sliceDurationSec) > 0 ? Number(opts.sliceDurationSec) : undefined);
-    job = (await patchMobileGenJob(jobId, {
-      clips: next,
-      scratchSong: patchScratchSongCut(job.scratchSong, opts.cutId, {
+    if (appendTake) {
+      const takeBeat = `cut:${sortableId("take")}`;
+      const next: MobileClipUnit[] = [
+        ...(job.clips || []),
+        {
+          beatId: takeBeat,
+          shotId,
+          sceneId,
+          clipFile: clipName,
+          clipStatus: "done",
+          error: "",
+          speaker,
+          line,
+          voiceFile,
+          imageMotion,
+          ...(fileSec ? { durationSec: fileSec } : {}),
+        },
+      ];
+      const hung = hangOneClipOnWave({
+        plateTimings: job.scratchSong?.plateTimings,
+        cuts: job.scratchSong?.cuts || [],
+        shotId,
+        plateFile: wantPlate,
         clipFile: clipName,
-        status: "done",
-        error: "",
         durationSec: probed,
-      }),
-    }))!;
+        newCutId: () => newId("cut"),
+      });
+      job = (await patchMobileGenJob(jobId, {
+        clips: next,
+        scratchSong: hung
+          ? { ...job.scratchSong!, cuts: hung.cuts, plateTimings: hung.plateTimings }
+          : job.scratchSong,
+      }))!;
+    } else {
+      const next = job.clips.map((c) =>
+        c.beatId === beatId
+          ? {
+              ...c,
+              ...rememberClipTake(c, localMp4),
+              clipStatus: "done" as const,
+              ...(fileSec ? { durationSec: fileSec } : {}),
+            }
+          : c,
+      );
+      job = (await patchMobileGenJob(jobId, {
+        clips: next,
+        scratchSong: patchScratchSongCut(job.scratchSong, opts.cutId, {
+          clipFile: clipName,
+          status: "done",
+          error: "",
+          durationSec: probed,
+        }),
+      }))!;
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    if (appendTake) throw e;
     const next = job.clips.map((c) =>
       c.beatId === beatId
         ? { ...c, clipStatus: "error" as const, error: msg }

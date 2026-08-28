@@ -889,6 +889,53 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   });
   assert.equal(again?.plateTimings.length, 2, "already hung — no second bar");
 
+  const sameTailA = "ab_JackGhostTake.mp4";
+  const sameTailB = "cd_JackGhostTake.mp4";
+  assert.equal(
+    extraTakeHangPlateId("jack4", sameTailA),
+    extraTakeHangPlateId("jack4", sameTailB),
+    "same last-12 tail — used to reuse clip 5's plateId",
+  );
+  const tailClash = hangOneClipOnWave({
+    plateTimings: [
+      { plateId: "jack4", startMs: 20000, endMs: 25000, sortIndex: 0 },
+      { plateId: extraTakeHangPlateId("jack4", sameTailA), startMs: 25000, endMs: 30000, sortIndex: 1 },
+    ],
+    cuts: [
+      {
+        id: "c4",
+        shotId: "jack4",
+        plateFile: "4.png",
+        startSec: 20,
+        durationSec: 5,
+        clipFile: "04_Jack.mp4",
+        status: "done",
+      },
+      {
+        id: "c5",
+        shotId: extraTakeHangPlateId("jack4", sameTailA),
+        plateFile: "4.png",
+        startSec: 25,
+        durationSec: 5,
+        clipFile: sameTailA,
+        status: "done",
+      },
+    ],
+    shotId: "jack4",
+    plateFile: "4.png",
+    clipFile: sameTailB,
+    durationSec: 21,
+    newCutId: () => "c6",
+  });
+  assert.equal(tailClash?.cuts.find((c) => c.clipFile === sameTailA)?.clipFile, sameTailA);
+  assert.ok(tailClash?.cuts.some((c) => c.clipFile === sameTailB), "new file gets its own cut");
+  assert.equal(tailClash?.plateTimings.length, 3, "colliding tail mints a free bar — not a no-op");
+  assert.notEqual(
+    tailClash?.plateTimings[1]?.plateId,
+    tailClash?.plateTimings[2]?.plateId,
+    "do not reuse clip 5's plateId",
+  );
+
   const jackGhost = hangOneClipOnWave({
     plateTimings: [
       { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
@@ -1529,7 +1576,18 @@ assert.match(scratchClip, /That still is not ready/);
 assert.match(scratchClip, /Drop the song first/);
 assert.match(scratchClip, /pickSongSendMotionBody/);
 assert.match(scratchClip, /songSendNeedsRecook/);
-assert.match(scratchClip, /planParkDeskClipTake/);
+assert.match(scratchClip, /nextHumanClipName/, "new cook gets a free NN_ name — not doneCuts + 1");
+assert.match(scratchClip, /hangOneClipOnWave/, "second cook appends a new hang");
+assert.doesNotMatch(
+  scratchClip,
+  /planParkDeskClipTake/,
+  "Send must not park clip 4 so the new take can steal 05_",
+);
+assert.doesNotMatch(
+  scratchClip,
+  /doneCuts \+ 1/,
+  "doneCuts + 1 reused 05_ and overwrote clip 5",
+);
 assert.match(trackUi, /cutForHungPlate/);
 assert.match(motion, /pickSongSendMotionBody/);
 {
