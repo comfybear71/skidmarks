@@ -994,6 +994,8 @@ export function StudioTree({
   const [castOpen, setCastOpen] = useState(true);
   const [locationsOpen, setLocationsOpen] = useState(true);
   const [platesOpen, setPlatesOpen] = useState(true);
+  const sendStillRef = useRef<(shotId: string) => Promise<void>>(async () => {});
+  const [sendStillBusy, setSendStillBusy] = useState(false);
   const [addingPlateFor, setAddingPlateFor] = useState<string | null>(null);
   const [addPlateError, setAddPlateError] = useState("");
   const [addPlateDoneFor, setAddPlateDoneFor] = useState<string | null>(null);
@@ -1954,6 +1956,10 @@ export function StudioTree({
               }
               void addLocationToPlate(sceneId, speaker);
             }}
+            onBindSendStill={(fn) => {
+              sendStillRef.current = fn;
+            }}
+            onSendStillBusy={setSendStillBusy}
           />
         ) : (
           <TalkTimeline
@@ -2081,6 +2087,8 @@ export function StudioTree({
               onExpand={() => setPlatesOpen(true)}
               defaultPlaceId={placeFocus || undefined}
               focusShotId={focusPlateShotId}
+              onSendStill={(shotId) => sendStillRef.current(shotId)}
+              sendStillBusy={sendStillBusy}
             />
           ) : null}
         </div>
