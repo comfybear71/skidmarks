@@ -8,6 +8,7 @@ import {
   TRACK_SECTION_LABELS,
   formatTrackClock,
   formatTrackClockPrecise,
+  nextPlateHangWindow,
   evenLineStartMs,
   evenLyricHoldMs,
   evenLyricIndexAt,
@@ -70,7 +71,13 @@ import {
   stockLookIsOn,
   type StockLook,
 } from "@/lib/stockLook";
-import { setSongCookFlag, songCookFlagOn } from "@/lib/songCutCook";
+import {
+  askSongCookNotifyPermission,
+  pendingSongCuts,
+  setSongCookFlag,
+  songCookFlagOn,
+  waitForSongCut,
+} from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
@@ -451,7 +458,7 @@ function WaveformCanvas({
   playheadMs: number;
   markers: { id: string; label: string; startMs: number; endMs: number }[];
   plateTimings: WavePlateBlock[];
-  /** The drag you are holding — drawn so you can see what Use range will take. */
+  /** The drag you are holding — drawn so you can see what Add to timeline will take. */
   rangeStartMs: number;
   rangeEndMs: number;
   lyricCues: LyricCue[];
@@ -519,7 +526,7 @@ function WaveformCanvas({
       }
     }
 
-    // The range you are about to hand to Use range.
+    // The range you are about to hand to Add to timeline.
     if (rangeEndMs > rangeStartMs) {
       const rx0 = xAt(rangeStartMs);
       const rx1 = xAt(rangeEndMs);
@@ -740,8 +747,13 @@ export function MusicVideoTrack({
   const [pickWhere, setPickWhere] = useState("");
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
+  const [rangeChosen, setRangeChosen] = useState(false);
   const [localPeaks, setLocalPeaks] = useState<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const jobRef = useRef(job);
+  jobRef.current = job;
+  const cookLock = useRef(false);
+  const cookCancel = useRef(false);
   const blobRef = useRef("");
   const lyricImportTried = useRef(false);
 
@@ -1004,10 +1016,157 @@ export function MusicVideoTrack({
         error?: string;
       };
       if (raw.job) onJobChange(raw.job);
-      if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't hang those stills");
-      setNote("Stills on the wave. Move them, then Send when you like the order.");
+      if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't add those stills");
+      setNote("On the timeline. Move them, then Send one or Send all.");
     } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't hang those stills");
+      setNote(e instanceof Error ? e.message : "Couldn't add those stills");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function hungShotIds() {
+    return new Set(
+      (jobRef.current.scratchSong?.plateTimings || [])
+        .map((t) => (t.plateId || "").trim())
+        .filter(Boolean),
+    );
+  }
+
+  function hungWaitingCuts() {
+    const hung = hungShotIds();
+    return pendingSongCuts(jobRef.current).filter((c) => hung.has((c.shotId || "").trim()));
+  }
+
+  function waitingCutForPlate(shotId: string) {
+    const id = shotId.trim();
+    return (jobRef.current.scratchSong?.cuts || []).find((c) => {
+      if ((c.shotId || "").trim() !== id) return false;
+      if (c.status === "done" && c.clipFile) return false;
+      return true;
+    });
+  }
+
+  function doneCutForPlate(shotId: string) {
+    const id = shotId.trim();
+    return (jobRef.current.scratchSong?.cuts || []).find(
+      (c) => (c.shotId || "").trim() === id && c.status === "done" && Boolean(c.clipFile),
+    );
+  }
+
+  async function songPost(action: string, extra: Record<string, unknown> = {}) {
+    const res = await fetch("/api/crash/mobile/song", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, jobId: job.id, ...extra }),
+    });
+    const raw = (await res.json().catch(() => ({}))) as {
+      job?: MobileGenJob;
+      error?: string;
+    };
+    if (raw.job) onJobChange(raw.job);
+    if (!res.ok) throw new Error(raw.error?.trim() || `Request failed (${res.status})`);
+    return raw;
+  }
+
+  async function addPlateToTimeline(shotId: string) {
+    if (!song?.fileName) {
+      setNote("Drop the song first.");
+      return;
+    }
+    const win =
+      rangeChosen && rangeEndMs > rangeStartMs
+        ? { startMs: rangeStartMs, endMs: rangeEndMs }
+        : nextPlateHangWindow(song.plateTimings);
+    await schedulePlate(shotId, win.startMs, win.endMs, plateBlocks.length);
+    setNote("On the timeline. Move it, then Send when you like the order.");
+  }
+
+  async function sendOneCutBody(cutId: string) {
+    const id = cutId.trim();
+    if (!id) {
+      setNote("Add this still to the timeline first.");
+      return;
+    }
+    askSongCookNotifyPermission();
+    setBusy(`send-${id}`);
+    setNote("");
+    try {
+      await songPost("run", { cutId: id, beatId });
+      await waitForSongCut({
+        jobId: job.id,
+        cutId: id,
+        setJob: onJobChange,
+        cancelled: () => cookCancel.current,
+      });
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't send that cut");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function sendPlate(shotId: string) {
+    if (!hungShotIds().has(shotId.trim())) {
+      setNote("Add this still to the timeline first.");
+      return;
+    }
+    const cut = waitingCutForPlate(shotId);
+    if (!cut?.id) {
+      setNote("Add this still to the timeline first.");
+      return;
+    }
+    if (cookLock.current) return;
+    cookLock.current = true;
+    cookCancel.current = false;
+    try {
+      await sendOneCutBody(cut.id);
+    } finally {
+      cookLock.current = false;
+    }
+  }
+
+  async function sendAllHung() {
+    if (cookLock.current) return;
+    const waiting = hungWaitingCuts();
+    if (!waiting.length) {
+      setNote(
+        needsTrackHang(song, job.shots)
+          ? "Add stills to the timeline first."
+          : "Nothing waiting on the timeline.",
+      );
+      return;
+    }
+    cookLock.current = true;
+    cookCancel.current = false;
+    setSongCookFlag(job.id, true);
+    try {
+      for (;;) {
+        if (cookCancel.current) break;
+        const next =
+          hungWaitingCuts().find((c) => c.status !== "running") || hungWaitingCuts()[0];
+        if (!next?.id) break;
+        await sendOneCutBody(next.id);
+      }
+    } finally {
+      cookLock.current = false;
+      setSongCookFlag(job.id, false);
+    }
+  }
+
+  async function redoPlate(shotId: string) {
+    const cut = doneCutForPlate(shotId) || waitingCutForPlate(shotId);
+    if (!cut?.id) {
+      setNote("Nothing to redo on that still.");
+      return;
+    }
+    setBusy(`redo-${cut.id}`);
+    setNote("");
+    try {
+      await songPost("redo-cut", { cutId: cut.id });
+      setNote("Clip parked. Still stays on the timeline. Send again when you want.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't redo that cut");
     } finally {
       setBusy("");
     }
@@ -1077,6 +1236,8 @@ export function MusicVideoTrack({
   }
 
   async function stopSend() {
+    cookCancel.current = true;
+    cookLock.current = false;
     setSongCookFlag(job.id, false);
     setBusy("stop");
     setNote("");
@@ -1168,11 +1329,21 @@ export function MusicVideoTrack({
                 disabled={busy === "hang"}
                 onClick={() => void hangStillsOnWave()}
               >
-                {busy === "hang" ? "Hanging…" : "Hang stills on the wave"}
+                {busy === "hang" ? "Adding…" : "Add stills to the timeline"}
+              </MobilePrimaryButton>
+            ) : null}
+            {song?.fileName && hungWaitingCuts().length && !busy.startsWith("send-") ? (
+              <MobilePrimaryButton
+                size="chip"
+                disabled={Boolean(busy)}
+                onClick={() => void sendAllHung()}
+              >
+                Send all
               </MobilePrimaryButton>
             ) : null}
             {(songCookFlagOn(job.id) ||
               hasStuckSongCook(song?.cuts || []) ||
+              busy.startsWith("send-") ||
               (song?.cuts || []).some((c) => c.status === "running")) ? (
               <MobilePrimaryButton
                 size="chip"
@@ -1290,6 +1461,7 @@ export function MusicVideoTrack({
               onSelectRange={(startMs, endMs) => {
                 setRangeStartMs(startMs);
                 setRangeEndMs(endMs);
+                setRangeChosen(true);
               }}
             />
           ) : (
@@ -1716,18 +1888,25 @@ export function MusicVideoTrack({
 
           {compact ? null : job.folderName && plateRows.length ? (
             <DeskFold
-              label="Plates on the track"
+              label="Plates"
               count={plateRows.length}
               open={platesOnTrackOpen}
               onToggle={() => setPlatesOnTrackOpen((v) => !v)}
             >
               <p className="m-track-lyric-hint">
-                Move stills on the wave. Send a clip only when the order is right.
-                Keep a good one. Redo a bad one.
+                These are stills. Add them to the timeline
+                {rangeChosen
+                  ? ` at ${formatTrackClockPrecise(rangeStartMs)}–${formatTrackClockPrecise(rangeEndMs)}`
+                  : ""}
+                . Then Send one, or Send all. Keep a good clip. Redo a bad one.
               </p>
               <div className="m-track-plates">
-                {plateRows.map((row, i) => {
+                {plateRows.map((row) => {
                   const waveI = plateBlocks.findIndex((b) => b.plateId === row.shotId);
+                  const onTimeline = waveI >= 0;
+                  const waitCut = waitingCutForPlate(row.shotId);
+                  const doneCut = doneCutForPlate(row.shotId);
+                  const sending = waitCut?.id ? busy === `send-${waitCut.id}` : false;
                   return (
                   <div key={row.shotId} className="m-track-plate-row">
                     {hungClipFileForPlate(job, row.shotId) || row.plateFile ? (
@@ -1753,37 +1932,64 @@ export function MusicVideoTrack({
                           {formatTrackClockPrecise(row.timing.endMs)}
                         </div>
                       ) : (
-                        <div className="m-track-plate-time m-track-plate-time--open">Unscheduled</div>
+                        <div className="m-track-plate-time m-track-plate-time--open">
+                          Not on the timeline
+                        </div>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      className="m-track-btn"
-                      disabled={Boolean(busy) || waveI <= 0}
-                      onClick={() => void movePlate(row.shotId, "earlier")}
-                    >
-                      {busy === `move-${row.shotId}` ? "…" : "Earlier"}
-                    </button>
-                    <button
-                      type="button"
-                      className="m-track-btn"
-                      disabled={
-                        Boolean(busy) || waveI < 0 || waveI >= plateBlocks.length - 1
-                      }
-                      onClick={() => void movePlate(row.shotId, "later")}
-                    >
-                      {busy === `move-${row.shotId}` ? "…" : "Later"}
-                    </button>
-                    <button
-                      type="button"
-                      className="m-track-btn"
-                      disabled={Boolean(busy) || !row.plateFile}
-                      onClick={() =>
-                        void schedulePlate(row.shotId, rangeStartMs, rangeEndMs, i)
-                      }
-                    >
-                      {busy === `time-${row.shotId}` ? "…" : "Use range"}
-                    </button>
+                    <div className="m-track-plate-tools">
+                      {onTimeline ? (
+                        <>
+                          <button
+                            type="button"
+                            className="m-track-btn"
+                            disabled={Boolean(busy) || waveI <= 0}
+                            onClick={() => void movePlate(row.shotId, "earlier")}
+                          >
+                            {busy === `move-${row.shotId}` ? "…" : "Earlier"}
+                          </button>
+                          <button
+                            type="button"
+                            className="m-track-btn"
+                            disabled={
+                              Boolean(busy) || waveI >= plateBlocks.length - 1
+                            }
+                            onClick={() => void movePlate(row.shotId, "later")}
+                          >
+                            {busy === `move-${row.shotId}` ? "…" : "Later"}
+                          </button>
+                          {waitCut?.id && (waitCut.status !== "done" || !waitCut.clipFile) ? (
+                            <button
+                              type="button"
+                              className="m-track-btn"
+                              disabled={Boolean(busy) || busy.startsWith("send-")}
+                              onClick={() => void sendPlate(row.shotId)}
+                            >
+                              {sending ? "Sending…" : "Send"}
+                            </button>
+                          ) : null}
+                          {doneCut?.id ? (
+                            <button
+                              type="button"
+                              className="m-track-btn"
+                              disabled={Boolean(busy) || busy.startsWith("send-")}
+                              onClick={() => void redoPlate(row.shotId)}
+                            >
+                              {busy === `redo-${doneCut.id}` ? "…" : "Redo"}
+                            </button>
+                          ) : null}
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="m-track-btn"
+                          disabled={Boolean(busy) || !row.plateFile}
+                          onClick={() => void addPlateToTimeline(row.shotId)}
+                        >
+                          {busy === `time-${row.shotId}` ? "…" : "Add to timeline"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   );
                 })}

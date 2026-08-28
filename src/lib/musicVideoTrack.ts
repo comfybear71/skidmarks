@@ -329,6 +329,23 @@ export function cutFromPlateTiming(
   return [...rest, next];
 }
 
+/** Next empty clock after the last hung still. Do not invent a 15s row when that plate already has in/out. */
+export function nextPlateHangStartMs(existing: PlateTiming[] | undefined): number {
+  const kept = sortPlateTimings(existing || []);
+  if (!kept.length) return 0;
+  return Math.max(...kept.map((t) => t.endMs));
+}
+
+export function nextPlateHangWindow(
+  existing: PlateTiming[] | undefined,
+): { startMs: number; endMs: number } {
+  const startMs = nextPlateHangStartMs(existing);
+  return {
+    startMs,
+    endMs: startMs + secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC),
+  };
+}
+
 /**
  * TRACK paints plateTimings, not the cut list. Add-on-stills used to
  * write a waiting cut and leave the wave empty. Keep any clock already

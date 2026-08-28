@@ -8,6 +8,7 @@ import {
   formatTrackClock,
   formatTrackClockPrecise,
   hangMissingPlateTimings,
+  nextPlateHangWindow,
   swapNeighborPlateTimings,
   msToSec,
   orderedDoneCutsForStitch,
@@ -116,7 +117,13 @@ assert.match(
 assert.match(tree, /compact=\{!platesOpen\}/);
 assert.match(trackUi, /WaveformCanvas/);
 assert.match(trackUi, /Add section/);
-assert.match(trackUi, /Use range/);
+assert.match(trackUi, /Add to timeline/);
+assert.match(trackUi, /Add stills to the timeline/);
+assert.match(trackUi, /Send all/);
+assert.doesNotMatch(trackUi, /Use range/);
+assert.doesNotMatch(trackUi, /Hang stills on the wave/);
+assert.match(mobileCss, /\.m-track-plate-row \.clip-frame-thumb\.m-track-plate-thumb/);
+assert.match(mobileCss, /max-height: 40px/);
 assert.match(trackRoute, /set-plate-timing/);
 assert.match(songRoute, /sliceBoundsForPlate/);
 assert.match(songRoute, /cutFromPlateTiming/);
@@ -128,7 +135,7 @@ assert.match(trackUi, /Earlier/);
 assert.match(trackUi, /Later/);
 assert.match(trackUi, /move-plate/);
 assert.match(trackUi, /Stop send/);
-assert.match(trackUi, /Hang stills on the wave/);
+assert.match(trackUi, /Add stills to the timeline/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "move-plate"/,
@@ -156,7 +163,7 @@ assert.match(
   );
 }
 
-// Drag-to-stretch on the coloured bars is gone. Time a still with Use range.
+// Drag-to-stretch on the coloured bars is gone. Add a still to the timeline.
 assert.doesNotMatch(trackUi, /stretchPlateEdge/);
 assert.doesNotMatch(trackUi, /onStretchCommit/);
 assert.doesNotMatch(trackUi, /Drag a coloured box edge/);
@@ -213,6 +220,12 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     rail.slice(1).map((t) => t.plateId),
     ["shot_a", "shot_b", "shot_c", "shot_d", "shot_e", "shot_f"],
   );
+
+  const nextWin = nextPlateHangWindow([
+    { plateId: "shot_2uhu0p1", startMs: 0, endMs: 15000, sortIndex: 0 },
+  ]);
+  assert.equal(nextWin.startMs, 15000);
+  assert.equal(nextWin.endMs, 30000);
 
   const fromShots = hangMissingPlateTimings(
     [{ plateId: "shot_2uhu0p1", startMs: 0, endMs: 15000, sortIndex: 0 }],
