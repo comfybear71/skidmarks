@@ -218,19 +218,31 @@ export function mergeClipsFromStory(
   return next;
 }
 
-/** After Save on a line — queue that beat for LTX (or re-queue if it already ran). */
+function clipHasTake(clip: Pick<MobileClipUnit, "clipFile" | "priorClipFiles">): boolean {
+  return Boolean(clipFileBasename(clip.clipFile)) || stackedClipFiles(clip).length > 0;
+}
+
+/**
+ * After Save / Keep motion — queue that beat only.
+ * mergeClipsFromStory would also mint a pending row for every other Saved
+ * mp3 on the pack, so one Save (or Generate on one line) cooked the panel.
+ */
 export function upsertPendingClip(
   job: MobileGenJob,
   story: CrashStoryDoc,
   beatId: string,
 ): MobileClipUnit[] {
   const home = findBeatHome(story, beatId);
-  if (!home) return mergeClipsFromStory(job, story);
-  const clips = mergeClipsFromStory(job, story);
-  if (!clips.some((c) => c.beatId === beatId)) {
-    if (!(home.voiceFile || "").trim() || isLeftoverPackVoiceFile(home.voiceFile)) {
-      return clips;
-    }
+  const clips = job.clips || [];
+  if (!home) return clips;
+  const existing = clips.find((c) => c.beatId === beatId);
+  const existingVoice = existing?.voiceFile || "";
+  const voiceFile =
+    (isMobileSavedVoiceFile(home.voiceFile) && home.voiceFile) ||
+    (isMobileSavedVoiceFile(existingVoice) && existingVoice) ||
+    "";
+  if (!voiceFile) return clips;
+  if (!existing) {
     return [
       ...clips,
       {
@@ -242,7 +254,7 @@ export function upsertPendingClip(
         error: "",
         speaker: home.speaker,
         line: home.text,
-        voiceFile: home.voiceFile,
+        voiceFile,
       },
     ];
   }
@@ -254,12 +266,28 @@ export function upsertPendingClip(
           sceneId: home.sceneId,
           speaker: home.speaker,
           line: home.text,
-          voiceFile: home.voiceFile,
+          voiceFile,
           clipStatus: "pending" as const,
           error: "",
         }
       : c,
   );
+}
+
+/** Generate on one line — leave every other Saved mp3 off the animate walk. */
+export function parkOtherPendingClips(
+  clips: MobileClipUnit[],
+  keepBeatId: string,
+): MobileClipUnit[] {
+  const keep = keepBeatId.trim();
+  return clips.flatMap((c) => {
+    if (c.beatId === keep) return [c];
+    if (c.clipStatus !== "pending") return [c];
+    if (clipHasTake(c)) {
+      return [{ ...c, clipStatus: "done" as const, error: "" }];
+    }
+    return [];
+  });
 }
 
 /**
@@ -288,10 +316,13 @@ export function queueOneBeatForAnimate(
           : "Save the spoken line first — Play appears when the mp3 is ready.",
     };
   }
-  const clips = upsertPendingClip(job, story, id).map((c) =>
-    c.beatId === id
-      ? { ...c, voiceFile: voice, clipStatus: "pending" as const, error: "" }
-      : c,
+  const clips = parkOtherPendingClips(
+    upsertPendingClip(job, story, id).map((c) =>
+      c.beatId === id
+        ? { ...c, voiceFile: voice, clipStatus: "pending" as const, error: "" }
+        : c,
+    ),
+    id,
   );
   return { clips };
 }

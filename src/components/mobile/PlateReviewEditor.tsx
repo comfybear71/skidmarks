@@ -3093,8 +3093,8 @@ function BeatLineEditor({
       )}
       {songDesk || playable ? null : (
         <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>
-          Save the spoken line (Play appears), then Generate — that makes this plate&apos;s LTX
-          clip. Generate video at the top still sends every Saved line.
+          Save the spoken line (Play appears), then Generate — that makes this line&apos;s LTX
+          clip only. Generate video at the top still sends every Saved line.
         </div>
       )}
     </div>
