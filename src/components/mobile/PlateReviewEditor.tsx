@@ -2522,6 +2522,7 @@ function ShotLineEditor({
           </MobilePrimaryButton>
         ) : null}
         {styleId === "music_video" ? (
+          <>
           <PlateEngineButtons
             jobId={jobId}
             shotId={shot.id}
@@ -2538,6 +2539,7 @@ function ShotLineEditor({
                   disabled={songAdding}
                   onSend={onSendStill}
                 />
+          </>
         ) : (
           <>
             <AnotherLineButton
