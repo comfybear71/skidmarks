@@ -1560,6 +1560,13 @@ assert.match(editor, /styleId === "music_video"/, "music_video plate shows LTX /
 assert.match(editor, /AnotherLineButton/, "+ another line stays for non music_video");
 assert.match(editor, />\s*No lips\s*</, "No lips sits next to H3");
 assert.match(editor, /writeMvMuteAction/, "No lips stores mute for the next Send");
+assert.match(editor, /mute=\{Boolean\(muteOn\)\}/, "hole mute flag follows No lips");
+assert.match(editor, /singingBody=\{motionBody\}/, "No lips off shows the singing stack");
+assert.match(panels, /data-mute=\{mute \? "yes" : "no"\}/, "hole marks mute on/off");
+assert.match(panels, /mute \? \(/, "mute tail only when No lips is on");
+assert.match(trackUi, /if \(muteOn\)/, "mute lock compose only when No lips or empty frame");
+assert.match(trackUi, /buildScratchSongLtxMotion/, "Send persist writes singing when No lips is off");
+assert.match(trackUi, /imageMotionLooksMuteLock/, "persist drops a stored mute lock when singing");
 assert.match(editor, /muteMvEmptyFrame/, "plate lock drops the singer when nobody is in the still");
 assert.match(editor, /writeMvNobodyInShot/, "Nobody next to HERO/SUPPORT");
 assert.match(
@@ -1569,8 +1576,8 @@ assert.match(
 );
 assert.match(
   editor,
-  /styleId === "music_video" && \(enginePromptOpen \|\| muteAction\)/,
-  "LTX / H3 open the hole on an empty plate, not only when a speaker exists",
+  /styleId === "music_video" && muteAction/,
+  "empty-plate mute hole only when No lips is on",
 );
 assert.match(
   editor,

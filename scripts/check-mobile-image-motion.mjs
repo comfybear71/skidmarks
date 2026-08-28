@@ -36,6 +36,7 @@ import {
   MUTE_MV_EMPTY_LEAD,
   MUTE_MV_EMPTY_TAIL,
   imageMotionLooksEmptyFrame,
+  imageMotionLooksMuteLock,
   muteMvMotionLabel,
   muteMvEngineFoldSummary,
   muteMvEngineFoldLines,
@@ -351,6 +352,15 @@ const jackSinging = buildScratchSongLtxMotion({
   startSec: 0,
 });
 assert.match(jackSinging, /Cyan mouth line moves/);
+assert.doesNotMatch(jackSinging, /Not singing/, "singing compose is not the mute lock");
+const frankSing = buildScratchSongLtxMotion({
+  styleId: "music_video",
+  speaker: "FRANK",
+  lookLock: "short dark hair",
+});
+assert.match(frankSing, /sings this slice of the track/);
+assert.match(frankSing, /mouth and head move naturally with the music, singing/);
+assert.doesNotMatch(frankSing, /Not singing/);
 const sendBody = pickSongSendMotionBody({
   stored: jackStandUp,
   storedUsable: songStoredMotionUsable(jackStandUp, []),
@@ -358,9 +368,11 @@ const sendBody = pickSongSendMotionBody({
   singingDefault: jackSinging,
   speakingDefault: "talk",
 });
-assert.match(sendBody, /stands up from the crouch/);
-assert.match(sendBody, /vintage car already in the start image speeds off/);
-assert.doesNotMatch(sendBody, /Cyan mouth line moves/);
+assert.equal(imageMotionLooksMuteLock(jackStandUp), true);
+assert.equal(sendBody, jackSinging);
+assert.match(sendBody, /Cyan mouth line moves/);
+assert.doesNotMatch(sendBody, /Mouth stays closed/);
+assert.doesNotMatch(sendBody, /Not singing/);
 assert.equal(
   pickSongSendMotionBody({
     stored: "",
@@ -374,11 +386,11 @@ assert.equal(
 assert.equal(
   songSendNeedsRecook({
     existingClipFile: "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
-    lastSent: jackSinging,
+    lastSent: jackStandUp,
     nextSent: sendBody,
   }),
   true,
-  "changed box + old singing mp4 must recook",
+  "stored mute lock + singing send must recook",
 );
 assert.equal(
   songSendNeedsRecook({
@@ -413,6 +425,21 @@ assert.equal(MUTE_MV_SLOT_PLACEHOLDER, "stand up, car drives off");
 const composed = composeMuteMvMotion(muteLock, "stand up, car drives off");
 assert.match(composed, /stand up, car drives off/);
 assert.match(composed, /Mouth stays closed/);
+assert.match(composed, /Not singing/, "mute compose keeps the mute lock");
+assert.equal(imageMotionLooksMuteLock(composed), true);
+assert.equal(
+  pickSongSendMotionBody({
+    stored: jackStandUp,
+    storedUsable: true,
+    singing: true,
+    singingDefault: jackSinging,
+    speakingDefault: "talk",
+    mute: true,
+    muteDefault: composed,
+  }),
+  stripLtxLipSyncLead(jackStandUp),
+  "No lips on keeps the mute lock",
+);
 assert.equal(extractMuteMvMotionSlot(composed, muteLock), "stand up, car drives off");
 assert.equal(extractMuteMvMotionSlot(jackSinging, muteLock), "");
 assert.equal(isSingingDefaultMotion(jackSinging), true);
@@ -421,6 +448,32 @@ const kept = extractMuteMvMotionSlot(jackStandUp, muteLock);
 assert.match(kept, /stands up from the crouch/);
 assert.match(kept, /vintage car already in the start image speeds off/);
 assert.doesNotMatch(kept, /Mouth stays closed/);
+assert.equal(imageMotionLooksMuteLock(composed), true);
+assert.equal(
+  pickSongSendMotionBody({
+    stored: jackStandUp,
+    storedUsable: true,
+    singing: true,
+    singingDefault: jackSinging,
+    speakingDefault: "talk",
+    mute: true,
+    muteDefault: composed,
+  }),
+  stripLtxLipSyncLead(jackStandUp),
+  "No lips on keeps the mute lock",
+);
+assert.doesNotMatch(
+  pickSongSendMotionBody({
+    stored: composed,
+    storedUsable: true,
+    singing: true,
+    singingDefault: jackSinging,
+    speakingDefault: "talk",
+    mute: false,
+  }),
+  /Not singing/,
+  "singing + No lips off must not keep stored Not singing",
+);
 
 assert.equal(muteMvMotionLabel("h3"), "H3 Image motion", "H3 titles the hole H3");
 assert.equal(muteMvMotionLabel("ltx"), "LTX Image motion", "LTX titles the hole LTX");
@@ -564,6 +617,7 @@ assert.match(
   /car speeds off toward the city/,
 );
 assert.equal(imageMotionLooksEmptyFrame(emptyComposed), true);
+assert.equal(imageMotionLooksMuteLock(emptyComposed), true);
 assert.equal(imageMotionLooksEmptyFrame(jackStandUp), false);
 assert.equal(
   songSendNeedsRecook({

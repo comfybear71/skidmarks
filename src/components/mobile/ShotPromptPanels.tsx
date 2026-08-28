@@ -224,15 +224,20 @@ export function MuteMvMotionHole({
   motionSlot,
   onMotionSlot,
   disabled,
+  mute = true,
+  singingBody,
 }: {
   engine: MuteMvEngine;
   motionLock: MuteMvMotionLock;
   motionSlot: string;
   onMotionSlot: (value: string) => void;
   disabled?: boolean;
+  /** No lips on — mute tail. Off shows the singing stack. */
+  mute?: boolean;
+  singingBody?: string;
 }) {
   return (
-    <div className="m-plate-motion-hole" data-engine={engine}>
+    <div className="m-plate-motion-hole" data-engine={engine} data-mute={mute ? "yes" : "no"}>
       <div className="m-plate-motion-label">
         {muteMvMotionLabel(engine)}
       </div>
@@ -244,23 +249,29 @@ export function MuteMvMotionHole({
           ))}
         </div>
       </details>
-      <p className="m-plate-motion-lock">{motionLock.lead}</p>
-      <label className="m-plate-motion-slot">
-        <span className="m-plate-motion-slot-mark" aria-hidden>
-          [
-        </span>
-        <textarea
-          value={motionSlot}
-          placeholder={MUTE_MV_SLOT_PLACEHOLDER}
-          rows={2}
-          disabled={disabled}
-          onChange={(e) => onMotionSlot(e.target.value)}
-        />
-        <span className="m-plate-motion-slot-mark" aria-hidden>
-          ]
-        </span>
-      </label>
-      <p className="m-plate-motion-lock">{motionLock.tail}</p>
+      {mute ? (
+        <>
+          <p className="m-plate-motion-lock">{motionLock.lead}</p>
+          <label className="m-plate-motion-slot">
+            <span className="m-plate-motion-slot-mark" aria-hidden>
+              [
+            </span>
+            <textarea
+              value={motionSlot}
+              placeholder={MUTE_MV_SLOT_PLACEHOLDER}
+              rows={2}
+              disabled={disabled}
+              onChange={(e) => onMotionSlot(e.target.value)}
+            />
+            <span className="m-plate-motion-slot-mark" aria-hidden>
+              ]
+            </span>
+          </label>
+          <p className="m-plate-motion-lock">{motionLock.tail}</p>
+        </>
+      ) : (
+        <p className="m-plate-motion-lock">{singingBody}</p>
+      )}
     </div>
   );
 }
