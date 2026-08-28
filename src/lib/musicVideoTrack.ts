@@ -349,27 +349,39 @@ export function nextPlateHangWindow(
 const PLATE_DURATION_MIN_MS = 1000;
 const PLATE_DURATION_MAX_MS = secToMs(LTX_MAX_DURATION_SEC);
 
-/** How long this still covers. Followers keep their length and slide. Not stuck at 15s. */
-export function withPlateDuration(
+/**
+ * Where this still sits, and how long it covers. Not stuck at 15s.
+ * Later stills keep their length and slide. Earlier stills stay put
+ * unless this one jumps in front of them — then the clock reorders.
+ */
+export function withPlateWindow(
   existing: PlateTiming[] | undefined,
   plateId: string,
+  startMs: number,
   durationMs: number,
   songMs: number,
 ): PlateTiming[] | null {
   const sorted = sortPlateTimings(existing || []);
-  const i = sorted.findIndex((t) => t.plateId === (plateId || "").trim());
+  const id = (plateId || "").trim();
+  const i = sorted.findIndex((t) => t.plateId === id);
   if (i < 0) return null;
   const song = Math.max(PLATE_DURATION_MIN_MS, Math.round(Number(songMs) || 0));
-  const asked = Math.round(Number(durationMs) || 0);
-  const startMs = Math.max(0, Math.min(sorted[i]!.startMs, song - PLATE_DURATION_MIN_MS));
+  const askedStart = Math.round(Number(startMs));
+  const askedDur = Math.round(Number(durationMs) || 0);
+  const start = Math.max(
+    0,
+    Math.min(Number.isFinite(askedStart) ? askedStart : 0, song - PLATE_DURATION_MIN_MS),
+  );
   const dur = Math.max(
     PLATE_DURATION_MIN_MS,
-    Math.min(PLATE_DURATION_MAX_MS, asked > 0 ? asked : PLATE_DURATION_MIN_MS, song - startMs),
+    Math.min(PLATE_DURATION_MAX_MS, askedDur > 0 ? askedDur : PLATE_DURATION_MIN_MS, song - start),
   );
   const next = sorted.map((t) => ({ ...t }));
-  next[i] = { ...next[i]!, startMs, endMs: startMs + dur };
-  let cursor = next[i]!.endMs;
-  for (let j = i + 1; j < next.length; j++) {
+  next[i] = { ...next[i]!, startMs: start, endMs: start + dur };
+  next.sort((a, b) => a.startMs - b.startMs || a.sortIndex - b.sortIndex);
+  const ni = next.findIndex((t) => t.plateId === id);
+  let cursor = next[ni]!.endMs;
+  for (let j = ni + 1; j < next.length; j++) {
     const keep = Math.max(PLATE_DURATION_MIN_MS, next[j]!.endMs - next[j]!.startMs);
     if (cursor >= song) {
       next[j] = {
@@ -388,6 +400,19 @@ export function withPlateDuration(
     cursor = next[j]!.endMs;
   }
   return next.map((t, sortIndex) => ({ ...t, sortIndex }));
+}
+
+/** How long this still covers. Followers keep their length and slide. Not stuck at 15s. */
+export function withPlateDuration(
+  existing: PlateTiming[] | undefined,
+  plateId: string,
+  durationMs: number,
+  songMs: number,
+): PlateTiming[] | null {
+  const sorted = sortPlateTimings(existing || []);
+  const hit = sorted.find((t) => t.plateId === (plateId || "").trim());
+  if (!hit) return null;
+  return withPlateWindow(existing, plateId, hit.startMs, durationMs, songMs);
 }
 
 /**
