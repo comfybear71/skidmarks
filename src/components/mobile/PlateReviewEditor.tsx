@@ -2508,6 +2508,74 @@ function ShotLineEditor({
   );
 }
 
+/** Add | LTX | H3 — pick stores for the next TRACK Send. Does not cook. */
+function PlateEngineButtons({
+  jobId,
+  shotId,
+  beatId,
+}: {
+  jobId: string;
+  shotId: string;
+  beatId: string;
+}) {
+  const [engine, setEngine] = useState<MuteMvEngine>(() =>
+    shotId ? readMvClipEngine(jobId, shotId) : beatId ? readMvEngine(jobId, beatId) : "ltx",
+  );
+  const [h3Ready, setH3Ready] = useState(false);
+
+  useEffect(() => {
+    if (shotId) {
+      setEngine(readMvClipEngine(jobId, shotId));
+      return;
+    }
+    if (beatId) setEngine(readMvEngine(jobId, beatId));
+  }, [beatId, jobId, shotId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/crash/mobile/scratch")
+      .then((res) => res.json())
+      .then((data: { minimax?: boolean }) => {
+        if (!cancelled && typeof data.minimax === "boolean") setH3Ready(data.minimax);
+      })
+      .catch(() => {
+        /* H3 stays dead */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (h3Ready || engine !== "h3") return;
+    if (shotId) writeMvClipEngine(jobId, shotId, "ltx");
+    if (beatId) writeMvEngine(jobId, beatId, "ltx");
+    setEngine("ltx");
+  }, [beatId, engine, h3Ready, jobId, shotId]);
+
+  function pick(next: MuteMvEngine) {
+    if (next === "h3" && !h3Ready) return;
+    if (shotId) writeMvClipEngine(jobId, shotId, next);
+    if (beatId) writeMvEngine(jobId, beatId, next);
+    setEngine(next);
+  }
+
+  return (
+    <>
+      <MobilePrimaryButton tone={engine === "ltx" ? "accent" : "ghost"} onClick={() => pick("ltx")}>
+        LTX
+      </MobilePrimaryButton>
+      <MobilePrimaryButton
+        tone={engine === "h3" ? "accent" : "ghost"}
+        disabled={!h3Ready}
+        onClick={() => pick("h3")}
+      >
+        H3
+      </MobilePrimaryButton>
+    </>
+  );
+}
+
 function AnotherLineButton({
   jobId,
   shotId,
