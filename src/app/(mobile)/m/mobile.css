@@ -3376,6 +3376,13 @@ span.scratch-history-blob {
   color: var(--chrome);
   font-size: 13px;
   font-weight: 600;
+  -moz-appearance: textfield;
+}
+
+.m-track-pick-len input[type="number"]::-webkit-inner-spin-button,
+.m-track-pick-len input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 .m-track-pick-tools {
