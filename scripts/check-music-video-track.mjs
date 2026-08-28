@@ -8,7 +8,10 @@ import {
   formatTrackClock,
   formatTrackClockPrecise,
   hangMissingPlateTimings,
+  hitPlateEdge,
   nextPlateHangWindow,
+  resolvePlateTimings,
+  stretchPlateEdge,
   swapNeighborPlateTimings,
   withPlateDuration,
   withPlateWindow,
@@ -179,13 +182,19 @@ assert.match(
   );
 }
 
-// Drag-to-stretch on the coloured bars is gone. Add a still to the timeline.
-assert.doesNotMatch(trackUi, /stretchPlateEdge/);
-assert.doesNotMatch(trackUi, /onStretchCommit/);
-assert.doesNotMatch(trackUi, /Drag a coloured box edge/);
+// Floor A: hang first, pull a handle, then Send. No typed How long box.
+assert.match(trackUi, /stretchPlateEdge/);
+assert.match(trackUi, /onStretchCommit/);
+assert.match(trackUi, /hitPlateEdge/);
+assert.match(trackUi, /Pull a handle on the bar/);
+assert.match(trackUi, /selectedPlateId/);
+assert.match(mobileCss, /\.m-track-stretch-hint/);
+assert.match(trackRoute, /set-plate-timings/);
+assert.match(trackUi, /saveStretchedBoxes/);
+assert.match(trackUi, /pickedOnSong/);
+assert.match(trackUi, /Already on the song/);
+assert.doesNotMatch(trackUi, /await songPost\("add-plate"/);
 assert.doesNotMatch(trackUi, /Pictures stay put/);
-assert.doesNotMatch(mobileCss, /\.m-track-stretch-hint/);
-assert.doesNotMatch(trackRoute, /set-plate-timings/);
 
 assert.match(mobileCss, /\.m-track-film/);
 assert.match(
@@ -309,6 +318,61 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(fromShots[1].startMs, 15000);
   assert.equal(fromShots[2].plateId, "shot_car");
   assert.equal(fromShots[2].startMs, 30000);
+
+  assert.deepEqual(
+    resolvePlateTimings({ plateTimings: [] }, {
+      plateTimings: [{ plateId: "ghost", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    }).map((t) => t.plateId),
+    ["ghost"],
+    "empty song array must not hide a draft hang",
+  );
+  assert.equal(
+    resolvePlateTimings({
+      plateTimings: [{ plateId: "jack", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    }, {
+      plateTimings: [{ plateId: "draft", startMs: 0, endMs: 8000, sortIndex: 0 }],
+    })[0]?.plateId,
+    "jack",
+  );
+
+  const boxes = [
+    { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+    { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+    { plateId: "c", startMs: 30000, endMs: 45000, sortIndex: 2 },
+  ];
+  const pulled = stretchPlateEdge(boxes, "b", "start", 10000, 45000);
+  assert.equal(pulled.find((t) => t.plateId === "a")?.endMs, 15000, "other plates keep their times");
+  assert.equal(pulled.find((t) => t.plateId === "b")?.startMs, 10000);
+  assert.equal(pulled.find((t) => t.plateId === "b")?.endMs, 30000);
+  const pushed = stretchPlateEdge(boxes, "b", "end", 40000, 45000);
+  assert.equal(pushed.find((t) => t.plateId === "b")?.endMs, 40000);
+  assert.equal(pushed.find((t) => t.plateId === "c")?.startMs, 30000, "later still stays put");
+  const clamped = stretchPlateEdge(boxes, "b", "end", 100000, 45000);
+  assert.equal(clamped.find((t) => t.plateId === "b")?.endMs, 45000);
+  const tooSmall = stretchPlateEdge(boxes, "a", "end", 100, 45000);
+  assert.equal(tooSmall.find((t) => t.plateId === "a")?.endMs, 500);
+
+  const hit = hitPlateEdge({
+    timings: boxes,
+    durationMs: 45000,
+    width: 450,
+    height: 78,
+    x: 150,
+    y: 70,
+  });
+  assert.ok(hit);
+  assert.ok(
+    (hit.plateId === "a" && hit.edge === "end") || (hit.plateId === "b" && hit.edge === "start"),
+  );
+  const miss = hitPlateEdge({
+    timings: boxes,
+    durationMs: 45000,
+    width: 450,
+    height: 78,
+    x: 150,
+    y: 20,
+  });
+  assert.equal(miss, null);
 }
 
 assert.match(
@@ -407,6 +471,25 @@ assert.match(editor, />\s*H3\s*</, "H3 is a real button next to Add");
 assert.match(editor, /busy \? "Sending…" : "Send"/, "Send is on the same row as Add / LTX / H3");
 assert.match(editor, /onSendStill/, "plate Send uses the one TRACK cook");
 assert.match(editor, /Sending…/, "plate Send shows Sending while the cook runs");
+assert.match(editor, /sendStillNote/, "plate card can show a cook line under Send");
+assert.match(
+  editor,
+  /sendStillBusy \? "m-song-cook-note" : "m-track-err"/,
+  "cook line is dim while Sending, pink if it failed",
+);
+assert.match(trackUi, /onSendStillNote/, "TRACK paints the plate cook line");
+assert.match(
+  trackUi,
+  /Cooking — mouths shut\. This can take a few minutes\./,
+  "No lips Send says mouths shut, not a mute percent bar",
+);
+assert.match(trackUi, /Cooking — mouths shut\. Still going\./, "No lips Send ticks still going");
+assert.match(trackUi, /paintPlateSend/, "Send writes the plate line, not only TRACK setNote");
+assert.match(
+  tree,
+  /onSendStillNote=\{setSendStillNote\}/,
+  "tree passes the cook line to the open plate",
+);
 assert.doesNotMatch(editor, />\s*Siray\s*</, "Siray stays off the plate");
 assert.doesNotMatch(editor, />\s*Free\s*</, "Free stays off the plate");
 assert.match(editor, /writeMvEngine/, "tap stores the engine for the next Send");

@@ -45,6 +45,7 @@ import {
   muteMvEmptyFrame,
   muteMvPadNames,
   plateLineBeats,
+  songDeskEditorBeats,
   shotSpeakersOnCard,
   speakersAlreadyInPlate,
   castPopupFaceGrey,
@@ -236,6 +237,7 @@ export function PlateReviewEditor({
   focusShotId,
   onSendStill,
   sendStillBusy,
+  sendStillNote,
 }: {
   job: MobileGenJob;
   onJobChange?: (job: MobileGenJob) => void;
@@ -249,6 +251,8 @@ export function PlateReviewEditor({
   /** Music-video plate-row Send — same cook TRACK used to run. */
   onSendStill?: (shotId: string) => Promise<void>;
   sendStillBusy?: boolean;
+  /** Cooking / fail line on the open plate — Sending… is not enough. */
+  sendStillNote?: string;
 }) {
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -1069,6 +1073,7 @@ export function PlateReviewEditor({
           songAdding={Boolean(openShotId && songAddFor === openShotId)}
           onSendStill={onSendStill}
           sendStillBusy={sendStillBusy}
+          sendStillNote={sendStillNote}
           onJobChange={onJobChange}
           onShotMeta={(patch) => {
             if (!openShotId) return;
@@ -2249,6 +2254,7 @@ function ShotLineEditor({
   songAdding,
   onSendStill,
   sendStillBusy,
+  sendStillNote,
   onJobChange,
   onShotMeta,
 }: {
@@ -2277,6 +2283,7 @@ function ShotLineEditor({
           songAdding?: boolean;
           onSendStill?: (shotId: string) => Promise<void>;
           sendStillBusy?: boolean;
+          sendStillNote?: string;
           onJobChange?: (job: MobileGenJob) => void;
           onShotMeta?: (patch: {
             footageRole?: ShotFootageRole;
@@ -2335,6 +2342,11 @@ function ShotLineEditor({
     jobSpeakers,
     beats: shot.beats,
   });
+  // Same shot.staging Position — do not paint it once per spoken row.
+  const editorBeats = songDeskEditorBeats(
+    speakingBeats,
+    styleId === "music_video",
+  );
 
   return (
     <div style={{ ...mobileCard, padding: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -2359,47 +2371,49 @@ function ShotLineEditor({
       />
       {speakingBeats.map((beat) => {
         const clip = clips.find((c) => c.beatId === beat.id);
+        if (!(clip?.clipStatus === "error" && clip.error)) return null;
         return (
-          <div key={beat.id}>
-            {clip?.clipStatus === "error" && clip.error ? (
-              <div
+          <div
+            key={`clip-err-${beat.id}`}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "8px",
+            }}
+          >
+            <div style={{ flex: 1, fontSize: "12px", color: "var(--magenta-hot)" }}>
+              {clip.error}
+            </div>
+            {onDismissClipError ? (
+              <button
+                type="button"
+                aria-label="Bin failed clip"
+                title="Bin this failed Generate. File parks in _cleared/ — not deleted."
+                disabled={clipRemoveDisabled}
+                onClick={() => onDismissClipError(beat.id)}
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "8px",
-                  marginBottom: "6px",
+                  flex: "0 0 auto",
+                  width: "22px",
+                  height: "22px",
+                  padding: 0,
+                  borderRadius: "2px",
+                  border: "1px solid var(--acid)",
+                  background: "transparent",
+                  color: "var(--acid)",
+                  fontSize: "11px",
+                  lineHeight: 1,
+                  cursor: clipRemoveDisabled ? "not-allowed" : "pointer",
+                  opacity: clipRemoveDisabled ? 0.45 : 1,
                 }}
               >
-                <div style={{ flex: 1, fontSize: "12px", color: "var(--magenta-hot)" }}>
-                  {clip.error}
-                </div>
-                {onDismissClipError ? (
-                  <button
-                    type="button"
-                    aria-label="Bin failed clip"
-                    title="Bin this failed Generate. File parks in _cleared/ — not deleted."
-                    disabled={clipRemoveDisabled}
-                    onClick={() => onDismissClipError(beat.id)}
-                    style={{
-                      flex: "0 0 auto",
-                      width: "22px",
-                      height: "22px",
-                      padding: 0,
-                      borderRadius: "2px",
-                      border: "1px solid var(--acid)",
-                      background: "transparent",
-                      color: "var(--acid)",
-                      fontSize: "11px",
-                      lineHeight: 1,
-                      cursor: clipRemoveDisabled ? "not-allowed" : "pointer",
-                      opacity: clipRemoveDisabled ? 0.45 : 1,
-                    }}
-                  >
-                    ✕
-                  </button>
-                ) : null}
-              </div>
+                ✕
+              </button>
             ) : null}
+          </div>
+        );
+      })}
+      {editorBeats.map((beat) => (
+          <div key={beat.id}>
             {beat.kind === "cutaway" && styleId !== "music_video" ? (
             <CutawayBeatPanel
             key={beat.id}
@@ -2437,8 +2451,7 @@ function ShotLineEditor({
             shotId={shot.id}
             enginePromptOpen={
               styleId === "music_video" &&
-              (enginePromptOpen || muteAction) &&
-              beat.id === (speakingBeats[0]?.id || "")
+              (enginePromptOpen || muteAction)
             }
             mvEngine={mvEngine}
             jobVoices={jobVoices}
@@ -2499,8 +2512,7 @@ function ShotLineEditor({
           />
             )}
           </div>
-        );
-      })}
+      ))}
       {!speakingBeats.length ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {onAddToSong ? (
@@ -2600,6 +2612,14 @@ function ShotLineEditor({
         )}
         </div>
       )}
+      {sendStillNote ? (
+        <p
+          className={sendStillBusy ? "m-song-cook-note" : "m-track-err"}
+          role="status"
+        >
+          {sendStillNote}
+        </p>
+      ) : null}
     </div>
   );
 }

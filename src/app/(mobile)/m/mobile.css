@@ -3310,6 +3310,13 @@ span.scratch-history-blob {
   font-size: 12px;
 }
 
+.m-track-stretch-hint {
+  margin: 4px 0 0;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .m-track-pick-len {
   display: flex;
   align-items: center;

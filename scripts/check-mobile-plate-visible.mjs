@@ -76,6 +76,18 @@ assert.doesNotMatch(
 );
 assert.match(editor, /No plates yet\. Tap \+/);
 assert.match(editor, /m-plate-no-still/);
+assert.match(
+  editor,
+  /songDeskEditorBeats/,
+  "Music-video still must use one Position fold, not one per spoken row",
+);
+assert.match(editor, /const editorBeats = songDeskEditorBeats/);
+assert.match(editor, /\{editorBeats\.map\(\(beat\) =>/);
+assert.equal(
+  (editor.match(/<PositionPromptPanel/g) || []).length,
+  1,
+  "Position prompt lives once inside BeatLineEditor — do not add a second fold",
+);
 assert.match(editor, /Drawing the still — wait here/);
 assert.match(tree, /Adding a plate — wait here/);
 assert.match(tree, /busy=\{addingPlateFor === placeFocus\}/);

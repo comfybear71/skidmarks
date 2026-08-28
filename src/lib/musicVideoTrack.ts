@@ -36,6 +36,27 @@ export type PlateTiming = {
   sortIndex: number;
 };
 
+/**
+ * One clock for the wave, the 15s badge, and the pick row.
+ * An empty song array must not hide a draft hang — [] is truthy in JS.
+ */
+export function resolvePlateTimings(
+  song?: { plateTimings?: PlateTiming[] } | null,
+  draft?: { plateTimings?: PlateTiming[] } | null,
+): PlateTiming[] {
+  const fromSong = song?.plateTimings;
+  if (fromSong && fromSong.length) return fromSong;
+  const fromDraft = draft?.plateTimings;
+  if (fromDraft && fromDraft.length) return fromDraft;
+  if (Array.isArray(fromSong)) return fromSong;
+  if (Array.isArray(fromDraft)) return fromDraft;
+  return [];
+}
+
+export const MIN_PLATE_BOX_MS = 500;
+
+export type PlateBoxEdge = "start" | "end";
+
 export type MusicVideoTrackDraft = {
   /** Saved the moment the mp3 is dropped, so a refresh cannot lose it. */
   songFile?: string;
@@ -235,6 +256,35 @@ export function trackWaveLayout(width: number, height: number) {
   return { rulerH, laneH, waveTop, waveH, laneY, laneBoxH, width };
 }
 
+/** Same geometry the canvas draws, so a tap on a handle hits that bar. */
+export function hitPlateEdge(opts: {
+  timings: Pick<PlateTiming, "plateId" | "startMs" | "endMs">[];
+  durationMs: number;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  slopPx?: number;
+}): { plateId: string; edge: PlateBoxEdge } | null {
+  const { durationMs, width, height, x, y } = opts;
+  if (!durationMs || !width || !height) return null;
+  const layout = trackWaveLayout(width, height);
+  const slop = opts.slopPx ?? 14;
+  if (y < layout.laneY - 6 || y > layout.laneY + layout.laneBoxH + 6) return null;
+  const xAt = (ms: number) => (ms / durationMs) * width;
+  let best: { plateId: string; edge: PlateBoxEdge; dist: number } | null = null;
+  for (const t of opts.timings) {
+    const x0 = xAt(t.startMs);
+    const x1 = xAt(t.endMs);
+    for (const edge of ["start", "end"] as const) {
+      const dist = Math.abs(x - (edge === "start" ? x0 : x1));
+      if (dist > slop) continue;
+      if (!best || dist < best.dist) best = { plateId: t.plateId, edge, dist };
+    }
+  }
+  return best ? { plateId: best.plateId, edge: best.edge } : null;
+}
+
 /**
  * A dropped mp3 on a locked spoken episode lives in trackDraft first.
  * Timing plates needs scratchSong.fileName — copy the pointer, never a beat.
@@ -263,7 +313,7 @@ export function songFromTrackDraft(
     waveformPeaks: existing?.waveformPeaks || draft?.waveformPeaks,
     sectionMarkers: existing?.sectionMarkers || draft?.sectionMarkers,
     lyricCues: existing?.lyricCues || draft?.lyricCues,
-    plateTimings: existing?.plateTimings || draft?.plateTimings,
+    plateTimings: resolvePlateTimings(existing, draft),
   };
 }
 
@@ -274,9 +324,39 @@ export function plateTimingForShot(
 ): PlateTiming | null {
   const id = (shotId || "").trim();
   if (!id) return null;
-  const fromSong = (song?.plateTimings || []).find((p) => p.plateId === id);
-  if (fromSong) return fromSong;
-  return (draft?.plateTimings || []).find((p) => p.plateId === id) || null;
+  return resolvePlateTimings(song, draft).find((p) => p.plateId === id) || null;
+}
+
+/**
+ * Pull one hung bar's in or out. Other stills keep their times — no slide,
+ * no compact, no new 15s row.
+ */
+export function stretchPlateEdge(
+  timings: PlateTiming[],
+  plateId: string,
+  edge: PlateBoxEdge,
+  wantMs: number,
+  songEndMs: number,
+  snapMs = 100,
+): PlateTiming[] {
+  const out = sortPlateTimings(timings).map((t) => ({ ...t }));
+  const idx = out.findIndex((t) => t.plateId === plateId);
+  if (idx < 0) return timings;
+  const cap = Number.isFinite(songEndMs) && songEndMs > 0 ? Math.round(songEndMs) : Infinity;
+  const snap = snapMs > 0 ? snapMs : 1;
+  let at = Math.round(wantMs / snap) * snap;
+  const cur = out[idx]!;
+
+  if (edge === "start") {
+    const hi = cur.endMs - MIN_PLATE_BOX_MS;
+    at = Math.max(0, Math.min(hi, at, cap));
+    cur.startMs = at;
+  } else {
+    const lo = cur.startMs + MIN_PLATE_BOX_MS;
+    at = Math.max(lo, Math.min(at, cap));
+    cur.endMs = at;
+  }
+  return out;
 }
 
 /**
