@@ -1,5 +1,6 @@
 import { speakerVoiceKey } from "./crashVoicePrompt";
 import { jackWalkCameraForStartSec } from "./musicVideoGroupPlate";
+import { MINIMAX_H3_MAX_SEC, MINIMAX_H3_MIN_SEC } from "./minimaxH3";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 
 /**
@@ -1040,6 +1041,41 @@ export function writeMvEngine(jobId: string, beatId: string, engine: MuteMvEngin
 /** Hole header — LTX vs H3. No lips is mute on the same engine, not a third name. */
 export function muteMvMotionLabel(engine: MuteMvEngine): string {
   return engine === "h3" ? "H3 Image motion" : "LTX Image motion";
+}
+
+/**
+ * Desk fold only — what he was told for the hole.
+ * Not `LTX_MAX_DURATION_SEC` (180 safety). H3 official range is 4–15
+ * (`minimaxH3.ts`). 25s is LTX, not H3.
+ */
+export const MUTE_MV_LTX_DESK_MAX_SEC = 30;
+
+/** Closed fold under the hole title. Not a TRACK essay. */
+export function muteMvEngineFoldSummary(engine: MuteMvEngine): string {
+  return engine === "h3"
+    ? `H3 · ${MINIMAX_H3_MIN_SEC}–${MINIMAX_H3_MAX_SEC}s · first frame · one move`
+    : `LTX · up to ${MUTE_MV_LTX_DESK_MAX_SEC}s · talking/sing ok · 5s ok`;
+}
+
+/**
+ * One tap opens these. H3 API is first_frame + optional last_frame + duration
+ * (`minimaxVideo.ts`) — no camera enum. `/m` has no last-frame picker
+ * (that lives on `/scratch`). Drone/crane in `MUTE_CINEMATIC_ARCHIVE.md`
+ * is people-talk for hold / push / track / pedestal.
+ */
+export function muteMvEngineFoldLines(engine: MuteMvEngine): string[] {
+  if (engine === "h3") {
+    return [
+      `Length: ${MINIMAX_H3_MIN_SEC}–${MINIMAX_H3_MAX_SEC}s. No 25s. Use LTX for 25.`,
+      "This still is the first frame. No last-frame picker on this desk.",
+      "One move: stand, or car, not both. Camera: hold / push / track / pedestal (drone-like lift) — write it in [ ].",
+      "No song into H3. No lips = mouths shut.",
+      "Do not paste Cowboy Bebop / kinetic-type gold onto Jack.",
+    ];
+  }
+  return [
+    `LTX can do up to ${MUTE_MV_LTX_DESK_MAX_SEC}s. Talking or singing if you want. 5s is fine.`,
+  ];
 }
 
 /**

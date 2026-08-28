@@ -6,6 +6,8 @@ import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scra
 import {
   LTX_LIP_SYNC_LEAD,
   MUTE_MV_SLOT_PLACEHOLDER,
+  muteMvEngineFoldLines,
+  muteMvEngineFoldSummary,
   muteMvMotionLabel,
   type MuteMvEngine,
   type MuteMvMotionLock,
@@ -234,6 +236,14 @@ export function MuteMvMotionHole({
       <div className="m-plate-motion-label">
         {muteMvMotionLabel(engine)}
       </div>
+      <details className="m-plate-motion-fold">
+        <summary>{muteMvEngineFoldSummary(engine)}</summary>
+        <div className="m-plate-motion-fold-body">
+          {muteMvEngineFoldLines(engine).map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      </details>
       <p className="m-plate-motion-lock">{motionLock.lead}</p>
       <label className="m-plate-motion-slot">
         <span className="m-plate-motion-slot-mark" aria-hidden>

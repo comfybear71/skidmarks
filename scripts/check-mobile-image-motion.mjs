@@ -37,6 +37,9 @@ import {
   MUTE_MV_EMPTY_TAIL,
   imageMotionLooksEmptyFrame,
   muteMvMotionLabel,
+  muteMvEngineFoldSummary,
+  muteMvEngineFoldLines,
+  MUTE_MV_LTX_DESK_MAX_SEC,
   resolveMvSendEngine,
 } from "../src/lib/mobileImageMotion.ts";
 
@@ -421,6 +424,37 @@ assert.doesNotMatch(kept, /Mouth stays closed/);
 
 assert.equal(muteMvMotionLabel("h3"), "H3 Image motion", "H3 titles the hole H3");
 assert.equal(muteMvMotionLabel("ltx"), "LTX Image motion", "LTX titles the hole LTX");
+assert.equal(MUTE_MV_LTX_DESK_MAX_SEC, 30, "desk fold says 30s LTX, not the 180 safety ceiling");
+assert.equal(
+  muteMvEngineFoldSummary("h3"),
+  "H3 · 4–15s · first frame · one move",
+  "H3 fold stays a one-liner until he taps",
+);
+assert.equal(
+  muteMvEngineFoldSummary("ltx"),
+  "LTX · up to 30s · talking/sing ok · 5s ok",
+  "LTX fold is the matching one-liner",
+);
+const h3Fold = muteMvEngineFoldLines("h3");
+assert.equal(h3Fold.length, 5, "H3 tap opens the five desk facts");
+assert.match(h3Fold[0], /4–15s/);
+assert.match(h3Fold[0], /No 25s/);
+assert.match(h3Fold[0], /Use LTX for 25/);
+assert.match(h3Fold[1], /first frame/);
+assert.match(h3Fold[1], /No last-frame picker on this desk/);
+assert.match(h3Fold[2], /hold \/ push \/ track \/ pedestal/);
+assert.match(h3Fold[2], /write it in \[ \]/);
+assert.match(h3Fold[3], /No song into H3/);
+assert.match(h3Fold[3], /mouths shut/);
+assert.match(h3Fold[4], /Cowboy Bebop/);
+assert.doesNotMatch(h3Fold.join(" "), /Fal Quality|last-frame picker on this desk is/i);
+const ltxFold = muteMvEngineFoldLines("ltx");
+assert.equal(ltxFold.length, 1, "LTX fold stays a matching one-liner");
+assert.match(ltxFold[0], /up to 30s/);
+assert.match(ltxFold[0], /Talking or singing/);
+assert.match(ltxFold[0], /5s is fine/);
+assert.match(motionSrc, /export function muteMvEngineFoldSummary/, "fold copy lives next to the hole title helper");
+assert.match(motionSrc, /export function muteMvEngineFoldLines/);
 assert.equal(
   resolveMvSendEngine({ jobId: "job", picked: "h3" }),
   "h3",

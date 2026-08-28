@@ -497,6 +497,14 @@ assert.match(editor, /setEnginePromptOpen\(true\)/, "tap LTX or H3 opens the mot
 assert.match(editor, /onOpen=\{\(next\) =>/, "LTX / H3 are openers, not a dead highlight");
 assert.match(panels, /export function MuteMvMotionHole/, "one hole for LTX and H3");
 assert.match(panels, /muteMvMotionLabel\(engine\)/, "hole title follows LTX vs H3");
+assert.match(panels, /m-plate-motion-fold/, "folded H3 / LTX line sits under the hole title");
+assert.match(panels, /muteMvEngineFoldSummary\(engine\)/, "fold summary follows the picked engine");
+assert.match(panels, /muteMvEngineFoldLines\(engine\)/, "one tap opens the engine facts");
+assert.doesNotMatch(trackUi, /m-plate-motion-fold/, "engine fold is not a TRACK essay");
+assert.doesNotMatch(trackUi, /muteMvEngineFold/, "fold copy does not live on the wave");
+assert.doesNotMatch(trackUi, /Cowboy Bebop/, "Cowboy Bebop lock is on the hole, not TRACK");
+assert.doesNotMatch(panels, /endPlateFile/, "/m hole has no last-frame picker");
+assert.doesNotMatch(editor, /endPlateFile/, "/m plate editor has no last-frame picker");
 assert.doesNotMatch(
   panels,
   /m-plate-motion-label">\s*LTX Image motion/,
@@ -547,6 +555,7 @@ assert.match(trackUi, /clipEngine/, "Send can still run LTX / H3");
 assert.doesNotMatch(trackUi, /Seedance/, "do not fake a Seedance button");
 assert.match(mobileCss, /\.m-plate-add-engines/, "Add | LTX | H3 stay on one row");
 assert.match(mobileCss, /\.m-plate-motion-hole/, "opened prompt is lock + [ ] on the plate");
+assert.match(mobileCss, /\.m-plate-motion-fold/, "folded H3 / LTX line is under the hole title");
 assert.match(mobileCss, /\.m-plate-motion-lock/, "90% lock sits around the [ ] hole");
 assert.doesNotMatch(mobileCss, /\.m-plate-clip-engines/, "no engine chrome on the CLIPS thumb");
 assert.match(

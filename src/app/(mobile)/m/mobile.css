@@ -3393,6 +3393,46 @@ span.scratch-history-blob {
   text-transform: uppercase;
 }
 
+.m-plate-motion-fold {
+  margin: 0 0 8px;
+}
+
+.m-plate-motion-fold > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.m-plate-motion-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.m-plate-motion-fold > summary::after {
+  content: " ▸";
+  color: var(--acid);
+}
+
+.m-plate-motion-fold[open] > summary::after {
+  content: " ▾";
+}
+
+.m-plate-motion-fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.m-plate-motion-fold-body p {
+  margin: 0;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .m-plate-motion-lock {
   margin: 0;
   color: var(--chrome-dim);
