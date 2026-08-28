@@ -84,6 +84,7 @@ export async function POST(req: Request) {
     listIndex?: number;
     clipEngine?: string;
     durationSec?: number;
+    mute?: boolean;
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -421,6 +422,7 @@ export async function POST(req: Request) {
           sliceStartSec: bounds.startSec,
           sliceDurationSec: bounds.durationSec,
           cutId: cut.id,
+          mute: body.mute === true,
         });
         return NextResponse.json({
           ok: true,

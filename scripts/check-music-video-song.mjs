@@ -36,6 +36,7 @@ import {
   isMissingScratchSpokenLine,
   MISSING_SCRATCH_SPOKEN_LINE,
   muteSongBeatStub,
+  songCutIsMuteAction,
   songCutUsesSpokenLine,
   syncSongCutsToDesk,
   songCutsOrderBroken,
@@ -331,6 +332,14 @@ assert.deepEqual(
 assert.equal(songCutUsesSpokenLine({ styleId: "skidmarks" }), true);
 assert.equal(songCutUsesSpokenLine({ styleId: "music_video" }), false);
 assert.equal(songCutUsesSpokenLine({ styleId: "skidmarks", cutId: "cut_1" }), false);
+assert.equal(songCutIsMuteAction({ mute: true }), true);
+assert.equal(songCutIsMuteAction({ styleId: "music_video", beatKind: "cutaway" }), true);
+assert.equal(songCutIsMuteAction({ styleId: "music_video" }), false);
+assert.equal(songCutIsMuteAction({ styleId: "skidmarks", beatKind: "cutaway" }), false);
+assert.match(clip, /writeSilentMp3/, "mute action uses silence, not the song");
+assert.match(clip, /muteAction/, "No lips send skips the song mp3");
+assert.match(clip, /Never the song mix/);
+assert.match(songRoute, /mute: body.mute === true/);
 assert.equal(isMissingScratchSpokenLine(MISSING_SCRATCH_SPOKEN_LINE), true);
 assert.equal(isMissingScratchSpokenLine("Cloud job timed out after 1200s"), false);
 {

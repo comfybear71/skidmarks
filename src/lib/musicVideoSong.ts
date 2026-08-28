@@ -86,6 +86,22 @@ export function songCutUsesSpokenLine(opts: { styleId?: string; cutId?: string }
   return true;
 }
 
+/**
+ * Mute / No lips — action only. Not singing. Do not feed the song mp3.
+ * Leftover talking cutaway beats on music_video count as mute.
+ */
+export function songCutIsMuteAction(opts: {
+  mute?: boolean;
+  styleId?: string;
+  beatKind?: string;
+}): boolean {
+  if (opts.mute) return true;
+  return (
+    (opts.styleId || "").trim() === "music_video" &&
+    (opts.beatKind || "").trim() === "cutaway"
+  );
+}
+
 export function hasStuckSongCook(cuts: Pick<ScratchSongCut, "status" | "clipFile">[] = []): boolean {
   return cuts.some((c) => c.status === "running" && !(c.clipFile || "").trim());
 }

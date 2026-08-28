@@ -23,6 +23,7 @@ import {
   buildScratchPadLtxMotion,
   pickLtxMotionBody,
   pickSongSendMotionBody,
+  skipSongLipSyncLead,
   songSendNeedsRecook,
   songStoredMotionUsable,
   looksLikePlatePositionPrompt,
@@ -415,6 +416,37 @@ assert.doesNotMatch(kept, /Mouth stays closed/);
 
 assert.match(motionSrc, /export function writeMvClipEngine/, "plate LTX / H3 store is session only");
 assert.match(motionSrc, /export function readMvClipEngine/);
+assert.match(motionSrc, /export function readMvMuteAction/, "No lips is session only");
 assert.doesNotMatch(motionSrc, /job\.scratchSong/, "engine pick is not written onto the job");
+assert.equal(
+  skipSongLipSyncLead({ speaker: "FRANK", singing: true, mute: true }),
+  true,
+  "No lips never prepends perfect lip sync",
+);
+assert.doesNotMatch(
+  pickSongSendMotionBody({
+    stored: jackSinging,
+    storedUsable: true,
+    singing: true,
+    singingDefault: jackSinging,
+    speakingDefault: "talk",
+    mute: true,
+    muteDefault: composeMuteMvMotion(muteLock, "walks away from camera"),
+  }),
+  /Cyan mouth line/,
+  "No lips must not send the singing default",
+);
+assert.match(
+  pickSongSendMotionBody({
+    stored: jackSinging,
+    storedUsable: true,
+    singing: true,
+    singingDefault: jackSinging,
+    speakingDefault: "talk",
+    mute: true,
+    muteDefault: composeMuteMvMotion(muteLock, "walks away from camera"),
+  }),
+  /walks away from camera/,
+);
 
 console.log("check-mobile-image-motion: ok");
