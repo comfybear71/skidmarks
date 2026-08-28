@@ -1118,6 +1118,30 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     5,
     "listUnhungDoneClips keeps the 5s file, not the 15s window",
   );
+  assert.deepEqual(
+    listUnhungDoneClips({
+      clips: [
+        { shotId: "car", clipFile: "02_Car.mp4", clipStatus: "done", durationSec: 5 },
+        { shotId: "jack3", clipFile: "04_Jack_stand.mp4", clipStatus: "done", durationSec: 8 },
+      ],
+      cuts: [
+        { shotId: "car", clipFile: "02_Car.mp4", status: "done", durationSec: 5 },
+      ],
+      plateTimings: [
+        { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+      ],
+      skipShotIds: ["car~6ir"],
+    }).map((r) => r.clipFile),
+    ["04_Jack_stand.mp4"],
+    "skip car~6ir must not hide leftover on another still",
+  );
+  const skipWholeCar = listUnhungDoneClips({
+    clips: [{ shotId: "car", clipFile: "05_Car_take.mp4", clipStatus: "done", durationSec: 6 }],
+    cuts: [],
+    plateTimings: [],
+    skipShotIds: ["car"],
+  });
+  assert.deepEqual(skipWholeCar.map((r) => r.clipFile), [], "skip car still skips the car still");
 
   const stillsStayOff = hangMissingPlateTimings(
     [{ plateId: "plate_1", startMs: 0, endMs: 15000, sortIndex: 0 }],
@@ -1304,7 +1328,7 @@ assert.match(
   /hangMissingPlateTimings/,
   "Add on a still must write the TRACK clock, not only a waiting cut",
 );
-assert.match(songRoute, /addPlateHangOnTrack/, "both Add buttons hang leftover takes after the last bar");
+assert.match(songRoute, /applyAddPlateOnSong/, "both Add buttons hang leftover takes after the last bar");
 assert.match(trackUi, /hangPlateShotId/, "extra take bars keep the still title");
 assert.match(trackUi, /action: "add-plate"/, "already-hung Add still posts add-plate for leftover takes");
 assert.match(
@@ -1360,6 +1384,11 @@ assert.match(
   songRoute.slice(songRoute.indexOf('action === "add-plate"')),
   /fileFirst\.hung/,
   "Open→Add must not fall through to a 4th WAITING cook when the file exists",
+);
+assert.match(
+  songRoute.slice(songRoute.indexOf('action === "add-plate"')),
+  /applyAddPlateOnSong/,
+  "Add keeps sibling clipFiles — no desk rebuild",
 );
 assert.match(trackUi, /needsDoneClipHang/);
 assert.match(trackUi, /hungClipFileForPlate\(job, picked\.shotId\) \? null/);
