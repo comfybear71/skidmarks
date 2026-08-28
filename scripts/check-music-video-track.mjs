@@ -18,6 +18,7 @@ import {
   secToMs,
   sliceBoundsForPlate,
   sortPlateTimings,
+  cutForHungPlate,
 } from "../src/lib/musicVideoTrack.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -342,3 +343,32 @@ assert.match(clipRoute, /planParkDeskClipTake/);
 assert.match(motion, /pickLtxMotionBody/);
 assert.match(scratchClip, /That still is not ready/);
 assert.match(scratchClip, /Drop the song first/);
+assert.match(scratchClip, /pickSongSendMotionBody/);
+assert.match(scratchClip, /songSendNeedsRecook/);
+assert.match(scratchClip, /planParkDeskClipTake/);
+assert.match(trackUi, /cutForHungPlate/);
+assert.match(motion, /pickSongSendMotionBody/);
+{
+  const hung = cutForHungPlate({
+    cuts: [
+      {
+        id: "cut_mtylzdo",
+        shotId: "shot_1j8xafx",
+        startSec: 0,
+        durationSec: 15,
+        status: "done",
+        clipFile: "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      },
+      {
+        id: "cut_l27ecte",
+        shotId: "shot_1j8xafx",
+        startSec: 180,
+        durationSec: 15,
+        status: "pending",
+      },
+    ],
+    shotId: "shot_1j8xafx",
+    timing: { plateId: "shot_1j8xafx", startMs: 0, endMs: 15000, sortIndex: 0 },
+  });
+  assert.equal(hung?.id, "cut_mtylzdo", "Send this still, not a later leftover row");
+}

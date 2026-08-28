@@ -789,3 +789,52 @@ export function pickLtxMotionBody(opts: {
   if ((opts.stored || "").trim()) return opts.stored;
   return opts.defaultBody;
 }
+
+/**
+ * Music-video Send: the LTX box wins. A singing default must not overwrite
+ * words he already kept (stand up, car drives off). Gold "Only NAME in frame"
+ * is part of that box — not a dumped Position prompt.
+ */
+export function pickSongSendMotionBody(opts: {
+  stored: string;
+  storedUsable: boolean;
+  singing: boolean;
+  singingDefault: string;
+  speakingDefault: string;
+}): string {
+  if (opts.storedUsable) return stripLtxLipSyncLead(opts.stored);
+  if (opts.singing) return opts.singingDefault;
+  return opts.speakingDefault;
+}
+
+/** Kept LTX words — leftover Comfy/Land names still dump the box. */
+export function songStoredMotionUsable(
+  stored: string,
+  leftoverNames: string[] = [],
+): boolean {
+  const body = stripLtxLipSyncLead(stored);
+  if (!body) return false;
+  return !leftoverNames.some((name) => {
+    const n = name.trim();
+    if (n.length < 2) return false;
+    const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${escaped}\\b`, "i").test(body);
+  });
+}
+
+/**
+ * Send after he changed the box must park the old mp4 and cook.
+ * Same words + a file already on the cut = hang, do not recook.
+ */
+export function songSendNeedsRecook(opts: {
+  existingClipFile: string;
+  lastSent: string;
+  nextSent: string;
+}): boolean {
+  const file = (opts.existingClipFile || "").trim();
+  if (!file) return true;
+  const last = stripLtxLipSyncLead(opts.lastSent);
+  const next = stripLtxLipSyncLead(opts.nextSent);
+  if (last && last === next) return false;
+  return true;
+}

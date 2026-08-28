@@ -3,7 +3,7 @@ import path from "path";
 import { resolveGenOrPackPlate } from "./crashActivePack";
 import { resolveMobileBeatAudio } from "./resolveMobileBeatAudio";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
-import { humanOrderedClipName, rememberClipTake } from "./mobilePlateClips";
+import { clipFileBasename, humanOrderedClipName, rememberClipTake } from "./mobilePlateClips";
 import { runLtxSmoke } from "./ltxSmoke";
 import { resolveComfyUrl, probeComfyUrl } from "./comfyClient";
 import { candidateLookPrompt } from "./mobileJobReady";
@@ -22,6 +22,9 @@ import {
   ltxSendPrompt,
   stripLtxLipSyncLead,
   looksLikePlatePositionPrompt,
+  pickSongSendMotionBody,
+  songSendNeedsRecook,
+  songStoredMotionUsable,
 } from "./mobileImageMotion";
 import {
   clampSongWindow,
@@ -47,6 +50,9 @@ import {
 } from "./musicVideoSong";
 import { probeDurationSeconds } from "./mediaDuration";
 import { applyLandedClipDuration } from "./musicVideoTrack";
+import { parkMobileClipFile } from "./mobileClipPark";
+import { isEpisodeClipPlanError } from "./mobileEpisodeClips";
+import { planParkDeskClipTake } from "./parkDeskClip";
 
 async function ensureComfyReady(): Promise<string> {
   const { preferComfyCloudLtx } = await import("./ltxCloudIa2v");
@@ -232,35 +238,38 @@ export async function runScratchLtxClip(opts: {
     candidateLookPrompt(job.castCandidates, speaker) ||
     job.roster.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())?.appearance;
   const stored = stripLtxLipSyncLead(beat.imageMotion || "");
-  const storedOk =
-    Boolean(stored) &&
-    !imageMotionNamesLeftovers(stored, leftovers) &&
-    !looksLikePlatePositionPrompt(stored);
-  // Song slices must rebuild the identity lock every cut — a stored beat
-  // prompt from an earlier draw lets later takes invent a new face.
+  // Song Send uses the LTX box when he kept words. Empty box still rebuilds
+  // the identity lock so later takes do not invent a new face. Gold
+  // "Only NAME in frame" on a song cut is not a dumped Position prompt.
+  const storedOk = singing
+    ? songStoredMotionUsable(stored, leftovers)
+    : Boolean(stored) &&
+      !imageMotionNamesLeftovers(stored, leftovers) &&
+      !looksLikePlatePositionPrompt(stored);
   const cutRow = opts.cutId
     ? (song?.cuts || []).find((c) => c.id === opts.cutId)
     : undefined;
   const performance = cutRow?.performance;
-  const body =
-    (singing
-      ? buildScratchSongLtxMotion({
-          styleId: job.styleId,
-          speaker,
-          lookLock,
-          staging: storyShot.staging,
-          performance,
-          startSec: cutRow?.startSec,
-        })
-      : "") ||
-    (storedOk ? stored : "") ||
-    buildScratchPadLtxMotion({
+  const body = pickSongSendMotionBody({
+    stored,
+    storedUsable: storedOk,
+    singing,
+    singingDefault: buildScratchSongLtxMotion({
+      styleId: job.styleId,
+      speaker,
+      lookLock,
+      staging: storyShot.staging,
+      performance,
+      startSec: cutRow?.startSec,
+    }),
+    speakingDefault: buildScratchPadLtxMotion({
       styleId: job.styleId,
       speaker,
       line,
       lookLock,
       shotSpeakers: shotCast,
-    });
+    }),
+  });
   const stagingText = storyShot.staging || "";
   const imageMotion = ltxSendPrompt(body, stagingText, {
     skipLipSyncLead: skipSongLipSyncLead({
@@ -272,6 +281,38 @@ export async function runScratchLtxClip(opts: {
     speaker,
     shotSpeakers: shotCast,
   });
+
+  const existingFile = opts.cutId ? clipFileBasename(cutRow?.clipFile || "") : "";
+  const lastSent = stripLtxLipSyncLead(clipRow?.imageMotion || "");
+  const nextSent = stripLtxLipSyncLead(imageMotion);
+  if (
+    existingFile &&
+    !songSendNeedsRecook({
+      existingClipFile: existingFile,
+      lastSent,
+      nextSent,
+    })
+  ) {
+    return job;
+  }
+  if (existingFile && opts.cutId) {
+    const plan = planParkDeskClipTake({
+      clips: job.clips || [],
+      song: job.scratchSong,
+      cutId: opts.cutId,
+      fileName: existingFile,
+    });
+    if (!isEpisodeClipPlanError(plan)) {
+      for (const file of plan.filesToPark) {
+        parkMobileClipFile(file);
+      }
+      job = (await patchMobileGenJob(jobId, {
+        clips: plan.next,
+        scratchSong: plan.nextSong || job.scratchSong,
+        error: "",
+      }))!;
+    }
+  }
 
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
     ? (job.clips || []).map((c) =>

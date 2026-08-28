@@ -22,6 +22,7 @@ import {
   withLyricCue,
   withoutLyricCue,
   plateTimingForShot,
+  cutForHungPlate,
   importSectionMarkersFromLyrics,
   lyricCuesFromSectionSheet,
   meaningfulLyricTags,
@@ -1165,10 +1166,20 @@ export function MusicVideoTrack({
       setNote("On the song. Set start and how long, then Send.");
       return;
     }
-    let cut = waitingCutForPlate(shotId);
+    const hungCut = () =>
+      cutForHungPlate({
+        cuts: jobRef.current.scratchSong?.cuts,
+        shotId,
+        timing: plateTimingForShot(
+          jobRef.current.scratchSong,
+          jobRef.current.trackDraft,
+          shotId,
+        ),
+      });
+    let cut = hungCut();
     if (!cut?.id) {
       await setPickedLength();
-      cut = waitingCutForPlate(shotId);
+      cut = hungCut();
     }
     if (!cut?.id) {
       setNote("Set where it starts and how long, then Send.");
@@ -1685,8 +1696,11 @@ export function MusicVideoTrack({
                     >
                       {busy === `drop-${picked.shotId}` ? "…" : "Off song"}
                     </button>
-                    {!doneCutForPlate(picked.shotId) ||
-                    waitingCutForPlate(picked.shotId)?.id ? (
+                    {cutForHungPlate({
+                      cuts: job.scratchSong?.cuts,
+                      shotId: picked.shotId,
+                      timing: picked.timing,
+                    })?.id ? (
                       <button
                         type="button"
                         className="m-track-btn"

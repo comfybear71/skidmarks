@@ -247,7 +247,7 @@ assert.doesNotMatch(fullBodyBible, /Do not brighten or reveal the face/);
 assert.doesNotMatch(fullBodyBible, /only as much mouth/);
 assert.match(sax, /Same face, same hair, same hat, same clothes/);
 assert.doesNotMatch(sax, /Do not brighten or reveal the face/);
-assert.match(clip, /Song slices must rebuild the identity lock/);
+assert.match(clip, /Song Send uses the LTX box when he kept words/);
 assert.match(clip, /who is actually on this plate/);
 assert.match(clip, /skipSongLipSyncLead/);
 assert.doesNotMatch(clip, /isSilhouetteStaging/);
