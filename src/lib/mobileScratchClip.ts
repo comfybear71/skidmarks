@@ -135,7 +135,11 @@ export async function runScratchLtxClip(opts: {
     };
   }
   if (!storyShot || !beat) {
-    throw new Error(MISSING_SCRATCH_SPOKEN_LINE);
+    throw new Error(
+      muteSong
+        ? "That still is not ready. Draw it again, then Send."
+        : MISSING_SCRATCH_SPOKEN_LINE,
+    );
   }
 
   const mediaFolder = mobileMediaFolder(job);
@@ -196,9 +200,13 @@ export async function runScratchLtxClip(opts: {
   });
   if (!sourceAudio) {
     throw new Error(
-      voiceFile
-        ? `Beat mp3 not reachable — voiceFile="${voiceFile}" folderName="${mediaFolder}" beatId=${beat.id}`
-        : "Save the spoken line first — Play appears when the mp3 is ready.",
+      muteSong || singing
+        ? voiceFile
+          ? "The song file is missing. Drop the song again."
+          : "Drop the song first."
+        : voiceFile
+          ? `Beat mp3 not reachable — voiceFile="${voiceFile}" folderName="${mediaFolder}" beatId=${beat.id}`
+          : "Save the spoken line first — Play appears when the mp3 is ready.",
     );
   }
   if (looksLikePlatePositionPrompt(line) && !singing) {

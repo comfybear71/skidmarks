@@ -448,6 +448,9 @@ export async function POST(req: Request) {
           staging: emptyStageFarOutStaging(placeName),
         });
         job = landed.job;
+        if (!job) {
+          return NextResponse.json({ error: "Couldn't add that still." }, { status: 500 });
+        }
       }
       if (!job) {
         return NextResponse.json({ error: "Job not found" }, { status: 404 });
