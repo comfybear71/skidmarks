@@ -889,6 +889,62 @@ function mvMotionSlotKey(jobId: string, beatId: string): string {
   return `skidmarks.mvMotionSlot.${(jobId || "").trim()}.${(beatId || "").trim()}`;
 }
 
+export type MvClipEngine = "ltx" | "h3";
+
+function mvClipEngineKey(jobId: string, shotId: string): string {
+  return `skidmarks.mvClipEngine.${(jobId || "").trim()}.${(shotId || "").trim()}`;
+}
+
+/** Next Send of this still — LTX or H3. Not written onto the job. */
+export function readMvClipEngine(jobId: string, shotId: string): MvClipEngine {
+  if (typeof window === "undefined") return "ltx";
+  try {
+    const v = window.sessionStorage.getItem(mvClipEngineKey(jobId, shotId));
+    return v === "h3" ? "h3" : "ltx";
+  } catch {
+    return "ltx";
+  }
+}
+
+export function writeMvClipEngine(jobId: string, shotId: string, engine: MvClipEngine): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(mvClipEngineKey(jobId, shotId), engine);
+  } catch {
+    /* private mode */
+  }
+}
+
+
+export type MuteMvEngine = "ltx" | "h3";
+
+function mvEngineKey(jobId: string, beatId: string): string {
+  return `skidmarks.mvEngine.${(jobId || "").trim()}.${(beatId || "").trim()}`;
+}
+
+export function parseMuteMvEngine(value: string | null | undefined): MuteMvEngine {
+  return value === "h3" ? "h3" : "ltx";
+}
+
+/** Next Send of this plate line — LTX or H3. Not written onto the job. */
+export function readMvEngine(jobId: string, beatId: string): MuteMvEngine {
+  if (typeof window === "undefined") return "ltx";
+  try {
+    return parseMuteMvEngine(window.sessionStorage.getItem(mvEngineKey(jobId, beatId)));
+  } catch {
+    return "ltx";
+  }
+}
+
+export function writeMvEngine(jobId: string, beatId: string, engine: MuteMvEngine): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(mvEngineKey(jobId, beatId), engine);
+  } catch {
+    /* private mode */
+  }
+}
+
 /** His [ ] motion words stay when he switches LTX ↔ H3. */
 export function readMvMotionSlot(jobId: string, beatId: string): string | null {
   if (typeof window === "undefined") return null;

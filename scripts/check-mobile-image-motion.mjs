@@ -413,4 +413,8 @@ assert.match(kept, /stands up from the crouch/);
 assert.match(kept, /vintage car already in the start image speeds off/);
 assert.doesNotMatch(kept, /Mouth stays closed/);
 
+assert.match(motionSrc, /export function writeMvClipEngine/, "plate LTX / H3 store is session only");
+assert.match(motionSrc, /export function readMvClipEngine/);
+assert.doesNotMatch(motionSrc, /job\.scratchSong/, "engine pick is not written onto the job");
+
 console.log("check-mobile-image-motion: ok");

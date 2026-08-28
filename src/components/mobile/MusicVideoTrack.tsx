@@ -62,7 +62,7 @@ import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
-import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
+import { readApiJson } from "@/lib/studioFetchError";
 import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import {
@@ -70,10 +70,10 @@ import {
   buildMuteMvMotionLock,
   composeMuteMvMotion,
   extractMuteMvMotionSlot,
+  readMvEngine,
   readMvMotionSlot,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
-import { stockSearchLinks } from "@/lib/stockFootage";
 import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { ClipFrameThumb } from "./ClipFrameThumb";
@@ -81,14 +81,12 @@ import { DeskFold, MobilePrimaryButton } from "./MobileUi";
 import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 import {
   EMPTY_STOCK_LOOK,
-  composeStockSearchQuery,
   parseStockLook,
   stockLookFoldLabel,
   stockLookIsOn,
   type StockLook,
 } from "@/lib/stockLook";
 
-type MvEngine = "ltx" | "h3" | "siray" | "free";
 import {
   askSongCookNotifyPermission,
   clearSongCookStop,
@@ -758,9 +756,6 @@ export function MusicVideoTrack({
   const [marqueeOpen, setMarqueeOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [pickedId, setPickedId] = useState("");
-  const [engine, setEngine] = useState<MvEngine>("ltx");
-  const [h3Ready, setH3Ready] = useState(false);
-  const [sirayReady, setSirayReady] = useState(false);
   const [motionSlot, setMotionSlot] = useState("");
   const [motionSaving, setMotionSaving] = useState(false);
   const [startDraft, setStartDraft] = useState("0");
@@ -947,23 +942,6 @@ export function MusicVideoTrack({
       extractMuteMvMotionSlot(pickedStory?.beat?.imageMotion || "", motionLock),
     );
   }, [picked?.shotId, pickedBeatId, job.id]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/crash/mobile/scratch")
-      .then((res) => res.json())
-      .then((data: { siray?: boolean; minimax?: boolean }) => {
-        if (cancelled) return;
-        if (typeof data.siray === "boolean") setSirayReady(data.siray);
-        if (typeof data.minimax === "boolean") setH3Ready(data.minimax);
-      })
-      .catch(() => {
-        /* dead buttons stay dead */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (picked?.timing) {
@@ -1214,14 +1192,20 @@ export function MusicVideoTrack({
     return raw;
   }
 
+  function liveMotionSlot() {
+    if (!pickedBeatId) return motionSlot;
+    const live = readMvMotionSlot(job.id, pickedBeatId);
+    return live !== null ? live : motionSlot;
+  }
+
   function composedMotionBody() {
-    return composeMuteMvMotion(motionLock, motionSlot);
+    return composeMuteMvMotion(motionLock, liveMotionSlot());
   }
 
   async function persistPickedMotion() {
     if (!pickedBeatId) return composedMotionBody();
     const body = composedMotionBody();
-    writeMvMotionSlot(job.id, pickedBeatId, motionSlot);
+    writeMvMotionSlot(job.id, pickedBeatId, liveMotionSlot());
     const res = await fetch("/api/crash/mobile/beat-motion", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1249,7 +1233,7 @@ export function MusicVideoTrack({
     throw new Error("Still cooking. The episode is still there — tap Send again.");
   }
 
-  async function sendI2v(cutId: string, pick: "h3" | "siray") {
+  async function sendI2v(cutId: string) {
     const timing = plateTimingForShot(
       jobRef.current.scratchSong,
       jobRef.current.trackDraft,
@@ -1265,45 +1249,10 @@ export function MusicVideoTrack({
     const raw = await songPost("run", {
       cutId,
       beatId: pickedBeatId || beatId,
-      clipEngine: pick === "h3" ? MINIMAX_H3_ID : "siray",
-      ...(pick === "h3" && durationSec ? { durationSec } : {}),
+      clipEngine: MINIMAX_H3_ID,
+      ...(durationSec ? { durationSec } : {}),
     });
     if (raw.pending) await pollI2v(cutId);
-  }
-
-  async function attachFreeClip(file: File) {
-    const homeBeat = pickedBeatId || beatId;
-    if (!homeBeat) {
-      setNote("Lock the episode and pick a still first.");
-      return;
-    }
-    if (picked && !hungShotIds().has(picked.shotId)) {
-      await addPlateToTimeline(picked.shotId);
-    }
-    setBusy("send-free");
-    setNote("");
-    try {
-      const form = new FormData();
-      form.set("jobId", job.id);
-      form.set("beatId", homeBeat);
-      form.set("source", "stock");
-      form.set("file", file);
-      let res: Response;
-      try {
-        res = await fetch("/api/crash/mobile/clip/upload", { method: "POST", body: form });
-      } catch (e) {
-        throw new Error(studioFetchError(e, "Couldn't hang that clip"));
-      }
-      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
-      if (data.job) {
-        onJobChange(data.job);
-        jobRef.current = data.job;
-      }
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't hang that clip");
-    } finally {
-      setBusy("");
-    }
   }
 
   async function addPlateToTimeline(shotId: string) {
@@ -1354,10 +1303,6 @@ export function MusicVideoTrack({
   }
 
   async function sendPlate(shotId: string) {
-    if (engine === "free") {
-      setNote("Drop a free clip on this still.");
-      return;
-    }
     if (!hungShotIds().has(shotId.trim())) {
       await addPlateToTimeline(shotId);
       setNote("On the song. Set start and how long, then Send.");
@@ -1393,8 +1338,8 @@ export function MusicVideoTrack({
       } finally {
         setMotionSaving(false);
       }
-      if (engine === "h3" || engine === "siray") {
-        await sendI2v(cut.id, engine);
+      if (pickedBeatId && readMvEngine(job.id, pickedBeatId) === "h3") {
+        await sendI2v(cut.id);
         return;
       }
       await sendOneCutBody(cut.id);
@@ -1836,100 +1781,30 @@ export function MusicVideoTrack({
                   ? `${formatTrackClockPrecise(picked.timing.startMs)} – ${formatTrackClockPrecise(picked.timing.endMs)}`
                   : "Not on the song yet"}
               </div>
-              <div className="m-track-engines" role="group" aria-label="How to make this clip">
-                <button
-                  type="button"
-                  className={`m-track-engine${engine === "ltx" ? " is-on" : ""}`}
-                  onClick={() => setEngine("ltx")}
-                >
-                  LTX
-                </button>
-                <button
-                  type="button"
-                  className={`m-track-engine${engine === "h3" ? " is-on" : ""}`}
-                  disabled={!h3Ready}
-                  title={h3Ready ? "MiniMax H3" : "H3 is not on this Studio"}
-                  onClick={() => h3Ready && setEngine("h3")}
-                >
-                  H3
-                </button>
-                <button
-                  type="button"
-                  className={`m-track-engine${engine === "siray" ? " is-on" : ""}`}
-                  disabled={!sirayReady}
-                  title={sirayReady ? "Siray" : "Siray is not on this Studio"}
-                  onClick={() => sirayReady && setEngine("siray")}
-                >
-                  Siray
-                </button>
-                <button
-                  type="button"
-                  className={`m-track-engine${engine === "free" ? " is-on" : ""}`}
-                  onClick={() => setEngine("free")}
-                >
-                  Free
-                </button>
+              <div className="m-track-motion">
+                <div className="m-track-motion-label">Image motion</div>
+                <p className="m-track-motion-lock">{motionLock.lead}</p>
+                <label className="m-track-motion-slot">
+                  <span className="m-track-motion-slot-mark" aria-hidden>
+                    [
+                  </span>
+                  <textarea
+                    value={motionSlot}
+                    placeholder={MUTE_MV_SLOT_PLACEHOLDER}
+                    rows={2}
+                    disabled={Boolean(busy) || motionSaving}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setMotionSlot(next);
+                      if (pickedBeatId) writeMvMotionSlot(job.id, pickedBeatId, next);
+                    }}
+                  />
+                  <span className="m-track-motion-slot-mark" aria-hidden>
+                    ]
+                  </span>
+                </label>
+                <p className="m-track-motion-lock">{motionLock.tail}</p>
               </div>
-              {engine === "free" ? (
-                <div className="m-track-free">
-                  <p className="m-track-free-hint">
-                    Search a free clip, then drop the file on this still.
-                  </p>
-                  <div className="m-track-free-links">
-                    {stockSearchLinks(
-                      composeStockSearchQuery(freeLook, picked.title) || picked.title,
-                    ).map((link) => (
-                      <a
-                        key={link.id}
-                        className="m-track-btn"
-                        href={link.href}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {link.label}
-                      </a>
-                    ))}
-                  </div>
-                  <label className="m-track-free-drop">
-                    Drop a free clip
-                    <input
-                      type="file"
-                      accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
-                      disabled={Boolean(busy)}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = "";
-                        if (file) void attachFreeClip(file);
-                      }}
-                    />
-                  </label>
-                </div>
-              ) : (
-                <div className="m-track-motion">
-                  <div className="m-track-motion-label">Image motion</div>
-                  <p className="m-track-motion-lock">{motionLock.lead}</p>
-                  <label className="m-track-motion-slot">
-                    <span className="m-track-motion-slot-mark" aria-hidden>
-                      [
-                    </span>
-                    <textarea
-                      value={motionSlot}
-                      placeholder={MUTE_MV_SLOT_PLACEHOLDER}
-                      rows={2}
-                      disabled={Boolean(busy) || motionSaving}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        setMotionSlot(next);
-                        if (pickedBeatId) writeMvMotionSlot(job.id, pickedBeatId, next);
-                      }}
-                    />
-                    <span className="m-track-motion-slot-mark" aria-hidden>
-                      ]
-                    </span>
-                  </label>
-                  <p className="m-track-motion-lock">{motionLock.tail}</p>
-                </div>
-              )}
               <label className="m-track-pick-len">
                 Starts at
                 <input

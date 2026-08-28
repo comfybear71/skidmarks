@@ -3,7 +3,12 @@
 import type { ReactNode } from "react";
 import { MobilePrimaryButton, MobileTextInput } from "@/components/mobile/MobileUi";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
-import { LTX_LIP_SYNC_LEAD } from "@/lib/mobileImageMotion";
+import {
+  LTX_LIP_SYNC_LEAD,
+  MUTE_MV_SLOT_PLACEHOLDER,
+  type MuteMvEngine,
+  type MuteMvMotionLock,
+} from "@/lib/mobileImageMotion";
 import type { ScratchBibleEntry, ScratchBibleSectionId } from "@/lib/scratchBench";
 
 /**
@@ -205,3 +210,70 @@ export function LtxImageMotionPanel({
     </div>
   );
 }
+
+/**
+ * Music-video plate block — LTX / H3 sit where “LTX Image motion” was.
+ * Pick the engine, then type motion in the [ ] hole. Does not cook.
+ */
+export function MuteMvEnginePanel({
+  engine,
+  onEngine,
+  h3Ready,
+  motionLock,
+  motionSlot,
+  onMotionSlot,
+  disabled,
+}: {
+  engine: MuteMvEngine;
+  onEngine: (engine: MuteMvEngine) => void;
+  h3Ready: boolean;
+  motionLock: MuteMvMotionLock;
+  motionSlot: string;
+  onMotionSlot: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="shot-prompt-ltx shot-prompt-mv-engines">
+      <div className="shot-prompt-engines" role="group" aria-label="How to make this clip">
+        <button
+          type="button"
+          className={`shot-prompt-engine${engine === "ltx" ? " is-on" : ""}`}
+          disabled={disabled}
+          onClick={() => onEngine("ltx")}
+        >
+          LTX
+        </button>
+        <button
+          type="button"
+          className={`shot-prompt-engine${engine === "h3" ? " is-on" : ""}`}
+          disabled={disabled || !h3Ready}
+          title={h3Ready ? "MiniMax H3" : "H3 is not on this Studio"}
+          onClick={() => h3Ready && onEngine("h3")}
+        >
+          H3
+        </button>
+      </div>
+      <div className="m-track-motion">
+        <div className="m-track-motion-label">Image motion</div>
+        <p className="m-track-motion-lock">{motionLock.lead}</p>
+        <label className="m-track-motion-slot">
+          <span className="m-track-motion-slot-mark" aria-hidden>
+            [
+          </span>
+          <textarea
+            value={motionSlot}
+            placeholder={MUTE_MV_SLOT_PLACEHOLDER}
+            rows={2}
+            disabled={disabled}
+            onChange={(e) => onMotionSlot(e.target.value)}
+          />
+          <span className="m-track-motion-slot-mark" aria-hidden>
+            ]
+          </span>
+        </label>
+        <p className="m-track-motion-lock">{motionLock.tail}</p>
+      </div>
+    </div>
+  );
+}
+
