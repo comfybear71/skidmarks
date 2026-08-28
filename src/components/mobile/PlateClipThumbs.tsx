@@ -7,11 +7,11 @@ import { mobileClipSrc, stackedClipFiles, stableClipTakeLabel } from "@/lib/mobi
 import { ClipFrameThumb } from "./ClipFrameThumb";
 
 export {
+  clipRailLabels,
   clipsForStillsDesk,
   clipsUnderPlate,
   gatherClipsForStillsRail,
   mobileClipSrc,
-  plateRailLabels,
   stackedClipFiles,
 } from "@/lib/mobilePlateClips";
 /** Match the still and the mp4 — this width on a phone. */
@@ -22,7 +22,8 @@ export const PLATE_TILE_PX = 160;
  * `layout="strip"` — oldest take left, newest right, swipe sideways
  * across the full /m Clips bleed (and Scratch pad). New mp4s append.
  * Default stack kept for callers that want it.
- * Labels use song clock / file id — never "4/10" that renumbers on delete.
+ * Labels are clip 1, clip 2, clip 3 in hang / cook order — never story plate 8.
+ * Clock is plateTimings (0:00 / 0:15 / 0:30) or "off". Never a filename tail.
  * Every Generate take stays. Empty pending slots stay hidden.
  * Play opens a body portal — native controls inside the overflow rail
  * sit under the pad on iPhone.
@@ -33,7 +34,6 @@ export function PlateClipThumbs({
   preload,
   poster,
   posterByShotId,
-  plateLabelByShotId,
   layout = "stack",
   onRemoveTake,
   removeDisabled,
@@ -42,7 +42,13 @@ export function PlateClipThumbs({
     id: string;
     styleId: string;
     folderName: string;
-    scratchSong?: { cuts?: { clipFile?: string; startSec?: number }[] } | null;
+    scratchSong?: {
+      cuts?: { clipFile?: string; shotId?: string }[];
+      plateTimings?: { plateId: string; startMs: number; endMs: number; sortIndex: number }[];
+    } | null;
+    trackDraft?: {
+      plateTimings?: { plateId: string; startMs: number; endMs: number; sortIndex: number }[];
+    } | null;
   };
   clips: MobileClipUnit[];
   preload?: boolean;
@@ -50,26 +56,42 @@ export function PlateClipThumbs({
   poster?: string;
   /** One still per shot so the Clips rail is not eighteen copies of shot 01. */
   posterByShotId?: Record<string, string>;
-  /** STILLS order — "plate 1", "plate 2" under each appended thumb. */
-  plateLabelByShotId?: Record<string, string>;
   layout?: "stack" | "strip";
   /** /m and Scratch — park one take (mp4 stays in _cleared/ or Blob). */
   onRemoveTake?: (opts: { beatId: string; fileName: string }) => void;
   removeDisabled?: boolean;
 }) {
   const songCuts = job.scratchSong?.cuts || [];
-  const files = clips.flatMap((clip, i) => {
+  const plateTimings = job.scratchSong?.plateTimings || job.trackDraft?.plateTimings || [];
+  const seenFile = new Set<string>();
+  const files: {
+    key: string;
+    file: string;
+    beatId: string;
+    poster?: string;
+    takeLabel: string;
+    preload: boolean;
+  }[] = [];
+  clips.forEach((clip, i) => {
     const stacked = stackedClipFiles(clip);
     const shotPoster = (clip.shotId && posterByShotId?.[clip.shotId]) || poster;
-    return stacked.map((file, n) => ({
-      key: `${clip.beatId}-${file}`,
-      file,
-      beatId: clip.beatId,
-      poster: shotPoster,
-      takeLabel: stableClipTakeLabel({ fileName: file, songCuts }),
-      plateLabel: (clip.shotId && plateLabelByShotId?.[clip.shotId]) || "",
-      preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
-    }));
+    stacked.forEach((file, n) => {
+      if (seenFile.has(file)) return;
+      seenFile.add(file);
+      files.push({
+        key: `${clip.beatId}-${file}`,
+        file,
+        beatId: clip.beatId,
+        poster: shotPoster,
+        takeLabel: stableClipTakeLabel({
+          fileName: file,
+          shotId: clip.shotId,
+          songCuts,
+          plateTimings,
+        }),
+        preload: Boolean(preload && i === clips.length - 1 && n === stacked.length - 1),
+      });
+    });
   });
   if (!files.length) return null;
   const row = layout === "strip";
@@ -83,7 +105,7 @@ export function PlateClipThumbs({
         flex: "0 0 auto",
       }}
     >
-      {files.map((row) => (
+      {files.map((row, i) => (
         <div key={row.key} className="m-plate-clip-thumb">
           <ClipPlayer
             src={mobileClipSrc(job, row.file)}
@@ -96,7 +118,7 @@ export function PlateClipThumbs({
             }
             removeDisabled={removeDisabled}
           />
-          {row.plateLabel ? <span className="m-plate-clip-plate">{row.plateLabel}</span> : null}
+          <span className="m-plate-clip-plate">{`clip ${i + 1}`}</span>
         </div>
       ))}
     </div>

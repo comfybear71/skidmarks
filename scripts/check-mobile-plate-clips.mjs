@@ -6,9 +6,10 @@ import {
   clearClipRowTakes,
   clipFileBasename,
   dropClipTakeFromRow,
+  clipHangStartMs,
+  clipRailLabels,
   gatherClipsForStillsRail,
   uniqueClipsByFile,
-  plateRailLabels,
   rememberClipTake,
   stackedClipFiles,
   stableClipTakeLabel,
@@ -49,33 +50,46 @@ assert.deepEqual(remembered.priorClipFiles, []);
 assert.equal(
   stableClipTakeLabel({
     fileName: "slice_at_60.mp4",
+    shotId: "shot-60",
     songCuts: [
-      { clipFile: "slice_at_0.mp4", startSec: 0 },
-      { clipFile: "slice_at_60.mp4", startSec: 60 },
+      { clipFile: "slice_at_0.mp4", shotId: "shot-0" },
+      { clipFile: "slice_at_60.mp4", shotId: "shot-60" },
+    ],
+    plateTimings: [
+      { plateId: "shot-0", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "shot-60", startMs: 60000, endMs: 75000, sortIndex: 1 },
     ],
   }),
-  "1:00.0",
+  "1:00",
 );
 assert.equal(
   stableClipTakeLabel({
     fileName: "slice_at_60.mp4",
     songCuts: [{ clipFile: "slice_at_0.mp4", startSec: 0 }],
   }),
-  "60",
+  "off",
+  "no hang → off, never a filename tail (that was kI0)",
+);
+assert.equal(
+  stableClipTakeLabel({
+    fileName: "01_Babe_kI0.mp4",
+    songCuts: [{ clipFile: "01_Babe_kI0.mp4", startSec: 0 }],
+  }),
+  "off",
+  "startSec 0 on an unhung cook is not 0:00 and not kI0",
 );
 const beforeDel = stableClipTakeLabel({
   fileName: "keep_me.mp4",
-  songCuts: [
-    { clipFile: "gone.mp4", startSec: 45 },
-    { clipFile: "keep_me.mp4", startSec: 75 },
-  ],
+  shotId: "keep",
+  plateTimings: [{ plateId: "keep", startMs: 75000, endMs: 90000, sortIndex: 0 }],
 });
 const afterDel = stableClipTakeLabel({
   fileName: "keep_me.mp4",
-  songCuts: [{ clipFile: "keep_me.mp4", startSec: 75 }],
+  shotId: "keep",
+  plateTimings: [{ plateId: "keep", startMs: 75000, endMs: 90000, sortIndex: 0 }],
 });
-assert.equal(beforeDel, "1:15.0");
-assert.equal(afterDel, "1:15.0");
+assert.equal(beforeDel, "1:15");
+assert.equal(afterDel, "1:15");
 assert.equal(beforeDel, afterDel);
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plate-clips-"));
@@ -110,10 +124,8 @@ assert.deepEqual(
   twoPlates.flatMap((c) => stackedClipFiles(c)),
   ["p1.mp4", "p2.mp4"],
 );
-assert.deepEqual(plateRailLabels([{ shotId: "shot-1" }, { shotId: "shot-2" }]), {
-  "shot-1": "plate 1",
-  "shot-2": "plate 2",
-});
+assert.deepEqual(clipRailLabels(3), ["clip 1", "clip 2", "clip 3"]);
+assert.doesNotMatch(clipRailLabels(9).join(" "), /plate /);
 
 const jackDup = gatherClipsForStillsRail(
   {
@@ -186,8 +198,10 @@ const thumbs = fs.readFileSync(new URL("../src/components/mobile/PlateClipThumbs
 assert.match(thumbs, /createPortal/);
 assert.match(thumbs, /scratch-clip-overlay/);
 assert.match(thumbs, /stableClipTakeLabel/);
-assert.match(thumbs, /plateLabelByShotId/);
+assert.match(thumbs, /`clip \$\{i \+ 1\}`/);
 assert.match(thumbs, /m-plate-clip-plate/);
+assert.doesNotMatch(thumbs, /plateLabelByShotId/);
+assert.doesNotMatch(thumbs, /plate \$\{/);
 assert.doesNotMatch(thumbs, /pickEngine/, "LTX / H3 do not sit on CLIPS thumbs");
 assert.doesNotMatch(thumbs, /m-plate-clip-engine/, "LTX / H3 do not sit on CLIPS thumbs");
 assert.doesNotMatch(thumbs, /How long/);
@@ -199,7 +213,8 @@ assert.match(editor, /m-plate-clips-bleed/);
 assert.match(editor, /m-plate-clip-rail/);
 assert.match(editor, /layout="strip"/);
 assert.match(editor, /gatherClipsForStillsRail/);
-assert.match(editor, /plateLabelByShotId/);
+assert.doesNotMatch(editor, /plateLabelByShotId/);
+assert.doesNotMatch(editor, /plateRailLabels/);
 assert.doesNotMatch(editor, /shots\.filter\(\(s\) => s\.shotId === focus\)/);
 assert.doesNotMatch(editor, /focusLabel/);
 assert.doesNotMatch(editor, /pickEngine/, "LTX / H3 do not sit on CLIPS thumbs");
@@ -225,6 +240,84 @@ assert.deepEqual(
   ).map((c) => c.shotId),
   ["p2"],
 );
+
+/** His CLIPS 3: stills plate 1 / 8 / 9, cooks all startSec 0, hung at 0 / 15 / 30. */
+const stuiesThree = gatherClipsForStillsRail(
+  {
+    clips: [
+      { ...clip, beatId: "b1", shotId: "plate-1", clipFile: "01_Babe.mp4", priorClipFiles: [] },
+      { ...clip, beatId: "b8", shotId: "plate-8", clipFile: "02_Car.mp4", priorClipFiles: [] },
+      { ...clip, beatId: "b9", shotId: "plate-9", clipFile: "03_Jack.mp4", priorClipFiles: [] },
+    ],
+    shots: [
+      { shotId: "plate-1", sceneId: "scene-1" },
+      { shotId: "plate-8", sceneId: "scene-1" },
+      { shotId: "plate-9", sceneId: "scene-1" },
+    ],
+    scratchSong: {
+      cuts: [
+        { id: "c1", shotId: "plate-1", clipFile: "01_Babe.mp4", status: "done", startSec: 0 },
+        { id: "c8", shotId: "plate-8", clipFile: "02_Car.mp4", status: "done", startSec: 0 },
+        { id: "c9", shotId: "plate-9", clipFile: "03_Jack.mp4", status: "done", startSec: 0 },
+      ],
+      plateTimings: [
+        { plateId: "plate-8", startMs: 15000, endMs: 30000, sortIndex: 1 },
+        { plateId: "plate-1", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "plate-9", startMs: 30000, endMs: 45000, sortIndex: 2 },
+      ],
+    },
+  },
+  [{ shotId: "plate-8" }, { shotId: "plate-1" }, { shotId: "plate-9" }],
+);
+assert.deepEqual(
+  stuiesThree.map((c) => c.shotId),
+  ["plate-1", "plate-8", "plate-9"],
+  "hang clock order, not leftover stills walk",
+);
+assert.deepEqual(
+  stuiesThree.map((c) =>
+    stableClipTakeLabel({
+      fileName: c.clipFile,
+      shotId: c.shotId,
+      plateTimings: [
+        { plateId: "plate-8", startMs: 15000, endMs: 30000, sortIndex: 1 },
+        { plateId: "plate-1", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "plate-9", startMs: 30000, endMs: 45000, sortIndex: 2 },
+      ],
+    }),
+  ),
+  ["0:00", "0:15", "0:30"],
+);
+assert.deepEqual(clipRailLabels(stuiesThree.length), ["clip 1", "clip 2", "clip 3"]);
+assert.equal(clipHangStartMs(stuiesThree[1], {
+  plateTimings: [{ plateId: "plate-8", startMs: 15000, endMs: 30000, sortIndex: 1 }],
+}), 15000);
+
+/** Two different mp4s on the same still (both used to say plate 9). */
+const twoOnNine = gatherClipsForStillsRail(
+  {
+    clips: [
+      { ...clip, beatId: "n1", shotId: "plate-9", clipFile: "09_first.mp4", priorClipFiles: [] },
+      { ...clip, beatId: "n2", shotId: "plate-9", clipFile: "09_second.mp4", priorClipFiles: [] },
+    ],
+    shots: [{ shotId: "plate-9", sceneId: "scene-1" }],
+    scratchSong: {
+      cuts: [
+        { id: "d1", shotId: "plate-9", clipFile: "09_first.mp4", status: "done", startSec: 0 },
+        { id: "d2", shotId: "plate-9", clipFile: "09_second.mp4", status: "done", startSec: 0 },
+      ],
+      plateTimings: [{ plateId: "plate-9", startMs: 30000, endMs: 45000, sortIndex: 0 }],
+    },
+  },
+  [{ shotId: "plate-9" }],
+);
+assert.equal(twoOnNine.length, 2, "two files on one still are two thumbs");
+assert.deepEqual(
+  twoOnNine.map((c) => c.clipFile),
+  ["09_first.mp4", "09_second.mp4"],
+);
+assert.deepEqual(clipRailLabels(twoOnNine.length), ["clip 1", "clip 2"]);
+assert.notEqual(twoOnNine[0].clipFile, twoOnNine[1].clipFile);
 
 const css = fs.readFileSync(new URL("../src/app/(mobile)/m/mobile.css", import.meta.url), "utf8");
 assert.match(css, /\.m-plate-clips-bleed/);
