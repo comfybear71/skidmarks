@@ -72,6 +72,7 @@ import {
   readMvClipEngine,
   readMvEngine,
   readMvMotionSlot,
+  readMvMuteAction,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
 import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
@@ -1295,6 +1296,7 @@ export function MusicVideoTrack({
       beatId: targetBeatId || beatId,
       clipEngine: MINIMAX_H3_ID,
       ...(durationSec ? { durationSec } : {}),
+      ...(readMvMuteAction(job.id, shotId) ? { mute: true } : {}),
     });
     if (raw.pending) await pollI2v(cutId, targetBeatId);
   }
@@ -1322,7 +1324,7 @@ export function MusicVideoTrack({
     setNote("On the song. Send when you like it.");
   }
 
-  async function sendOneCutBody(cutId: string, targetBeatId: string) {
+  async function sendOneCutBody(cutId: string, shotId: string, targetBeatId: string) {
     const id = cutId.trim();
     if (!id) {
       setNote("Add this still to the timeline first.");
@@ -1332,7 +1334,12 @@ export function MusicVideoTrack({
     setBusy(`send-${id}`);
     setNote("");
     try {
-      await songPost("run", { cutId: id, beatId: targetBeatId || beatId, clipEngine: "ltx" });
+      await songPost("run", {
+        cutId: id,
+        beatId: targetBeatId || beatId,
+        clipEngine: "ltx",
+        ...(readMvMuteAction(job.id, shotId) ? { mute: true } : {}),
+      });
       await waitForSongCut({
         jobId: job.id,
         cutId: id,
@@ -1384,7 +1391,7 @@ export function MusicVideoTrack({
         await sendI2v(cut.id, shotId, targetBeatId);
         return;
       }
-      await sendOneCutBody(cut.id, targetBeatId);
+      await sendOneCutBody(cut.id, shotId, targetBeatId);
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't send that still");
     } finally {

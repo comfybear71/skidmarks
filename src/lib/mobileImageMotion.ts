@@ -715,7 +715,10 @@ export function skipSongLipSyncLead(opts: {
   staging?: string;
   performance?: SongSlicePerformance;
   singing: boolean;
+  /** Mute / No lips — mouth shut. Never prepend perfect lip sync. */
+  mute?: boolean;
 }): boolean {
+  if (opts.mute) return true;
   if (!opts.singing) return false;
   if (isJackGhostSpeaker(opts.speaker)) return true;
   if (opts.performance === "play" || opts.performance === "sway" || opts.performance === "walk") {
@@ -801,7 +804,15 @@ export function pickSongSendMotionBody(opts: {
   singing: boolean;
   singingDefault: string;
   speakingDefault: string;
+  mute?: boolean;
+  muteDefault?: string;
 }): string {
+  if (opts.mute && (opts.muteDefault || "").trim()) {
+    if (opts.storedUsable && !isSingingDefaultMotion(opts.stored)) {
+      return stripLtxLipSyncLead(opts.stored);
+    }
+    return stripLtxLipSyncLead(opts.muteDefault || "");
+  }
   if (opts.storedUsable) return stripLtxLipSyncLead(opts.stored);
   if (opts.singing) return opts.singingDefault;
   return opts.speakingDefault;
@@ -910,6 +921,31 @@ export function writeMvClipEngine(jobId: string, shotId: string, engine: MvClipE
   if (typeof window === "undefined") return;
   try {
     window.sessionStorage.setItem(mvClipEngineKey(jobId, shotId), engine);
+  } catch {
+    /* private mode */
+  }
+}
+
+function mvMuteActionKey(jobId: string, shotId: string): string {
+  return `skidmarks.mvMuteAction.${(jobId || "").trim()}.${(shotId || "").trim()}`;
+}
+
+/** Next Send of this still is action only — mouth shut, no song into IA2V. */
+export function readMvMuteAction(jobId: string, shotId: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(mvMuteActionKey(jobId, shotId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function writeMvMuteAction(jobId: string, shotId: string, on: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = mvMuteActionKey(jobId, shotId);
+    if (on) window.sessionStorage.setItem(key, "1");
+    else window.sessionStorage.removeItem(key);
   } catch {
     /* private mode */
   }

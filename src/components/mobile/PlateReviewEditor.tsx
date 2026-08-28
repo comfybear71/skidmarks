@@ -62,12 +62,14 @@ import {
   readMvClipEngine,
   readMvEngine,
   readMvMotionSlot,
+  readMvMuteAction,
   storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
   writeLtxMotionDraft,
   writeMvClipEngine,
   writeMvEngine,
   writeMvMotionSlot,
+  writeMvMuteAction,
   type MuteMvEngine,
 } from "@/lib/mobileImageMotion";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
@@ -2268,10 +2270,20 @@ function ShotLineEditor({
   const [mvEngine, setMvEngine] = useState<MuteMvEngine>(() =>
     shot?.id ? readMvClipEngine(jobId, shot.id) : "ltx",
   );
+  const leftoverCutaway = (shot?.beats || []).some((b) => b.kind === "cutaway");
+  const [muteAction, setMuteAction] = useState(
+    () => leftoverCutaway || Boolean(shot?.id && readMvMuteAction(jobId, shot.id)),
+  );
 
   useEffect(() => {
     setEnginePromptOpen(false);
-    if (shot?.id) setMvEngine(readMvClipEngine(jobId, shot.id));
+    if (shot?.id) {
+      setMvEngine(readMvClipEngine(jobId, shot.id));
+      setMuteAction(
+        (shot.beats || []).some((b) => b.kind === "cutaway") ||
+          readMvMuteAction(jobId, shot.id),
+      );
+    }
   }, [jobId, shot?.id]);
 
   if (loading) {
@@ -2363,7 +2375,7 @@ function ShotLineEditor({
                 ) : null}
               </div>
             ) : null}
-            {beat.kind === "cutaway" ? (
+            {beat.kind === "cutaway" && styleId !== "music_video" ? (
             <CutawayBeatPanel
             key={beat.id}
             styleId={styleId as ShowStyleId}
@@ -2400,7 +2412,7 @@ function ShotLineEditor({
             shotId={shot.id}
             enginePromptOpen={
               styleId === "music_video" &&
-              enginePromptOpen &&
+              (enginePromptOpen || muteAction) &&
               beat.id === (speakingBeats[0]?.id || "")
             }
             mvEngine={mvEngine}
@@ -2463,6 +2475,12 @@ function ShotLineEditor({
                   shotId={shot.id}
                   beatId={shot.beats[0]?.id || ""}
                   promptOpen={enginePromptOpen}
+                  muteOn={muteAction}
+                  onMute={(on) => {
+                    setMuteAction(on);
+                    writeMvMuteAction(jobId, shot.id, on);
+                    if (on) setEnginePromptOpen(true);
+                  }}
                   onOpen={(next) => {
                     setMvEngine(next);
                     setEnginePromptOpen(true);
@@ -2506,6 +2524,12 @@ function ShotLineEditor({
             shotId={shot.id}
             beatId={speakingBeats[0]?.id || shot.beats[0]?.id || ""}
             promptOpen={enginePromptOpen}
+            muteOn={muteAction}
+            onMute={(on) => {
+              setMuteAction(on);
+              writeMvMuteAction(jobId, shot.id, on);
+              if (on) setEnginePromptOpen(true);
+            }}
             onOpen={(next) => {
               setMvEngine(next);
               setEnginePromptOpen(true);
@@ -2564,18 +2588,22 @@ function PlateSendButton({
   );
 }
 
-/** Add | LTX | H3 | Send — LTX / H3 open the [ ] hole. Send cooks this still. */
+/** Add | LTX | H3 | No lips | Send — LTX / H3 open the [ ] hole. No lips is mute. Send cooks. */
 function PlateEngineButtons({
   jobId,
   shotId,
   beatId,
   promptOpen,
+  muteOn,
+  onMute,
   onOpen,
 }: {
   jobId: string;
   shotId: string;
   beatId: string;
   promptOpen?: boolean;
+  muteOn?: boolean;
+  onMute?: (on: boolean) => void;
   onOpen?: (engine: MuteMvEngine) => void;
 }) {
   const [engine, setEngine] = useState<MuteMvEngine>(() =>
@@ -2626,7 +2654,7 @@ function PlateEngineButtons({
       className="m-plate-engine-pair"
       data-motion-open={promptOpen ? "yes" : "no"}
       role="group"
-      aria-label="Open LTX or H3 motion prompt"
+      aria-label="Open LTX or H3 motion prompt, or No lips for a mute action shot"
     >
       <MobilePrimaryButton
         tone={engine === "ltx" ? "accent" : "ghost"}
@@ -2640,6 +2668,12 @@ function PlateEngineButtons({
         onClick={() => pick("h3")}
       >
         H3
+      </MobilePrimaryButton>
+      <MobilePrimaryButton
+        tone={muteOn ? "accent" : "ghost"}
+        onClick={() => onMute?.(!muteOn)}
+      >
+        No lips
       </MobilePrimaryButton>
     </div>
   );

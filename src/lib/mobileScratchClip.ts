@@ -14,10 +14,14 @@ import {
 } from "./mobilePlateLines";
 import { CRASH_DIR } from "./paths";
 import {
+  buildMuteMvMotionLock,
   buildScratchPadLtxMotion,
   buildScratchSongLtxMotion,
   buildSegmentText,
   buildGlobalPrompt,
+  composeMuteMvMotion,
+  extractMuteMvMotionSlot,
+  isCutawayMotion,
   skipSongLipSyncLead,
   ltxSendPrompt,
   stripLtxLipSyncLead,
@@ -45,10 +49,13 @@ import {
   beatForSongCut,
   MISSING_SCRATCH_SPOKEN_LINE,
   muteSongBeatStub,
+  songCutIsMuteAction,
   songCutUsesSpokenLine,
   storyShotForSongCut,
 } from "./musicVideoSong";
 import { probeDurationSeconds } from "./mediaDuration";
+import { writeSilentMp3 } from "./silentAudio";
+import { ltxDurationFrames } from "./ltxDuration";
 import { applyLandedClipDuration } from "./musicVideoTrack";
 import { parkMobileClipFile } from "./mobileClipPark";
 import { isEpisodeClipPlanError } from "./mobileEpisodeClips";
@@ -81,6 +88,8 @@ export async function runScratchLtxClip(opts: {
   sliceStartSec?: number;
   sliceDurationSec?: number;
   cutId?: string;
+  /** No lips / mute cinema — action only. Do not feed the song mp3. */
+  mute?: boolean;
 }): Promise<MobileGenJob> {
   const { story, shotId, sceneId, beatId } = opts;
   let job = opts.job;
@@ -177,7 +186,14 @@ export async function runScratchLtxClip(opts: {
     jobSpeakers: job.speakers,
     beats: storyShot.beats,
   });
+  const muteAction =
+    songCutIsMuteAction({
+      mute: opts.mute,
+      styleId: job.styleId,
+      beatKind: beat.kind,
+    }) || isCutawayMotion(beat.imageMotion || "");
   const singing =
+    !muteAction &&
     Boolean(songFile) &&
     (isDroppedPlaceholderLine(line) || job.styleId === "music_video" || Boolean(opts.cutId));
   // Song look follows who is actually on this plate (pad order), not a leftover
@@ -197,25 +213,7 @@ export async function runScratchLtxClip(opts: {
       : beatSpeaker || shotCast[0]
   )
     .trim();
-  const sourceAudio = await resolveMobileBeatAudio({
-    styleId: job.styleId,
-    folderName: mediaFolder,
-    folderCandidates: mobileCandidateFolders(job),
-    beatId: beat.id,
-    voiceFile,
-  });
-  if (!sourceAudio) {
-    throw new Error(
-      muteSong || singing
-        ? voiceFile
-          ? "The song file is missing. Drop the song again."
-          : "Drop the song first."
-        : voiceFile
-          ? `Beat mp3 not reachable — voiceFile="${voiceFile}" folderName="${mediaFolder}" beatId=${beat.id}`
-          : "Save the spoken line first — Play appears when the mp3 is ready.",
-    );
-  }
-  if (looksLikePlatePositionPrompt(line) && !singing) {
+  if (looksLikePlatePositionPrompt(line) && !singing && !muteAction) {
     throw new Error("That's the still position, not speech. Wipe the line box, type what they say, then Save.");
   }
   const window = clampSongWindow(
@@ -223,15 +221,45 @@ export async function runScratchLtxClip(opts: {
     opts.sliceDurationSec ?? song?.sliceDurationSec ?? 15,
     song?.durationSec || 0,
   );
-  const needsSlice = Boolean(song?.fileName) && (window.startSec > 0.05 || (song?.durationSec || 0) > window.durationSec + 0.4);
-  const audioPath = needsSlice
-    ? sliceSongMp3({
-        srcPath: sourceAudio,
-        destPath: scratchSongSliceTempPath(jobId),
-        startSec: window.startSec,
-        durationSec: window.durationSec,
-      })
-    : sourceAudio;
+  let audioPath = "";
+  if (muteAction) {
+    // Mute cinema — silent length only. Never the song mix (mouths follow the mp3).
+    const dest = scratchSongSliceTempPath(jobId);
+    if (!writeSilentMp3(dest, window.durationSec, { overwrite: true })) {
+      throw new Error("Couldn't make a silent length for this action shot.");
+    }
+    audioPath = dest;
+  } else {
+    const sourceAudio = await resolveMobileBeatAudio({
+      styleId: job.styleId,
+      folderName: mediaFolder,
+      folderCandidates: mobileCandidateFolders(job),
+      beatId: beat.id,
+      voiceFile,
+    });
+    if (!sourceAudio) {
+      throw new Error(
+        muteSong || singing
+          ? voiceFile
+            ? "The song file is missing. Drop the song again."
+            : "Drop the song first."
+          : voiceFile
+            ? `Beat mp3 not reachable — voiceFile="${voiceFile}" folderName="${mediaFolder}" beatId=${beat.id}`
+            : "Save the spoken line first — Play appears when the mp3 is ready.",
+      );
+    }
+    const needsSlice =
+      Boolean(song?.fileName) &&
+      (window.startSec > 0.05 || (song?.durationSec || 0) > window.durationSec + 0.4);
+    audioPath = needsSlice
+      ? sliceSongMp3({
+          srcPath: sourceAudio,
+          destPath: scratchSongSliceTempPath(jobId),
+          startSec: window.startSec,
+          durationSec: window.durationSec,
+        })
+      : sourceAudio;
+  }
 
   const speaking = line.length > 0 && !singing;
   const lookLock =
@@ -250,6 +278,13 @@ export async function runScratchLtxClip(opts: {
     ? (song?.cuts || []).find((c) => c.id === opts.cutId)
     : undefined;
   const performance = cutRow?.performance;
+  const muteLock = buildMuteMvMotionLock({
+    styleId: job.styleId,
+    speaker,
+    lookLock,
+    shotSpeakers: shotCast,
+    staging: storyShot.staging,
+  });
   const body = pickSongSendMotionBody({
     stored,
     storedUsable: storedOk,
@@ -269,6 +304,11 @@ export async function runScratchLtxClip(opts: {
       lookLock,
       shotSpeakers: shotCast,
     }),
+    mute: muteAction,
+    muteDefault: composeMuteMvMotion(
+      muteLock,
+      extractMuteMvMotionSlot(stored, muteLock),
+    ),
   });
   const stagingText = storyShot.staging || "";
   const imageMotion = ltxSendPrompt(body, stagingText, {
@@ -277,6 +317,7 @@ export async function runScratchLtxClip(opts: {
       staging: stagingText,
       performance,
       singing,
+      mute: muteAction,
     }),
     speaker,
     shotSpeakers: shotCast,
@@ -358,11 +399,12 @@ export async function runScratchLtxClip(opts: {
       platePath,
       audioPath,
       imageMotion,
-      segmentText: buildSegmentText(speaker, speaking),
-      globalPrompt: buildGlobalPrompt(job.styleId),
+      segmentText: buildSegmentText(speaker, speaking && !muteAction),
+      globalPrompt: muteAction ? muteLock.tail : buildGlobalPrompt(job.styleId),
       comfyUrl,
       styleId: job.styleId,
       beatId: beat.id,
+      durationFrames: muteAction ? ltxDurationFrames(window.durationSec) : undefined,
     });
     const doneCuts = (job.scratchSong?.cuts || []).filter((c) => (c.clipFile || "").trim()).length;
     const humanName = humanOrderedClipName({

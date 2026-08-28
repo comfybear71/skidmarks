@@ -433,3 +433,16 @@ assert.match(
 );
 assert.match(editor, /styleId === "music_video"/, "music_video plate shows LTX / H3 instead of + another line");
 assert.match(editor, /AnotherLineButton/, "+ another line stays for non music_video");
+assert.match(editor, />\s*No lips\s*</, "No lips sits next to H3");
+assert.match(editor, /writeMvMuteAction/, "No lips stores mute for the next Send");
+assert.match(
+  editor,
+  /beat\.kind === "cutaway" && styleId !== "music_video"/,
+  "talking Walk away / SFX leftover stays off music_video",
+);
+assert.match(trackUi, /readMvMuteAction/, "Send reads No lips");
+assert.match(trackUi, /mute: true/, "Send posts mute so LTX does not get the song");
+assert.match(
+  readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8"),
+  /readMvMuteAction/,
+);
