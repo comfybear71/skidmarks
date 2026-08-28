@@ -35,10 +35,10 @@ import {
 } from "@/lib/musicVideoSong";
 import {
   askSongCookNotifyPermission,
-  cookPendingSongCuts,
   pendingSongCuts,
   setSongCookFlag,
   songCookFlagOn,
+  waitForSongCut,
 } from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
@@ -130,7 +130,6 @@ export function MusicVideoSongCuts({
   jobRef.current = job;
   const cookLock = useRef(false);
   const cookCancel = useRef(false);
-  const resumeCook = useRef<() => void>(() => {});
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playing, setPlaying] = useState("");
@@ -141,7 +140,7 @@ export function MusicVideoSongCuts({
     findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
   const cuts = song?.cuts || [];
   /** Only lock controls while this phone is actively generating — not a hung server flag. */
-  const workingNow = busy === "cook";
+  const workingNow = busy.startsWith("send-");
   const timesLocked = workingNow || cuts.some((c) => c.status === "done");
   const stuckCook = hasStuckSongCook(cuts);
 
@@ -224,33 +223,41 @@ export function MusicVideoSongCuts({
     }
   }
 
-  async function runCuts() {
-    if (cookLock.current) return;
-    if (!pendingSongCuts(job).length) {
+  async function runOneCut(cutId: string) {
+    const id = cutId.trim();
+    if (!id) {
       setNote("Add a plate to the song first.");
       return;
     }
+    if (cookLock.current) return;
     cookLock.current = true;
     cookCancel.current = false;
     askSongCookNotifyPermission();
-    setBusy("cook");
+    setBusy(`send-${id}`);
     setNote("");
     try {
-      await cookPendingSongCuts({
+      await songAction("run", { cutId: id, beatId });
+      await waitForSongCut({
         jobId: job.id,
-        getJob: () => jobRef.current,
+        cutId: id,
         setJob: onJobChange,
-        runCut: (cutId) => songAction("run", { cutId, beatId }),
-        unstickCut: (cutId) => songAction("unstick", { cutId }),
-        onNote: setNote,
         cancelled: () => cookCancel.current,
       });
     } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't generate those cuts");
+      setNote(e instanceof Error ? e.message : "Couldn't send that cut");
     } finally {
       cookLock.current = false;
       setBusy("");
     }
+  }
+
+  async function runNextCut() {
+    const next = pendingSongCuts(job).find((c) => c.status !== "running") || pendingSongCuts(job)[0];
+    if (!next?.id) {
+      setNote("Add a plate to the song first.");
+      return;
+    }
+    await runOneCut(next.id);
   }
 
   async function stopStuckCook() {
@@ -262,7 +269,7 @@ export function MusicVideoSongCuts({
     try {
       await songAction("unstick-all");
       setSongCookFlag(job.id, false);
-      setNote("Stopped. List matches the desk again.");
+      setNote("Stopped send. Move plates, then Send when you like the order.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't stop that hung clip");
     } finally {
@@ -271,9 +278,18 @@ export function MusicVideoSongCuts({
     }
   }
 
-  resumeCook.current = () => {
-    void runCuts();
-  };
+  async function redoCut(cutId: string) {
+    setBusy(`redo-${cutId}`);
+    setNote("");
+    try {
+      await songAction("redo-cut", { cutId });
+      setNote("Clip parked. Still stays. Send again when you want.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't redo that cut");
+    } finally {
+      setBusy("");
+    }
+  }
 
   useEffect(() => {
     if (!beatId || song?.fileName) return;
@@ -340,21 +356,6 @@ export function MusicVideoSongCuts({
     };
   }, [job.id, onJobChange]);
 
-  useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState !== "visible") return;
-      if (cookLock.current) return;
-      if (cookCancel.current) return;
-      const pending = pendingSongCuts(jobRef.current);
-      if (!pending.length) return;
-      if (!songCookFlagOn(job.id) && !pending.some((c) => c.status === "running")) return;
-      resumeCook.current();
-    };
-    onVis();
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, [job.id]);
-
   const onSong = songDeskPlateIds(song);
   const rowSlices = songDeskRowSlices(song, onSong);
   const platedById = new Map(plated.map((s) => [s.shotId, s]));
@@ -397,7 +398,7 @@ export function MusicVideoSongCuts({
         )
       ) : null}
       {progress ? <p className="scratch-song-parked">{progress}</p> : null}
-      <SongCookAlertBanner cuts={cuts} cooking={phoneDriving} showGoing={phoneDriving} />
+      <SongCookAlertBanner cuts={cuts} cooking={phoneDriving} showGoing={false} />
       {note ? <p className="scratch-song-parked">{note}</p> : null}
       {cuts.length ? (
         <div
@@ -488,6 +489,36 @@ export function MusicVideoSongCuts({
                       ) : null}
                     </span>
                     <div className="m-song-plate-tools m-song-line-tools">
+                      {(() => {
+                        const wait = mine.find(
+                          (c) => c.status !== "done" && (c.status !== "error" || !c.clipFile),
+                        );
+                        if (!wait?.id || rowDone) return null;
+                        return (
+                          <button
+                            type="button"
+                            disabled={Boolean(busy) || workingNow}
+                            onClick={() => void runOneCut(wait.id)}
+                          >
+                            {busy === `send-${wait.id}` ? "Sending…" : "Send"}
+                          </button>
+                        );
+                      })()}
+                      {(() => {
+                        const done = mine.find((c) => c.status === "done" && c.clipFile);
+                        const fail = mine.find((c) => c.status === "error");
+                        const redo = fail || done;
+                        if (!redo?.id || workingNow) return null;
+                        return (
+                          <button
+                            type="button"
+                            disabled={Boolean(busy)}
+                            onClick={() => void redoCut(redo.id)}
+                          >
+                            {busy === `redo-${redo.id}` ? "…" : "Redo"}
+                          </button>
+                        );
+                      })()}
                       <button
                         type="button"
                         disabled={Boolean(busy) || timesLocked}
@@ -525,22 +556,25 @@ export function MusicVideoSongCuts({
           size="chip"
           tone="ghost"
           disabled={Boolean(busy) || !cuts.length || !pendingSongCuts(job).length}
-          onClick={() => void runCuts()}
+          onClick={() => void runNextCut()}
         >
-          {busy === "cook"
+          {workingNow
             ? runningCut
-              ? `${tally.done}/${tally.total}`
-              : "Working…"
-            : "Generate cuts"}
+              ? `Sending ${tally.done + 1}/${tally.total}`
+              : "Sending…"
+            : "Send next"}
         </MobilePrimaryButton>
-        {stuckCook || workingNow ? (
+        {stuckCook ||
+        workingNow ||
+        songCookFlagOn(job.id) ||
+        Boolean(runningCut) ? (
           <MobilePrimaryButton
             size="chip"
             tone="ghost"
             disabled={busy === "unstick"}
             onClick={() => void stopStuckCook()}
           >
-            {busy === "unstick" ? "Stopping…" : "Stop"}
+            {busy === "unstick" ? "Stopping…" : "Stop send"}
           </MobilePrimaryButton>
         ) : null}
       </div>

@@ -731,6 +731,30 @@ console.log("check-music-video-lyric-tags OK");
   assert.match(tree, /Start the video & add|onStartMusicVideo/);
   assert.match(ui, /Start the video & add/, "the button says what it will do");
 
+  // Collapsed Plates used to hide the + when nothing was hung yet.
+  assert.match(
+    ui,
+    /plateBlocks\.length \|\| !compact \|\| Boolean\(onCreatePlate\)/,
+    "the + stays on the wave before any plate exists",
+  );
+  assert.match(ui, /if \(compact\) onExpand\?/, "collapsed + opens Plates so the picker is on screen");
+  assert.match(tree, /onExpand=\{\(\) => setPlatesOpen\(true\)\}/);
+  assert.match(
+    tree,
+    /Tap a name on the place, then Add/,
+    "music video does not show the talking-episode paste hint",
+  );
+  assert.match(
+    tree,
+    /!isMusicVideoSongJob\(job\) &&[\s\S]*Paste the episode here when the row is picked/,
+    "the talking paste hint stays off music video",
+  );
+  assert.match(
+    tree,
+    /job\.folderName \|\| isMusicVideoSongJob\(job\)/,
+    "band-member chips on a place do not wait for Start",
+  );
+
   // One creation path, not two.
   assert.equal(
     (tree.match(/action: "add", sceneId/g) || []).length,

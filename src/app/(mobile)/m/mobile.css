@@ -3153,6 +3153,10 @@ span.scratch-history-blob {
    were lost in an earlier edit, which is why the plate names ran together as
    plain text with no tiles. */
 
+.m-track-stop-row {
+  margin: 6px 0 8px;
+}
+
 .m-track-rail {
   display: block;
   margin: 2px 0 4px;

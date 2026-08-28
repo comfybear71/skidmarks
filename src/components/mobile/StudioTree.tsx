@@ -873,9 +873,9 @@ function CandidatePicker({
               More
             </button>
           </div>
-          {extra ? <div className="m-picker-extra">{extra}</div> : null}
         </div>
       ) : null}
+      {extra ? <div className="m-picker-extra">{extra}</div> : null}
       {hideUpload ? null : (
         <div style={{ marginTop: "8px" }}>
           <input
@@ -1798,11 +1798,13 @@ export function StudioTree({
                     Locked place still. More makes a new take if you want.
                   </div>
                 ) : null}
-                {job.folderName ? (
+                {job.folderName || isMusicVideoSongJob(job) ? (
                   <div className="m-place-plate-extra">
                     <div className="m-place-plate-hint">
                       {isMusicVideoSongJob(job)
-                        ? "Empty is the far-out empty stage. No people. It goes on the song. Or tap a name."
+                        ? job.folderName
+                          ? "Empty is the far-out empty stage. No people. It goes on the song. Or tap a name."
+                          : "Tap a name, then Add. That starts the video and hangs the plate on the song."
                         : "Tap a name, or Empty. Then Add. The card shows under PLATES."}
                     </div>
                     <div className="m-place-plate-chips">
@@ -1850,11 +1852,23 @@ export function StudioTree({
                       <MobilePrimaryButton
                         size="chip"
                         busy={addingPlateFor === placeFocus}
-                        onClick={() => void addLocationToPlate(placeFocus, plateSpeaker)}
+                        onClick={() => {
+                          if (!job.folderName && isMusicVideoSongJob(job)) {
+                            pendingPlate.current = {
+                              sceneId: placeFocus,
+                              speaker: plateSpeaker,
+                            };
+                            onStartMusicVideo(job.lyrics || "");
+                            return;
+                          }
+                          void addLocationToPlate(placeFocus, plateSpeaker);
+                        }}
                       >
                         {addingPlateFor === placeFocus
                           ? "Adding…"
-                          : plateSpeaker.trim()
+                          : !job.folderName && isMusicVideoSongJob(job)
+                            ? "Start the video & add"
+                            : plateSpeaker.trim()
                             ? `Add ${plateSpeaker.trim()}`
                             : isMusicVideoSongJob(job)
                               ? "Add empty stage"
@@ -1916,6 +1930,7 @@ export function StudioTree({
             canStart={canWrite && !lockingScript && !job.folderName}
             onStart={onStartMusicVideo}
             onOpenPlate={(shotId) => revealPlates(shotId)}
+            onExpand={() => setPlatesOpen(true)}
             castOptions={job.speakers.map((name) => {
               const file = approvedCandidateFileName(job.castCandidates, name) || "";
               return {
@@ -2171,7 +2186,17 @@ export function StudioTree({
           </div>
         ) : null}
 
-        {!canWrite &&
+        {isMusicVideoSongJob(job) &&
+        !job.shots.length &&
+        !lockingScript &&
+        job.phase !== "error" ? (
+          <div style={{ color: "var(--chrome-dim)", fontSize: "13px", padding: "4px 0 8px" }}>
+            Tap a name on the place, then Add. Or tap + on the song.
+          </div>
+        ) : null}
+
+        {!isMusicVideoSongJob(job) &&
+        !canWrite &&
         !lockingScript &&
         !job.folderName &&
         !job.shots.length &&

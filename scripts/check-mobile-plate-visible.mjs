@@ -39,6 +39,16 @@ assert.match(tree, /Add \$\{plateSpeaker\.trim\(\)\}/);
 assert.match(tree, /Add empty plate/);
 assert.match(tree, /Add empty stage/);
 assert.match(tree, /Tap a name, or Empty\. Then Add/);
+assert.match(
+  tree,
+  /job\.folderName \|\| isMusicVideoSongJob\(job\)/,
+  "music video can add a band member before the pack exists",
+);
+assert.match(
+  tree,
+  /Tap a name, then Add\. That starts the video/,
+  "place card says how to add a member before Start",
+);
 assert.doesNotMatch(
   tree,
   /Pick who is in this place first/,

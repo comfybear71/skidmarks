@@ -144,6 +144,34 @@ export function sortPlateTimings(list: PlateTiming[]): PlateTiming[] {
   return [...list].sort((a, b) => a.sortIndex - b.sortIndex || a.startMs - b.startMs);
 }
 
+/**
+ * Swap this still with the neighbour slot. Time boxes stay. The picture
+ * moves. Null if it is already first or last.
+ */
+export function swapNeighborPlateTimings(
+  timings: PlateTiming[],
+  plateId: string,
+  direction: -1 | 1,
+): PlateTiming[] | null {
+  const sorted = sortPlateTimings(timings);
+  const i = sorted.findIndex((t) => t.plateId === plateId);
+  const j = i + direction;
+  if (i < 0 || j < 0 || j >= sorted.length) return null;
+  const a = sorted[i]!;
+  const b = sorted[j]!;
+  return sortPlateTimings(
+    sorted.map((t) => {
+      if (t.plateId === a.plateId) {
+        return { ...t, startMs: b.startMs, endMs: b.endMs, sortIndex: b.sortIndex };
+      }
+      if (t.plateId === b.plateId) {
+        return { ...t, startMs: a.startMs, endMs: a.endMs, sortIndex: a.sortIndex };
+      }
+      return t;
+    }),
+  );
+}
+
 /** How wide a second of song is on the phone wave. A 3-minute track is
  * ~5040px — the strip scrolls sideways instead of crushing into one screen. */
 export const TRACK_WAVE_PX_PER_SEC = 28;
@@ -299,6 +327,40 @@ export function cutFromPlateTiming(
   };
   const rest = cuts.filter((c) => c.shotId !== timing.plateId);
   return [...rest, next];
+}
+
+/**
+ * TRACK paints plateTimings, not the cut list. Add-on-stills used to
+ * write a waiting cut and leave the wave empty. Keep any clock already
+ * on the wave — do not even-split the song. Hang each cut that has no
+ * timing yet, first slice only.
+ */
+export function hangMissingPlateTimings(
+  existing: PlateTiming[] | undefined,
+  cuts: Pick<ScratchSongCut, "shotId" | "startSec" | "durationSec">[],
+): PlateTiming[] {
+  const kept = sortPlateTimings(existing || []);
+  const have = new Set(kept.map((t) => t.plateId));
+  const next = [...kept];
+  let sort = next.length;
+  const seen = new Set<string>();
+  for (const c of cuts) {
+    const plateId = (c.shotId || "").trim();
+    if (!plateId || have.has(plateId) || seen.has(plateId)) continue;
+    seen.add(plateId);
+    const startMs = secToMs(Number(c.startSec) || 0);
+    const durSec = Number(c.durationSec);
+    const durMs = secToMs(
+      Number.isFinite(durSec) && durSec > 0 ? durSec : SCRATCH_SONG_SLICE_DEFAULT_SEC,
+    );
+    next.push({
+      plateId,
+      startMs,
+      endMs: Math.max(startMs + 100, startMs + durMs),
+      sortIndex: sort++,
+    });
+  }
+  return next;
 }
 
 export function orderedDoneCutsForStitch(

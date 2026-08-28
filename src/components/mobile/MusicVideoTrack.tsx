@@ -46,7 +46,13 @@ import {
 } from "@/lib/musicVideoTrack";
 import { decodeWaveformPeaks } from "@/lib/decodeWaveformPeaks";
 import { clearPendingSong, songChipName } from "@/lib/musicVideoStart";
-import { findSongCarrierBeatId, isMusicVideoSongJob, musicVideoCreditLine } from "@/lib/musicVideoSong";
+import {
+  findSongCarrierBeatId,
+  hasStuckSongCook,
+  isMusicVideoSongJob,
+  musicVideoCreditLine,
+  needsTrackHang,
+} from "@/lib/musicVideoSong";
 
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
@@ -64,7 +70,7 @@ import {
   stockLookIsOn,
   type StockLook,
 } from "@/lib/stockLook";
-import { songCookFlagOn } from "@/lib/songCutCook";
+import { setSongCookFlag, songCookFlagOn } from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
@@ -686,6 +692,7 @@ export function MusicVideoTrack({
   canStart = false,
   onStart,
   onOpenPlate,
+  onExpand,
   castOptions = [],
   placeOptions = [],
   onCreatePlate,
@@ -702,6 +709,8 @@ export function MusicVideoTrack({
   onStart?: (lyrics: string) => void;
   /** Tap a plate — opens its Position and LTX prompts. */
   onOpenPlate?: (shotId: string) => void;
+  /** Collapsed + still needs the add-plate picker — open Plates first. */
+  onExpand?: () => void;
   /** Cast and places for the + picker — thumbnails built by the tree. */
   castOptions?: { name: string; faceUrl: string }[];
   placeOptions?: { sceneId: string; name: string; thumbUrl: string }[];
@@ -721,7 +730,7 @@ export function MusicVideoTrack({
   const [lyricsOpen, setLyricsOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
   const [marqueeOpen, setMarqueeOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(false);
-  const [platesOnTrackOpen, setPlatesOnTrackOpen] = useState(false);
+  const [platesOnTrackOpen, setPlatesOnTrackOpen] = useState(true);
   const [freeLookOpen, setFreeLookOpen] = useState(() => stockLookIsOn(job.stockLook));
   const [freeLook, setFreeLook] = useState<StockLook>(() => parseStockLook(job.stockLook));
   const [openSectionId, setOpenSectionId] = useState("");
@@ -978,6 +987,32 @@ export function MusicVideoTrack({
   }
 
   useEffect(() => {
+    if (!song?.fileName) return;
+    if (!needsTrackHang(song)) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/crash/mobile/song", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "hang-plates", jobId: job.id }),
+        });
+        const raw = (await res.json().catch(() => ({}))) as {
+          job?: MobileGenJob;
+          error?: string;
+        };
+        if (cancelled) return;
+        if (raw.job) onJobChange(raw.job);
+      } catch {
+        /* wave stays as-is; Add still hangs */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [job.id, onJobChange, song]);
+
+  useEffect(() => {
     if (lyricImportTried.current) return;
     if (busy) return;
     if (
@@ -992,6 +1027,52 @@ export function MusicVideoTrack({
     lyricImportTried.current = true;
     void importFromLyrics(true);
   }, [busy, effectiveDurationMs, job.lyrics, markers]);
+
+  async function movePlate(shotId: string, direction: "earlier" | "later") {
+    if (!song?.fileName) {
+      setNote("Hang the stills on the song first.");
+      return;
+    }
+    setBusy(`move-${shotId}`);
+    setNote("");
+    try {
+      const updated = await trackAction("move-plate", {
+        jobId: job.id,
+        plateId: shotId,
+        direction,
+      });
+      if (updated) onJobChange(updated);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't move that plate");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function stopSend() {
+    setSongCookFlag(job.id, false);
+    setBusy("stop");
+    setNote("");
+    try {
+      const res = await fetch("/api/crash/mobile/song", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "unstick-all", jobId: job.id }),
+      });
+      const raw = (await res.json().catch(() => ({}))) as {
+        job?: MobileGenJob;
+        error?: string;
+      };
+      if (raw.job) onJobChange(raw.job);
+      if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't stop send");
+      setSongCookFlag(job.id, false);
+      setNote("Stopped. Move plates, then Send when you like the order.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't stop send");
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function schedulePlate(shotId: string, startMs: number, endMs: number, sortIndex: number) {
     if (!song?.fileName) {
@@ -1053,6 +1134,20 @@ export function MusicVideoTrack({
             cuts={song?.cuts || []}
             cooking={songCookFlagOn(job.id)}
           />
+          {(songCookFlagOn(job.id) ||
+            hasStuckSongCook(song?.cuts || []) ||
+            (song?.cuts || []).some((c) => c.status === "running")) ? (
+            <div className="m-track-stop-row">
+              <MobilePrimaryButton
+                size="chip"
+                tone="ghost"
+                disabled={busy === "stop"}
+                onClick={() => void stopSend()}
+              >
+                {busy === "stop" ? "Stopping…" : "Stop send"}
+              </MobilePrimaryButton>
+            </div>
+          ) : null}
           <div className="m-track-song-top">
             <span className="m-track-song-name">
               {musicVideoCreditLine(job) || songChipName(song?.fileName || parked?.file.name || "")}
@@ -1168,8 +1263,10 @@ export function MusicVideoTrack({
           )}
 
           {/* Same order and widths as the coloured bars on the wave.
-              Compact still shows the rail so hung clips keep their own thumbs. */}
-          {(plateBlocks.length || !compact) ? (
+              Compact still shows the rail so hung clips keep their own thumbs.
+              + stays up even with no plates yet — that is how a band
+              member gets onto the song. */}
+          {(plateBlocks.length || !compact || Boolean(onCreatePlate)) ? (
             <div className="m-track-rail">
               <div
                 className={`m-track-rail-scroll${plateBlocks.length ? " m-track-rail-align" : ""}`}
@@ -1229,7 +1326,10 @@ export function MusicVideoTrack({
               <button
                 type="button"
                 className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
-                onClick={() => setPickOpen((v) => !v)}
+                onClick={() => {
+                  if (compact) onExpand?.();
+                  setPickOpen((v) => !v);
+                }}
                 aria-expanded={pickOpen}
                 aria-label="Add a plate"
               >
@@ -1241,7 +1341,7 @@ export function MusicVideoTrack({
 
           {/* One person, one place, one plate — picked here rather than three
               scrolls down inside a Locations card. */}
-          {!compact && pickOpen ? (
+          {pickOpen ? (
             <div className="m-plate-pick">
               <div className="m-plate-pick-row">
                 {castOptions.map((who) => (
@@ -1585,8 +1685,14 @@ export function MusicVideoTrack({
               open={platesOnTrackOpen}
               onToggle={() => setPlatesOnTrackOpen((v) => !v)}
             >
+              <p className="m-track-lyric-hint">
+                Move stills on the wave. Send a clip only when the order is right.
+                Keep a good one. Redo a bad one.
+              </p>
               <div className="m-track-plates">
-                {plateRows.map((row, i) => (
+                {plateRows.map((row, i) => {
+                  const waveI = plateBlocks.findIndex((b) => b.plateId === row.shotId);
+                  return (
                   <div key={row.shotId} className="m-track-plate-row">
                     {hungClipFileForPlate(job, row.shotId) || row.plateFile ? (
                       <ClipFrameThumb
@@ -1617,6 +1723,24 @@ export function MusicVideoTrack({
                     <button
                       type="button"
                       className="m-track-btn"
+                      disabled={Boolean(busy) || waveI <= 0}
+                      onClick={() => void movePlate(row.shotId, "earlier")}
+                    >
+                      {busy === `move-${row.shotId}` ? "…" : "Earlier"}
+                    </button>
+                    <button
+                      type="button"
+                      className="m-track-btn"
+                      disabled={
+                        Boolean(busy) || waveI < 0 || waveI >= plateBlocks.length - 1
+                      }
+                      onClick={() => void movePlate(row.shotId, "later")}
+                    >
+                      {busy === `move-${row.shotId}` ? "…" : "Later"}
+                    </button>
+                    <button
+                      type="button"
+                      className="m-track-btn"
                       disabled={Boolean(busy) || !row.plateFile}
                       onClick={() =>
                         void schedulePlate(row.shotId, rangeStartMs, rangeEndMs, i)
@@ -1625,14 +1749,15 @@ export function MusicVideoTrack({
                       {busy === `time-${row.shotId}` ? "…" : "Use range"}
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </DeskFold>
           ) : null}
 
           {/* Same UI before and after Start: this is a button in it, not a
               different screen in front of it. */}
-          {!compact && canStart ? (
+          {canStart ? (
             <MobilePrimaryButton disabled={startBusy} onClick={() => onStart?.(job.lyrics || "")}>
               {startBusy ? "Starting…" : "Start the video"}
             </MobilePrimaryButton>

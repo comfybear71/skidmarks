@@ -7,6 +7,8 @@ import {
   evenPlateTimings,
   formatTrackClock,
   formatTrackClockPrecise,
+  hangMissingPlateTimings,
+  swapNeighborPlateTimings,
   msToSec,
   orderedDoneCutsForStitch,
   plateRailBox,
@@ -122,6 +124,37 @@ assert.match(attach, /trackDraft/);
 assert.match(attach, /evenPlateTimings/);
 assert.match(mobileCss, /\.m-track-wave/);
 
+assert.match(trackUi, /Earlier/);
+assert.match(trackUi, /Later/);
+assert.match(trackUi, /move-plate/);
+assert.match(trackUi, /Stop send/);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
+  /action === "move-plate"/,
+);
+{
+  const moved = swapNeighborPlateTimings(
+    [
+      { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+    ],
+    "b",
+    -1,
+  );
+  assert.equal(moved?.[0].plateId, "b");
+  assert.equal(moved?.[0].startMs, 0);
+  assert.equal(moved?.[1].plateId, "a");
+  assert.equal(moved?.[1].startMs, 15000);
+  assert.equal(
+    swapNeighborPlateTimings(
+      [{ plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 }],
+      "a",
+      -1,
+    ),
+    null,
+  );
+}
+
 // Drag-to-stretch on the coloured bars is gone. Time a still with Use range.
 assert.doesNotMatch(trackUi, /stretchPlateEdge/);
 assert.doesNotMatch(trackUi, /onStretchCommit/);
@@ -142,5 +175,54 @@ assert.ok(Math.abs(late.widthPct - (15500 / 267500) * 100) < 0.0001);
 
 assert.equal(formatTrackClockPrecise(247500), "4:07.5");
 assert.equal(formatTrackClockPrecise(0), "0:00.0");
+
+{
+  const hung = hangMissingPlateTimings(
+    [{ plateId: "shot_already", startMs: 4000, endMs: 19000, sortIndex: 0 }],
+    [
+      { shotId: "shot_already", startSec: 0, durationSec: 15 },
+      { shotId: "shot_new", startSec: 15, durationSec: 15 },
+      { shotId: "shot_new", startSec: 30, durationSec: 15 },
+    ],
+  );
+  assert.equal(hung.length, 2);
+  assert.equal(hung[0].plateId, "shot_already");
+  assert.equal(hung[0].startMs, 4000, "do not move a clock already on the wave");
+  assert.equal(hung[1].plateId, "shot_new");
+  assert.equal(hung[1].startMs, 15000);
+  assert.equal(hung[1].endMs, 30000);
+
+  const sevenCuts = [
+    "shot_2uhu0p1",
+    "shot_a",
+    "shot_b",
+    "shot_c",
+    "shot_d",
+    "shot_e",
+    "shot_f",
+  ].map((shotId, i) => ({ shotId, startSec: i * 15, durationSec: 15 }));
+  const rail = hangMissingPlateTimings(
+    [{ plateId: "shot_2uhu0p1", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    sevenCuts,
+  );
+  assert.equal(rail.length, 7);
+  assert.equal(rail[0].startMs, 0);
+  assert.equal(rail[0].endMs, 15000);
+  assert.deepEqual(
+    rail.slice(1).map((t) => t.plateId),
+    ["shot_a", "shot_b", "shot_c", "shot_d", "shot_e", "shot_f"],
+  );
+}
+
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /hangMissingPlateTimings/,
+  "Add on a still must write the TRACK clock, not only a waiting cut",
+);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /action === "hang-plates"/,
+);
+assert.match(trackUi, /hang-plates/);
 
 console.log("check-music-video-track: ok");
