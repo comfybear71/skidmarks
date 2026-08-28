@@ -11,6 +11,7 @@ import {
   nextPlateHangWindow,
   swapNeighborPlateTimings,
   withPlateDuration,
+  withPlateWindow,
   msToSec,
   orderedDoneCutsForStitch,
   plateRailBox,
@@ -120,11 +121,16 @@ assert.match(trackUi, /WaveformCanvas/);
 assert.match(trackUi, /Add section/);
 assert.match(trackUi, /Put stills on the song/);
 assert.match(trackUi, /How long/);
+assert.match(trackUi, /Starts at/);
+assert.match(trackUi, /startSec/);
 assert.match(trackUi, /Send all/);
 assert.match(trackUi, /m-track-film/);
 assert.doesNotMatch(trackUi, /Use range/);
+assert.doesNotMatch(trackUi, />Earlier</);
+assert.doesNotMatch(trackUi, />Later</);
 assert.doesNotMatch(trackUi, /Hang stills on the wave/);
 assert.doesNotMatch(trackUi, /Plates on the track/);
+assert.doesNotMatch(trackUi, /!compact && picked/);
 assert.match(mobileCss, /\.m-track-film-cell/);
 assert.match(mobileCss, /\.m-track-pick-len/);
 assert.match(trackRoute, /set-plate-timing/);
@@ -179,6 +185,14 @@ assert.match(mobileCss, /\.m-track-film/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "set-plate-duration"/,
+);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
+  /withPlateWindow/,
+);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
+  /startSec\?: number/,
 );
 
 const first = plateRailBox(0, 15000, 60000);
@@ -247,6 +261,37 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(resized?.[1].startMs, 8000);
   assert.equal(resized?.[1].endMs, 23000);
   assert.equal(withPlateDuration([], "missing", 8000, 180000), null);
+
+  const placed = withPlateWindow(
+    [
+      { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+    ],
+    "b",
+    45000,
+    8000,
+    180000,
+  );
+  assert.equal(placed?.[0].plateId, "a");
+  assert.equal(placed?.[0].startMs, 0);
+  assert.equal(placed?.[0].endMs, 15000, "earlier still stays put");
+  assert.equal(placed?.[1].plateId, "b");
+  assert.equal(placed?.[1].startMs, 45000);
+  assert.equal(placed?.[1].endMs, 53000);
+  assert.equal(withPlateWindow([], "missing", 1000, 8000, 180000), null);
+
+  const jumped = withPlateWindow(
+    [
+      { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+    ],
+    "a",
+    40000,
+    10000,
+    180000,
+  );
+  assert.equal(jumped?.find((t) => t.plateId === "a")?.startMs, 40000);
+  assert.equal(jumped?.find((t) => t.plateId === "b")?.startMs, 15000);
 
   const fromShots = hangMissingPlateTimings(
     [{ plateId: "shot_2uhu0p1", startMs: 0, endMs: 15000, sortIndex: 0 }],
