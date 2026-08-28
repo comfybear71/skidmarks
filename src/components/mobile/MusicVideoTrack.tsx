@@ -1641,7 +1641,7 @@ export function MusicVideoTrack({
         plateId: shotId,
       });
       if (updated) onJobChange(updated);
-      setNote("Off the wave. Clip stays. Still stays.");
+      setNote("Off the wave. Clip stays. X on CLIPS parks.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't drop that plate");
     } finally {

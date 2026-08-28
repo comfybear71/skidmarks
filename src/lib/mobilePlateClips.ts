@@ -72,6 +72,7 @@ export function stackedClipFiles(
 type ClipClockSong = {
   cuts?: { shotId?: string; clipFile?: string; durationSec?: number }[];
   plateTimings?: PlateTiming[];
+  skipShotIds?: string[];
 } | null;
 
 type ClipTakeClockOpts = {
@@ -96,12 +97,11 @@ type ClipClockDraft = { plateTimings?: PlateTiming[] } | null;
  * Missing hang → null (stamp "off"). Never invent 15s.
  */
 export function clipHangStartMs(
-  clip: Pick<MobileClipUnit, "shotId" | "clipFile" | "priorClipFiles">,
+  clip: Pick<MobileClipUnit, "shotId" | "clipFile" | "priorClipFiles" | "hangStartMs">,
   song?: ClipClockSong,
   draft?: ClipClockDraft,
 ): number | null {
   const timings = sortPlateTimings(resolvePlateTimings(song, draft));
-  if (!timings.length) return null;
   const clock = {
     cuts: song?.cuts,
     plateTimings: timings,
@@ -118,6 +118,10 @@ export function clipHangStartMs(
         clipFileBasename(c.clipFile || ""),
     );
     if (!onShot.length) return shotHit.startMs;
+  }
+  const stamped = Number(clip.hangStartMs);
+  if (Number.isFinite(stamped) && stamped >= 0) {
+    return Math.round(stamped);
   }
   return null;
 }
@@ -362,14 +366,31 @@ export function keepClipsAfterUnhang(opts: {
     shotId?: string;
     clipFile?: string;
     durationSec?: number;
+    startSec?: number;
   }[];
   shots?: { shotId: string; sceneId?: string }[];
+  hangStartMs?: number | null;
 }): MobileClipUnit[] {
   const have = new Set(opts.clips.flatMap((c) => stackedClipFiles(c)));
   const next = [...opts.clips];
+  const stampMs = (cut: { startSec?: number }) => {
+    if (opts.hangStartMs != null && Number.isFinite(opts.hangStartMs)) {
+      return Math.round(opts.hangStartMs);
+    }
+    if (Number.isFinite(Number(cut.startSec))) return Math.round(Number(cut.startSec) * 1000);
+    return undefined;
+  };
   for (const cut of opts.removedCuts) {
     const file = clipFileBasename(cut.clipFile || "");
-    if (!file || have.has(file)) continue;
+    if (!file) continue;
+    const hangStartMs = stampMs(cut);
+    if (have.has(file)) {
+      const i = next.findIndex((c) => stackedClipFiles(c).includes(file));
+      if (i >= 0 && hangStartMs != null) {
+        next[i] = { ...next[i]!, hangStartMs };
+      }
+      continue;
+    }
     const shot = hangPlateShotId((cut.shotId || "").trim());
     const sceneId =
       (opts.shots || []).find((s) => (s.shotId || "").trim() === shot)?.sceneId || "";
@@ -381,6 +402,7 @@ export function keepClipsAfterUnhang(opts: {
       clipStatus: "done",
       error: "",
       ...(cut.durationSec != null ? { durationSec: cut.durationSec } : {}),
+      ...(hangStartMs != null ? { hangStartMs } : {}),
     });
     have.add(file);
   }

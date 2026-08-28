@@ -415,6 +415,7 @@ export function removePlateFromSong(opts: {
   skipShotIds: string[];
   keptCuts: ScratchSongCut[];
   keptClipFiles: string[];
+  hangStartMs: number | null;
 } {
   const plateId = (opts.plateId || "").trim();
   const jobShots = opts.jobShots || [];
@@ -439,6 +440,9 @@ export function removePlateFromSong(opts: {
     }
     cuts.push(c);
   }
+  const removedHang = (opts.plateTimings || []).find((p) => (p.plateId || "").trim() === plateId);
+  const hangStartMs =
+    removedHang && Number.isFinite(removedHang.startMs) ? Math.round(removedHang.startMs) : null;
   return {
     plateTimings: (opts.plateTimings || []).filter((p) => (p.plateId || "").trim() !== plateId),
     cuts,
@@ -447,6 +451,7 @@ export function removePlateFromSong(opts: {
     skipShotIds: withSkippedSongPlate(skipSongPlateIds({ skipShotIds: opts.skipShotIds }), plateId),
     keptCuts,
     keptClipFiles: keptCuts.map((c) => (c.clipFile || "").trim()).filter(Boolean),
+    hangStartMs,
   };
 }
 
