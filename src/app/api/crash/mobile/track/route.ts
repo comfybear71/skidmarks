@@ -17,7 +17,7 @@ import {
   type PlateTiming,
   type TrackSectionMarker,
 } from "@/lib/musicVideoTrack";
-import { isMusicVideoSongJob } from "@/lib/musicVideoSong";
+import { isMusicVideoSongJob, removePlateFromSong } from "@/lib/musicVideoSong";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
 import { parseStockLook, stockLookIsOn } from "@/lib/stockLook";
 import { newId } from "@/lib/types";
@@ -72,7 +72,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   move-plate — swap this still with the earlier or later slot. No cook.
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
- *   remove-plate-timing — drop one clock off the wave. Park clip if any. Never delete.
+ *   remove-plate-timing — take one still off the wave and song list. Park clip if any. Never delete. Do not append.
  */
 /** Cue rows come off the phone — keep only well-formed, ordered pins. */
 function cleanLyricCues(raw: unknown): LyricCue[] {
@@ -329,28 +329,28 @@ export async function POST(req: Request) {
     }
 
     if (action === "remove-plate-timing") {
-      const song = job.scratchSong;
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       if (!song) return NextResponse.json({ ok: true, job });
       const plateId = String(body.plateId || "").trim();
       if (!plateId) return NextResponse.json({ error: "Need plateId" }, { status: 400 });
-      const keptCuts: typeof song.cuts = [];
-      for (const c of song.cuts || []) {
-        if ((c.shotId || "").trim() === plateId) {
-          const file = (c.clipFile || "").trim();
-          if (file) parkMobileClipFile(file);
-          continue;
-        }
-        keptCuts.push(c);
-      }
-      const nextIds = Array.isArray(song.songPlateIds)
-        ? song.songPlateIds.filter((id) => id.trim() !== plateId)
-        : song.songPlateIds;
+      const next = removePlateFromSong({
+        plateId,
+        plateTimings: song.plateTimings,
+        cuts: song.cuts,
+        songPlateIds: song.songPlateIds,
+        rowSlices: song.rowSlices,
+        skipShotIds: song.skipShotIds,
+        jobShots: job.shots,
+      });
+      for (const file of next.parkedClipFiles) parkMobileClipFile(file);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,
-          plateTimings: (song.plateTimings || []).filter((p) => p.plateId !== plateId),
-          cuts: keptCuts,
-          ...(nextIds ? { songPlateIds: nextIds } : {}),
+          plateTimings: next.plateTimings,
+          cuts: next.cuts,
+          songPlateIds: next.songPlateIds,
+          rowSlices: next.rowSlices,
+          skipShotIds: next.skipShotIds,
         },
         error: "",
       });
