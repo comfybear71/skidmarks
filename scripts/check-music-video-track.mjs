@@ -550,6 +550,29 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(addAgain.plateTimings.length, 4);
   assert.equal(tallyPending(addAgain.cuts).parked, 3, "second Add is not a 5th cook");
 
+  /** Same still, new Position cook stacked on the clip row. Plate-row Add. */
+  const stackedRecook = addPlateFileFirstHang({
+    shotId: "jack3",
+    plateFile: "jack.png",
+    plateTimings: hungBars,
+    cuts: waitingCuts,
+    clips: [
+      {
+        shotId: "jack3",
+        clipFile: "04_Jack_stand.mp4",
+        priorClipFiles: ["03_Jack_5.mp4"],
+        clipStatus: "done",
+        durationSec: 8,
+      },
+    ],
+    newCutId: () => "cut-stacked",
+  });
+  assert.equal(stackedRecook.hung, true, "Add hangs the leftover Position cook");
+  assert.equal(stackedRecook.plateTimings.length, 4);
+  assert.equal(stackedRecook.plateTimings[3]?.startMs, 25000, "after last hung bar");
+  assert.equal(stackedRecook.plateTimings[3]?.endMs, 33000, "real mp4 length");
+  assert.equal(tallyPending(stackedRecook.cuts).parked, 3, "no new WAITING job");
+
   const noFile = addPlateFileFirstHang({
     shotId: "empty-still",
     plateFile: "empty.png",
@@ -767,6 +790,7 @@ assert.match(editor, /writeMvMotionSlot/, "plate [ ] keeps the slot when he swit
 assert.match(editor, /function PlateEngineButtons/, "LTX / H3 sit on the plate Add row");
 assert.match(editor, /function PlateSendButton/, "Send sits on the plate Add row");
 assert.match(editor, /m-plate-add-engines/, "Add | LTX | H3 | Send share one row");
+assert.match(editor, /onClick=\{onAddToSong\}/, "plate-row Add next to LTX is onAddToSong");
 assert.match(editor, />\s*LTX\s*</, "LTX is a real button next to Add");
 assert.match(editor, />\s*H3\s*</, "H3 is a real button next to Add");
 assert.match(editor, /busy \? "Sending…" : "Send"/, "Send is on the same row as Add / LTX / H3");

@@ -830,6 +830,15 @@ assert.doesNotMatch(songUi, /Put back/);
 assert.match(songRoute, /add-plate/);
 assert.doesNotMatch(songUi, /parkPlate/);
 assert.match(editor, /addPlateToSong/);
+{
+  const start = editor.indexOf("async function addPlateToSong");
+  const end = editor.indexOf("\n  const songReady", start);
+  const fn = start >= 0 && end > start ? editor.slice(start, end) : "";
+  assert.match(fn, /action: "add-plate"/, "plate-row Add next to LTX posts add-plate");
+  assert.doesNotMatch(fn, /action: "run"/, "plate-row Add must not queue a cook");
+  assert.doesNotMatch(fn, /generate/, "plate-row Add must not generate");
+}
+assert.match(editor, /onAddToSong=\{\s*songReady && openShotId\s*\? \(\) => void addPlateToSong\(openShotId\)/);
 assert.doesNotMatch(editor, /Tap Add\. It goes on the song list/);
 assert.doesNotMatch(editor, /Position this plate/);
 assert.doesNotMatch(editor, /Song slices are under/);
