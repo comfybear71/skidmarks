@@ -11,6 +11,7 @@ import {
   songFromTrackDraft,
   swapNeighborPlateTimings,
   withPlateDuration,
+  withPlateWindow,
   type LyricCue,
   type MusicVideoTrackDraft,
   type PlateTiming,
@@ -66,7 +67,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-draft — pre-lock peaks/markers/timings on job.trackDraft
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
- *   set-plate-duration — how many seconds this still covers. Followers slide. No cook.
+ *   set-plate-duration — Starts at + How long. Followers slide. No cook.
  *   move-plate — swap this still with the earlier or later slot. No cook.
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
@@ -101,6 +102,7 @@ export async function POST(req: Request) {
     sortIndex?: number;
     direction?: string;
     durationSec?: number;
+    startSec?: number;
     lyricCues?: LyricCue[];
     stockLook?: unknown;
   };
@@ -223,12 +225,13 @@ export async function POST(req: Request) {
       }
       const plateId = String(body.plateId || "").trim();
       if (!plateId) return NextResponse.json({ error: "Need plateId" }, { status: 400 });
-      const plateTimings = withPlateDuration(
-        song.plateTimings,
-        plateId,
-        secToMs(Number(body.durationSec)),
-        secToMs(song.durationSec),
-      );
+      const songMs = secToMs(song.durationSec);
+      const durationMs = secToMs(Number(body.durationSec));
+      const askedStart = Number(body.startSec);
+      const plateTimings =
+        Number.isFinite(askedStart) && askedStart >= 0
+          ? withPlateWindow(song.plateTimings, plateId, secToMs(askedStart), durationMs, songMs)
+          : withPlateDuration(song.plateTimings, plateId, durationMs, songMs);
       if (!plateTimings) {
         return NextResponse.json({ error: "Put that still on the song first." }, { status: 400 });
       }
