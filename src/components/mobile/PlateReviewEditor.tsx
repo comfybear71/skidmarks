@@ -265,7 +265,6 @@ export function PlateReviewEditor({
   const [undoBusy, setUndoBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const [songAddFor, setSongAddFor] = useState<string | null>(null);
-  const [songHangFile, setSongHangFile] = useState<string | null>(null);
   const [clipBusy, setClipBusy] = useState(false);
   const [clipsOpen, setClipsOpen] = useState(false);
   const [stillsStripOpen, setStillsStripOpen] = useState(false);
@@ -534,33 +533,6 @@ export function PlateReviewEditor({
       setActionError(studioFetchError(e, "Couldn't park that clip"));
     } finally {
       setClipBusy(false);
-    }
-  }
-
-  async function hangClipOnSong(shotId: string, fileName: string) {
-    if (!job.scratchSong?.fileName) {
-      setActionError("Drop the song mp3 first.");
-      return;
-    }
-    setSongHangFile(fileName);
-    setActionError("");
-    try {
-      const res = await fetch("/api/crash/mobile/song", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "hang-clip",
-          jobId: job.id,
-          shotId,
-          clipFile: fileName,
-        }),
-      });
-      const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
-      if (data.job) onJobChange?.(data.job);
-    } catch (e) {
-      setActionError(studioFetchError(e, "Couldn't hang that clip"));
-    } finally {
-      setSongHangFile(null);
     }
   }
 
@@ -980,12 +952,6 @@ export function PlateReviewEditor({
                 removeDisabled={clipBusy}
                 onRemoveTake={({ beatId, fileName }) =>
                   void postClipAction({ action: "remove-clip", beatId, fileName })
-                }
-                hangBusyFile={songHangFile}
-                onHangClip={
-                  songReady
-                    ? ({ fileName, shotId }) => void hangClipOnSong(shotId, fileName)
-                    : undefined
                 }
               />
             </div>

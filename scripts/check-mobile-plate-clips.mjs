@@ -231,8 +231,9 @@ assert.match(thumbs, /clipTakeDurationSec/);
 assert.doesNotMatch(thumbs, /formatSongClock/);
 assert.match(thumbs, /`clip \$\{i \+ 1\}`/);
 assert.match(thumbs, /m-plate-clip-plate/);
-assert.match(thumbs, /onHangClip/);
-assert.match(thumbs, /m-plate-clip-hang/);
+assert.doesNotMatch(thumbs, /onHangClip/, "no Hang on CLIPS thumbs");
+assert.doesNotMatch(thumbs, /m-plate-clip-hang/, "no Hang on CLIPS thumbs");
+assert.doesNotMatch(thumbs, />Hang</, "no Hang on CLIPS thumbs");
 assert.doesNotMatch(thumbs, /plateLabelByShotId/);
 assert.doesNotMatch(thumbs, /plate \$\{/);
 assert.doesNotMatch(thumbs, /pickEngine/, "LTX / H3 do not sit on CLIPS thumbs");
@@ -254,8 +255,10 @@ assert.doesNotMatch(editor, /pickEngine/, "LTX / H3 do not sit on CLIPS thumbs")
 assert.doesNotMatch(editor, /width: `\$\{PLATE_TILE_PX\}px`[\s\S]{0,200}Clips/);
 assert.match(editor, /requestSongCookStop/);
 assert.match(editor, /action: "remove-clip"/);
-assert.match(editor, /action: "hang-clip"/);
-assert.match(editor, /onHangClip/);
+assert.doesNotMatch(editor, /action: "hang-clip"/, "no Hang on CLIPS thumbs");
+assert.doesNotMatch(editor, /onHangClip/, "no Hang on CLIPS thumbs");
+assert.doesNotMatch(editor, /hangClipOnSong/, "no Hang on CLIPS thumbs");
+assert.doesNotMatch(editor, /songHangFile/, "no Hang on CLIPS thumbs");
 const clipRoute = fs.readFileSync(new URL("../src/app/api/crash/mobile/clip/route.ts", import.meta.url), "utf8");
 assert.match(clipRoute, /planParkDeskClipTake/);
 assert.match(clipRoute, /scratchSong/);
@@ -509,7 +512,7 @@ assert.equal(
     plateTimings: [{ plateId: "plate-9", startMs: 30000, endMs: 45000, sortIndex: 0 }],
   }),
   null,
-  "second take is off until Hang — same still, own clock",
+  "second take is off — same still, own clock",
 );
 
 const css = fs.readFileSync(new URL("../src/app/(mobile)/m/mobile.css", import.meta.url), "utf8");
@@ -519,7 +522,7 @@ assert.match(css, /\.m-plate-clip-rail\s*\{[^}]*overflow-x:\s*auto/s);
 assert.match(css, /\.m-plate-clip-rail\s*\{[^}]*touch-action:\s*pan-x pan-y/s);
 assert.match(css, /\.m-plate-clip-rail\s*\{[^}]*flex-wrap:\s*nowrap/s);
 assert.match(css, /\.m-plate-clip-thumb/);
-assert.match(css, /\.m-plate-clip-hang/);
+assert.doesNotMatch(css, /\.m-plate-clip-hang/, "no Hang on CLIPS thumbs");
 assert.match(css, /touch-action: pan-x pan-y/);
 assert.match(css, /width: calc\(100% \+ 32px\)/);
 assert.doesNotMatch(css, /\.m-plate-clip-engines/, "no engine chrome on the CLIPS thumb");

@@ -1565,22 +1565,6 @@ body {
   font-weight: 700;
   letter-spacing: 0.02em;
 }
-.m-plate-clip-hang {
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 2px;
-  border: 1px solid var(--acid);
-  background: var(--void);
-  color: var(--acid);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-}
-.m-plate-clip-hang:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
 .scratch-clip-rail::-webkit-scrollbar {
   height: 3px;
 }
