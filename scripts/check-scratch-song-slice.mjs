@@ -66,7 +66,13 @@ assert.match(page, /dropScratchSongViaBlob/);
 assert.match(page, /if \(raw\.job\) setJob\(raw\.job\)/);
 assert.doesNotMatch(page, /Left the screen — Studio is still cooking/);
 assert.match(clip, /failScratchSongCutRun/);
-assert.match(clip, /That line is missing from the scratch plate/);
+assert.match(clip, /MISSING_SCRATCH_SPOKEN_LINE/);
+assert.match(clip, /beatForSongCut/);
+assert.match(clip, /songCutUsesSpokenLine/);
+assert.match(
+  readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8"),
+  /That line is missing from the scratch plate/,
+);
 assert.match(slice, /from "\.\/scratchSongWindow"/);
 assert.doesNotMatch(ui, /scratchSongSlice/);
 assert.doesNotMatch(ui, /from "fs"/);

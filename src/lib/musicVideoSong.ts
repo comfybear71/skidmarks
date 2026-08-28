@@ -2,7 +2,7 @@
  * /m Music video song desk — plate runs of 15s, reuse a plate later.
  * Clock math lives in scratchSongWindow (phone-safe).
  */
-import type { CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
+import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import {
   formatSongClock,
   remainingSongWindows,
@@ -53,6 +53,37 @@ export function clearStuckSongCooks<T extends ScratchSongCut>(cuts: T[] = []): T
       ? { ...c, status: "pending" as const, error: "" }
       : c,
   );
+}
+
+/** Talking-episode error. Mute music-video plates must not die on this. */
+export const MISSING_SCRATCH_SPOKEN_LINE =
+  "That line is missing from the scratch plate — Draw again, or drop the song so the spoken line is on this plate.";
+
+export function isMissingScratchSpokenLine(msg: string): boolean {
+  return /That line is missing from the scratch plate/i.test((msg || "").trim());
+}
+
+/**
+ * Stop / unstick-all: a mute still failed the talking-line check.
+ * Plate and song stay. Cut goes back to waiting — no cook.
+ */
+export function clearFalseSpokenLineSongFails<
+  T extends Pick<ScratchSongCut, "status" | "error" | "clipFile">,
+>(cuts: T[] = []): T[] {
+  return cuts.map((c) =>
+    c.status === "error" &&
+    isMissingScratchSpokenLine(c.error || "") &&
+    !(c.clipFile || "").trim()
+      ? { ...c, status: "pending" as const, error: "" }
+      : c,
+  );
+}
+
+/** Talking plates need a spoken line on this still. Song cuts use the song. */
+export function songCutUsesSpokenLine(opts: { styleId?: string; cutId?: string }): boolean {
+  if ((opts.styleId || "").trim() === "music_video") return false;
+  if ((opts.cutId || "").trim()) return false;
+  return true;
 }
 
 export function hasStuckSongCook(cuts: Pick<ScratchSongCut, "status" | "clipFile">[] = []): boolean {
@@ -614,6 +645,55 @@ export function findSongCarrierBeatId(
     }
   }
   return pool[0]?.beats[0]?.id || "";
+}
+
+/**
+ * Song / music-video cuts borrow the dropped-line mp3 from whichever plate
+ * holds the song. This mute still does not need its own spoken line.
+ */
+export function beatForSongCut(opts: {
+  story: CrashStoryDoc | null | undefined;
+  storyShot?: CrashStoryShot | null;
+  beatId?: string;
+  songFile?: string;
+}): CrashStoryBeat | null {
+  const want = (opts.beatId || "").trim();
+  if (want) {
+    const onPlate = opts.storyShot?.beats.find((b) => b.id === want);
+    if (onPlate) return onPlate;
+    for (const scene of opts.story?.scenes || []) {
+      for (const sh of scene.shots) {
+        const hit = sh.beats.find((b) => b.id === want);
+        if (hit) return hit;
+      }
+    }
+  }
+  const file = (opts.songFile || "").trim();
+  if (file) {
+    const pool = [
+      ...(opts.storyShot ? [opts.storyShot] : []),
+      ...(opts.story?.scenes || []).flatMap((sc) => sc.shots),
+    ];
+    for (const sh of pool) {
+      const hit = sh.beats.find((b) => (b.voiceFile || "").trim() === file);
+      if (hit) return hit;
+    }
+  }
+  return opts.storyShot?.beats[0] || null;
+}
+
+/** Empty mute carrier when the still has no beat of its own. */
+export function muteSongBeatStub(opts: {
+  beatId?: string;
+  cutId?: string;
+  songFile?: string;
+}): CrashStoryBeat {
+  return {
+    id: (opts.beatId || opts.cutId || "song-cut").trim() || "song-cut",
+    speaker: "",
+    text: "",
+    voiceFile: (opts.songFile || "").trim(),
+  };
 }
 
 export function plateLabel(
