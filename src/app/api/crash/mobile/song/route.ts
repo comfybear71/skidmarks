@@ -429,11 +429,15 @@ export async function POST(req: Request) {
         });
         job = landed.job;
       }
+      if (!job) {
+        return NextResponse.json({ error: "Need a plate to add." }, { status: 400 });
+      }
+      const jobShots = job.shots || [];
       const onList = songDeskPlateIds(song);
       const slices = withSongRowSlice(songDeskRowSlices(song, onList));
       const nextIds = withSongPlate(onList, shotId);
       const plateFileByShotId: Record<string, string> = {};
-      for (const s of job.shots) {
+      for (const s of jobShots) {
         const f = (s.plateFile || "").trim();
         if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
       }
@@ -449,10 +453,10 @@ export async function POST(req: Request) {
       const nextWin = nextCutAfter(cuts, song.durationSec);
       const extraIds = plateIdsWaitingForTrack({
         song: { ...song, cuts, songPlateIds: nextIds },
-        jobShots: job.shots,
+        jobShots,
       });
       const hangCuts = cuts.filter((c) =>
-        extraIds.includes(shotIdForSongCut(c, job.shots)),
+        extraIds.includes(shotIdForSongCut(c, jobShots)),
       );
       const plateTimings = hangMissingPlateTimings(song.plateTimings, hangCuts, extraIds);
       const updated = await patchMobileGenJob(jobId, {
