@@ -1641,7 +1641,7 @@ export function MusicVideoTrack({
         plateId: shotId,
       });
       if (updated) onJobChange(updated);
-      setNote("Off the wave. Still stays. Nothing deleted.");
+      setNote("Off the wave. Clip stays. Still stays.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't drop that plate");
     } finally {
@@ -2161,11 +2161,11 @@ export function MusicVideoTrack({
                         <button
                           type="button"
                           className="m-track-btn"
-                          aria-label="Park this clip"
-                          disabled={busy.startsWith("redo-")}
-                          onClick={() => void redoPlate(picked.shotId)}
+                          aria-label="Take off the song"
+                          disabled={Boolean(busy) || busy === `drop-${picked.shotId}`}
+                          onClick={() => void dropPlateFromWave(picked.shotId)}
                         >
-                          X
+                          {busy === `drop-${picked.shotId}` ? "…" : "X"}
                         </button>
                       </>
                     ) : null}

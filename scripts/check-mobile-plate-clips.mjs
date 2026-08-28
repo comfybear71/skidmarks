@@ -9,6 +9,7 @@ import {
   clipHangStartMs,
   clipRailLabels,
   gatherClipsForStillsRail,
+  keepClipsAfterUnhang,
   uniqueClipsByFile,
   rememberClipTake,
   stackedClipFiles,
@@ -16,7 +17,6 @@ import {
 } from "../src/lib/mobilePlateClips.ts";
 import { extraTakeHangPlateId } from "../src/lib/musicVideoTrack.ts";
 import { parkMobileClipFile } from "../src/lib/mobileClipPark.ts";
-import { extraTakeHangPlateId } from "../src/lib/musicVideoTrack.ts";
 
 const clip = {
   beatId: "beat-1",
@@ -523,5 +523,45 @@ assert.match(css, /\.m-plate-clip-hang/);
 assert.match(css, /touch-action: pan-x pan-y/);
 assert.match(css, /width: calc\(100% \+ 32px\)/);
 assert.doesNotMatch(css, /\.m-plate-clip-engines/, "no engine chrome on the CLIPS thumb");
+
+{
+  const extraId = extraTakeHangPlateId("car", "04_Gothic_town.mp4");
+  const already = keepClipsAfterUnhang({
+    clips: [
+      { ...clip, beatId: "b4", shotId: "car", clipFile: "04_Gothic_town.mp4", priorClipFiles: [] },
+    ],
+    removedCuts: [{ id: "c4", shotId: extraId, clipFile: "04_Gothic_town.mp4", durationSec: 4 }],
+  });
+  assert.equal(already.length, 1, "file already on job.clips stays one row");
+  assert.equal(already[0].clipFile, "04_Gothic_town.mp4");
+  const onlyOnCut = keepClipsAfterUnhang({
+    clips: [],
+    removedCuts: [{ id: "c4", shotId: extraId, clipFile: "04_Gothic_town.mp4", durationSec: 4 }],
+    shots: [{ shotId: "car", sceneId: "s" }],
+  });
+  assert.equal(onlyOnCut.length, 1, "cut-only take lands on CLIPS after unhang");
+  assert.equal(onlyOnCut[0].clipFile, "04_Gothic_town.mp4");
+  assert.equal(onlyOnCut[0].shotId, "car");
+  assert.equal(onlyOnCut[0].durationSec, 4);
+}
+
+assert.match(thumbs, /onRemoveTake/, "CLIPS X still parks the mp4");
+assert.match(thumbs, /File parks in _cleared\//);
+assert.match(editor, /action: "remove-clip"/);
+assert.match(clipRoute, /planParkDeskClipTake/);
+const trackUi = fs.readFileSync(
+  new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url),
+  "utf8",
+);
+assert.match(trackUi, /dropPlateFromWave/);
+assert.match(
+  trackUi,
+  /aria-label="Take off the song"[\s\S]{0,220}dropPlateFromWave/,
+  "TRACK X unhangs and keeps the clip",
+);
+assert.doesNotMatch(
+  trackUi,
+  /aria-label="Take off the song"[\s\S]{0,220}redoPlate/,
+);
 
 console.log("check-mobile-plate-clips: ok");
