@@ -329,6 +329,67 @@ export function cutFromPlateTiming(
   return [...rest, next];
 }
 
+/** Next empty clock after the last hung still. Do not invent a 15s row when that plate already has in/out. */
+export function nextPlateHangStartMs(existing: PlateTiming[] | undefined): number {
+  const kept = sortPlateTimings(existing || []);
+  if (!kept.length) return 0;
+  return Math.max(...kept.map((t) => t.endMs));
+}
+
+export function nextPlateHangWindow(
+  existing: PlateTiming[] | undefined,
+): { startMs: number; endMs: number } {
+  const startMs = nextPlateHangStartMs(existing);
+  return {
+    startMs,
+    endMs: startMs + secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC),
+  };
+}
+
+const PLATE_DURATION_MIN_MS = 1000;
+const PLATE_DURATION_MAX_MS = secToMs(LTX_MAX_DURATION_SEC);
+
+/** How long this still covers. Followers keep their length and slide. Not stuck at 15s. */
+export function withPlateDuration(
+  existing: PlateTiming[] | undefined,
+  plateId: string,
+  durationMs: number,
+  songMs: number,
+): PlateTiming[] | null {
+  const sorted = sortPlateTimings(existing || []);
+  const i = sorted.findIndex((t) => t.plateId === (plateId || "").trim());
+  if (i < 0) return null;
+  const song = Math.max(PLATE_DURATION_MIN_MS, Math.round(Number(songMs) || 0));
+  const asked = Math.round(Number(durationMs) || 0);
+  const startMs = Math.max(0, Math.min(sorted[i]!.startMs, song - PLATE_DURATION_MIN_MS));
+  const dur = Math.max(
+    PLATE_DURATION_MIN_MS,
+    Math.min(PLATE_DURATION_MAX_MS, asked > 0 ? asked : PLATE_DURATION_MIN_MS, song - startMs),
+  );
+  const next = sorted.map((t) => ({ ...t }));
+  next[i] = { ...next[i]!, startMs, endMs: startMs + dur };
+  let cursor = next[i]!.endMs;
+  for (let j = i + 1; j < next.length; j++) {
+    const keep = Math.max(PLATE_DURATION_MIN_MS, next[j]!.endMs - next[j]!.startMs);
+    if (cursor >= song) {
+      next[j] = {
+        ...next[j]!,
+        startMs: Math.max(0, song - PLATE_DURATION_MIN_MS),
+        endMs: song,
+      };
+      cursor = song;
+      continue;
+    }
+    next[j] = {
+      ...next[j]!,
+      startMs: cursor,
+      endMs: Math.min(song, cursor + keep),
+    };
+    cursor = next[j]!.endMs;
+  }
+  return next.map((t, sortIndex) => ({ ...t, sortIndex }));
+}
+
 /**
  * TRACK paints plateTimings, not the cut list. Add-on-stills used to
  * write a waiting cut and leave the wave empty. Keep any clock already
