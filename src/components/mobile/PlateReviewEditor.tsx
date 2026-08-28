@@ -52,18 +52,23 @@ import { shownVoiceId } from "@/lib/mobileVoicePick";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { applyStylePositionGold, stylePositionGold } from "@/lib/stylePositionGold";
 import {
+  MUTE_MV_SLOT_PLACEHOLDER,
   buildDefaultBeatMotion,
+  buildMuteMvMotionLock,
   clearLtxMotionDraft,
+  extractMuteMvMotionSlot,
   looksLikePlatePositionPrompt,
   pickLtxMotionBody,
   readLtxMotionDraft,
   readMvClipEngine,
   readMvEngine,
+  readMvMotionSlot,
   storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
   writeLtxMotionDraft,
   writeMvClipEngine,
   writeMvEngine,
+  writeMvMotionSlot,
   type MuteMvEngine,
 } from "@/lib/mobileImageMotion";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
@@ -2832,6 +2837,29 @@ function BeatLineEditor({
     [beat.speaker, lookLock, positionBody, shotSpeakers, styleId, text],
   );
   const storedMotion = stripLtxLipSyncLead(beat.imageMotion || "");
+  const muteLock = useMemo(
+    () =>
+      songDesk
+        ? buildMuteMvMotionLock({
+            styleId: (styleId || "music_video") as ShowStyleId,
+            speaker: beat.speaker,
+            lookLock,
+            shotSpeakers: shotSpeakers.length ? shotSpeakers : undefined,
+            staging: positionBody,
+          })
+        : null,
+    [beat.speaker, lookLock, positionBody, shotSpeakers, songDesk, styleId],
+  );
+  const [muteSlot, setMuteSlot] = useState("");
+  useEffect(() => {
+    if (!songDesk || !muteLock) return;
+    const drafted = readMvMotionSlot(jobId, beat.id);
+    if (drafted !== null) {
+      setMuteSlot(drafted);
+      return;
+    }
+    setMuteSlot(extractMuteMvMotionSlot(storedMotion, muteLock));
+  }, [beat.id, jobId, songDesk, storedMotion]);
   const motionBody = pickLtxMotionBody({
     draft: motionDraft,
     stored: storedMotion,
@@ -3162,6 +3190,27 @@ function BeatLineEditor({
         aiError={positionAssist.aiError}
       />
 
+      {songDesk && muteLock ? (
+        <label className="m-plate-motion-slot">
+          <span className="m-plate-motion-slot-mark" aria-hidden>
+            [
+          </span>
+          <textarea
+            value={muteSlot}
+            placeholder={MUTE_MV_SLOT_PLACEHOLDER}
+            rows={2}
+            disabled={saving}
+            onChange={(e) => {
+              const next = e.target.value;
+              setMuteSlot(next);
+              writeMvMotionSlot(jobId, beat.id, next);
+            }}
+          />
+          <span className="m-plate-motion-slot-mark" aria-hidden>
+            ]
+          </span>
+        </label>
+      ) : (
       <LtxImageMotionPanel
         open={ltxOpen}
         onToggle={() => setLtxOpen((open) => !open)}
@@ -3181,6 +3230,7 @@ function BeatLineEditor({
         aiBusy={motionAssist.aiBusy}
         aiError={motionAssist.aiError}
       />
+      )}
       {songDesk ? null : (
       <MobilePrimaryButton
         disabled={

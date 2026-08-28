@@ -3330,6 +3330,34 @@ span.scratch-history-blob {
   gap: 8px;
 }
 
+.m-plate-motion-slot {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.m-plate-motion-slot-mark {
+  flex: 0 0 auto;
+  color: var(--acid);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.m-plate-motion-slot textarea {
+  flex: 1 1 auto;
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 1px solid var(--acid);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--chrome);
+  font-size: 14px;
+  font-weight: 600;
+  resize: vertical;
+}
+
 .m-track-engines {
   display: flex;
   flex-wrap: wrap;
