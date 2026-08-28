@@ -24,6 +24,7 @@ import {
   talkAssignActNs,
   talkClipClock,
   talkClipDeskFrom,
+  clipsOnTalkAct,
   talkClipWidthPx,
   talkNextShotTitle,
   talkSceneBands,
@@ -499,6 +500,25 @@ assert.equal(placeActs[1].cellKeys.length, 0);
 assert.equal(placeActs[2].roman, "III");
 assert.equal(placeActs[2].title, "BBQ shelter");
 assert.equal(placeActs[2].lineCount, 0);
+const parkBeats = jokeAct1Shots.flatMap((sh) => sh.beats.map((b) => b.id));
+const mixedQueue = [
+  ...jokeAct1Shots.flatMap((sh) =>
+    sh.beats.map((b) => ({ beatId: b.id, shotId: sh.id, clipStatus: "done" })),
+  ),
+  { beatId: "bbq_a", shotId: "shot_bbq", clipStatus: "pending" },
+  { beatId: "bbq_b", shotId: "shot_bbq", clipStatus: "pending" },
+];
+const parkOnly = clipsOnTalkAct(mixedQueue, placeActs[0], jokeDesk.cells);
+assert.ok(
+  parkOnly.every((c) => parkBeats.includes(c.beatId)),
+  "animate meter on Act I must not include BBQ lines",
+);
+assert.equal(parkOnly.length, parkBeats.length);
+assert.equal(
+  clipsOnTalkAct(mixedQueue, placeActs[2], jokeDesk.cells).length,
+  0,
+  "empty BBQ act has no meter cells until clips sit on that place",
+);
 const fourActs = talkPlaceActsFrom(
   [
     { id: "scene_park", placeName: "Caravan park" },
@@ -606,6 +626,15 @@ assert.match(talkUi, /Remove slot/);
 assert.match(talkUi, /Act \{act\.roman\}/);
 assert.match(talkUi, /talkPlaceActsFrom/);
 assert.match(talkUi, /talkSkidmarksActsFrom/);
+assert.match(talkUi, /onActIdChange/);
+assert.match(tree, /clipsOnTalkAct/);
+assert.match(tree, /onActIdChange=\{setTalkActId\}/);
+{
+  const meterCss = css.slice(css.indexOf(".m-animate-meter {"), css.indexOf(".m-animate-meter-cell {"));
+  assert.match(meterCss, /overflow-x:\s*auto/);
+  assert.match(meterCss, /touch-action:\s*pan-x pan-y/);
+  assert.doesNotMatch(meterCss, /max-width:\s*22rem/);
+}
 assert.match(talkUi, /resolvedActId/);
 assert.match(talkUi, /visibleCells/);
 assert.match(talkUi, /m-talk-act-count/);
