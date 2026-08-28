@@ -49,7 +49,11 @@ import {
   removePlateFromSong,
   storyShotForSongCut,
 } from "../src/lib/musicVideoSong.ts";
-import { extraTakeHangPlateId, hangMissingPlateTimings } from "../src/lib/musicVideoTrack.ts";
+import {
+  extraStillHangPlateId,
+  extraTakeHangPlateId,
+  hangMissingPlateTimings,
+} from "../src/lib/musicVideoTrack.ts";
 import { gatherClipsForStillsRail, keepClipsAfterUnhang } from "../src/lib/mobilePlateClips.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
@@ -1067,6 +1071,167 @@ assert.doesNotMatch(
       ["car", 15000, 20000],
       ["jack3", 20000, 25000],
     ],
+  );
+}
+{
+  let n = 0;
+  const firstLeftover = applyAddPlateOnSong({
+    shotId: "jack",
+    plateFile: "jack.png",
+    plateTimings: [
+      { plateId: "car", startMs: 0, endMs: 5000, sortIndex: 0 },
+    ],
+    cuts: [
+      {
+        id: "car1",
+        shotId: "car",
+        plateFile: "car.png",
+        startSec: 0,
+        durationSec: 5,
+        clipFile: "02_Car.mp4",
+        status: "done",
+      },
+    ],
+    clips: [
+      { shotId: "car", clipFile: "02_Car.mp4", clipStatus: "done", durationSec: 5 },
+      { shotId: "jack", clipFile: "03_Jack.mp4", clipStatus: "done", durationSec: 8 },
+    ],
+    skipShotIds: ["car~6ir"],
+    songPlateIds: ["car"],
+    rowSlices: [1],
+    songSec: 180,
+    newCutId: () => `cut_first_${++n}`,
+  });
+  assert.equal(firstLeftover.hung, true, "Add with leftover mp4 hangs it");
+  const hungJack = firstLeftover.cuts.find((c) => c.clipFile === "03_Jack.mp4");
+  assert.equal(hungJack?.status, "done");
+  assert.equal(hungJack?.startSec, 5);
+  assert.equal(hungJack?.durationSec, 8);
+  assert.equal(firstLeftover.cuts.find((c) => c.clipFile === "02_Car.mp4")?.status, "done");
+  assert.equal(
+    firstLeftover.cuts.filter((c) => c.status === "pending").length,
+    0,
+    "leftover Add writes plateTiming + cut — no waiting cook",
+  );
+  assert.equal(firstLeftover.plateTimings.length, 2);
+  assert.equal(firstLeftover.plateTimings[0]?.plateId, "car");
+  assert.equal(firstLeftover.plateTimings[1]?.plateId, "jack");
+  assert.equal(firstLeftover.plateTimings[1]?.startMs, 5000);
+  assert.equal(firstLeftover.plateTimings[1]?.endMs, 13000);
+  assert.ok(firstLeftover.songPlateIds.includes("jack"));
+}
+{
+  const noLeftover = applyAddPlateOnSong({
+    shotId: "jack3",
+    plateFile: "jack.png",
+    plateTimings: [
+      { plateId: "car", startMs: 0, endMs: 5000, sortIndex: 0 },
+      { plateId: "jack3", startMs: 5000, endMs: 10000, sortIndex: 1 },
+    ],
+    cuts: [
+      {
+        id: "car1",
+        shotId: "car",
+        plateFile: "car.png",
+        startSec: 0,
+        durationSec: 5,
+        clipFile: "02_Car.mp4",
+        status: "done",
+      },
+      {
+        id: "j1",
+        shotId: "jack3",
+        plateFile: "jack.png",
+        startSec: 5,
+        durationSec: 5,
+        clipFile: "03_Jack.mp4",
+        status: "done",
+      },
+    ],
+    clips: [
+      { shotId: "car", clipFile: "02_Car.mp4", clipStatus: "done", durationSec: 5 },
+      { shotId: "jack3", clipFile: "03_Jack.mp4", clipStatus: "done", durationSec: 5 },
+    ],
+    songPlateIds: ["car", "jack3"],
+    rowSlices: [1, 1],
+    songSec: 180,
+    newCutId: () => "cut_noop",
+  });
+  assert.equal(noLeftover.hung, false, "already hung + no leftover — no cook");
+  assert.equal(noLeftover.plateTimings.length, 3, "second bar after last end");
+  assert.equal(noLeftover.plateTimings[1]?.plateId, "jack3");
+  assert.equal(
+    noLeftover.plateTimings[2]?.plateId,
+    extraStillHangPlateId("jack3", [
+      { plateId: "car" },
+      { plateId: "jack3" },
+    ]),
+  );
+  assert.equal(noLeftover.plateTimings[2]?.startMs, 10000);
+  assert.equal(noLeftover.plateTimings[2]?.endMs, 25000);
+  assert.equal(noLeftover.cuts.length, 2);
+  assert.equal(noLeftover.cuts.find((c) => c.clipFile === "02_Car.mp4")?.status, "done");
+  assert.equal(
+    noLeftover.cuts.filter((c) => c.status === "pending").length,
+    0,
+    "alreadyHung Add does not mint a WAITING cook",
+  );
+}
+{
+  const stillOnly = applyAddPlateOnSong({
+    shotId: "empty",
+    plateFile: "empty.png",
+    plateTimings: [
+      { plateId: "car", startMs: 0, endMs: 5000, sortIndex: 0 },
+    ],
+    cuts: [
+      {
+        id: "car1",
+        shotId: "car",
+        plateFile: "car.png",
+        startSec: 0,
+        durationSec: 5,
+        clipFile: "02_Car.mp4",
+        status: "done",
+      },
+    ],
+    clips: [{ shotId: "car", clipFile: "02_Car.mp4", clipStatus: "done", durationSec: 5 }],
+    songPlateIds: ["car"],
+    rowSlices: [1],
+    songSec: 180,
+    newCutId: () => "cut_still",
+  });
+  assert.equal(stillOnly.hung, false);
+  assert.equal(stillOnly.plateTimings.length, 2, "no mp4 — still hangs after last end");
+  assert.equal(stillOnly.plateTimings[1]?.plateId, "empty");
+  assert.equal(stillOnly.plateTimings[1]?.startMs, 5000);
+  assert.equal(stillOnly.plateTimings[1]?.endMs, 20000);
+  assert.equal(stillOnly.cuts.find((c) => c.clipFile === "02_Car.mp4")?.status, "done");
+  assert.equal(
+    stillOnly.cuts.filter((c) => c.status === "pending").length,
+    0,
+    "still-only Add does not mint a WAITING cook",
+  );
+  const stillAgain = applyAddPlateOnSong({
+    shotId: "empty",
+    plateFile: "empty.png",
+    plateTimings: stillOnly.plateTimings,
+    cuts: stillOnly.cuts,
+    clips: [{ shotId: "car", clipFile: "02_Car.mp4", clipStatus: "done", durationSec: 5 }],
+    songPlateIds: stillOnly.songPlateIds,
+    rowSlices: stillOnly.rowSlices,
+    songSec: 180,
+    newCutId: () => "cut_still_2",
+  });
+  assert.equal(stillAgain.hung, false, "second Add of the same still does not cook");
+  assert.equal(stillAgain.plateTimings.length, 3, "alreadyHung still gets another TRACK bar");
+  assert.equal(stillAgain.plateTimings[2]?.plateId, extraStillHangPlateId("empty", stillOnly.plateTimings));
+  assert.equal(stillAgain.plateTimings[2]?.startMs, 20000);
+  assert.equal(stillAgain.plateTimings[2]?.endMs, 35000);
+  assert.equal(
+    stillAgain.cuts.filter((c) => c.status === "pending").length,
+    0,
+    "second still Add does not mint a WAITING cook",
   );
 }
 {

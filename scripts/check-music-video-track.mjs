@@ -10,6 +10,7 @@ import {
   addPlateFileFirstHang,
   addPlateHangOnTrack,
   cutFromPlateTiming,
+  extraStillHangPlateId,
   extraTakeHangPlateId,
   hangClipDurationMs,
   hangMissingPlateTimings,
@@ -655,6 +656,17 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(twoTakes?.plateTimings[1]?.startMs, 15000, "next gap — do not pile on 0:00");
   assert.equal(twoTakes?.plateTimings[1]?.endMs, 23000, "real 8s, not a fake 15");
   assert.equal(hangPlateShotId(twoTakes?.plateTimings[1]?.plateId || ""), "plate-9");
+  assert.equal(
+    extraStillHangPlateId("plate-9", twoTakes?.plateTimings),
+    "plate-9~still2",
+  );
+  assert.equal(
+    extraStillHangPlateId("plate-9", [
+      ...(twoTakes?.plateTimings || []),
+      { plateId: "plate-9~still2" },
+    ]),
+    "plate-9~still3",
+  );
   assert.equal(twoTakes?.cuts.length, 2, "do not wipe the first take");
   assert.equal(twoTakes?.cuts[0]?.clipFile, "09_kl0.mp4");
   assert.equal(twoTakes?.cuts[1]?.clipFile, "09_dzd.mp4");
@@ -1415,7 +1427,7 @@ assert.doesNotMatch(
 assert.match(
   songRoute.slice(songRoute.indexOf('action === "add-plate"')),
   /alreadyHung/,
-  "STILLS ADD must not stack a second take at the same 0:20",
+  "STILLS ADD alreadyHung lives on add-plate — second bar after last end, not the same 0:20",
 );
 
 console.log("check-music-video-track: ok");
