@@ -2829,8 +2829,7 @@ function PlateEngineButtons({
         H3
       </MobilePrimaryButton>
       <MobilePrimaryButton
-        tone={muteOn ? "accent" : "danger"}
-        pressed={Boolean(muteOn)}
+        tone={muteOn ? "accent" : "ghost"}
         onClick={() => onMute?.(!muteOn)}
       >
         No lips
