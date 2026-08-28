@@ -9,7 +9,13 @@ import {
   submitScratchMinimaxClip,
 } from "@/lib/minimaxScratchClip";
 import { parseScratchClipEngine } from "@/lib/sirayI2v";
-import { MINIMAX_H3_ID, refuseMinimaxH3OverMax, snapMinimaxH3DurationSec } from "@/lib/minimaxH3";
+import {
+  MINIMAX_H3_ID,
+  parseMinimaxH3Camera,
+  parseMinimaxH3Resolution,
+  refuseMinimaxH3OverMax,
+  snapMinimaxH3DurationSec,
+} from "@/lib/minimaxH3";
 import { sirayConfigured } from "@/lib/sirayClient";
 import { minimaxVideoConfigured } from "@/lib/minimaxVideo";
 import { clipOwnsHangPlate, hangDoneClipOnTrack } from "@/lib/stockClipHang";
@@ -115,6 +121,9 @@ export async function POST(req: Request) {
     nobodyInShot?: boolean;
     singing?: boolean;
     support?: boolean;
+    endPlateFile?: string;
+    resolution?: string;
+    h3Camera?: string;
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -416,6 +425,9 @@ export async function POST(req: Request) {
             sceneId,
             beatId,
             durationSec,
+            endPlateFile: String(body.endPlateFile || "").trim() || undefined,
+            resolution: parseMinimaxH3Resolution(body.resolution),
+            camera: parseMinimaxH3Camera(body.h3Camera),
             emptyFrame: body.emptyFrame === true,
             nobodyInShot: body.nobodyInShot === true,
           });

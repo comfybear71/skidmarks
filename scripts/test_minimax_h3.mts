@@ -13,9 +13,17 @@ import {
   isMinimaxH3Id,
   isMinimaxH3ShortSec,
   MINIMAX_H3_OVER_MAX_NOTE,
+  MINIMAX_H3_RESOLUTIONS,
+  MINIMAX_H3_CAMERAS,
   refuseMinimaxH3OverMax,
   snapMinimaxH3DurationSec,
   clampMinimaxH3HangSec,
+  parseMinimaxH3Resolution,
+  parseMinimaxH3Camera,
+  applyMinimaxH3CameraToSlot,
+  stripMinimaxH3CameraFromSlot,
+  withMinimaxH3CameraCommand,
+  collectMinimaxH3LastStills,
 } from "../src/lib/minimaxH3.ts";
 
 assert.equal(isMinimaxH3ClipEngineToken("h3"), true);
@@ -60,5 +68,42 @@ assert.equal(refuseMinimaxH3OverMax(4), null);
 assert.equal(refuseMinimaxH3OverMax(25), MINIMAX_H3_OVER_MAX_NOTE);
 assert.equal(refuseMinimaxH3OverMax(25.1), MINIMAX_H3_OVER_MAX_NOTE);
 assert.equal(MINIMAX_H3_OVER_MAX_NOTE, "H3 max 15 — use LTX for 25");
+
+assert.deepEqual([...MINIMAX_H3_RESOLUTIONS], ["768P", "2K"]);
+assert.equal(parseMinimaxH3Resolution("2K"), "2K");
+assert.equal(parseMinimaxH3Resolution("768P"), "768P");
+assert.equal(parseMinimaxH3Resolution("1080P"), "768P");
+assert.equal(MINIMAX_H3_CAMERAS.length, 15);
+assert.equal(
+  MINIMAX_H3_CAMERAS.find((c) => c.id === "pedestal-up")?.command,
+  "[Pedestal up]",
+);
+assert.equal(
+  MINIMAX_H3_CAMERAS.find((c) => c.id === "pedestal-up")?.label,
+  "Drone lift",
+);
+assert.equal(
+  MINIMAX_H3_CAMERAS.some((c) => /drone/i.test(c.command)),
+  false,
+  "API has no [Drone] command",
+);
+assert.equal(parseMinimaxH3Camera("pedestal-up"), "[Pedestal up]");
+assert.equal(parseMinimaxH3Camera("[Pedestal up]"), "[Pedestal up]");
+assert.equal(parseMinimaxH3Camera("[Drone]"), "");
+assert.equal(applyMinimaxH3CameraToSlot("stand up", "[Pedestal up]"), "[Pedestal up] stand up");
+assert.equal(
+  applyMinimaxH3CameraToSlot("[Truck left] stand up", "[Pedestal up]"),
+  "[Pedestal up] stand up",
+);
+assert.equal(stripMinimaxH3CameraFromSlot("[Pedestal up] stand up"), "stand up");
+assert.match(withMinimaxH3CameraCommand("mouths shut", "pedestal-up"), /^\[Pedestal up\]/);
+assert.equal(
+  collectMinimaxH3LastStills({
+    firstFile: "a.png",
+    takes: [{ fileName: "a.png" }, { fileName: "b.png" }, { fileName: "__error__" }],
+    otherPlates: [{ fileName: "c.png", title: "Car" }, { fileName: "a.png" }],
+  }).map((s) => s.fileName).join(","),
+  "b.png,c.png",
+);
 
 console.log("minimax h3 tokens + duration snap: ok");

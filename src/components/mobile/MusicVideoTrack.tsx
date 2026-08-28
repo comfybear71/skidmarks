@@ -80,13 +80,16 @@ import {
   composeMuteMvMotion,
   extractMuteMvMotionSlot,
   imageMotionLooksMuteLock,
+  readMvH3Camera,
+  readMvH3LastFrame,
+  readMvH3Resolution,
   readMvMotionSlot,
   readMvMuteAction,
   readMvNobodyInShot,
   resolveMvSendEngine,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
-import { MINIMAX_H3_ID } from "@/lib/minimaxH3";
+import { MINIMAX_H3_ID, withMinimaxH3CameraCommand } from "@/lib/minimaxH3";
 import { readHangLengthDraft, writeHangLengthDraft } from "@/lib/hangLengthDraft";
 import { clampHangLengthSec } from "@/lib/scratchSongWindow";
 import type { ShowStyleId } from "@/lib/showStylePresets";
@@ -1380,6 +1383,11 @@ export function MusicVideoTrack({
     const muteOn = Boolean(readMvMuteAction(job.id, shotId) || emptyFrame);
     const stored = shot?.beats[0]?.imageMotion || "";
     const cut = waitingCutForPlate(shotId) || doneCutForPlate(shotId);
+    const sendEngine = resolveMvSendEngine({
+      jobId: job.id,
+      shotId,
+      beatId: targetBeatId,
+    });
     let body = stored;
     if (muteOn) {
       const lock = buildMuteMvMotionLock({
@@ -1403,6 +1411,9 @@ export function MusicVideoTrack({
         performance: cut?.performance,
         startSec: cut?.startSec,
       });
+    }
+    if (sendEngine === "h3") {
+      body = withMinimaxH3CameraCommand(body, readMvH3Camera(job.id, shotId));
     }
     const res = await fetch("/api/crash/mobile/beat-motion", {
       method: "POST",
@@ -1478,6 +1489,9 @@ export function MusicVideoTrack({
         beatId: targetBeatId || beatId,
         clipEngine: MINIMAX_H3_ID,
         durationSec: cook.durationSec,
+        endPlateFile: readMvH3LastFrame(job.id, shotId) || undefined,
+        resolution: readMvH3Resolution(job.id, shotId),
+        h3Camera: readMvH3Camera(job.id, shotId) || undefined,
         ...songRunEmptyExtras(shotId),
       });
       if (raw.pending) await pollI2v(cutId, shotId, targetBeatId);

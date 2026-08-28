@@ -1,6 +1,11 @@
 import { speakerVoiceKey } from "./crashVoicePrompt";
 import { jackWalkCameraForStartSec } from "./musicVideoGroupPlate";
-import { MINIMAX_H3_MAX_SEC, MINIMAX_H3_MIN_SEC } from "./minimaxH3";
+import {
+  MINIMAX_H3_MAX_SEC,
+  MINIMAX_H3_MIN_SEC,
+  parseMinimaxH3Resolution,
+  type MinimaxH3Resolution,
+} from "./minimaxH3";
 import { getShowStylePreset, type ShowStyleId } from "./showStylePresets";
 
 /**
@@ -1069,24 +1074,25 @@ export const MUTE_MV_LTX_DESK_MAX_SEC = 40;
 /** Closed fold under the hole title. Not a TRACK essay. */
 export function muteMvEngineFoldSummary(engine: MuteMvEngine): string {
   return engine === "h3"
-    ? `H3 · ${MINIMAX_H3_MIN_SEC}–${MINIMAX_H3_MAX_SEC}s · first frame · one move`
+    ? `H3 · ${MINIMAX_H3_MIN_SEC}–${MINIMAX_H3_MAX_SEC}s · first+last · camera · 768P/2K`
     : `LTX · up to ${MUTE_MV_LTX_DESK_MAX_SEC}s · talking/sing ok · 5s ok`;
 }
 
 /**
- * One tap opens these. H3 API is first_frame + optional last_frame + duration
- * (`minimaxVideo.ts`) — no camera enum. `/m` has no last-frame picker
- * (that lives on `/scratch`). Drone/crane in `MUTE_CINEMATIC_ARCHIVE.md`
- * is people-talk for hold / push / track / pedestal.
+ * One tap opens these. Official H3 v2 (`MiniMax-H3` POST /v2/video_generation):
+ * duration 4–15, resolution 768P|2K, content first_frame + optional last_frame.
+ * No camera_control JSON and no drone field — camera is `[Command]` in the prompt.
+ * Same-platform I2V docs list the 15 named moves including Pedestal up (aerial).
  */
 export function muteMvEngineFoldLines(engine: MuteMvEngine): string[] {
   if (engine === "h3") {
     return [
       `Length: ${MINIMAX_H3_MIN_SEC}–${MINIMAX_H3_MAX_SEC}s. No 25s. Use LTX for 25.`,
-      "This still is the first frame. No last-frame picker on this desk.",
-      "One move: stand, or car, not both. Camera: hold / push / track / pedestal (drone-like lift) — write it in [ ].",
-      "No song into H3. No lips = mouths shut.",
-      "Do not paste Cowboy Bebop / kinetic-type gold onto Jack.",
+      "First + last frame. Pick a last still — H3 walks from this plate to that one.",
+      "Camera is [Command] in the prompt — no drone field. Pedestal up is the aerial lift.",
+      "Official moves: Truck L/R, Pan L/R, Push in, Pull out, Pedestal up/down, Tilt up/down, Zoom in/out, Shake, Tracking, Static. Combine up to 3.",
+      "768P or 2K. No 1080P on H3. No song into H3. No lips = mouths shut.",
+      "Last-only / reference video+audio exist on the API but drop first+last — not on this desk.",
     ];
   }
   return [
@@ -1127,6 +1133,78 @@ export function writeMvMotionSlot(jobId: string, beatId: string, text: string): 
   if (typeof window === "undefined") return;
   try {
     window.sessionStorage.setItem(mvMotionSlotKey(jobId, beatId), text);
+  } catch {
+    /* private mode */
+  }
+}
+
+function mvH3CameraKey(jobId: string, shotId: string): string {
+  return `skidmarks.mvH3Camera.${(jobId || "").trim()}.${(shotId || "").trim()}`;
+}
+
+function mvH3LastFrameKey(jobId: string, shotId: string): string {
+  return `skidmarks.mvH3LastFrame.${(jobId || "").trim()}.${(shotId || "").trim()}`;
+}
+
+function mvH3ResolutionKey(jobId: string, shotId: string): string {
+  return `skidmarks.mvH3Resolution.${(jobId || "").trim()}.${(shotId || "").trim()}`;
+}
+
+export function readMvH3Camera(jobId: string, shotId: string): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.sessionStorage.getItem(mvH3CameraKey(jobId, shotId)) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function writeMvH3Camera(jobId: string, shotId: string, command: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = mvH3CameraKey(jobId, shotId);
+    const v = (command || "").trim();
+    if (v) window.sessionStorage.setItem(key, v);
+    else window.sessionStorage.removeItem(key);
+  } catch {
+    /* private mode */
+  }
+}
+
+export function readMvH3LastFrame(jobId: string, shotId: string): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.sessionStorage.getItem(mvH3LastFrameKey(jobId, shotId)) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function writeMvH3LastFrame(jobId: string, shotId: string, fileName: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = mvH3LastFrameKey(jobId, shotId);
+    const v = (fileName || "").trim();
+    if (v) window.sessionStorage.setItem(key, v);
+    else window.sessionStorage.removeItem(key);
+  } catch {
+    /* private mode */
+  }
+}
+
+export function readMvH3Resolution(jobId: string, shotId: string): MinimaxH3Resolution {
+  if (typeof window === "undefined") return "768P";
+  try {
+    return parseMinimaxH3Resolution(window.sessionStorage.getItem(mvH3ResolutionKey(jobId, shotId)) || "");
+  } catch {
+    return "768P";
+  }
+}
+
+export function writeMvH3Resolution(jobId: string, shotId: string, resolution: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(mvH3ResolutionKey(jobId, shotId), parseMinimaxH3Resolution(resolution));
   } catch {
     /* private mode */
   }

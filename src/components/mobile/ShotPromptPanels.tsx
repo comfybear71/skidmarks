@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { MobilePrimaryButton, MobileTextInput } from "@/components/mobile/MobileUi";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
 import {
@@ -9,9 +9,22 @@ import {
   muteMvEngineFoldLines,
   muteMvEngineFoldSummary,
   muteMvMotionLabel,
+  readMvH3Camera,
+  readMvH3LastFrame,
+  readMvH3Resolution,
+  writeMvH3Camera,
+  writeMvH3LastFrame,
+  writeMvH3Resolution,
   type MuteMvEngine,
   type MuteMvMotionLock,
 } from "@/lib/mobileImageMotion";
+import {
+  MINIMAX_H3_CAMERAS,
+  MINIMAX_H3_RESOLUTIONS,
+  applyMinimaxH3CameraToSlot,
+  stripMinimaxH3CameraFromSlot,
+  type MinimaxH3LastStill,
+} from "@/lib/minimaxH3";
 import type { ScratchBibleEntry, ScratchBibleSectionId } from "@/lib/scratchBench";
 
 /**
@@ -226,6 +239,9 @@ export function MuteMvMotionHole({
   disabled,
   mute = true,
   singingBody,
+  jobId,
+  shotId,
+  h3LastStills,
 }: {
   engine: MuteMvEngine;
   motionLock: MuteMvMotionLock;
@@ -235,7 +251,38 @@ export function MuteMvMotionHole({
   /** No lips on — mute tail. Off shows the singing stack. */
   mute?: boolean;
   singingBody?: string;
+  jobId?: string;
+  shotId?: string;
+  h3LastStills?: MinimaxH3LastStill[];
 }) {
+  const [h3Camera, setH3Camera] = useState(() =>
+    jobId && shotId ? readMvH3Camera(jobId, shotId) : "",
+  );
+  const [h3Last, setH3Last] = useState(() =>
+    jobId && shotId ? readMvH3LastFrame(jobId, shotId) : "",
+  );
+  const [h3Res, setH3Res] = useState<(typeof MINIMAX_H3_RESOLUTIONS)[number]>(() =>
+    jobId && shotId ? readMvH3Resolution(jobId, shotId) : "768P",
+  );
+
+  function pickCamera(command: string) {
+    const next = h3Camera === command ? "" : command;
+    setH3Camera(next);
+    if (jobId && shotId) writeMvH3Camera(jobId, shotId, next);
+    onMotionSlot(next ? applyMinimaxH3CameraToSlot(motionSlot, next) : stripMinimaxH3CameraFromSlot(motionSlot));
+  }
+
+  function pickLast(fileName: string) {
+    const next = h3Last === fileName ? "" : fileName;
+    setH3Last(next);
+    if (jobId && shotId) writeMvH3LastFrame(jobId, shotId, next);
+  }
+
+  function pickRes(res: (typeof MINIMAX_H3_RESOLUTIONS)[number]) {
+    setH3Res(res);
+    if (jobId && shotId) writeMvH3Resolution(jobId, shotId, res);
+  }
+
   return (
     <div className="m-plate-motion-hole" data-engine={engine} data-mute={mute ? "yes" : "no"}>
       <div className="m-plate-motion-label">
@@ -249,6 +296,67 @@ export function MuteMvMotionHole({
           ))}
         </div>
       </details>
+      {engine === "h3" ? (
+        <div className="m-plate-h3-caps">
+          <p className="m-plate-h3-caps-label">Camera — official [Command] into the hole</p>
+          <div className="m-plate-h3-chips" role="group" aria-label="H3 camera">
+            {MINIMAX_H3_CAMERAS.map((cam) => (
+              <button
+                key={cam.id}
+                type="button"
+                className={`m-plate-h3-chip${h3Camera === cam.command ? " is-on" : ""}`}
+                disabled={disabled}
+                title={cam.command}
+                onClick={() => pickCamera(cam.command)}
+              >
+                {cam.label}
+              </button>
+            ))}
+          </div>
+          <p className="m-plate-h3-caps-label">H3 output</p>
+          <div className="m-plate-h3-chips" role="group" aria-label="H3 resolution">
+            {MINIMAX_H3_RESOLUTIONS.map((res) => (
+              <button
+                key={res}
+                type="button"
+                className={`m-plate-h3-chip${h3Res === res ? " is-on" : ""}`}
+                disabled={disabled}
+                onClick={() => pickRes(res)}
+              >
+                {res}
+              </button>
+            ))}
+          </div>
+          {(h3LastStills || []).length ? (
+            <>
+              <p className="m-plate-h3-caps-label">Last frame — optional. Not the first still.</p>
+              <div className="m-plate-h3-lasts" role="group" aria-label="H3 last frame">
+                {(h3LastStills || []).map((still) => (
+                  <button
+                    key={still.fileName}
+                    type="button"
+                    className={`m-plate-h3-last${h3Last === still.fileName ? " is-on" : ""}`}
+                    disabled={disabled}
+                    title={still.label}
+                    onClick={() => pickLast(still.fileName)}
+                  >
+                    <span
+                      className="m-plate-h3-last-thumb"
+                      style={{
+                        backgroundImage: `url(/api/crash/gen/file?name=${encodeURIComponent(still.fileName)})`,
+                      }}
+                      aria-hidden
+                    />
+                    <span>{still.label}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="m-plate-h3-caps-note">No other still for last frame yet. Draw another take or plate.</p>
+          )}
+        </div>
+      ) : null}
       {mute ? (
         <>
           <p className="m-plate-motion-lock">{motionLock.lead}</p>
@@ -288,6 +396,9 @@ export function MuteMvEnginePanel({
   motionSlot,
   onMotionSlot,
   disabled,
+  jobId,
+  shotId,
+  h3LastStills,
 }: {
   engine: MuteMvEngine;
   onEngine: (engine: MuteMvEngine) => void;
@@ -296,6 +407,9 @@ export function MuteMvEnginePanel({
   motionSlot: string;
   onMotionSlot: (value: string) => void;
   disabled?: boolean;
+  jobId?: string;
+  shotId?: string;
+  h3LastStills?: MinimaxH3LastStill[];
 }) {
   return (
     <div className="shot-prompt-ltx shot-prompt-mv-engines">
@@ -324,6 +438,9 @@ export function MuteMvEnginePanel({
         motionSlot={motionSlot}
         onMotionSlot={onMotionSlot}
         disabled={disabled}
+        jobId={jobId}
+        shotId={shotId}
+        h3LastStills={h3LastStills}
       />
     </div>
   );

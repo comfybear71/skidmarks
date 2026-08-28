@@ -1708,8 +1708,24 @@ assert.match(panels, /muteMvEngineFoldLines\(engine\)/, "one tap opens the engin
 assert.doesNotMatch(trackUi, /m-plate-motion-fold/, "engine fold is not a TRACK essay");
 assert.doesNotMatch(trackUi, /muteMvEngineFold/, "fold copy does not live on the wave");
 assert.doesNotMatch(trackUi, /Cowboy Bebop/, "Cowboy Bebop lock is on the hole, not TRACK");
-assert.doesNotMatch(panels, /endPlateFile/, "/m hole has no last-frame picker");
-assert.doesNotMatch(editor, /endPlateFile/, "/m plate editor has no last-frame picker");
+assert.match(panels, /MINIMAX_H3_CAMERAS/, "hole lists official H3 camera chips");
+assert.match(panels, /m-plate-h3-last/, "hole has last-frame thumbs");
+assert.match(panels, /MINIMAX_H3_RESOLUTIONS/, "hole has 768P/2K");
+assert.match(editor, /collectMinimaxH3LastStills/, "plate editor collects last stills");
+assert.match(editor, /h3LastStills/, "last stills reach the hole");
+assert.doesNotMatch(trackUi, /MINIMAX_H3_CAMERAS/, "camera chips are not on TRACK");
+assert.doesNotMatch(trackUi, /m-plate-h3-last/, "last-frame picker is not on TRACK");
+assert.match(trackUi, /endPlateFile/, "H3 Send posts last frame");
+assert.match(trackUi, /h3Camera/, "H3 Send posts camera");
+assert.match(trackUi, /resolution: readMvH3Resolution/, "H3 Send posts 768P/2K");
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /endPlateFile: String\(body\.endPlateFile/,
+);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /h3Camera/,
+);
 assert.doesNotMatch(
   panels,
   /m-plate-motion-label">\s*LTX Image motion/,
@@ -1829,3 +1845,4 @@ assert.match(
   readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8"),
   /readMvMuteAction/,
 );
+console.log("check-music-video-track h3 capabilities: ok");
