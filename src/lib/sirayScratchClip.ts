@@ -33,6 +33,7 @@ import {
   type SirayI2vId,
 } from "./sirayI2v";
 import type { ScratchClipTask } from "./mobileScratch";
+import { hangPlateShotId } from "./musicVideoTrack";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
@@ -71,7 +72,9 @@ export async function submitScratchSirayClip(opts: {
   if (!sirayConfigured()) {
     throw new Error("Missing SIRAY_API_KEY — https://console.siray.ai/keys");
   }
-  const { story, shotId, sceneId, beatId } = opts;
+  const { story, sceneId, beatId } = opts;
+  const hangId = (opts.shotId || "").trim();
+  const shotId = hangPlateShotId(hangId) || hangId;
   let job = opts.job;
   const jobId = job.id;
   const shot = job.shots.find((s) => s.shotId === shotId);
@@ -124,7 +127,7 @@ export async function submitScratchSirayClip(opts: {
         c.beatId === beatId
           ? {
               ...c,
-              shotId,
+              shotId: hangId || shotId,
               sceneId,
               speaker,
               line,
@@ -139,7 +142,7 @@ export async function submitScratchSirayClip(opts: {
         ...(job.clips || []),
         {
           beatId,
-          shotId,
+          shotId: hangId || shotId,
           sceneId,
           clipFile: "",
           clipStatus: "pending",
@@ -166,7 +169,7 @@ export async function submitScratchSirayClip(opts: {
     });
     const task: ScratchClipTask = {
       taskId,
-      shotId,
+      shotId: hangId || shotId,
       sceneId,
       beatId,
       i2v,

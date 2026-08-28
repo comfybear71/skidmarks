@@ -345,8 +345,10 @@ export async function POST(req: Request) {
         jobShots: job.shots,
         cut,
       });
+      const hangId = (cut.shotId || "").trim();
+      const stillId = hangPlateShotId(hangId) || hangId;
       const jobShot =
-        job.shots.find((s) => s.shotId === (cut.shotId || "").trim()) ||
+        job.shots.find((s) => s.shotId === stillId) ||
         job.shots.find(
           (s) =>
             Boolean((s.plateFile || "").trim()) &&
@@ -356,7 +358,7 @@ export async function POST(req: Request) {
       const scene = found
         ? story.scenes.find((sc) => sc.id === found.sceneId)
         : undefined;
-      const shotId = (jobShot?.shotId || storyShot?.id || "").trim();
+      const shotId = stillId || (jobShot?.shotId || storyShot?.id || "").trim();
       const sceneId = (jobShot?.sceneId || scene?.id || found?.sceneId || "").trim();
       if (!shotId) {
         return NextResponse.json({ error: "That plate is not on this episode." }, { status: 400 });
@@ -395,7 +397,7 @@ export async function POST(req: Request) {
           scratchSong: { ...song, cuts: running },
           error: "",
         }))!;
-        const bounds = sliceBoundsForPlate({ song, shotId, cut });
+        const bounds = sliceBoundsForPlate({ song, shotId: hangId || shotId, cut });
         let clipPick: ReturnType<typeof parseScratchClipEngine> = "ltx";
         try {
           clipPick = parseScratchClipEngine(body.clipEngine);
@@ -421,7 +423,7 @@ export async function POST(req: Request) {
           const drawn = await submitScratchMinimaxClip({
             job,
             story,
-            shotId,
+            shotId: hangId || shotId,
             sceneId,
             beatId,
             durationSec,
@@ -449,7 +451,7 @@ export async function POST(req: Request) {
           const drawn = await submitScratchSirayClip({
             job,
             story,
-            shotId,
+            shotId: hangId || shotId,
             sceneId,
             beatId,
             i2v: clipPick,
@@ -473,7 +475,7 @@ export async function POST(req: Request) {
         const updated = await runScratchLtxClip({
           job,
           story,
-          shotId,
+          shotId: hangId || shotId,
           sceneId,
           beatId,
           plateFile: cut.plateFile,
@@ -521,7 +523,11 @@ export async function POST(req: Request) {
             c.clipStatus === "done",
         );
         if (landed?.clipFile) {
-          const shotId = String(body.shotId || landed.shotId || "").trim();
+          const shotId =
+            (wantCut
+              ? (job.scratchSong?.cuts || []).find((c) => c.id === wantCut)?.shotId || ""
+              : "") ||
+            String(body.shotId || landed.shotId || "").trim();
           const hung =
             shotId &&
             job.scratchSong &&
@@ -530,7 +536,10 @@ export async function POST(req: Request) {
                   song: job.scratchSong,
                   shotId,
                   plateFile:
-                    (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim(),
+                    (
+                      job.shots.find((s) => s.shotId === hangPlateShotId(shotId))
+                        ?.plateFile || ""
+                    ).trim(),
                   clipFile: clipFileBasename(landed.clipFile),
                   durationSec: landed.durationSec,
                   newCutId: () => newId("cut"),
@@ -563,10 +572,10 @@ export async function POST(req: Request) {
           (c) => c.beatId === task.beatId && (c.clipFile || "").trim(),
         );
         const shotId =
-          String(body.shotId || "").trim() ||
           (wantCut
             ? (tick.job.scratchSong?.cuts || []).find((c) => c.id === wantCut)?.shotId || ""
             : "") ||
+          String(body.shotId || "").trim() ||
           (task.shotId || "").trim() ||
           (landed?.shotId || "").trim();
         const hung =
@@ -578,7 +587,10 @@ export async function POST(req: Request) {
                 song: tick.job.scratchSong,
                 shotId,
                 plateFile:
-                  (tick.job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim(),
+                  (
+                    tick.job.shots.find((s) => s.shotId === hangPlateShotId(shotId))
+                      ?.plateFile || ""
+                  ).trim(),
                 clipFile: clipFileBasename(landed.clipFile),
                 durationSec: landed.durationSec,
                 newCutId: () => newId("cut"),

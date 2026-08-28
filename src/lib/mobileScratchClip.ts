@@ -64,7 +64,7 @@ import {
 import { probeDurationSeconds } from "./mediaDuration";
 import { writeSilentMp3 } from "./silentAudio";
 import { ltxDurationFrames } from "./ltxDuration";
-import { applyLandedClipDuration, hangOneClipOnWave } from "./musicVideoTrack";
+import { applyLandedClipDuration, hangOneClipOnWave, hangPlateShotId } from "./musicVideoTrack";
 import { newId, sortableId } from "./types";
 
 async function ensureComfyReady(): Promise<string> {
@@ -100,7 +100,9 @@ export async function runScratchLtxClip(opts: {
   emptyFrame?: boolean;
   nobodyInShot?: boolean;
 }): Promise<MobileGenJob> {
-  const { story, shotId, sceneId, beatId } = opts;
+  const { story, sceneId, beatId } = opts;
+  const hangId = (opts.shotId || "").trim();
+  const shotId = hangPlateShotId(hangId) || hangId;
   let job = opts.job;
   const jobId = job.id;
   const songEarly = job.scratchSong;
@@ -380,7 +382,7 @@ export async function runScratchLtxClip(opts: {
           c.beatId === beatId
             ? {
                 ...c,
-                shotId,
+                shotId: hangId || shotId,
                 sceneId,
                 speaker,
                 line,
@@ -395,7 +397,7 @@ export async function runScratchLtxClip(opts: {
           ...(job.clips || []),
           {
             beatId,
-            shotId,
+            shotId: hangId || shotId,
             sceneId,
             clipFile: "",
             clipStatus: "pending",
@@ -464,7 +466,7 @@ export async function runScratchLtxClip(opts: {
         ...(job.clips || []),
         {
           beatId: takeBeat,
-          shotId,
+          shotId: hangId || shotId,
           sceneId,
           clipFile: clipName,
           clipStatus: "done",
@@ -479,7 +481,7 @@ export async function runScratchLtxClip(opts: {
       const hung = hangOneClipOnWave({
         plateTimings: job.scratchSong?.plateTimings,
         cuts: job.scratchSong?.cuts || [],
-        shotId,
+        shotId: hangId || shotId,
         plateFile: wantPlate,
         clipFile: clipName,
         durationSec: probed,

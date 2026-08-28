@@ -5,6 +5,7 @@
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import {
   addPlateFileFirstHang,
+  cutFromPlateTiming,
   extraStillHangPlateId,
   hangPlateShotId,
   isLeftoverPlateHang,
@@ -199,6 +200,10 @@ export function addPlateIsSingingHang(opts: {
  * (No lips OFF) with lyric pins: then startMs is the unused lyric cue
  * (Silver lines 0:31), not max(endMs) after intro clips.
  * Other bars keep their times. Slider durationSec stays (5–40).
+ * alreadyHung + no leftover writes another bar (extraStillHangPlateId)
+ * — singing uses the next unused lyric pin, else a gap / after last.
+ * Empty cut on that hang id. Does not cook. Does not copy hang 1's
+ * clipFile onto hang 2.
  */
 export function applyAddPlateOnSong(opts: {
   shotId: string;
@@ -274,13 +279,11 @@ export function applyAddPlateOnSong(opts: {
   );
   const kept = sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t));
   const durMs = secToMs(addPlateHangDurationSec(opts.durationSec));
-  const lyricStart = !alreadyHung
-    ? singingHangStartMs({
-        singing: opts.singing,
-        lyricCues: opts.lyricCues,
-        plateTimings: kept,
-      })
-    : null;
+  const lyricStart = singingHangStartMs({
+    singing: opts.singing,
+    lyricCues: opts.lyricCues,
+    plateTimings: kept,
+  });
   const startMs = lyricStart != null ? lyricStart : nextPlateHangStartMs(kept, durMs);
   const hangId = alreadyHung ? extraStillHangPlateId(shotId, kept) : shotId;
   if (!hangId) {
@@ -293,17 +296,20 @@ export function applyAddPlateOnSong(opts: {
       hung: false,
     };
   }
-  const plateTimings = [
-    ...kept,
-    {
-      plateId: hangId,
-      startMs,
-      endMs: Math.max(startMs + 100, startMs + durMs),
-      sortIndex: kept.length,
-    },
-  ];
+  const timing = {
+    plateId: hangId,
+    startMs,
+    endMs: Math.max(startMs + 100, startMs + durMs),
+    sortIndex: kept.length,
+  };
+  const plateTimings = [...kept, timing];
+  const plateFile = (opts.plateFile || "").trim();
+  const cuts =
+    alreadyHung && plateFile && plateFile !== "__error__"
+      ? cutFromPlateTiming(opts.cuts, timing, plateFile, opts.newCutId)
+      : opts.cuts;
   return {
-    cuts: opts.cuts,
+    cuts,
     plateTimings,
     songPlateIds: alreadyHung ? onList : withSongPlate(onList, shotId),
     rowSlices: alreadyHung ? slices : withSongRowSlice(slices),
@@ -820,7 +826,8 @@ export function storyShotForSongCut(opts: {
 }): { sceneId: string; shot: CrashStoryShot } | null {
   const story = opts.story;
   if (!story?.scenes?.length) return null;
-  const cutShotId = (opts.cut.shotId || "").trim();
+  const cutShotId =
+    hangPlateShotId((opts.cut.shotId || "").trim()) || (opts.cut.shotId || "").trim();
   const jobFile = (
     opts.jobShots.find((s) => s.shotId === cutShotId)?.plateFile || ""
   ).trim();

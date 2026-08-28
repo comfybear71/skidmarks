@@ -38,6 +38,7 @@ import {
 } from "./minimaxVideo";
 import { resolveFfmpeg } from "./mobileStitch";
 import type { ScratchClipTask } from "./mobileScratch";
+import { hangPlateShotId } from "./musicVideoTrack";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
@@ -113,7 +114,9 @@ export async function submitScratchMinimaxClip(opts: {
   if (!minimaxVideoConfigured()) {
     throw new Error("Missing MINIMAX_API_KEY — https://platform.minimax.io");
   }
-  const { story, shotId, sceneId, beatId } = opts;
+  const { story, sceneId, beatId } = opts;
+  const hangId = (opts.shotId || "").trim();
+  const shotId = hangPlateShotId(hangId) || hangId;
   let job = opts.job;
   const jobId = job.id;
   const shot = job.shots.find((s) => s.shotId === shotId);
@@ -166,9 +169,9 @@ export async function submitScratchMinimaxClip(opts: {
   const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
     ? (job.clips || []).map((c) =>
         c.beatId === beatId
-          ? {
+            ? {
               ...c,
-              shotId,
+              shotId: hangId || shotId,
               sceneId,
               speaker,
               line,
@@ -183,7 +186,7 @@ export async function submitScratchMinimaxClip(opts: {
         ...(job.clips || []),
         {
           beatId,
-          shotId,
+          shotId: hangId || shotId,
           sceneId,
           clipFile: "",
           clipStatus: "pending",
@@ -207,7 +210,7 @@ export async function submitScratchMinimaxClip(opts: {
     });
     const task: ScratchClipTask = {
       taskId,
-      shotId,
+      shotId: hangId || shotId,
       sceneId,
       beatId,
       i2v: MINIMAX_H3_ID,

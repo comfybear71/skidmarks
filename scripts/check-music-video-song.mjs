@@ -1178,12 +1178,20 @@ assert.doesNotMatch(
   );
   assert.equal(noLeftover.plateTimings[2]?.startMs, 10000);
   assert.equal(noLeftover.plateTimings[2]?.endMs, 25000);
-  assert.equal(noLeftover.cuts.length, 2);
+  const hang2Id = extraStillHangPlateId("jack3", [
+    { plateId: "car" },
+    { plateId: "jack3" },
+  ]);
+  assert.equal(noLeftover.cuts.length, 3, "second hang gets its own empty cut");
   assert.equal(noLeftover.cuts.find((c) => c.clipFile === "02_Car.mp4")?.status, "done");
+  assert.equal(noLeftover.cuts.find((c) => c.clipFile === "03_Jack.mp4")?.clipFile, "03_Jack.mp4");
+  const hang2Cut = noLeftover.cuts.find((c) => c.shotId === hang2Id);
+  assert.equal(hang2Cut?.shotId, hang2Id);
+  assert.equal((hang2Cut?.clipFile || "").trim(), "", "hang 2 stays empty — not clip 1");
   assert.equal(
-    noLeftover.cuts.filter((c) => c.status === "pending").length,
+    noLeftover.cuts.filter((c) => c.shotId === "jack3" && c.status === "pending").length,
     0,
-    "alreadyHung Add does not mint a WAITING cook",
+    "alreadyHung Add does not mint a WAITING cook on hang 1",
   );
 }
 {
@@ -1237,10 +1245,17 @@ assert.doesNotMatch(
   assert.equal(stillAgain.plateTimings[2]?.plateId, extraStillHangPlateId("empty", stillOnly.plateTimings));
   assert.equal(stillAgain.plateTimings[2]?.startMs, 20000);
   assert.equal(stillAgain.plateTimings[2]?.endMs, 35000);
+  const empty2 = extraStillHangPlateId("empty", stillOnly.plateTimings);
+  assert.equal(stillAgain.cuts.find((c) => c.shotId === empty2)?.shotId, empty2);
   assert.equal(
-    stillAgain.cuts.filter((c) => c.status === "pending").length,
-    0,
-    "second still Add does not mint a WAITING cook",
+    (stillAgain.cuts.find((c) => c.shotId === empty2)?.clipFile || "").trim(),
+    "",
+    "second still hang has no clipFile",
+  );
+  assert.equal(
+    stillAgain.cuts.find((c) => c.clipFile === "02_Car.mp4")?.status,
+    "done",
+    "second still Add does not steal the car clip",
   );
 }
 {
@@ -1360,6 +1375,48 @@ assert.doesNotMatch(
   assert.equal(introOnFront.plateTimings.find((t) => t.plateId === "jack")?.endMs, 46000);
   assert.equal(introOnFront.plateTimings.find((t) => t.plateId === "intro2")?.startMs, 0);
   assert.equal(introOnFront.plateTimings.find((t) => t.plateId === "intro2")?.endMs, 30000);
+  const jackAgain = applyAddPlateOnSong({
+    shotId: "jack",
+    plateFile: "jack.png",
+    singing: true,
+    lyricCues: [
+      { lineIndex: 0, atMs: 31000 },
+      { lineIndex: 1, atMs: 81000 },
+    ],
+    plateTimings: afterLastWouldBeWheels.plateTimings,
+    cuts: [
+      {
+        id: "m1",
+        shotId: "more",
+        plateFile: "c.png",
+        startSec: 50,
+        durationSec: 31,
+        clipFile: "03_More.mp4",
+        status: "done",
+      },
+    ],
+    clips: [{ shotId: "more", clipFile: "03_More.mp4", clipStatus: "done", durationSec: 31 }],
+    songPlateIds: ["intro", "clip20", "more", "jack"],
+    rowSlices: [1, 1, 1, 1],
+    songSec: 180,
+    durationSec: 15,
+    newCutId: () => "cut_jack2",
+  });
+  const jack2Id = extraStillHangPlateId("jack", afterLastWouldBeWheels.plateTimings);
+  const jack2Bar = jackAgain.plateTimings.find((t) => t.plateId === jack2Id);
+  assert.equal(jack2Bar?.startMs, 81000, "second singing hang uses the next unused lyric pin");
+  assert.equal(
+    jackAgain.cuts.find((c) => c.clipFile === "03_More.mp4")?.clipFile,
+    "03_More.mp4",
+    "second singing hang must not steal another bar's mp4",
+  );
+  assert.equal((jackAgain.cuts.find((c) => c.shotId === jack2Id)?.clipFile || "").trim(), "");
+  assert.match(
+    songRoute,
+    /hangId \|\| shotId/,
+    "Send cooks the hang id, not the first still match",
+  );
+  assert.match(songRoute, /sliceBoundsForPlate\(\{ song, shotId: hangId/);
   assert.match(
     songLib,
     /const durMs = secToMs\(addPlateHangDurationSec\(opts\.durationSec\)\)/,

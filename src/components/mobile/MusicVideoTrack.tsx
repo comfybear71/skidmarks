@@ -24,6 +24,7 @@ import {
   plateTimingForShot,
   cookDurationFromHungBar,
   cutForHungPlate,
+  hangIdForSend,
   hangPlateShotId,
   isRealPlateHang,
   resolvePlateTimings,
@@ -1314,7 +1315,7 @@ export function MusicVideoTrack({
   }
 
   function storyShotFor(shotId: string) {
-    const id = shotId.trim();
+    const id = hangPlateShotId(shotId.trim()) || shotId.trim();
     if (!id || !story) return null;
     for (const scene of story.scenes || []) {
       const shot = scene.shots.find((sh) => sh.id === id);
@@ -1348,9 +1349,10 @@ export function MusicVideoTrack({
   }
 
   function songRunEmptyExtras(shotId: string): Record<string, unknown> {
-    const empty = sendEmptyFrameFor(shotId);
+    const still = hangPlateShotId(shotId) || shotId;
+    const empty = sendEmptyFrameFor(still);
     return {
-      ...(readMvMuteAction(job.id, shotId) || empty ? { mute: true } : {}),
+      ...(readMvMuteAction(job.id, still) || empty ? { mute: true } : {}),
       ...(empty ? { emptyFrame: true, nobodyInShot: true } : {}),
     };
   }
@@ -1380,12 +1382,14 @@ export function MusicVideoTrack({
         job.roster?.find((c) => c.name.trim().toLowerCase() === speaker.toLowerCase())
           ?.appearance ||
         "";
-    const muteOn = Boolean(readMvMuteAction(job.id, shotId) || emptyFrame);
+    const muteOn = Boolean(
+      readMvMuteAction(job.id, hangPlateShotId(shotId) || shotId) || emptyFrame,
+    );
     const stored = shot?.beats[0]?.imageMotion || "";
     const cut = waitingCutForPlate(shotId) || doneCutForPlate(shotId);
     const sendEngine = resolveMvSendEngine({
       jobId: job.id,
-      shotId,
+      shotId: hangPlateShotId(shotId) || shotId,
       beatId: targetBeatId,
     });
     let body = stored;
@@ -1413,7 +1417,10 @@ export function MusicVideoTrack({
       });
     }
     if (sendEngine === "h3") {
-      body = withMinimaxH3CameraCommand(body, readMvH3Camera(job.id, shotId));
+      body = withMinimaxH3CameraCommand(
+        body,
+        readMvH3Camera(job.id, hangPlateShotId(shotId) || shotId),
+      );
     }
     const res = await fetch("/api/crash/mobile/beat-motion", {
       method: "POST",
@@ -1438,7 +1445,7 @@ export function MusicVideoTrack({
   }
 
   function plateCookNote(shotId: string, stillGoing = false) {
-    const mute = readMvMuteAction(job.id, shotId);
+    const mute = readMvMuteAction(job.id, hangPlateShotId(shotId) || shotId);
     if (mute) {
       return stillGoing
         ? "Cooking — mouths shut. Still going."
@@ -1457,7 +1464,11 @@ export function MusicVideoTrack({
     for (let i = 0; i < 80; i++) {
       if (cookCancel.current || songCookStopRequested(job.id)) return;
       if (i > 0) paintPlateSend(plateCookNote(shotId, true));
-      const raw = await songPost("clip-poll", { cutId, beatId: targetBeatId || beatId });
+      const raw = await songPost("clip-poll", {
+        cutId,
+        beatId: targetBeatId || beatId,
+        shotId,
+      });
       if (!raw.pending) return;
       await new Promise((resolve) => setTimeout(resolve, 2500));
     }
@@ -1489,9 +1500,9 @@ export function MusicVideoTrack({
         beatId: targetBeatId || beatId,
         clipEngine: MINIMAX_H3_ID,
         durationSec: cook.durationSec,
-        endPlateFile: readMvH3LastFrame(job.id, shotId) || undefined,
-        resolution: readMvH3Resolution(job.id, shotId),
-        h3Camera: readMvH3Camera(job.id, shotId) || undefined,
+        endPlateFile: readMvH3LastFrame(job.id, hangPlateShotId(shotId) || shotId) || undefined,
+        resolution: readMvH3Resolution(job.id, hangPlateShotId(shotId) || shotId),
+        h3Camera: readMvH3Camera(job.id, hangPlateShotId(shotId) || shotId) || undefined,
         ...songRunEmptyExtras(shotId),
       });
       if (raw.pending) await pollI2v(cutId, shotId, targetBeatId);
@@ -1523,7 +1534,7 @@ export function MusicVideoTrack({
             shotId,
             durationSec: readHangLengthDraft(job.id, shotId),
             singing: singingHangForShot(shotId),
-            mute: readMvMuteAction(job.id, shotId) || sendEmptyFrameFor(shotId),
+            mute: readMvMuteAction(job.id, hangPlateShotId(shotId) || shotId) || sendEmptyFrameFor(shotId),
             emptyFrame: sendEmptyFrameFor(shotId),
             support: isSupportShot(storyShotFor(shotId)),
           }),
@@ -1534,11 +1545,20 @@ export function MusicVideoTrack({
         };
         if (raw.job) onJobChange(raw.job);
         if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't add that still");
-        const after = resolvePlateTimings(
+        const afterTimings = resolvePlateTimings(
           raw.job?.scratchSong,
           raw.job?.trackDraft,
-        ).filter((t) => isRealPlateHang(t)).length;
-        setPickedId(shotId);
+        ).filter((t) => isRealPlateHang(t));
+        const after = afterTimings.length;
+        const beforeIds = new Set(
+          resolvePlateTimings(song, job.trackDraft)
+            .filter((t) => isRealPlateHang(t))
+            .map((t) => t.plateId),
+        );
+        const added = afterTimings.find(
+          (t) => !beforeIds.has(t.plateId) && hangPlateShotId(t.plateId) === hangPlateShotId(shotId),
+        );
+        setPickedId(added?.plateId || shotId);
         setNote(
           after > before
             ? "On the song. Pull the handle, then Send."
@@ -1616,33 +1636,39 @@ export function MusicVideoTrack({
   }
 
   async function sendPlate(shotId: string) {
-    setPickedId(shotId);
-    const targetBeatId = beatIdForShot(shotId);
+    const hangId = hangIdForSend({
+      shotId,
+      plateTimings: jobRef.current.scratchSong?.plateTimings,
+      cuts: jobRef.current.scratchSong?.cuts,
+      pickedId: pickedId || picked?.shotId,
+    });
+    setPickedId(hangId);
+    const targetBeatId = beatIdForShot(hangId);
     const timingNow = () =>
       plateTimingForShot(
         jobRef.current.scratchSong,
         jobRef.current.trackDraft,
-        shotId,
+        hangId,
       );
     // Hung mp4s already have a clock. Add is only for a still with no clip.
     if (!isRealPlateHang(timingNow())) {
-      if (hungClipFileForPlate(jobRef.current, shotId)) {
+      if (hungClipFileForPlate(jobRef.current, hangId)) {
         await hangStillsOnWave();
       } else {
-        await addPlateToTimeline(shotId);
+        await addPlateToTimeline(hangPlateShotId(hangId) || hangId);
       }
     }
     const hungCut = () =>
       cutForHungPlate({
         cuts: jobRef.current.scratchSong?.cuts,
-        shotId,
+        shotId: hangId,
         timing: timingNow(),
       });
     let cut = hungCut();
     if (!cut?.id) {
       const timing = timingNow();
       if (timing) {
-        await schedulePlate(shotId, timing.startMs, timing.endMs, timing.sortIndex);
+        await schedulePlate(hangId, timing.startMs, timing.endMs, timing.sortIndex);
         cut = hungCut();
       }
     }
@@ -1656,24 +1682,24 @@ export function MusicVideoTrack({
     clearSongCookStop(job.id);
     setBusy(`send-${cut.id}`);
     setNote("");
-    paintPlateSend(plateCookNote(shotId));
+    paintPlateSend(plateCookNote(hangId));
     let cookTickLive = true;
     const cookTick = window.setInterval(() => {
-      if (cookTickLive) paintPlateSend(plateCookNote(shotId, true));
+      if (cookTickLive) paintPlateSend(plateCookNote(hangId, true));
     }, 15000);
     try {
-      await persistMotionFor(shotId);
+      await persistMotionFor(hangId);
       const useH3 =
         resolveMvSendEngine({
           jobId: job.id,
-          shotId,
+          shotId: hangPlateShotId(hangId) || hangId,
           beatId: targetBeatId,
         }) === "h3";
       if (useH3) {
-        await sendI2v(cut.id, shotId, targetBeatId);
+        await sendI2v(cut.id, hangId, targetBeatId);
         return;
       }
-      await sendOneCutBody(cut.id, shotId, targetBeatId);
+      await sendOneCutBody(cut.id, hangId, targetBeatId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Couldn't send that still";
       setNote(msg);

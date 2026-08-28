@@ -42,7 +42,10 @@ import {
   sortPlateTimings,
   trackWaveCssWidth,
   cutForHungPlate,
+  hangIdForSend,
 } from "../src/lib/musicVideoTrack.ts";
+import { hangDoneClipOnTrack } from "../src/lib/stockClipHang.ts";
+import { hungClipFileForPlate } from "../src/lib/orderedJobClips.ts";
 import {
   clampHangLengthSec,
   HANG_LENGTH_MAX_SEC,
@@ -144,6 +147,123 @@ const nineHang = sliceBoundsForPlate({
   shotId: "shot_a",
 });
 assert.equal(nineHang.durationSec, 9);
+{
+  const twice = {
+    fileName: "song.mp3",
+    durationSec: 180,
+    sliceStartSec: 0,
+    sliceDurationSec: 15,
+    plateTimings: [
+      { plateId: "jack", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "jack~still2", startMs: 20000, endMs: 35000, sortIndex: 1 },
+    ],
+    cuts: [
+      {
+        id: "c1",
+        plateFile: "jack.png",
+        shotId: "jack",
+        startSec: 0,
+        durationSec: 15,
+        clipFile: "01_Jack.mp4",
+        status: "done",
+      },
+      {
+        id: "c2",
+        plateFile: "jack.png",
+        shotId: "jack~still2",
+        startSec: 20,
+        durationSec: 15,
+        status: "pending",
+      },
+    ],
+  };
+  const hang2Bounds = sliceBoundsForPlate({
+    song: twice,
+    shotId: "jack",
+    cut: twice.cuts[1],
+  });
+  assert.equal(hang2Bounds.startSec, 20, "Send on hang 2 uses ~still2 clock, not hang 1");
+  assert.equal(hang2Bounds.durationSec, 15);
+  const hang1Bounds = sliceBoundsForPlate({
+    song: twice,
+    shotId: "jack",
+    cut: twice.cuts[0],
+  });
+  assert.equal(hang1Bounds.startSec, 0, "hang 1 keeps its own clock");
+  assert.equal(
+    cutForHungPlate({
+      cuts: twice.cuts,
+      shotId: "jack~still2",
+      timing: twice.plateTimings[1],
+    })?.id,
+    "c2",
+  );
+  assert.equal(
+    cutForHungPlate({
+      cuts: twice.cuts,
+      shotId: "jack",
+      timing: twice.plateTimings[0],
+    })?.clipFile,
+    "01_Jack.mp4",
+  );
+  const stamped = hangDoneClipOnTrack({
+    song: twice,
+    shotId: "jack~still2",
+    plateFile: "jack.png",
+    clipFile: "02_Jack.mp4",
+    newCutId: () => "c3",
+  });
+  assert.equal(
+    stamped?.cuts.find((c) => c.id === "c1")?.clipFile,
+    "01_Jack.mp4",
+    "stamp on hang 2 must not write hang 1's clipFile",
+  );
+  assert.equal(stamped?.cuts.find((c) => c.id === "c2")?.clipFile, "02_Jack.mp4");
+  const steal = hangDoneClipOnTrack({
+    song: twice,
+    shotId: "jack~still2",
+    plateFile: "jack.png",
+    clipFile: "01_Jack.mp4",
+    newCutId: () => "c3",
+  });
+  assert.equal(
+    steal?.cuts.find((c) => c.id === "c1")?.clipFile,
+    "01_Jack.mp4",
+  );
+  assert.equal(
+    (steal?.cuts.find((c) => c.id === "c2")?.clipFile || "").trim(),
+    "",
+    "clip 1 already on hang 1 — do not copy it onto hang 2",
+  );
+  assert.equal(
+    hungClipFileForPlate({ clips: [], scratchSong: twice }, "jack"),
+    "01_Jack.mp4",
+  );
+  assert.equal(
+    hungClipFileForPlate({ clips: [], scratchSong: twice }, "jack~still2"),
+    "",
+    "hang 2 stays empty until its own cook",
+  );
+  assert.equal(
+    hangIdForSend({
+      shotId: "jack",
+      plateTimings: twice.plateTimings,
+      cuts: twice.cuts,
+    }),
+    "jack~still2",
+    "plate-row Send targets the empty extra hang",
+  );
+  assert.equal(
+    hangIdForSend({
+      shotId: "jack",
+      plateTimings: twice.plateTimings,
+      cuts: twice.cuts,
+      pickedId: "jack",
+    }),
+    "jack",
+    "picked hang 1 stays hang 1",
+  );
+}
 assert.equal(hungBarDurationSec({ startMs: 0, endMs: 7000 }), 7);
 assert.equal(hungBarDurationSec({ startMs: 0, endMs: 9000 }), 9);
 assert.equal(hungBarDurationSec({ startMs: 0, endMs: 500 }), undefined);
@@ -1633,6 +1753,7 @@ assert.match(
   /alreadyHung/,
   "STILLS ADD alreadyHung lives on applyAddPlateOnSong — second bar after last end",
 );
+assert.match(trackUi, /hangIdForSend/, "Send uses the extra hang id, not the first still");
 
 console.log("check-music-video-track: ok");
 
