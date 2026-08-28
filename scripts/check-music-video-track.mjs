@@ -148,7 +148,7 @@ assert.match(trackUi, /m-track-film/);
 assert.doesNotMatch(trackUi, /m-track-film-len">off</, "TRACK must not draw leftover stills as an off-row");
 assert.doesNotMatch(trackUi, /m-track-rail-add/, "TRACK must not draw a second + next to STILLS");
 assert.doesNotMatch(trackUi, /aria-label="Add a still"/);
-assert.match(trackUi, />ADD PLATE</);
+assert.match(trackUi, /ADD PLATE/);
 assert.doesNotMatch(trackUi, /Use range/);
 assert.doesNotMatch(trackUi, />Earlier</);
 assert.doesNotMatch(trackUi, />Later</);
