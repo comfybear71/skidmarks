@@ -23,6 +23,8 @@ import {
   plateRailBox,
   plateSlicePx,
   secToMs,
+  hungBarDurationSec,
+  cookDurationFromHungBar,
   sliceBoundsForPlate,
   sortPlateTimings,
   trackWaveCssWidth,
@@ -79,7 +81,7 @@ const half = sliceBoundsForPlate({
 assert.equal(half.startSec, 0);
 assert.equal(half.durationSec, 31.6);
 
-const cutWinsTrack = sliceBoundsForPlate({
+const hangWinsTrack = sliceBoundsForPlate({
   song: {
     fileName: "song.mp3",
     durationSec: 180,
@@ -93,11 +95,56 @@ const cutWinsTrack = sliceBoundsForPlate({
     plateFile: "a.png",
     shotId: "shot_a",
     startSec: 110,
-    durationSec: 9,
+    durationSec: 5,
   },
 });
-assert.equal(cutWinsTrack.startSec, 110);
-assert.equal(cutWinsTrack.durationSec, 9);
+assert.equal(hangWinsTrack.startSec, 60);
+assert.equal(hangWinsTrack.durationSec, 15, "stale 5s cut must not beat a 15s hung bar");
+
+const sevenHang = sliceBoundsForPlate({
+  song: {
+    fileName: "song.mp3",
+    durationSec: 180,
+    sliceStartSec: 0,
+    sliceDurationSec: 15,
+    plateTimings: [{ plateId: "shot_a", startMs: 0, endMs: 7000, sortIndex: 0 }],
+  },
+  shotId: "shot_a",
+  cut: { id: "c", plateFile: "a.png", shotId: "shot_a", startSec: 0, durationSec: 5 },
+});
+assert.equal(sevenHang.durationSec, 7);
+const nineHang = sliceBoundsForPlate({
+  song: {
+    fileName: "song.mp3",
+    durationSec: 180,
+    sliceStartSec: 0,
+    sliceDurationSec: 15,
+    plateTimings: [{ plateId: "shot_a", startMs: 0, endMs: 9000, sortIndex: 0 }],
+  },
+  shotId: "shot_a",
+});
+assert.equal(nineHang.durationSec, 9);
+assert.equal(hungBarDurationSec({ startMs: 0, endMs: 7000 }), 7);
+assert.equal(hungBarDurationSec({ startMs: 0, endMs: 9000 }), 9);
+assert.equal(hungBarDurationSec({ startMs: 0, endMs: 500 }), undefined);
+{
+  const sevenCook = cookDurationFromHungBar({ startMs: 0, endMs: 7000 }, "h3");
+  assert.ok(!("error" in sevenCook));
+  assert.equal(sevenCook.durationSec, 7);
+  assert.equal(sevenCook.note, "");
+  const nineCook = cookDurationFromHungBar({ startMs: 0, endMs: 9000 }, "h3");
+  assert.ok(!("error" in nineCook));
+  assert.equal(nineCook.durationSec, 9);
+  const fifteenCook = cookDurationFromHungBar({ startMs: 0, endMs: 15000 }, "h3");
+  assert.ok(!("error" in fifteenCook));
+  assert.equal(fifteenCook.durationSec, 15);
+  const twentyFive = cookDurationFromHungBar({ startMs: 0, endMs: 25000 }, "h3");
+  assert.ok(!("error" in twentyFive));
+  assert.equal(twentyFive.durationSec, 15);
+  assert.match(twentyFive.note, /H3 max 15/);
+  const missing = cookDurationFromHungBar(null, "h3");
+  assert.ok("error" in missing);
+}
 
 const stitched = orderedDoneCutsForStitch({
   fileName: "song.mp3",
@@ -172,15 +219,19 @@ assert.match(
   /H3 max 15/,
 );
 assert.match(mobileCss, /\.m-track-len-chip/);
-assert.doesNotMatch(trackUi, /m-track-pick-len input/);
+assert.match(trackUi, /aria-label="Seconds on the song"/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
   /refuseMinimaxH3OverMax/,
 );
 assert.match(
   readFileSync(join(here, "../src/lib/scratchSongWindow.ts"), "utf8"),
-  /HANG_LENGTH_CHIPS_SEC = \[5, 15, 25\]/,
+  /HANG_LENGTH_CHIPS_SEC = \[5, 10, 15\]/,
 );
+assert.match(trackUi, /cookDurationFromHungBar/);
+assert.match(trackUi, /durationSec: cook\.durationSec/);
+assert.match(trackUi, /commitHungPlateLength/);
+assert.doesNotMatch(trackUi, /\.\.\.\(durationSec \? \{ durationSec \} : \{\}\)/);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /action === "move-plate"/,
@@ -318,6 +369,21 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(resized?.[1].startMs, 8000);
   assert.equal(resized?.[1].endMs, 23000);
   assert.equal(withPlateDuration([], "missing", 8000, 180000), null);
+
+  const sevenBar = withPlateDuration(
+    [{ plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    "a",
+    7000,
+    180000,
+  );
+  assert.equal(sevenBar?.[0].endMs, 7000);
+  const nineBar = withPlateDuration(
+    [{ plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    "a",
+    9000,
+    180000,
+  );
+  assert.equal(nineBar?.[0].endMs, 9000);
 
   const five = withPlateDuration(
     [

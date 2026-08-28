@@ -108,7 +108,7 @@ assert.ok("error" in noHorn);
 assert.match(noHorn.error, /HORN|trumpet/);
 assert.doesNotMatch(noHorn.error, /SAXOPHONE still/);
 
-const cutWins = sliceBoundsForPlate({
+const hangWins = sliceBoundsForPlate({
   song: {
     fileName: "song.mp3",
     durationSec: 291,
@@ -122,11 +122,11 @@ const cutWins = sliceBoundsForPlate({
     plateFile: "jack.png",
     shotId: "jack",
     startSec: 46,
-    durationSec: 30,
+    durationSec: 5,
   },
 });
-assert.equal(cutWins.startSec, 46);
-assert.equal(cutWins.durationSec, 30);
+assert.equal(hangWins.startSec, 0);
+assert.equal(hangWins.durationSec, 15);
 
 const jackSingMotion = buildScratchSongLtxMotion({
   styleId: "music_video",

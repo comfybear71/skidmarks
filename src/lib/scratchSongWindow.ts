@@ -6,8 +6,8 @@ import type { LyricCue, PlateTiming, TrackSectionMarker } from "./musicVideoTrac
 export const SCRATCH_SONG_SLICE_DEFAULT_SEC = 15;
 export const SCRATCH_SONG_SLICE_MIN_SEC = 4;
 export const SCRATCH_SONG_SLICE_MAX_SEC = 30;
-/** One-tap hang lengths — not a How long box. 25 needs LTX; H3 max is 15. */
-export const HANG_LENGTH_CHIPS_SEC = [5, 15, 25] as const;
+/** One-tap hang lengths — not a How long box. Type 7 or 9 in the seconds field. */
+export const HANG_LENGTH_CHIPS_SEC = [5, 10, 15] as const;
 export type HangLengthChipSec = (typeof HANG_LENGTH_CHIPS_SEC)[number];
 /** One auto batch — 8 × 15s = 2 minutes, then stop so you can check / swap a plate. */
 export const SCRATCH_SONG_BATCH_SHOTS = 8;

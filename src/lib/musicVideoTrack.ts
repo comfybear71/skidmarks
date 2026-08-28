@@ -5,10 +5,13 @@
  */
 import type { ScratchSong, ScratchSongCut } from "./scratchSongWindow";
 import { LTX_MAX_DURATION_SEC } from "./ltxDuration";
+import { clampMinimaxH3HangSec } from "./minimaxH3";
 import {
   clampSongSliceDuration,
   clampSongWindow,
   SCRATCH_SONG_SLICE_DEFAULT_SEC,
+  SCRATCH_SONG_SLICE_MAX_SEC,
+  SCRATCH_SONG_SLICE_MIN_SEC,
 } from "./scratchSongWindow";
 
 export type TrackSectionLabel =
@@ -424,13 +427,48 @@ export function cutForHungPlate(opts: {
   return mine[0];
 }
 
-/** LTX slice bounds — this cut's clock wins. Plate timings follow the song
- * up to the LTX safety ceiling. The old 15s rows still cap at 30s. */
+/** Hung bar length in seconds. Leftover 0.5s is not a length. */
+export function hungBarDurationSec(
+  timing?: { startMs?: number; endMs?: number } | null,
+): number | undefined {
+  if (!isRealPlateHang(timing)) return undefined;
+  const sec = msToSec(Number(timing!.endMs) - Number(timing!.startMs));
+  return sec > 0 ? sec : undefined;
+}
+
+/**
+ * Send uses this clock. H3 4–15 (7 and 9 stay 7 and 9). LTX 4–30.
+ * Never fall back to the H3 5s default when the bar is hung.
+ */
+export function cookDurationFromHungBar(
+  timing: { startMs?: number; endMs?: number } | null | undefined,
+  engine: "h3" | "ltx",
+): { durationSec: number; note: string } | { error: string } {
+  const hang = hungBarDurationSec(timing);
+  if (hang == null) return { error: "Hang the still on the song first." };
+  if (engine === "h3") return clampMinimaxH3HangSec(hang);
+  const durationSec = clampSongSliceDuration(hang, SCRATCH_SONG_SLICE_MAX_SEC);
+  if (hang > SCRATCH_SONG_SLICE_MAX_SEC) {
+    return { durationSec, note: `LTX max ${SCRATCH_SONG_SLICE_MAX_SEC} — cooking ${durationSec}` };
+  }
+  if (hang < SCRATCH_SONG_SLICE_MIN_SEC) {
+    return { durationSec, note: `LTX min ${SCRATCH_SONG_SLICE_MIN_SEC} — cooking ${durationSec}` };
+  }
+  return { durationSec, note: "" };
+}
+
+/** Hung bar clock wins. A stale cut at 5s must not cook 5 when the bar is 15. */
 export function sliceBoundsForPlate(opts: {
   song: ScratchSong;
   shotId: string;
   cut?: ScratchSongCut;
 }): { startSec: number; durationSec: number } {
+  const timing = (opts.song.plateTimings || []).find((p) => p.plateId === opts.shotId);
+  if (timing && timing.endMs > timing.startMs) {
+    const startSec = msToSec(timing.startMs);
+    const durationSec = msToSec(timing.endMs - timing.startMs);
+    return clampSongWindow(startSec, durationSec, opts.song.durationSec, LTX_MAX_DURATION_SEC);
+  }
   const timed = (opts.song.plateTimings || []).length > 0;
   const maxSec = timed ? LTX_MAX_DURATION_SEC : undefined;
   if (opts.cut) {
@@ -440,12 +478,6 @@ export function sliceBoundsForPlate(opts: {
       opts.song.durationSec,
       maxSec,
     );
-  }
-  const timing = (opts.song.plateTimings || []).find((p) => p.plateId === opts.shotId);
-  if (timing && timing.endMs > timing.startMs) {
-    const startSec = msToSec(timing.startMs);
-    const durationSec = msToSec(timing.endMs - timing.startMs);
-    return clampSongWindow(startSec, durationSec, opts.song.durationSec, LTX_MAX_DURATION_SEC);
   }
   return clampSongWindow(0, clampSongSliceDuration(opts.song.sliceDurationSec), opts.song.durationSec);
 }
