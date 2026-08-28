@@ -35,11 +35,17 @@ import {
   secToMs,
   hungBarDurationSec,
   cookDurationFromHungBar,
+  ensurePlateDuration,
   sliceBoundsForPlate,
   sortPlateTimings,
   trackWaveCssWidth,
   cutForHungPlate,
 } from "../src/lib/musicVideoTrack.ts";
+import {
+  clampHangLengthSec,
+  HANG_LENGTH_MAX_SEC,
+  HANG_LENGTH_MIN_SEC,
+} from "../src/lib/scratchSongWindow.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const tree = readFileSync(join(here, "../src/components/mobile/StudioTree.tsx"), "utf8");
@@ -156,6 +162,24 @@ assert.equal(hungBarDurationSec({ startMs: 0, endMs: 500 }), undefined);
   assert.match(twentyFive.note, /H3 max 15/);
   const missing = cookDurationFromHungBar(null, "h3");
   assert.ok("error" in missing);
+  const tenLtx = cookDurationFromHungBar({ startMs: 0, endMs: 10000 }, "ltx");
+  assert.ok(!("error" in tenLtx));
+  assert.equal(tenLtx.durationSec, 10, "10s bar cooks 10 — do not invent 15");
+  assert.equal(tenLtx.note, "");
+  const fortyLtx = cookDurationFromHungBar({ startMs: 0, endMs: 40000 }, "ltx");
+  assert.ok(!("error" in fortyLtx));
+  assert.equal(fortyLtx.durationSec, 40, "40s bar cooks 40");
+  assert.equal(fortyLtx.note, "");
+  const midLtx = cookDurationFromHungBar({ startMs: 0, endMs: 31600 }, "ltx");
+  assert.ok(!("error" in midLtx));
+  assert.equal(midLtx.durationSec, 31.6);
+  const overLtx = cookDurationFromHungBar({ startMs: 0, endMs: 45000 }, "ltx");
+  assert.ok(!("error" in overLtx));
+  assert.equal(overLtx.durationSec, 40);
+  assert.match(overLtx.note, /LTX max 40/);
+  const fortyH3 = cookDurationFromHungBar({ startMs: 0, endMs: 40000 }, "h3");
+  assert.ok(!("error" in fortyH3));
+  assert.equal(fortyH3.durationSec, 15, "H3 stays 4–15");
 }
 
 const stitched = orderedDoneCutsForStitch({
@@ -243,13 +267,8 @@ assert.match(trackUi, /Stop send/);
 assert.match(trackUi, /Put stills on the song/);
 assert.match(trackUi, /set-plate-duration/);
 assert.match(trackUi, /setHungPlateLength/);
-assert.match(trackUi, /HANG_LENGTH_CHIPS_SEC/);
-assert.match(trackUi, /snapHangLengthSec/);
-assert.match(trackUi, /type="range"/);
-assert.match(trackUi, /m-track-len-slider/);
-assert.match(trackUi, /min=\{5\}/);
-assert.match(trackUi, /max=\{15\}/);
-assert.match(trackUi, /step=\{5\}/);
+assert.match(trackUi, /PlateLenSlider/);
+assert.doesNotMatch(trackUi, /snapHangLengthSec/, "TRACK no longer snaps 5/10/15");
 assert.doesNotMatch(trackUi, /m-track-len-chip/, "5/10/15 chips as separate buttons are gone");
 assert.doesNotMatch(
   trackUi,
@@ -266,14 +285,43 @@ assert.doesNotMatch(mobileCss, /\.m-track-len-chip/, "chip chrome is gone");
 assert.match(mobileCss, /\.m-track-len-slider/);
 assert.match(mobileCss, /\.m-track-pick-len input\[type="number"\]/);
 assert.match(mobileCss, /width: 2\.3rem/, "seconds box is half the old 4.6rem");
-assert.match(trackUi, /aria-label="Seconds on the song"/);
+{
+  const lenUi = readFileSync(join(here, "../src/components/mobile/PlateLenSlider.tsx"), "utf8");
+  assert.match(lenUi, /type="range"/);
+  assert.match(lenUi, /m-track-len-slider/);
+  assert.match(lenUi, /min=\{HANG_LENGTH_MIN_SEC\}/);
+  assert.match(lenUi, /max=\{HANG_LENGTH_MAX_SEC\}/);
+  assert.match(lenUi, /step=\{1\}/);
+  assert.match(lenUi, /aria-label="Seconds on the song"/);
+  assert.match(lenUi, /set-plate-duration/);
+  assert.match(lenUi, /PlateHangLenControl/);
+  assert.doesNotMatch(lenUi, /snapHangLengthSec/);
+  assert.doesNotMatch(lenUi, /step=\{5\}/, "slider is continuous 5–40, not 5/10/15 snaps");
+}
+assert.equal(HANG_LENGTH_MIN_SEC, 5);
+assert.equal(HANG_LENGTH_MAX_SEC, 40);
+assert.equal(clampHangLengthSec(10), 10);
+assert.equal(clampHangLengthSec(40), 40);
+assert.equal(clampHangLengthSec(31.6), 31.6);
+assert.equal(clampHangLengthSec(50), 40);
+assert.equal(clampHangLengthSec(3), 5);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
   /refuseMinimaxH3OverMax/,
 );
 assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /HANG_LENGTH_MAX_SEC/,
+  "LTX Send clamp is 40, not the old 30",
+);
+assert.doesNotMatch(
+  readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
+  /SCRATCH_SONG_SLICE_MAX_SEC/,
+  "song run must not still clamp LTX to 30",
+);
+assert.match(
   readFileSync(join(here, "../src/lib/scratchSongWindow.ts"), "utf8"),
-  /HANG_LENGTH_CHIPS_SEC = \[5, 10, 15\]/,
+  /HANG_LENGTH_MAX_SEC = 40/,
 );
 assert.match(trackUi, /cookDurationFromHungBar/);
 assert.match(trackUi, /durationSec: cook\.durationSec/);
@@ -418,6 +466,10 @@ assert.match(
 );
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
+  /ensurePlateDuration/,
+);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /withPlateWindow/,
 );
 assert.match(
@@ -507,6 +559,21 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(resized?.[1].startMs, 8000);
   assert.equal(resized?.[1].endMs, 23000);
   assert.equal(withPlateDuration([], "missing", 8000, 180000), null);
+  const minted = ensurePlateDuration([], "fresh", 10000, 180000);
+  assert.equal(minted?.[0].plateId, "fresh");
+  assert.equal(minted?.[0].startMs, 0);
+  assert.equal(minted?.[0].endMs, 10000, "unhung slider writes a 10s bar, not 15");
+  const afterMint = ensurePlateDuration(minted, "fresh", 40000, 180000);
+  assert.equal(afterMint?.[0].endMs, 40000, "slider can stretch that bar to 40");
+  const afterLast = ensurePlateDuration(
+    [{ plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    "b",
+    10000,
+    180000,
+  );
+  assert.equal(afterLast?.[1].plateId, "b");
+  assert.equal(afterLast?.[1].startMs, 15000);
+  assert.equal(afterLast?.[1].endMs, 25000);
 
   const sevenBar = withPlateDuration(
     [{ plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 }],
@@ -1473,6 +1540,7 @@ assert.match(motion, /pickSongSendMotionBody/);
 }
 
 const editor = readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8");
+const mobileUi = readFileSync(join(here, "../src/components/mobile/MobileUi.tsx"), "utf8");
 const panels = readFileSync(join(here, "../src/components/mobile/ShotPromptPanels.tsx"), "utf8");
 const thumbs = readFileSync(join(here, "../src/components/mobile/PlateClipThumbs.tsx"), "utf8");
 assert.doesNotMatch(trackUi, /m-track-engines/, "engines do not sit on the TRACK pick");
@@ -1559,6 +1627,9 @@ assert.match(
 assert.match(editor, /styleId === "music_video"/, "music_video plate shows LTX / H3 instead of + another line");
 assert.match(editor, /AnotherLineButton/, "+ another line stays for non music_video");
 assert.match(editor, />\s*No lips\s*</, "No lips sits next to H3");
+assert.match(editor, /tone=\{muteOn \? "accent" : "danger"\}/, "No lips off is red");
+assert.match(mobileUi, /tone\?: "accent" \| "ghost" \| "danger"/, "primary button has danger tone");
+assert.match(mobileUi, /--magenta-hot/, "danger tone uses the existing hot token");
 assert.match(editor, /writeMvMuteAction/, "No lips stores mute for the next Send");
 assert.match(editor, /mute=\{Boolean\(muteOn\)\}/, "hole mute flag follows No lips");
 assert.match(editor, /singingBody=\{motionBody\}/, "No lips off shows the singing stack");

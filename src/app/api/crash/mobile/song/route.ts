@@ -17,8 +17,8 @@ import { clipFileBasename, stackedClipFiles } from "@/lib/mobilePlateClips";
 import { newId } from "@/lib/types";
 import {
   clampSongWindow,
+  HANG_LENGTH_MAX_SEC,
   nextCutAfter,
-  SCRATCH_SONG_SLICE_MAX_SEC,
   songWindowLabel,
   type ScratchSongCut,
 } from "@/lib/scratchSongSlice";
@@ -450,7 +450,7 @@ export async function POST(req: Request) {
           bounds.startSec,
           asked,
           song.durationSec,
-          SCRATCH_SONG_SLICE_MAX_SEC,
+          HANG_LENGTH_MAX_SEC,
         );
         const updated = await runScratchLtxClip({
           job,

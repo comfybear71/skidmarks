@@ -142,10 +142,11 @@ export function MobilePrimaryButton({
   disabled?: boolean;
   /** Working — stay lit. Do not fade to 0.55 or a tap looks dead. */
   busy?: boolean;
-  tone?: "accent" | "ghost";
+  tone?: "accent" | "ghost" | "danger";
   size?: "block" | "chip";
 }) {
   const accent = tone === "accent";
+  const danger = tone === "danger";
   const chip = size === "chip";
   const locked = Boolean(disabled || busy);
   return (
@@ -169,18 +170,29 @@ export function MobilePrimaryButton({
         fontWeight: 600,
         letterSpacing: chip ? "0.06em" : undefined,
         textTransform: chip ? "uppercase" : undefined,
-        border: accent || busy ? "1px solid var(--acid)" : "1px solid var(--line)",
+        border:
+          accent || busy
+            ? "1px solid var(--acid)"
+            : danger
+              ? "1px solid var(--magenta-hot)"
+              : "1px solid var(--line)",
         appearance: "none",
         WebkitAppearance: "none",
         backgroundImage: "none",
-        background: busy ? "var(--acid)" : "transparent",
+        background: busy
+          ? "var(--acid)"
+          : danger
+            ? "color-mix(in srgb, var(--magenta-hot) 12%, transparent)"
+            : "transparent",
         color: busy
           ? "#111"
           : disabled
             ? "var(--chrome-dim)"
             : accent
               ? "var(--acid)"
-              : "var(--chrome)",
+              : danger
+                ? "var(--magenta-hot)"
+                : "var(--chrome)",
         opacity: disabled && !busy ? 0.55 : 1,
         boxShadow: "none",
         touchAction: "manipulation",
