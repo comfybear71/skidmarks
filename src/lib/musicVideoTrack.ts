@@ -592,6 +592,364 @@ export function applyLandedClipDuration(
   };
 }
 
+/** Same still, second mp4 — unique hang slot. First take keeps shotId. */
+export const EXTRA_HANG_SEP = "~";
+
+export function hangPlateShotId(plateId: string): string {
+  const raw = (plateId || "").trim();
+  const i = raw.lastIndexOf(EXTRA_HANG_SEP);
+  if (i <= 0) return raw;
+  return raw.slice(0, i);
+}
+
+export function extraTakeHangPlateId(shotId: string, clipFile: string): string {
+  const shot = (shotId || "").trim();
+  const stem = hangClipBasename(clipFile).replace(/\.[^.]+$/, "");
+  const tail = stem.replace(/[^a-zA-Z0-9]/g, "").slice(-12);
+  if (!shot) return "";
+  return `${shot}${EXTRA_HANG_SEP}${tail || "take"}`;
+}
+
+function hangClipBasename(clipFile: string): string {
+  const raw = (clipFile || "").trim();
+  if (!raw) return "";
+  return raw.split(/[\\/]/).pop() || "";
+}
+
+/** This mp4 owns a real wave bar. Two files on one shot: only the first owns shotId. */
+export function clipFileOnWave(
+  song:
+    | {
+        cuts?: { clipFile?: string; shotId?: string }[];
+        plateTimings?: PlateTiming[];
+      }
+    | null
+    | undefined,
+  clipFile: string,
+): boolean {
+  return clipHangTiming(song, clipFile) != null;
+}
+
+export function clipHangTiming(
+  song:
+    | {
+        cuts?: { clipFile?: string; shotId?: string }[];
+        plateTimings?: PlateTiming[];
+      }
+    | null
+    | undefined,
+  clipFile: string,
+): PlateTiming | null {
+  const file = hangClipBasename(clipFile);
+  if (!file) return null;
+  const timings = sortPlateTimings(song?.plateTimings || []).filter((t) => isRealPlateHang(t));
+  const cuts = song?.cuts || [];
+  for (const t of timings) {
+    const onSlot = cuts.filter(
+      (c) => (c.shotId || "").trim() === t.plateId && hangClipBasename(c.clipFile || ""),
+    );
+    if (hangPlateShotId(t.plateId) !== t.plateId) {
+      if (onSlot.some((c) => hangClipBasename(c.clipFile || "") === file)) return t;
+      continue;
+    }
+    if (!onSlot.length) continue;
+    if (hangClipBasename(onSlot[0]!.clipFile || "") === file) return t;
+  }
+  return null;
+}
+
+function upsertClipHangCut(
+  cuts: ScratchSongCut[],
+  timing: PlateTiming,
+  plateFile: string,
+  clipFile: string,
+  newCutId: () => string,
+): ScratchSongCut[] {
+  const file = hangClipBasename(clipFile);
+  const startSec = msToSec(timing.startMs);
+  const durationSec = msToSec(timing.endMs - timing.startMs);
+  const byFile = cuts.findIndex((c) => hangClipBasename(c.clipFile || "") === file);
+  const bySlot = cuts.findIndex((c) => (c.shotId || "").trim() === timing.plateId);
+  const idx = byFile >= 0 ? byFile : bySlot;
+  const prev = idx >= 0 ? cuts[idx] : undefined;
+  const next: ScratchSongCut = {
+    id: prev?.id || newCutId(),
+    plateFile: plateFile || prev?.plateFile || "",
+    shotId: timing.plateId,
+    startSec,
+    durationSec,
+    clipFile: file,
+    status: "done",
+    error: "",
+    ...(prev?.endPlateFile ? { endPlateFile: prev.endPlateFile } : {}),
+    ...(prev?.performance ? { performance: prev.performance } : {}),
+  };
+  if (idx >= 0) return cuts.map((c, i) => (i === idx ? next : c));
+  return [...cuts, next];
+}
+
+/**
+ * File first — hang this mp4 on the wave. Same still, second take gets its
+ * own clock (`shotId~tail`). Next gap after the last hung end. Known length
+ * else 15. Does not cook. Does not invent 15s when this file already has
+ * a real in/out. Overlap with a hung bar (two takes both at 0:20) slides
+ * to the cursor — do not stack another 0:20.
+ */
+export function hangOneClipOnWave(opts: {
+  plateTimings?: PlateTiming[];
+  cuts: ScratchSongCut[];
+  shotId: string;
+  plateFile: string;
+  clipFile: string;
+  durationSec?: number;
+  newCutId: () => string;
+}): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } | null {
+  const shotId = (opts.shotId || "").trim();
+  const clipFile = hangClipBasename(opts.clipFile);
+  const plateFile = (opts.plateFile || "").trim();
+  if (!shotId || !clipFile) return null;
+  const existing = sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t));
+  if (clipFileOnWave({ cuts: opts.cuts, plateTimings: existing }, clipFile)) {
+    return { plateTimings: existing, cuts: opts.cuts };
+  }
+  const shotTaken = existing.some((t) => t.plateId === shotId);
+  const plateId = shotTaken ? extraTakeHangPlateId(shotId, clipFile) : shotId;
+  if (!plateId || existing.some((t) => t.plateId === plateId)) {
+    return { plateTimings: existing, cuts: opts.cuts };
+  }
+  const cutForFile = (opts.cuts || []).find((c) => hangClipBasename(c.clipFile || "") === clipFile);
+  const durMs = hangClipDurationMs(
+    Number(opts.durationSec) > MIN_PLATE_BOX_MS / 1000
+      ? opts.durationSec
+      : cutForFile?.durationSec,
+  );
+  const askedStart =
+    cutForFile && Number(cutForFile.durationSec) > MIN_PLATE_BOX_MS / 1000
+      ? secToMs(Number(cutForFile.startSec) || 0)
+      : 0;
+  const cursor = existing.length ? Math.max(...existing.map((t) => t.endMs)) : 0;
+  const overlaps = existing.some(
+    (t) => askedStart < t.endMs && askedStart + durMs > t.startMs,
+  );
+  const startMs = !askedStart || overlaps ? cursor : askedStart;
+  const timing: PlateTiming = {
+    plateId,
+    startMs,
+    endMs: Math.max(startMs + 100, startMs + durMs),
+    sortIndex: existing.length,
+  };
+  return {
+    plateTimings: [...existing, timing],
+    cuts: upsertClipHangCut(opts.cuts, timing, plateFile, clipFile, opts.newCutId),
+  };
+}
+
+export type UnhungDoneClip = {
+  shotId: string;
+  clipFile: string;
+  plateFile?: string;
+  durationSec?: number;
+};
+
+/** Done mp4s with no own wave bar. Two files on one still: the extra is here. */
+export function listUnhungDoneClips(opts: {
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }>;
+  cuts?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    plateFile?: string;
+    status?: string;
+    durationSec?: number;
+  }>;
+  plateTimings?: PlateTiming[];
+  skipShotIds?: string[];
+}): UnhungDoneClip[] {
+  const skipped = new Set(
+    (opts.skipShotIds || []).map((id) => hangPlateShotId(id)).filter(Boolean),
+  );
+  const clock = { cuts: opts.cuts, plateTimings: opts.plateTimings };
+  const impliedHung = impliedHungClipFiles(opts);
+  const seen = new Set<string>();
+  const out: UnhungDoneClip[] = [];
+  const take = (
+    shotId: string,
+    clipFile: string,
+    plateFile?: string,
+    durationSec?: number,
+  ) => {
+    const file = hangClipBasename(clipFile);
+    const shot = hangPlateShotId(shotId);
+    if (!file || !shot || skipped.has(shot) || seen.has(file)) return;
+    if (clipFileOnWave(clock, file) || impliedHung.has(file)) return;
+    seen.add(file);
+    out.push({
+      shotId: shot,
+      clipFile: file,
+      ...(plateFile ? { plateFile } : {}),
+      ...(Number(durationSec) > MIN_PLATE_BOX_MS / 1000 ? { durationSec } : {}),
+    });
+  };
+  for (const clip of opts.clips || []) {
+    if (clip.clipStatus && clip.clipStatus !== "done") continue;
+    const stacked = [...(clip.priorClipFiles || []), clip.clipFile || ""];
+    for (const file of stacked) {
+      take(clip.shotId || "", file, undefined, clip.durationSec);
+    }
+  }
+  for (const cut of opts.cuts || []) {
+    if (cut.status && cut.status !== "done") continue;
+    take(cut.shotId || "", cut.clipFile || "", cut.plateFile, cut.durationSec);
+  }
+  return out;
+}
+
+/**
+ * Hung bar with no cut.clipFile still owns the first done mp4 on that
+ * still — TRACK can show 3 bars while STILLS says 3 WAITING. Extra takes
+ * on the same still stay leftover.
+ */
+function impliedHungClipFiles(opts: {
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+  }>;
+  cuts?: Array<{ shotId?: string; clipFile?: string }>;
+  plateTimings?: PlateTiming[];
+}): Set<string> {
+  const implied = new Set<string>();
+  const timings = sortPlateTimings(opts.plateTimings || []).filter((t) => isRealPlateHang(t));
+  const takenShots = new Set<string>();
+  for (const t of timings) {
+    const onSlot = (opts.cuts || []).find(
+      (c) => (c.shotId || "").trim() === t.plateId && hangClipBasename(c.clipFile || ""),
+    );
+    if (onSlot) {
+      implied.add(hangClipBasename(onSlot.clipFile || ""));
+      takenShots.add(hangPlateShotId(t.plateId));
+    }
+  }
+  const firstByShot = new Map<string, string>();
+  for (const clip of opts.clips || []) {
+    if (clip.clipStatus && clip.clipStatus !== "done") continue;
+    const shot = hangPlateShotId(clip.shotId || "");
+    if (!shot || firstByShot.has(shot)) continue;
+    for (const raw of [...(clip.priorClipFiles || []), clip.clipFile || ""]) {
+      const file = hangClipBasename(raw);
+      if (!file) continue;
+      firstByShot.set(shot, file);
+      break;
+    }
+  }
+  for (const t of timings) {
+    const shot = hangPlateShotId(t.plateId);
+    if (t.plateId !== shot || takenShots.has(shot)) continue;
+    const first = firstByShot.get(shot);
+    if (first) implied.add(first);
+  }
+  return implied;
+}
+
+/**
+ * File first — hang every unhung done mp4 at the next gap after the last
+ * hung end. Same still, second take → after 0:25, not another 0:20.
+ * Does not cook.
+ */
+export function hangUnhungDoneClips(opts: {
+  plateTimings?: PlateTiming[];
+  cuts: ScratchSongCut[];
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }>;
+  skipShotIds?: string[];
+  plateFileFor: (shotId: string) => string;
+  newCutId: () => string;
+  onlyShotId?: string;
+}): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } {
+  let plateTimings = opts.plateTimings;
+  let cuts = opts.cuts;
+  const only = hangPlateShotId(opts.onlyShotId || "");
+  const rows = listUnhungDoneClips({
+    clips: opts.clips,
+    cuts,
+    plateTimings,
+    skipShotIds: opts.skipShotIds,
+  }).filter((row) => !only || row.shotId === only);
+  for (const row of rows) {
+    const hung = hangOneClipOnWave({
+      plateTimings,
+      cuts,
+      shotId: row.shotId,
+      plateFile: (opts.plateFileFor(row.shotId) || row.plateFile || "").trim(),
+      clipFile: row.clipFile,
+      durationSec: row.durationSec,
+      newCutId: opts.newCutId,
+    });
+    if (!hung) continue;
+    plateTimings = hung.plateTimings;
+    cuts = hung.cuts;
+  }
+  return { plateTimings: plateTimings || [], cuts };
+}
+
+/**
+ * STILLS ADD / plate-row Add / Open→Add: if this still already has an
+ * unhung mp4, hang that file after the last bar. Cut + plateTiming
+ * together. Does not mint a waiting cook. hung=false when there is no
+ * leftover file (caller may queue a still with no clip).
+ */
+export function addPlateFileFirstHang(opts: {
+  shotId: string;
+  plateFile?: string;
+  plateTimings?: PlateTiming[];
+  cuts: ScratchSongCut[];
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }>;
+  skipShotIds?: string[];
+  newCutId: () => string;
+}): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[]; hung: boolean } {
+  const shotId = hangPlateShotId(opts.shotId);
+  const leftover = listUnhungDoneClips({
+    clips: opts.clips,
+    cuts: opts.cuts,
+    plateTimings: opts.plateTimings,
+    skipShotIds: opts.skipShotIds,
+  }).filter((row) => row.shotId === shotId);
+  if (!shotId || !leftover.length) {
+    return {
+      plateTimings: sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t)),
+      cuts: opts.cuts,
+      hung: false,
+    };
+  }
+  const hung = hangUnhungDoneClips({
+    plateTimings: opts.plateTimings,
+    cuts: opts.cuts,
+    clips: opts.clips,
+    skipShotIds: opts.skipShotIds,
+    plateFileFor: (id) => (id === shotId ? (opts.plateFile || "").trim() : ""),
+    newCutId: opts.newCutId,
+    onlyShotId: shotId,
+  });
+  return { ...hung, hung: true };
+}
+
 /**
  * TRACK paints plateTimings, not the cut list. Add-on-stills used to
  * write a waiting cut and leave the wave empty. Keep any real clock

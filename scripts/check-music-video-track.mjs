@@ -7,10 +7,15 @@ import {
   evenPlateTimings,
   formatTrackClock,
   formatTrackClockPrecise,
+  addPlateFileFirstHang,
+  extraTakeHangPlateId,
   hangClipDurationMs,
   hangMissingPlateTimings,
+  hangOneClipOnWave,
+  hangPlateShotId,
   isLeftoverPlateHang,
   isRealPlateHang,
+  clipFileOnWave,
   hitPlateEdge,
   nextPlateHangWindow,
   resolvePlateTimings,
@@ -416,6 +421,155 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     "known mp4 length else 15",
   );
 
+  const twoTakes = hangOneClipOnWave({
+    plateTimings: [{ plateId: "plate-9", startMs: 0, endMs: 15000, sortIndex: 0 }],
+    cuts: [
+      {
+        id: "c1",
+        shotId: "plate-9",
+        plateFile: "9.png",
+        startSec: 0,
+        durationSec: 15,
+        clipFile: "09_kl0.mp4",
+        status: "done",
+      },
+      {
+        id: "c2",
+        shotId: "plate-9",
+        plateFile: "9.png",
+        startSec: 0,
+        durationSec: 8,
+        clipFile: "09_dzd.mp4",
+        status: "done",
+      },
+    ],
+    shotId: "plate-9",
+    plateFile: "9.png",
+    clipFile: "09_dzd.mp4",
+    durationSec: 8,
+    newCutId: () => "c-new",
+  });
+  assert.equal(twoTakes?.plateTimings.length, 2, "second take gets its own clock");
+  assert.equal(twoTakes?.plateTimings[0]?.plateId, "plate-9");
+  assert.equal(twoTakes?.plateTimings[1]?.plateId, extraTakeHangPlateId("plate-9", "09_dzd.mp4"));
+  assert.equal(twoTakes?.plateTimings[1]?.startMs, 15000, "next gap — do not pile on 0:00");
+  assert.equal(twoTakes?.plateTimings[1]?.endMs, 23000, "real 8s, not a fake 15");
+  assert.equal(hangPlateShotId(twoTakes?.plateTimings[1]?.plateId || ""), "plate-9");
+  assert.equal(twoTakes?.cuts.length, 2, "do not wipe the first take");
+  assert.equal(twoTakes?.cuts[0]?.clipFile, "09_kl0.mp4");
+  assert.equal(twoTakes?.cuts[1]?.clipFile, "09_dzd.mp4");
+  assert.equal(twoTakes?.cuts[1]?.shotId, extraTakeHangPlateId("plate-9", "09_dzd.mp4"));
+  assert.equal(clipFileOnWave(twoTakes, "09_kl0.mp4"), true);
+  assert.equal(clipFileOnWave(twoTakes, "09_dzd.mp4"), true);
+
+  /**
+   * Stuie 28 Aug: TRACK 3 hung bars end 0:25. CLIPS has 4 done mp4s.
+   * Two share still jack3 / clock 0:20. Open → Add must hang the leftover
+   * after 0:25, not mint waiting cook 4.
+   */
+  const waitingCuts = [
+    {
+      id: "w1",
+      shotId: "jack1",
+      plateFile: "jack.png",
+      startSec: 0,
+      durationSec: 15,
+      clipFile: "",
+      status: "pending",
+    },
+    {
+      id: "w2",
+      shotId: "car",
+      plateFile: "car.png",
+      startSec: 15,
+      durationSec: 5,
+      clipFile: "",
+      status: "pending",
+    },
+    {
+      id: "w3",
+      shotId: "jack3",
+      plateFile: "jack.png",
+      startSec: 20,
+      durationSec: 5,
+      clipFile: "",
+      status: "pending",
+    },
+  ];
+  const hungBars = [
+    { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
+    { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+    { plateId: "jack3", startMs: 20000, endMs: 25000, sortIndex: 2 },
+  ];
+  const fourClips = [
+    { shotId: "jack1", clipFile: "01_Jack_15.mp4", clipStatus: "done", durationSec: 15 },
+    { shotId: "car", clipFile: "02_Car_5.mp4", clipStatus: "done", durationSec: 5 },
+    { shotId: "jack3", clipFile: "03_Jack_5.mp4", clipStatus: "done", durationSec: 5 },
+    { shotId: "jack3", clipFile: "04_Jack_stand.mp4", clipStatus: "done", durationSec: 8 },
+  ];
+  const beforeTally = tallyPending(waitingCuts);
+  assert.equal(beforeTally.parked, 3, "0/3 DONE · 3 WAITING");
+  assert.equal(beforeTally.done, 0);
+
+  const addLeftover = addPlateFileFirstHang({
+    shotId: "jack3",
+    plateFile: "jack.png",
+    plateTimings: hungBars,
+    cuts: waitingCuts,
+    clips: fourClips,
+    newCutId: () => "cut-leftover",
+  });
+  assert.equal(addLeftover.hung, true, "Open→Add hangs the leftover mp4");
+  assert.equal(addLeftover.plateTimings.length, 4, "fourth bar after 0:25");
+  assert.equal(addLeftover.plateTimings[0]?.startMs, 0);
+  assert.equal(addLeftover.plateTimings[1]?.endMs, 20000);
+  assert.equal(addLeftover.plateTimings[2]?.endMs, 25000, "three good bars stay");
+  assert.equal(addLeftover.plateTimings[3]?.startMs, 25000, "after last hung end — not another 0:20");
+  assert.equal(addLeftover.plateTimings[3]?.endMs, 33000, "real 8s clip length");
+  assert.equal(
+    addLeftover.plateTimings[3]?.plateId,
+    extraTakeHangPlateId("jack3", "04_Jack_stand.mp4"),
+  );
+  const afterTally = tallyPending(addLeftover.cuts);
+  assert.equal(afterTally.parked, 3, "waiting must not climb to 4");
+  assert.equal(afterTally.done, 1, "leftover hang is done, not a 4th WAITING cook");
+  assert.equal(
+    addLeftover.cuts.filter((c) => c.status === "pending").length,
+    3,
+  );
+
+  const addAgain = addPlateFileFirstHang({
+    shotId: "jack3",
+    plateFile: "jack.png",
+    plateTimings: addLeftover.plateTimings,
+    cuts: addLeftover.cuts,
+    clips: fourClips,
+    newCutId: () => "cut-cook-5",
+  });
+  assert.equal(addAgain.hung, false, "no leftover left — do not cook");
+  assert.equal(addAgain.plateTimings.length, 4);
+  assert.equal(tallyPending(addAgain.cuts).parked, 3, "second Add is not a 5th cook");
+
+  const noFile = addPlateFileFirstHang({
+    shotId: "empty-still",
+    plateFile: "empty.png",
+    plateTimings: hungBars,
+    cuts: waitingCuts,
+    clips: fourClips,
+    newCutId: () => "cut-empty",
+  });
+  assert.equal(noFile.hung, false, "still with no mp4 is not a silent hang");
+  assert.equal(tallyPending(noFile.cuts).parked, 3);
+
+  function tallyPending(cuts) {
+    const tally = { parked: 0, done: 0 };
+    for (const c of cuts) {
+      if (c.status === "done") tally.done += 1;
+      else if (c.status !== "running" && c.status !== "error") tally.parked += 1;
+    }
+    return tally;
+  }
+
   const stillsStayOff = hangMissingPlateTimings(
     [{ plateId: "plate_1", startMs: 0, endMs: 15000, sortIndex: 0 }],
     [],
@@ -528,6 +682,12 @@ assert.match(
   songRoute.slice(songRoute.indexOf('action === "hang-plates"')),
   /hangMissingPlateTimings\(song\.plateTimings, hangCuts, \[\]\)/,
   "hang-plates must not invent 15s for off stills with no mp4",
+);
+assert.match(songRoute, /addPlateFileFirstHang/, "ADD hangs an existing mp4");
+assert.match(
+  songRoute.slice(songRoute.indexOf('action === "add-plate"')),
+  /fileFirst\.hung/,
+  "Open→Add must not fall through to a 4th WAITING cook when the file exists",
 );
 assert.match(trackUi, /needsDoneClipHang/);
 assert.match(trackUi, /hungClipFileForPlate\(job, picked\.shotId\) \? null/);

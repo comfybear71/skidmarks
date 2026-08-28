@@ -50,7 +50,14 @@ import { planParkDeskClipTake } from "@/lib/parkDeskClip";
 import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
-import { cutFromPlateTiming, hangMissingPlateTimings, sliceBoundsForPlate } from "@/lib/musicVideoTrack";
+import {
+  addPlateFileFirstHang,
+  cutFromPlateTiming,
+  hangMissingPlateTimings,
+  hangPlateShotId,
+  isRealPlateHang,
+  sliceBoundsForPlate,
+} from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 
 export const runtime = "nodejs";
@@ -70,7 +77,8 @@ export const maxDuration = 900;
  *   remove-stitch — park a leftover joined mp4 if one exists.
  *   hang-plates — hang done clipFiles on the wave (next gap, known length else 15). Leftover 0.5s is not a hang. Stills with no mp4 stay off — Add those. No leftover job.shots. No cook.
  *   redo-cut — park that clip, leave the still, wait for Send again.
- *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row).
+ *   add-plate — still with no mp4 goes on the list at 1 × 15s. Existing
+ *     leftover mp4 file-first hangs after the last hung bar. No waiting cook.
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
  *   List edits clear stuck cooks first — a hung LTX must not lock Add forever.
@@ -654,6 +662,34 @@ export async function POST(req: Request) {
       }
       if (!job) {
         return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      }
+      const livePlate =
+        (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim();
+      const fileFirst = addPlateFileFirstHang({
+        shotId,
+        plateFile: livePlate,
+        plateTimings: song.plateTimings,
+        cuts: song.cuts || [],
+        clips: job.clips || [],
+        skipShotIds: song.skipShotIds,
+        newCutId: () => newId("cut"),
+      });
+      if (fileFirst.hung) {
+        const updated = await patchMobileGenJob(jobId, {
+          scratchSong: {
+            ...song,
+            cuts: fileFirst.cuts,
+            plateTimings: fileFirst.plateTimings,
+          },
+          error: "",
+        });
+        return NextResponse.json({ ok: true, job: updated });
+      }
+      const alreadyHung = (song.plateTimings || []).some(
+        (t) => hangPlateShotId(t.plateId) === shotId && isRealPlateHang(t),
+      );
+      if (alreadyHung) {
+        return NextResponse.json({ ok: true, job });
       }
       const jobShots = job.shots || [];
       const onList = songDeskPlateIds(song);

@@ -2,6 +2,7 @@ import path from "path";
 import type { MobileClipUnit } from "./mobileGenJob";
 import { mobileMediaFolder } from "./mobileJobFolder";
 import {
+  clipHangTiming,
   formatTrackClock,
   resolvePlateTimings,
   sortPlateTimings,
@@ -84,6 +85,13 @@ export function clipHangStartMs(
 ): number | null {
   const timings = sortPlateTimings(resolvePlateTimings(song, draft));
   if (!timings.length) return null;
+  const clock = { cuts: song?.cuts, plateTimings: timings };
+  for (const file of stackedClipFiles(clip)) {
+    const fileHit = clipHangTiming(clock, file);
+    if (fileHit && Number.isFinite(fileHit.startMs) && fileHit.startMs >= 0) {
+      return fileHit.startMs;
+    }
+  }
   const byId = (id: string) => timings.find((t) => t.plateId === (id || "").trim());
   const shotHit = byId(clip.shotId || "");
   if (shotHit && Number.isFinite(shotHit.startMs) && shotHit.startMs >= 0) {

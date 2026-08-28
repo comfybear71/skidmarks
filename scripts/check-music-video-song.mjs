@@ -788,8 +788,11 @@ assert.doesNotMatch(
   const addPlateBlock = songRoute.slice(songRoute.indexOf('action === "add-plate"'));
   const nextAction = addPlateBlock.search(/\n\s+if \(action === "/);
   const block = nextAction >= 0 ? addPlateBlock.slice(0, nextAction) : addPlateBlock.slice(0, 1200);
+  assert.match(block, /addPlateFileFirstHang/, "Add hangs an existing mp4 — does not cook");
+  assert.match(block, /fileFirst\.hung/);
+  assert.match(block, /alreadyHung/, "hung still with no leftover must not mint WAITING 4");
   assert.match(block, /syncSongCutsToDesk/);
-  assert.match(block, /hangMissingPlateTimings/, "Add hangs the still on the wave clock");
+  assert.match(block, /hangMissingPlateTimings/, "still with no mp4 still parks a wave clock");
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
 }
 {
