@@ -9,7 +9,7 @@ import {
   submitScratchMinimaxClip,
 } from "@/lib/minimaxScratchClip";
 import { parseScratchClipEngine } from "@/lib/sirayI2v";
-import { MINIMAX_H3_ID, snapMinimaxH3DurationSec } from "@/lib/minimaxH3";
+import { MINIMAX_H3_ID, refuseMinimaxH3OverMax, snapMinimaxH3DurationSec } from "@/lib/minimaxH3";
 import { sirayConfigured } from "@/lib/sirayClient";
 import { minimaxVideoConfigured } from "@/lib/minimaxVideo";
 import { clipOwnsHangPlate, hangDoneClipOnTrack } from "@/lib/stockClipHang";
@@ -370,9 +370,19 @@ export async function POST(req: Request) {
           if (!minimaxVideoConfigured()) {
             return NextResponse.json({ error: "H3 is not on this Studio." }, { status: 400 });
           }
-          const durationSec = snapMinimaxH3DurationSec(
-            Number(body.durationSec ?? bounds.durationSec),
-          );
+          const asked = Number(body.durationSec ?? bounds.durationSec);
+          const refuse = refuseMinimaxH3OverMax(asked);
+          if (refuse) {
+            const latest = (await readMobileGenJob(jobId)) || job;
+            const failed = await failScratchSongCutRun({
+              jobId,
+              job: latest,
+              cutId: cut.id,
+              message: refuse,
+            });
+            return NextResponse.json({ error: refuse, job: failed }, { status: 400 });
+          }
+          const durationSec = snapMinimaxH3DurationSec(asked);
           const drawn = await submitScratchMinimaxClip({
             job,
             story,

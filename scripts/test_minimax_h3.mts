@@ -12,6 +12,8 @@ import {
   isMinimaxH3ClipEngineToken,
   isMinimaxH3Id,
   isMinimaxH3ShortSec,
+  MINIMAX_H3_OVER_MAX_NOTE,
+  refuseMinimaxH3OverMax,
   snapMinimaxH3DurationSec,
 } from "../src/lib/minimaxH3.ts";
 
@@ -41,5 +43,12 @@ assert.equal(snapMinimaxH3DurationSec(Number.NaN), MINIMAX_H3_DEFAULT_SEC);
 assert.equal(snapMinimaxH3DurationSec(2), MINIMAX_H3_MIN_SEC);
 assert.equal(snapMinimaxH3DurationSec(3), MINIMAX_H3_MIN_SEC);
 assert.equal(snapMinimaxH3DurationSec(99), MINIMAX_H3_MAX_SEC);
+
+assert.equal(refuseMinimaxH3OverMax(5), null);
+assert.equal(refuseMinimaxH3OverMax(15), null);
+assert.equal(refuseMinimaxH3OverMax(4), null);
+assert.equal(refuseMinimaxH3OverMax(25), MINIMAX_H3_OVER_MAX_NOTE);
+assert.equal(refuseMinimaxH3OverMax(25.1), MINIMAX_H3_OVER_MAX_NOTE);
+assert.equal(MINIMAX_H3_OVER_MAX_NOTE, "H3 max 15 — use LTX for 25");
 
 console.log("minimax h3 tokens + duration snap: ok");
