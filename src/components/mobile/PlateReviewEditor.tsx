@@ -228,6 +228,8 @@ export function PlateReviewEditor({
   onExpand,
   defaultPlaceId,
   focusShotId,
+  onSendStill,
+  sendStillBusy,
 }: {
   job: MobileGenJob;
   onJobChange?: (job: MobileGenJob) => void;
@@ -238,6 +240,9 @@ export function PlateReviewEditor({
   defaultPlaceId?: string;
   /** Shot just minted from Locations — open it on the strip. */
   focusShotId?: string | null;
+  /** Music-video plate-row Send — same cook TRACK used to run. */
+  onSendStill?: (shotId: string) => Promise<void>;
+  sendStillBusy?: boolean;
 }) {
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -1078,6 +1083,8 @@ export function PlateReviewEditor({
               : undefined
           }
           songAdding={Boolean(openShotId && songAddFor === openShotId)}
+          onSendStill={onSendStill}
+          sendStillBusy={sendStillBusy}
           onJobChange={onJobChange}
           onShotMeta={(patch) => {
             if (!openShotId) return;
@@ -2239,6 +2246,8 @@ function ShotLineEditor({
   onAddCast,
   onAddToSong,
   songAdding,
+  onSendStill,
+  sendStillBusy,
   onJobChange,
   onShotMeta,
 }: {
@@ -2265,6 +2274,8 @@ function ShotLineEditor({
           onAddCast?: () => void;
           onAddToSong?: () => void;
           songAdding?: boolean;
+          onSendStill?: (shotId: string) => Promise<void>;
+          sendStillBusy?: boolean;
           onJobChange?: (job: MobileGenJob) => void;
           onShotMeta?: (patch: { footageRole?: ShotFootageRole; stockQuery?: string }) => void;
           onPlateRebuilt: (
@@ -2479,6 +2490,12 @@ function ShotLineEditor({
                     setEnginePromptOpen(true);
                   }}
                 />
+                <PlateSendButton
+                  shotId={shot.id}
+                  busy={sendStillBusy}
+                  disabled={songAdding}
+                  onSend={onSendStill}
+                />
               </div>
               {onAddCast ? (
                 <MobilePrimaryButton tone="ghost" onClick={onAddCast}>
@@ -2515,6 +2532,12 @@ function ShotLineEditor({
               setEnginePromptOpen(true);
             }}
           />
+                <PlateSendButton
+                  shotId={shot.id}
+                  busy={sendStillBusy}
+                  disabled={songAdding}
+                  onSend={onSendStill}
+                />
         ) : (
           <>
             <AnotherLineButton
@@ -2538,7 +2561,30 @@ function ShotLineEditor({
   );
 }
 
-/** Add | LTX | H3 — tap opens that engine's 90% lock + [ ] hole. Does not cook. */
+function PlateSendButton({
+  shotId,
+  busy,
+  disabled,
+  onSend,
+}: {
+  shotId: string;
+  busy?: boolean;
+  disabled?: boolean;
+  onSend?: (shotId: string) => Promise<void>;
+}) {
+  if (!onSend) return null;
+  return (
+    <MobilePrimaryButton
+      busy={busy}
+      disabled={Boolean(disabled || busy)}
+      onClick={() => void onSend(shotId)}
+    >
+      {busy ? "Sending…" : "Send"}
+    </MobilePrimaryButton>
+  );
+}
+
+/** Add | LTX | H3 | Send — LTX / H3 open the [ ] hole. Send cooks this still. */
 function PlateEngineButtons({
   jobId,
   shotId,
