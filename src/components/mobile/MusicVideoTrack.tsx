@@ -48,6 +48,7 @@ import { decodeWaveformPeaks } from "@/lib/decodeWaveformPeaks";
 import { clearPendingSong, songChipName } from "@/lib/musicVideoStart";
 import {
   findSongCarrierBeatId,
+  hasStuckSongCook,
   isMusicVideoSongJob,
   musicVideoCreditLine,
   needsTrackHang,
@@ -69,7 +70,7 @@ import {
   stockLookIsOn,
   type StockLook,
 } from "@/lib/stockLook";
-import { songCookFlagOn } from "@/lib/songCutCook";
+import { setSongCookFlag, songCookFlagOn } from "@/lib/songCutCook";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
@@ -729,7 +730,7 @@ export function MusicVideoTrack({
   const [lyricsOpen, setLyricsOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
   const [marqueeOpen, setMarqueeOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(false);
-  const [platesOnTrackOpen, setPlatesOnTrackOpen] = useState(false);
+  const [platesOnTrackOpen, setPlatesOnTrackOpen] = useState(true);
   const [freeLookOpen, setFreeLookOpen] = useState(() => stockLookIsOn(job.stockLook));
   const [freeLook, setFreeLook] = useState<StockLook>(() => parseStockLook(job.stockLook));
   const [openSectionId, setOpenSectionId] = useState("");
@@ -1027,6 +1028,52 @@ export function MusicVideoTrack({
     void importFromLyrics(true);
   }, [busy, effectiveDurationMs, job.lyrics, markers]);
 
+  async function movePlate(shotId: string, direction: "earlier" | "later") {
+    if (!song?.fileName) {
+      setNote("Hang the stills on the song first.");
+      return;
+    }
+    setBusy(`move-${shotId}`);
+    setNote("");
+    try {
+      const updated = await trackAction("move-plate", {
+        jobId: job.id,
+        plateId: shotId,
+        direction,
+      });
+      if (updated) onJobChange(updated);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't move that plate");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function stopSend() {
+    setSongCookFlag(job.id, false);
+    setBusy("stop");
+    setNote("");
+    try {
+      const res = await fetch("/api/crash/mobile/song", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "unstick-all", jobId: job.id }),
+      });
+      const raw = (await res.json().catch(() => ({}))) as {
+        job?: MobileGenJob;
+        error?: string;
+      };
+      if (raw.job) onJobChange(raw.job);
+      if (!res.ok) throw new Error(raw.error?.trim() || "Couldn't stop send");
+      setSongCookFlag(job.id, false);
+      setNote("Stopped. Move plates, then Send when you like the order.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't stop send");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function schedulePlate(shotId: string, startMs: number, endMs: number, sortIndex: number) {
     if (!song?.fileName) {
       setNote("Start the video and attach the song before timing plates.");
@@ -1087,6 +1134,20 @@ export function MusicVideoTrack({
             cuts={song?.cuts || []}
             cooking={songCookFlagOn(job.id)}
           />
+          {(songCookFlagOn(job.id) ||
+            hasStuckSongCook(song?.cuts || []) ||
+            (song?.cuts || []).some((c) => c.status === "running")) ? (
+            <div className="m-track-stop-row">
+              <MobilePrimaryButton
+                size="chip"
+                tone="ghost"
+                disabled={busy === "stop"}
+                onClick={() => void stopSend()}
+              >
+                {busy === "stop" ? "Stopping…" : "Stop send"}
+              </MobilePrimaryButton>
+            </div>
+          ) : null}
           <div className="m-track-song-top">
             <span className="m-track-song-name">
               {musicVideoCreditLine(job) || songChipName(song?.fileName || parked?.file.name || "")}
@@ -1624,8 +1685,14 @@ export function MusicVideoTrack({
               open={platesOnTrackOpen}
               onToggle={() => setPlatesOnTrackOpen((v) => !v)}
             >
+              <p className="m-track-lyric-hint">
+                Move stills on the wave. Send a clip only when the order is right.
+                Keep a good one. Redo a bad one.
+              </p>
               <div className="m-track-plates">
-                {plateRows.map((row, i) => (
+                {plateRows.map((row, i) => {
+                  const waveI = plateBlocks.findIndex((b) => b.plateId === row.shotId);
+                  return (
                   <div key={row.shotId} className="m-track-plate-row">
                     {hungClipFileForPlate(job, row.shotId) || row.plateFile ? (
                       <ClipFrameThumb
@@ -1656,6 +1723,24 @@ export function MusicVideoTrack({
                     <button
                       type="button"
                       className="m-track-btn"
+                      disabled={Boolean(busy) || waveI <= 0}
+                      onClick={() => void movePlate(row.shotId, "earlier")}
+                    >
+                      {busy === `move-${row.shotId}` ? "…" : "Earlier"}
+                    </button>
+                    <button
+                      type="button"
+                      className="m-track-btn"
+                      disabled={
+                        Boolean(busy) || waveI < 0 || waveI >= plateBlocks.length - 1
+                      }
+                      onClick={() => void movePlate(row.shotId, "later")}
+                    >
+                      {busy === `move-${row.shotId}` ? "…" : "Later"}
+                    </button>
+                    <button
+                      type="button"
+                      className="m-track-btn"
                       disabled={Boolean(busy) || !row.plateFile}
                       onClick={() =>
                         void schedulePlate(row.shotId, rangeStartMs, rangeEndMs, i)
@@ -1664,7 +1749,8 @@ export function MusicVideoTrack({
                       {busy === `time-${row.shotId}` ? "…" : "Use range"}
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </DeskFold>
           ) : null}

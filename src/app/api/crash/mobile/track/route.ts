@@ -8,6 +8,7 @@ import {
 import {
   cutFromPlateTiming,
   songFromTrackDraft,
+  swapNeighborPlateTimings,
   type LyricCue,
   type MusicVideoTrackDraft,
   type PlateTiming,
@@ -63,6 +64,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-draft — pre-lock peaks/markers/timings on job.trackDraft
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
+ *   move-plate — swap this still with the earlier or later slot. No cook.
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
  *   remove-plate-timing — clear one plate schedule
@@ -94,6 +96,7 @@ export async function POST(req: Request) {
     startMs?: number;
     endMs?: number;
     sortIndex?: number;
+    direction?: string;
     lyricCues?: LyricCue[];
     stockLook?: unknown;
   };
@@ -207,6 +210,37 @@ export async function POST(req: Request) {
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated, timing });
+    }
+
+    if (action === "move-plate") {
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
+      }
+      const plateId = String(body.plateId || "").trim();
+      if (!plateId) return NextResponse.json({ error: "Need plateId" }, { status: 400 });
+      const direction = body.direction === "later" ? 1 : body.direction === "earlier" ? -1 : 0;
+      if (!direction) {
+        return NextResponse.json({ error: "Need earlier or later." }, { status: 400 });
+      }
+      const plateTimings = swapNeighborPlateTimings(song.plateTimings || [], plateId, direction);
+      if (!plateTimings) {
+        return NextResponse.json(
+          { error: "That plate is already at the end of the song." },
+          { status: 400 },
+        );
+      }
+      let cuts = song.cuts || [];
+      for (const timing of plateTimings) {
+        const plateFile = (job.shots.find((s) => s.shotId === timing.plateId)?.plateFile || "").trim();
+        if (!plateFile || plateFile === "__error__") continue;
+        cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, plateTimings, cuts },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
     }
 
     if (action === "set-who-plays") {

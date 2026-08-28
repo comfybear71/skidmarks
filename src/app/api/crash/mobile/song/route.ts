@@ -48,6 +48,7 @@ export const maxDuration = 900;
  *   stitch — rejected. Finish is ordered unstitched mp4s.
  *   remove-stitch — park a leftover joined mp4 if one exists.
  *   hang-plates — write missing plateTimings from waiting cuts. No cook.
+ *   redo-cut — park that clip, leave the still, wait for Send again.
  *   add-plate — put a plate on the list at 1 × 15s (same plate again = another row).
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
@@ -547,6 +548,33 @@ export async function POST(req: Request) {
           sliceStartSec: nextWin.startSec,
           sliceDurationSec: nextWin.durationSec,
         },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (action === "redo-cut") {
+      const song = job.scratchSong;
+      const cutId = String(body.cutId || "").trim();
+      if (!song || !cutId) {
+        return NextResponse.json({ error: "Need a cut to redo." }, { status: 400 });
+      }
+      const cut = (song.cuts || []).find((c) => c.id === cutId);
+      if (!cut) {
+        return NextResponse.json({ error: "That cut is not on the song." }, { status: 400 });
+      }
+      if (cut.status === "running") {
+        return NextResponse.json({ error: "Stop send first." }, { status: 409 });
+      }
+      const file = (cut.clipFile || "").trim();
+      if (file) parkMobileClipFile(file);
+      const cuts = (song.cuts || []).map((c) =>
+        c.id === cutId
+          ? { ...c, status: "pending" as const, clipFile: "", error: "" }
+          : c,
+      );
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, cuts },
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated });

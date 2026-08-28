@@ -8,6 +8,7 @@ import {
   formatTrackClock,
   formatTrackClockPrecise,
   hangMissingPlateTimings,
+  swapNeighborPlateTimings,
   msToSec,
   orderedDoneCutsForStitch,
   plateRailBox,
@@ -122,6 +123,37 @@ assert.match(songRoute, /cutFromPlateTiming/);
 assert.match(attach, /trackDraft/);
 assert.match(attach, /evenPlateTimings/);
 assert.match(mobileCss, /\.m-track-wave/);
+
+assert.match(trackUi, /Earlier/);
+assert.match(trackUi, /Later/);
+assert.match(trackUi, /move-plate/);
+assert.match(trackUi, /Stop send/);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
+  /action === "move-plate"/,
+);
+{
+  const moved = swapNeighborPlateTimings(
+    [
+      { plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "b", startMs: 15000, endMs: 30000, sortIndex: 1 },
+    ],
+    "b",
+    -1,
+  );
+  assert.equal(moved?.[0].plateId, "b");
+  assert.equal(moved?.[0].startMs, 0);
+  assert.equal(moved?.[1].plateId, "a");
+  assert.equal(moved?.[1].startMs, 15000);
+  assert.equal(
+    swapNeighborPlateTimings(
+      [{ plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 }],
+      "a",
+      -1,
+    ),
+    null,
+  );
+}
 
 // Drag-to-stretch on the coloured bars is gone. Time a still with Use range.
 assert.doesNotMatch(trackUi, /stretchPlateEdge/);

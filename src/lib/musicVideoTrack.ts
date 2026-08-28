@@ -144,6 +144,34 @@ export function sortPlateTimings(list: PlateTiming[]): PlateTiming[] {
   return [...list].sort((a, b) => a.sortIndex - b.sortIndex || a.startMs - b.startMs);
 }
 
+/**
+ * Swap this still with the neighbour slot. Time boxes stay. The picture
+ * moves. Null if it is already first or last.
+ */
+export function swapNeighborPlateTimings(
+  timings: PlateTiming[],
+  plateId: string,
+  direction: -1 | 1,
+): PlateTiming[] | null {
+  const sorted = sortPlateTimings(timings);
+  const i = sorted.findIndex((t) => t.plateId === plateId);
+  const j = i + direction;
+  if (i < 0 || j < 0 || j >= sorted.length) return null;
+  const a = sorted[i]!;
+  const b = sorted[j]!;
+  return sortPlateTimings(
+    sorted.map((t) => {
+      if (t.plateId === a.plateId) {
+        return { ...t, startMs: b.startMs, endMs: b.endMs, sortIndex: b.sortIndex };
+      }
+      if (t.plateId === b.plateId) {
+        return { ...t, startMs: a.startMs, endMs: a.endMs, sortIndex: a.sortIndex };
+      }
+      return t;
+    }),
+  );
+}
+
 /** How wide a second of song is on the phone wave. A 3-minute track is
  * ~5040px — the strip scrolls sideways instead of crushing into one screen. */
 export const TRACK_WAVE_PX_PER_SEC = 28;

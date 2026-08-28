@@ -130,7 +130,6 @@ export function MusicVideoSongCuts({
   jobRef.current = job;
   const cookLock = useRef(false);
   const cookCancel = useRef(false);
-  const resumeCook = useRef<() => void>(() => {});
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [playing, setPlaying] = useState("");
@@ -270,7 +269,7 @@ export function MusicVideoSongCuts({
     try {
       await songAction("unstick-all");
       setSongCookFlag(job.id, false);
-      setNote("Stopped. List matches the desk again.");
+      setNote("Stopped send. Move plates, then Send when you like the order.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't stop that hung clip");
     } finally {
@@ -279,10 +278,18 @@ export function MusicVideoSongCuts({
     }
   }
 
-  resumeCook.current = () => {
-    const running = (jobRef.current.scratchSong?.cuts || []).find((c) => c.status === "running");
-    if (running?.id) void runOneCut(running.id);
-  };
+  async function redoCut(cutId: string) {
+    setBusy(`redo-${cutId}`);
+    setNote("");
+    try {
+      await songAction("redo-cut", { cutId });
+      setNote("Clip parked. Still stays. Send again when you want.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't redo that cut");
+    } finally {
+      setBusy("");
+    }
+  }
 
   useEffect(() => {
     if (!beatId || song?.fileName) return;
@@ -348,21 +355,6 @@ export function MusicVideoSongCuts({
       cancelled = true;
     };
   }, [job.id, onJobChange]);
-
-  useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState !== "visible") return;
-      if (cookLock.current) return;
-      if (cookCancel.current) return;
-      const pending = pendingSongCuts(jobRef.current);
-      if (!pending.length) return;
-      if (!songCookFlagOn(job.id) && !pending.some((c) => c.status === "running")) return;
-      resumeCook.current();
-    };
-    onVis();
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, [job.id]);
 
   const onSong = songDeskPlateIds(song);
   const rowSlices = songDeskRowSlices(song, onSong);
@@ -512,6 +504,21 @@ export function MusicVideoSongCuts({
                           </button>
                         );
                       })()}
+                      {(() => {
+                        const done = mine.find((c) => c.status === "done" && c.clipFile);
+                        const fail = mine.find((c) => c.status === "error");
+                        const redo = fail || done;
+                        if (!redo?.id || workingNow) return null;
+                        return (
+                          <button
+                            type="button"
+                            disabled={Boolean(busy)}
+                            onClick={() => void redoCut(redo.id)}
+                          >
+                            {busy === `redo-${redo.id}` ? "…" : "Redo"}
+                          </button>
+                        );
+                      })()}
                       <button
                         type="button"
                         disabled={Boolean(busy) || timesLocked}
@@ -557,14 +564,17 @@ export function MusicVideoSongCuts({
               : "Sending…"
             : "Send next"}
         </MobilePrimaryButton>
-        {stuckCook || workingNow ? (
+        {stuckCook ||
+        workingNow ||
+        songCookFlagOn(job.id) ||
+        Boolean(runningCut) ? (
           <MobilePrimaryButton
             size="chip"
             tone="ghost"
             disabled={busy === "unstick"}
             onClick={() => void stopStuckCook()}
           >
-            {busy === "unstick" ? "Stopping…" : "Stop"}
+            {busy === "unstick" ? "Stopping…" : "Stop send"}
           </MobilePrimaryButton>
         ) : null}
       </div>
