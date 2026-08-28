@@ -656,6 +656,40 @@ assert.equal(
   false,
   "Off song skip stays off",
 );
+assert.equal(
+  needsDoneClipHang(
+    {
+      plateTimings: [
+        { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
+        { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+        { plateId: "jack", startMs: 20000, endMs: 25000, sortIndex: 2 },
+      ],
+      cuts: [
+        { shotId: "jack1", clipFile: "01_jack.mp4", status: "done", durationSec: 15 },
+        { shotId: "car", clipFile: "02_car.mp4", status: "done", durationSec: 5 },
+        { shotId: "jack", clipFile: "03_stand.mp4", status: "done", durationSec: 5 },
+      ],
+    },
+    [
+      { shotId: "jack1", plateFile: "1.png" },
+      { shotId: "car", plateFile: "2.png" },
+      { shotId: "jack", plateFile: "3.png" },
+    ],
+    [
+      { shotId: "jack1", clipFile: "01_jack.mp4", clipStatus: "done", durationSec: 15 },
+      { shotId: "car", clipFile: "02_car.mp4", clipStatus: "done", durationSec: 5 },
+      { shotId: "jack", clipFile: "03_stand.mp4", clipStatus: "done", durationSec: 5 },
+      { shotId: "jack", clipFile: "04_crouch.mp4", clipStatus: "done", durationSec: 5 },
+    ],
+  ),
+  true,
+  "TRACK 3 bars + leftover clip 4 must auto-hang — do not wait for STILLS ADD",
+);
+assert.match(
+  readFileSync(join(here, "../src/lib/musicVideoSong.ts"), "utf8"),
+  /listUnhungDoneClips/,
+  "leftover same-still take is a hang, not a new plate",
+);
 assert.match(songRoute, /needsDoneClipHang/);
 assert.match(
   songRoute.slice(songRoute.indexOf('action === "hang-plates"')),

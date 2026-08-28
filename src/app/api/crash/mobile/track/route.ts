@@ -240,7 +240,9 @@ export async function POST(req: Request) {
       }
       let cuts = song.cuts || [];
       for (const timing of plateTimings) {
-        const plateFile = (job.shots.find((s) => s.shotId === hangPlateShotId(timing.plateId))?.plateFile || "").trim();
+        const plateFile = (
+          job.shots.find((s) => s.shotId === hangPlateShotId(timing.plateId))?.plateFile || ""
+        ).trim();
         if (!plateFile || plateFile === "__error__") continue;
         cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
       }
@@ -271,7 +273,9 @@ export async function POST(req: Request) {
       }
       let cuts = song.cuts || [];
       for (const timing of plateTimings) {
-        const plateFile = (job.shots.find((s) => s.shotId === hangPlateShotId(timing.plateId))?.plateFile || "").trim();
+        const plateFile = (
+          job.shots.find((s) => s.shotId === hangPlateShotId(timing.plateId))?.plateFile || ""
+        ).trim();
         if (!plateFile || plateFile === "__error__") continue;
         cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
       }
@@ -341,7 +345,9 @@ export async function POST(req: Request) {
       }
       let cuts = song.cuts || [];
       for (const timing of plateTimings) {
-        const plateFile = (job.shots.find((s) => s.shotId === hangPlateShotId(timing.plateId))?.plateFile || "").trim();
+        const plateFile = (
+          job.shots.find((s) => s.shotId === hangPlateShotId(timing.plateId))?.plateFile || ""
+        ).trim();
         if (!plateFile || plateFile === "__error__") continue;
         cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
       }

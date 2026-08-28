@@ -66,6 +66,7 @@ import {
 import { probeBrowserAudioDurationSec } from "@/lib/scratchSongDrop";
 import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
+import { uniquePlacePickOptions } from "@/lib/mobilePlaceLabels";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
 import { readApiJson } from "@/lib/studioFetchError";
@@ -891,7 +892,7 @@ export function MusicVideoTrack({
   const [openSectionId, setOpenSectionId] = useState("");
   const [playing, setPlaying] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
-  const [pickWho, setPickWho] = useState("");
+  const [pickWho, setPickWho] = useState<string | null>(null);
   const [pickWhere, setPickWhere] = useState("");
   const [rangeStartMs, setRangeStartMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState(15000);
@@ -990,11 +991,10 @@ export function MusicVideoTrack({
     const saved = savedPlateBlocks.find((b) => b.plateId === t.plateId);
     return { ...t, label: row?.title || saved?.label || t.plateId };
   });
+  // Hung stills sit on the wave. Unhung stills stay in STILLS — TRACK
+  // must not grow a second shelf of JACK GHOST / Plate 5 / off cards.
   const filmItems = useMemo(() => {
-    const hungIds = new Set(
-      plateBlocks.filter((b) => isRealPlateHang(b)).map((b) => hangPlateShotId(b.plateId)),
-    );
-    const hung = plateBlocks
+    return plateBlocks
       .filter((block) => isRealPlateHang(block))
       .map((block) => {
         const row = plateRows.find((p) => p.shotId === hangPlateShotId(block.plateId));
@@ -1006,17 +1006,11 @@ export function MusicVideoTrack({
           onSong: true,
         };
       });
-    const waiting = plateRows
-      .filter((row) => !hungIds.has(row.shotId))
-      .map((row) => ({
-        shotId: row.shotId,
-        title: row.title,
-        plateFile: row.plateFile,
-        timing: isRealPlateHang(row.timing) ? row.timing : null,
-        onSong: false,
-      }));
-    return [...hung, ...waiting];
   }, [plateBlocks, plateRows]);
+  const addPlaces = useMemo(
+    () => uniquePlacePickOptions(placeOptions),
+    [placeOptions],
+  );
   const picked =
     filmItems.find((item) => item.shotId === pickedId) || filmItems[0] || null;
   const pickedOnSong = Boolean(picked && isRealPlateHang(picked.timing));
@@ -2109,43 +2103,10 @@ export function MusicVideoTrack({
             </p>
           ) : null}
 
-          {/* Off-song stills stay a phone-width strip. Hung stills sit on the
-              wave above — same left/width as the teal bar (endMs − startMs). */}
-          {(filmItems.some((cell) => !cell.onSong) || !compact || Boolean(onCreatePlate)) ? (
+          {/* + creates a still. Hang is STILLS Add, or Hang on a CLIPS thumb.
+              Off-song ghosts copied STILLS and only confused the desk. */}
+          {!compact || Boolean(onCreatePlate) ? (
             <div className="m-track-rail">
-              <div className="m-track-film">
-                {filmItems
-                  .filter((cell) => !cell.onSong)
-                  .map((cell) => {
-                    const on = picked?.shotId === cell.shotId;
-                    return (
-                      <button
-                        type="button"
-                        key={cell.shotId}
-                        className={`m-track-film-cell${on ? " is-on" : ""}`}
-                        onClick={() => setPickedId(cell.shotId)}
-                        title={cell.title}
-                      >
-                        {hungClipFileForPlate(job, cell.shotId) || cell.plateFile ? (
-                          <ClipFrameThumb
-                            clipSrc={
-                              hungClipFileForPlate(job, cell.shotId)
-                                ? mobileClipSrc(job, hungClipFileForPlate(job, cell.shotId))
-                                : ""
-                            }
-                            stillSrc={
-                              cell.plateFile ? mobileLocationStillUrl(job, cell.plateFile) : ""
-                            }
-                          />
-                        ) : (
-                          <span className="m-track-rail-empty" />
-                        )}
-                        <span className="m-track-rail-label">{cell.title}</span>
-                        <span className="m-track-film-len">off</span>
-                      </button>
-                    );
-                  })}
-              </div>
               <button
                 type="button"
                 className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
@@ -2154,7 +2115,7 @@ export function MusicVideoTrack({
                   setPickOpen((v) => !v);
                 }}
                 aria-expanded={pickOpen}
-                aria-label="Add a still"
+                aria-label="Add a plate"
               >
                 +
               </button>
@@ -2254,7 +2215,7 @@ export function MusicVideoTrack({
                   <button
                     type="button"
                     className="m-track-btn"
-                    onClick={() => onOpenPlate(picked.shotId)}
+                    onClick={() => onOpenPlate(hangPlateShotId(picked.shotId))}
                   >
                     Open
                   </button>
@@ -2266,8 +2227,7 @@ export function MusicVideoTrack({
             </div>
           ) : null}
 
-          {/* One person, one place, one plate — picked here rather than three
-              scrolls down inside a Locations card. */}
+          {/* New plate only: person / empty / place. Not every current still. */}
           {pickOpen ? (
             <div className="m-plate-pick">
               <div className="m-plate-pick-row">
@@ -2287,9 +2247,17 @@ export function MusicVideoTrack({
                     <span className="m-plate-pick-name">{who.name}</span>
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className={`m-plate-pick-cell${pickWho === "" ? " is-on" : ""}`}
+                  onClick={() => setPickWho("")}
+                >
+                  <span className="m-plate-pick-blank" />
+                  <span className="m-plate-pick-name">Empty</span>
+                </button>
               </div>
               <div className="m-plate-pick-row">
-                {placeOptions.map((place) => (
+                {addPlaces.map((place) => (
                   <button
                     type="button"
                     key={place.sceneId}
@@ -2310,24 +2278,34 @@ export function MusicVideoTrack({
                 <MobilePrimaryButton
                   size="chip"
                   disabled={
-                    !pickWho ||
+                    pickWho === null ||
                     !pickWhere ||
                     (!job.folderName && !isMusicVideoSongJob(job))
                   }
                   onClick={() => {
-                    onCreatePlate?.(pickWhere, pickWho);
+                    onCreatePlate?.(pickWhere, pickWho || "");
                     setPickOpen(false);
-                    setPickWho("");
+                    setPickWho(null);
                     setPickWhere("");
                   }}
                 >
                   {job.folderName
-                    ? `Add ${pickWho || "plate"}`
+                    ? pickWho
+                      ? `Add ${pickWho}`
+                      : "Add empty"
                     : isMusicVideoSongJob(job)
                       ? "Start the video & add"
                       : "Lock first"}
                 </MobilePrimaryButton>
-                <button type="button" className="m-track-btn" onClick={() => setPickOpen(false)}>
+                <button
+                  type="button"
+                  className="m-track-btn"
+                  onClick={() => {
+                    setPickOpen(false);
+                    setPickWho(null);
+                    setPickWhere("");
+                  }}
+                >
                   Cancel
                 </button>
               </div>
