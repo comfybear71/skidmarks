@@ -39,6 +39,7 @@ import {
   songCutIsMuteAction,
   songCutUsesSpokenLine,
   syncSongCutsToDesk,
+  applyAddPlateOnSong,
   songCutsOrderBroken,
   expectedDeskCutCount,
   needsDoneClipHang,
@@ -973,13 +974,100 @@ assert.doesNotMatch(
   const addPlateBlock = songRoute.slice(songRoute.indexOf('action === "add-plate"'));
   const nextAction = addPlateBlock.search(/\n\s+if \(action === "/);
   const block = nextAction >= 0 ? addPlateBlock.slice(0, nextAction) : addPlateBlock.slice(0, 1200);
-  assert.match(block, /addPlateFileFirstHang/, "Add hangs an existing mp4 — does not cook");
+  assert.match(block, /applyAddPlateOnSong/, "Add hangs an existing mp4 — does not cook");
+  assert.match(block, /addPlateFileFirstHang/, "Add file-first hangs leftover");
   assert.match(block, /fileFirst\.hung/);
   assert.match(block, /alreadyHung/, "hung still with no leftover must not mint WAITING 4");
-  assert.match(block, /syncSongCutsToDesk/);
-  assert.match(block, /addPlateHangOnTrack/, "still with no leftover parks on the wave — no cook");
+  assert.doesNotMatch(block, /syncSongCutsToDesk/, "Add must not rebuild the desk as WAITING 15s");
   assert.match(block, /job\.clips/, "Add reads leftover rendered mp4s, not only waiting cuts");
   assert.doesNotMatch(block, /rebuildSongCutsFromDesk/);
+}
+{
+  let n = 0;
+  const added = applyAddPlateOnSong({
+    shotId: "jack3",
+    plateFile: "jack.png",
+    plateTimings: [
+      { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
+      { plateId: "car", startMs: 15000, endMs: 20000, sortIndex: 1 },
+      { plateId: "jack3", startMs: 20000, endMs: 25000, sortIndex: 2 },
+    ],
+    cuts: [
+      {
+        id: "c1",
+        shotId: "jack1",
+        plateFile: "1.png",
+        startSec: 0,
+        durationSec: 15,
+        clipFile: "01_Jack.mp4",
+        status: "done",
+      },
+      {
+        id: "c2",
+        shotId: "car",
+        plateFile: "car.png",
+        startSec: 15,
+        durationSec: 5,
+        clipFile: "02_Car.mp4",
+        status: "done",
+      },
+      {
+        id: "c3",
+        shotId: "jack3",
+        plateFile: "jack.png",
+        startSec: 20,
+        durationSec: 5,
+        clipFile: "03_Jack.mp4",
+        status: "done",
+      },
+    ],
+    clips: [
+      { shotId: "jack1", clipFile: "01_Jack.mp4", clipStatus: "done", durationSec: 15 },
+      { shotId: "car", clipFile: "02_Car.mp4", clipStatus: "done", durationSec: 5 },
+      {
+        shotId: "jack3",
+        clipFile: "04_Jack_stand.mp4",
+        priorClipFiles: ["03_Jack.mp4"],
+        clipStatus: "done",
+        durationSec: 8,
+      },
+    ],
+    skipShotIds: ["car~6ir"],
+    songPlateIds: ["jack1", "car", "jack3"],
+    rowSlices: [1, 1, 1],
+    songSec: 180,
+    newCutId: () => `cut_add_${++n}`,
+  });
+  assert.equal(added.hung, true, "Open→Add hangs leftover mp4");
+  assert.equal(added.cuts.find((c) => c.shotId === "car")?.clipFile, "02_Car.mp4");
+  assert.equal(added.cuts.find((c) => c.shotId === "car")?.startSec, 15);
+  assert.equal(added.cuts.find((c) => c.shotId === "car")?.durationSec, 5);
+  assert.equal(added.cuts.find((c) => c.clipFile === "01_Jack.mp4")?.status, "done");
+  assert.equal(added.cuts.find((c) => c.clipFile === "03_Jack.mp4")?.status, "done");
+  const leftover = added.cuts.find((c) => c.clipFile === "04_Jack_stand.mp4");
+  assert.equal(leftover?.status, "done");
+  assert.equal(leftover?.startSec, 25);
+  assert.equal(leftover?.durationSec, 8);
+  assert.equal(
+    leftover?.shotId,
+    extraTakeHangPlateId("jack3", "04_Jack_stand.mp4"),
+  );
+  assert.equal(
+    added.cuts.filter((c) => c.status === "pending").length,
+    0,
+    "no WAITING cook",
+  );
+  assert.equal(added.plateTimings.length, 4);
+  assert.equal(added.plateTimings[3]?.startMs, 25000);
+  assert.equal(added.plateTimings[3]?.endMs, 33000);
+  assert.deepEqual(
+    added.plateTimings.slice(0, 3).map((t) => [t.plateId, t.startMs, t.endMs]),
+    [
+      ["jack1", 0, 15000],
+      ["car", 15000, 20000],
+      ["jack3", 20000, 25000],
+    ],
+  );
 }
 {
   const skipBlock = songRoute.slice(songRoute.indexOf('action === "skip-plate"'));

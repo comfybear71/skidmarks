@@ -848,9 +848,10 @@ export function listUnhungDoneClips(opts: {
   plateTimings?: PlateTiming[];
   skipShotIds?: string[];
 }): UnhungDoneClip[] {
-  const skipped = new Set(
-    (opts.skipShotIds || []).map((id) => hangPlateShotId(id)).filter(Boolean),
-  );
+  // Exact ids only. Mapping skip through hangPlateShotId used to treat
+  // `car~6ir` as skip-the-whole-car, so Add missed the leftover mp4 and
+  // fell through to a 15s WAITING desk rebuild.
+  const skipped = new Set((opts.skipShotIds || []).map((id) => id.trim()).filter(Boolean));
   const clock = { cuts: opts.cuts, plateTimings: opts.plateTimings };
   const impliedHung = impliedHungClipFiles(opts);
   const seen = new Set<string>();
@@ -863,7 +864,8 @@ export function listUnhungDoneClips(opts: {
   ) => {
     const file = hangClipBasename(clipFile);
     const shot = hangPlateShotId(shotId);
-    if (!file || !shot || skipped.has(shot)) return;
+    if (!file || !shot) return;
+    if (skipped.has(shot) || skipped.has(extraTakeHangPlateId(shot, file))) return;
     if (clipFileOnWave(clock, file) || impliedHung.has(file)) return;
     const existing = out.find((r) => r.clipFile === file);
     const dur = realHangDurationSec(existing?.durationSec, durationSec);
@@ -895,6 +897,7 @@ export function listUnhungDoneClips(opts: {
         realHangDurationSec(
           hangClipBasename(file) === current ? clip.durationSec : undefined,
           cut?.durationSec,
+          hangClipBasename(file) !== current && !cut ? clip.durationSec : undefined,
         ),
       );
     }

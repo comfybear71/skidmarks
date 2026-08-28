@@ -4,8 +4,14 @@
  */
 import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
 import {
+  addPlateFileFirstHang,
+  hangPlateShotId,
   isLeftoverPlateHang,
+  isRealPlateHang,
   listUnhungDoneClips,
+  msToSec,
+  secToMs,
+  sortPlateTimings,
 } from "./musicVideoTrack";
 import {
   formatSongClock,
@@ -41,8 +47,9 @@ export function cutsForPlate(
   const id = (shotId || "").trim();
   const file = (plateFile || "").trim();
   return (cuts || []).filter((c) => {
-    if (id && c.shotId === id) return true;
-    if (!c.shotId && file && c.plateFile === file) return true;
+    const cutShot = (c.shotId || "").trim();
+    if (id && (cutShot === id || hangPlateShotId(cutShot) === id)) return true;
+    if (!cutShot && file && c.plateFile === file) return true;
     return false;
   });
 }
@@ -171,6 +178,117 @@ export function syncSongCutsToDesk(opts: {
   return next;
 }
 
+/**
+ * Plate-row / STILLS Add. File-first leftover of the OPEN shot after the
+ * last hung bar, at the cooked mp4 length. Keeps every other done clipFile
+ * and every other real plateTiming. Does not rebuild the desk as 15s
+ * WAITING slices. Empty still (no mp4) gets one 15s bar only for itself.
+ */
+export function applyAddPlateOnSong(opts: {
+  shotId: string;
+  plateFile?: string;
+  plateTimings?: { plateId: string; startMs: number; endMs: number; sortIndex: number }[];
+  cuts: ScratchSongCut[];
+  clips?: Array<{
+    shotId?: string;
+    clipFile?: string;
+    priorClipFiles?: string[];
+    clipStatus?: string;
+    durationSec?: number;
+  }>;
+  skipShotIds?: string[];
+  songPlateIds?: string[];
+  rowSlices?: number[];
+  songSec: number;
+  newCutId: () => string;
+}): {
+  cuts: ScratchSongCut[];
+  plateTimings: { plateId: string; startMs: number; endMs: number; sortIndex: number }[];
+  songPlateIds: string[];
+  rowSlices: number[];
+  skipShotIds: string[];
+  hung: boolean;
+} {
+  const shotId = hangPlateShotId(opts.shotId);
+  const onList = songDeskPlateIds({
+    songPlateIds: opts.songPlateIds,
+    cuts: opts.cuts,
+  });
+  const slices = songDeskRowSlices({ rowSlices: opts.rowSlices }, onList);
+  const skip = skipSongPlateIds({ skipShotIds: opts.skipShotIds });
+  if (!shotId) {
+    return {
+      cuts: opts.cuts,
+      plateTimings: sortPlateTimings(opts.plateTimings || []),
+      songPlateIds: onList,
+      rowSlices: slices,
+      skipShotIds: skip,
+      hung: false,
+    };
+  }
+  const skipForHang = withoutSkippedOpenShot(skip, shotId);
+  const fileFirst = addPlateFileFirstHang({
+    shotId,
+    plateFile: opts.plateFile,
+    plateTimings: opts.plateTimings,
+    cuts: opts.cuts,
+    clips: opts.clips,
+    skipShotIds: skipForHang,
+    newCutId: opts.newCutId,
+  });
+  if (fileFirst.hung) {
+    return {
+      cuts: fileFirst.cuts,
+      plateTimings: fileFirst.plateTimings,
+      songPlateIds: onList,
+      rowSlices: slices,
+      skipShotIds: skipForHang,
+      hung: true,
+    };
+  }
+  const alreadyHung = (opts.plateTimings || []).some(
+    (t) => hangPlateShotId(t.plateId) === shotId && isRealPlateHang(t),
+  );
+  if (alreadyHung) {
+    return {
+      cuts: opts.cuts,
+      plateTimings: sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t)),
+      songPlateIds: onList,
+      rowSlices: slices,
+      skipShotIds: skip,
+      hung: false,
+    };
+  }
+  const kept = sortPlateTimings(opts.plateTimings || []).filter((t) => !isLeftoverPlateHang(t));
+  const startMs = kept.length ? Math.max(...kept.map((t) => t.endMs)) : 0;
+  const durMs = secToMs(SCRATCH_SONG_SLICE_DEFAULT_SEC);
+  const plateTimings = [
+    ...kept,
+    {
+      plateId: shotId,
+      startMs,
+      endMs: Math.max(startMs + 100, startMs + durMs),
+      sortIndex: kept.length,
+    },
+  ];
+  const pending: ScratchSongCut = {
+    id: opts.newCutId(),
+    plateFile: (opts.plateFile || "").trim(),
+    shotId,
+    startSec: msToSec(startMs),
+    durationSec: SCRATCH_SONG_SLICE_DEFAULT_SEC,
+    status: "pending",
+  };
+  return {
+    cuts: [...opts.cuts, pending],
+    plateTimings,
+    songPlateIds: withSongPlate(onList, shotId),
+    rowSlices: withSongRowSlice(slices),
+    skipShotIds: skipForHang,
+    hung: false,
+  };
+}
+
 /** True when the cuts array is not desk-order / sequential clocks. */
 export function songCutsOrderBroken(
   cuts: ScratchSongCut[],
@@ -236,6 +354,13 @@ export function withSkippedSongPlate(skip: string[], shotId: string): string[] {
 export function withoutSkippedSongPlate(skip: string[], shotId: string): string[] {
   const id = shotId.trim();
   return skip.filter((s) => s !== id);
+}
+
+/** Add on this still — that take can hang. Extra-take skip on another still stays. */
+export function withoutSkippedOpenShot(skip: string[], shotId: string): string[] {
+  const id = hangPlateShotId(shotId.trim());
+  if (!id) return skip;
+  return skip.filter((s) => s !== id && hangPlateShotId(s) !== id);
 }
 
 /** Song list = plates you Add, in order. Same plate can appear more than once. */
@@ -466,12 +591,14 @@ export function plateIdsWaitingForTrack(opts: {
 }): string[] {
   const jobShots = opts.jobShots || [];
   const skipped = new Set(skipSongPlateIds(opts.song));
-  const have = new Set(
-    (opts.song?.plateTimings || [])
-      .filter((x) => !isLeftoverPlateHang(x))
-      .map((x) => (x.plateId || "").trim())
-      .filter(Boolean),
-  );
+  const have = new Set<string>();
+  for (const x of opts.song?.plateTimings || []) {
+    if (isLeftoverPlateHang(x)) continue;
+    const raw = (x.plateId || "").trim();
+    if (!raw) continue;
+    have.add(raw);
+    have.add(hangPlateShotId(raw));
+  }
   const want: string[] = [];
   const push = (id: string, cut?: { plateFile?: string }) => {
     const clean = id.trim();

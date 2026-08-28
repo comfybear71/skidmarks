@@ -40,14 +40,12 @@ import {
   songDeskRowSlices,
   skipSongPlateIds,
   syncSongCutsToDesk,
+  applyAddPlateOnSong,
   withRowSliceAt,
-  withSongPlate,
-  withSongRowSlice,
   withoutPlateParkedCuts,
   withoutSongPlateAt,
   withoutSongRowSliceAt,
   withSkippedSongPlate,
-  withoutSkippedSongPlate,
 } from "@/lib/musicVideoSong";
 import { isMobileSavedVoiceFile } from "@/lib/mobileSavedVoice";
 import { parkMobileClipFile } from "@/lib/mobileClipPark";
@@ -57,14 +55,11 @@ import { copyPlaceStillAsEmptyPlate } from "@/lib/mobilePlateMedia";
 import { landEpisodePlateStill } from "@/lib/mobilePlateRebuild";
 import { emptyStageFarOutStaging } from "@/lib/emptyStagePlate";
 import {
-  addPlateFileFirstHang,
-  addPlateHangOnTrack,
   cutFromPlateTiming,
   hangMissingPlateTimings,
   hangOneClipOnWave,
   hangPlateShotId,
   hangUnhungDoneClips,
-  isRealPlateHang,
   listUnhungDoneClips,
   sliceBoundsForPlate,
 } from "@/lib/musicVideoTrack";
@@ -89,9 +84,10 @@ export const maxDuration = 900;
  *   hang-clip — hang one existing mp4 (same still, second take gets its own clock). File first. No cook.
  *   redo-cut — park that clip, leave the still, wait for Send again.
  *   add-plate — leftover mp4 file-first hangs after the last hung bar
- *     (addPlateFileFirstHang). No waiting cook. Still with no mp4 goes on
- *     the list at 1 × 15s. Already hung + extra mp4 → hang that file after
- *     the last bar. Waiting 0/3 cuts do not block. No cook.
+ *     (applyAddPlateOnSong → addPlateFileFirstHang). No waiting cook on
+ *     siblings. Still with no mp4 goes on the list at 1 × 15s. Already
+ *     hung + extra mp4 → hang that file after the last bar at render
+ *     length. fileFirst.hung / alreadyHung live there. No desk rebuild.
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
  *   List edits clear stuck cooks first — a hung LTX must not lock Add forever.
@@ -733,89 +729,30 @@ export async function POST(req: Request) {
       }
       const livePlate =
         (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim();
-      const fileFirst = addPlateFileFirstHang({
+      // applyAddPlateOnSong → addPlateFileFirstHang. fileFirst.hung /
+      // alreadyHung live there. Keep done clips. No desk rebuild — that
+      // minted WAITING 15s on the 0:15 car when skip hid car~6ir.
+      const added = applyAddPlateOnSong({
         shotId,
         plateFile: livePlate,
         plateTimings: song.plateTimings,
         cuts: song.cuts || [],
         clips: job.clips || [],
         skipShotIds: song.skipShotIds,
-        newCutId: () => newId("cut"),
-      });
-      if (fileFirst.hung) {
-        const updated = await patchMobileGenJob(jobId, {
-          scratchSong: {
-            ...song,
-            cuts: fileFirst.cuts,
-            plateTimings: fileFirst.plateTimings,
-          },
-          error: "",
-        });
-        return NextResponse.json({ ok: true, job: updated });
-      }
-      const alreadyHung = (song.plateTimings || []).some(
-        (t) => hangPlateShotId(t.plateId) === shotId && isRealPlateHang(t),
-      );
-      if (alreadyHung) {
-        return NextResponse.json({ ok: true, job });
-      }
-      const jobShots = job.shots || [];
-      const onList = songDeskPlateIds(song);
-      const slices = withSongRowSlice(songDeskRowSlices(song, onList));
-      const nextIds = withSongPlate(onList, shotId);
-      const plateFileByShotId: Record<string, string> = {};
-      for (const s of jobShots) {
-        const f = (s.plateFile || "").trim();
-        if (s.shotId && f && f !== "__error__") plateFileByShotId[s.shotId] = f;
-      }
-      // Keep done clips — rebuild alone wiped greens when adding a plate.
-      const cuts = syncSongCutsToDesk({
-        songPlateIds: nextIds,
-        rowSlices: slices,
-        cuts: song.cuts || [],
-        plateFileByShotId,
+        songPlateIds: song.songPlateIds,
+        rowSlices: song.rowSlices,
         songSec: song.durationSec,
         newCutId: () => newId("cut"),
       });
-      const nextWin = nextCutAfter(cuts, song.durationSec);
-      const extraIds = plateIdsWaitingForTrack({
-        song: { ...song, cuts, songPlateIds: nextIds },
-        jobShots,
-      });
-      const hangCuts = cuts.filter((c) =>
-        extraIds.includes(shotIdForSongCut(c, jobShots)),
-      );
-      const plateFileFor = (id: string) =>
-        plateFileByShotId[hangPlateShotId(id)] || plateFileByShotId[id] || "";
-      // File first — leftover take after the last hung end. Waiting 0/3
-      // must not block. Use original cuts so hung mp4s stay unique slots.
-      const hung = addPlateHangOnTrack({
-        plateTimings: song.plateTimings,
-        cuts: song.cuts || [],
-        clips: job.clips || [],
-        shotId,
-        hangCuts,
-        extraIds,
-        skipShotIds: withoutSkippedSongPlate(skipSongPlateIds(song), shotId),
-        plateFileFor,
-        newCutId: () => newId("cut"),
-      });
-      const deskFiles = new Set(
-        cuts.map((c) => clipFileBasename(c.clipFile || "")).filter(Boolean),
-      );
-      const extraCuts = hung.cuts.filter((c) => {
-        const file = clipFileBasename(c.clipFile || "");
-        return Boolean(file) && !deskFiles.has(file);
-      });
-      const plateTimings = hung.plateTimings;
+      const nextWin = nextCutAfter(added.cuts, song.durationSec);
       const updated = await patchMobileGenJob(jobId, {
         scratchSong: {
           ...song,
-          cuts: [...cuts, ...extraCuts],
-          plateTimings,
-          songPlateIds: nextIds,
-          rowSlices: slices,
-          skipShotIds: withoutSkippedSongPlate(skipSongPlateIds(song), shotId),
+          cuts: added.cuts,
+          plateTimings: added.plateTimings,
+          songPlateIds: added.songPlateIds,
+          rowSlices: added.rowSlices,
+          skipShotIds: added.skipShotIds,
           sliceStartSec: nextWin.startSec,
           sliceDurationSec: nextWin.durationSec,
         },
