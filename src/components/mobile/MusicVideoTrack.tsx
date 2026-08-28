@@ -23,6 +23,7 @@ import {
   withoutLyricCue,
   plateTimingForShot,
   cutForHungPlate,
+  hangPlateShotId,
   isRealPlateHang,
   resolvePlateTimings,
   stretchPlateEdge,
@@ -981,11 +982,11 @@ export function MusicVideoTrack({
   )
     .filter((x) => isRealPlateHang(x))
     .map((x) => {
-      const row = plateRows.find((p) => p.shotId === x.plateId);
+      const row = plateRows.find((p) => p.shotId === hangPlateShotId(x.plateId));
       return { ...x, label: row?.title || x.plateId };
     });
   const plateBlocks: WavePlateBlock[] = (stretchTimings || savedPlateBlocks).map((t) => {
-    const row = plateRows.find((p) => p.shotId === t.plateId);
+    const row = plateRows.find((p) => p.shotId === hangPlateShotId(t.plateId));
     const saved = savedPlateBlocks.find((b) => b.plateId === t.plateId);
     return { ...t, label: row?.title || saved?.label || t.plateId };
   });
@@ -996,12 +997,12 @@ export function MusicVideoTrack({
     const hung = plateBlocks
       .filter((block) => isRealPlateHang(block))
       .map((block) => {
-        const row = plateRows.find((p) => p.shotId === block.plateId);
+        const row = plateRows.find((p) => p.shotId === hangPlateShotId(block.plateId));
         return {
           shotId: block.plateId,
           title: row?.title || block.label,
           plateFile: row?.plateFile || "",
-          timing: row?.timing || block,
+          timing: block,
           onSong: true,
         };
       });
@@ -2079,43 +2080,10 @@ export function MusicVideoTrack({
             </p>
           ) : null}
 
-          {/* Off-song stills stay a phone-width strip. Hung stills sit on the
-              wave above — same left/width as the teal bar (endMs − startMs). */}
-          {(filmItems.some((cell) => !cell.onSong) || !compact || Boolean(onCreatePlate)) ? (
+          {/* + creates a still. Hang is STILLS Add, or Hang on a CLIPS thumb.
+              Off-song ghosts copied STILLS and only confused the desk. */}
+          {!compact || Boolean(onCreatePlate) ? (
             <div className="m-track-rail">
-              <div className="m-track-film">
-                {filmItems
-                  .filter((cell) => !cell.onSong)
-                  .map((cell) => {
-                    const on = picked?.shotId === cell.shotId;
-                    return (
-                      <button
-                        type="button"
-                        key={cell.shotId}
-                        className={`m-track-film-cell${on ? " is-on" : ""}`}
-                        onClick={() => setPickedId(cell.shotId)}
-                        title={cell.title}
-                      >
-                        {hungClipFileForPlate(job, cell.shotId) || cell.plateFile ? (
-                          <ClipFrameThumb
-                            clipSrc={
-                              hungClipFileForPlate(job, cell.shotId)
-                                ? mobileClipSrc(job, hungClipFileForPlate(job, cell.shotId))
-                                : ""
-                            }
-                            stillSrc={
-                              cell.plateFile ? mobileLocationStillUrl(job, cell.plateFile) : ""
-                            }
-                          />
-                        ) : (
-                          <span className="m-track-rail-empty" />
-                        )}
-                        <span className="m-track-rail-label">{cell.title}</span>
-                        <span className="m-track-film-len">off</span>
-                      </button>
-                    );
-                  })}
-              </div>
               <button
                 type="button"
                 className={`m-track-rail-add${pickOpen ? " is-open" : ""}`}
@@ -2224,7 +2192,7 @@ export function MusicVideoTrack({
                   <button
                     type="button"
                     className="m-track-btn"
-                    onClick={() => onOpenPlate(picked.shotId)}
+                    onClick={() => onOpenPlate(hangPlateShotId(picked.shotId))}
                   >
                     Open
                   </button>

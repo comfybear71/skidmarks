@@ -36,6 +36,8 @@ export function PlateClipThumbs({
   posterByShotId,
   layout = "stack",
   onRemoveTake,
+  onHangClip,
+  hangBusyFile,
   removeDisabled,
 }: {
   job: {
@@ -59,6 +61,9 @@ export function PlateClipThumbs({
   layout?: "stack" | "strip";
   /** /m and Scratch — park one take (mp4 stays in _cleared/ or Blob). */
   onRemoveTake?: (opts: { beatId: string; fileName: string }) => void;
+  /** Same still, second mp4 — hang this file on the wave. No cook. */
+  onHangClip?: (opts: { beatId: string; fileName: string; shotId: string }) => void;
+  hangBusyFile?: string | null;
   removeDisabled?: boolean;
 }) {
   const songCuts = job.scratchSong?.cuts || [];
@@ -68,6 +73,7 @@ export function PlateClipThumbs({
     key: string;
     file: string;
     beatId: string;
+    shotId: string;
     poster?: string;
     takeLabel: string;
     preload: boolean;
@@ -82,6 +88,7 @@ export function PlateClipThumbs({
         key: `${clip.beatId}-${file}`,
         file,
         beatId: clip.beatId,
+        shotId: (clip.shotId || "").trim(),
         poster: shotPoster,
         takeLabel: stableClipTakeLabel({
           fileName: file,
@@ -119,6 +126,18 @@ export function PlateClipThumbs({
             removeDisabled={removeDisabled}
           />
           <span className="m-plate-clip-plate">{`clip ${i + 1}`}</span>
+          {onHangClip && row.takeLabel === "off" && row.shotId ? (
+            <button
+              type="button"
+              className="m-plate-clip-hang"
+              disabled={Boolean(removeDisabled) || hangBusyFile === row.file}
+              onClick={() =>
+                onHangClip({ beatId: row.beatId, fileName: row.file, shotId: row.shotId })
+              }
+            >
+              {hangBusyFile === row.file ? "…" : "Hang"}
+            </button>
+          ) : null}
         </div>
       ))}
     </div>
