@@ -3323,6 +3323,13 @@ span.scratch-history-blob {
   gap: 6px;
 }
 
+.m-plate-add-engines {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .m-track-engines {
   display: flex;
   flex-wrap: wrap;

@@ -14,7 +14,7 @@ import { stackedClipFiles } from "@/lib/mobilePlateClips";
 import { orderedJobClips } from "@/lib/orderedJobClips";
 import { useMobileAssist } from "./useMobileAssist";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
-import { PositionPromptPanel, LtxImageMotionPanel, MuteMvEnginePanel } from "@/components/mobile/ShotPromptPanels";
+import { PositionPromptPanel, LtxImageMotionPanel } from "@/components/mobile/ShotPromptPanels";
 import {
   applyBibleTokens,
   stripBibleSoloLock,
@@ -53,19 +53,17 @@ import type { ShowStyleId } from "@/lib/showStylePresets";
 import { applyStylePositionGold, stylePositionGold } from "@/lib/stylePositionGold";
 import {
   buildDefaultBeatMotion,
-  buildMuteMvMotionLock,
   clearLtxMotionDraft,
-  extractMuteMvMotionSlot,
   looksLikePlatePositionPrompt,
   pickLtxMotionBody,
   readLtxMotionDraft,
+  readMvClipEngine,
   readMvEngine,
-  readMvMotionSlot,
   storedMotionNeedsRebuild,
   stripLtxLipSyncLead,
   writeLtxMotionDraft,
+  writeMvClipEngine,
   writeMvEngine,
-  writeMvMotionSlot,
   type MuteMvEngine,
 } from "@/lib/mobileImageMotion";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
@@ -2447,9 +2445,16 @@ function ShotLineEditor({
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {onAddToSong ? (
             <>
-              <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
-                {songAdding ? "Adding…" : "Add"}
-              </MobilePrimaryButton>
+              <div className="m-plate-add-engines">
+                <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
+                  {songAdding ? "Adding…" : "Add"}
+                </MobilePrimaryButton>
+                <PlateEngineButtons
+                  jobId={jobId}
+                  shotId={shot.id}
+                  beatId={shot.beats[0]?.id || ""}
+                />
+              </div>
               {onAddCast ? (
                 <MobilePrimaryButton tone="ghost" onClick={onAddCast}>
                   Add someone
@@ -2468,13 +2473,19 @@ function ShotLineEditor({
           )}
         </div>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+        <div className="m-plate-add-engines">
         {onAddToSong ? (
           <MobilePrimaryButton busy={songAdding} onClick={onAddToSong}>
             {songAdding ? "Adding…" : "Add"}
           </MobilePrimaryButton>
         ) : null}
-        {styleId === "music_video" ? null : (
+        {styleId === "music_video" ? (
+          <PlateEngineButtons
+            jobId={jobId}
+            shotId={shot.id}
+            beatId={speakingBeats[0]?.id || shot.beats[0]?.id || ""}
+          />
+        ) : (
           <>
             <AnotherLineButton
               jobId={jobId}
@@ -2622,13 +2633,6 @@ function BeatLineEditor({
   const [redrawing, setRedrawing] = useState(false);
   const [error, setError] = useState("");
   const [ltxOpen, setLtxOpen] = useState(false);
-  const [mvEngine, setMvEngine] = useState<MuteMvEngine>(() =>
-    songDesk ? readMvEngine(jobId, beat.id) : "ltx",
-  );
-  const [h3Ready, setH3Ready] = useState(false);
-  const [mvSlot, setMvSlot] = useState(() =>
-    songDesk ? readMvMotionSlot(jobId, beat.id) ?? "" : "",
-  );
   // Bible already ran on Draw — keep this shut unless they need Redo still.
   const [positionOpen, setPositionOpen] = useState(false);
   const [positionDraft, setPositionDraft] = useState<string | null>(null);
@@ -2657,17 +2661,6 @@ function BeatLineEditor({
   });
   const positionBody = positionDraft ?? (positionPrompt.trim() ? positionPrompt : scriptedPosition);
   const positionDirty = positionDraft !== null && positionDraft.trim() !== (positionPrompt || "").trim();
-  const muteLock = useMemo(
-    () =>
-      buildMuteMvMotionLock({
-        styleId: styleId as ShowStyleId,
-        speaker: beat.speaker,
-        lookLock,
-        shotSpeakers,
-        staging: positionBody,
-      }),
-    [beat.speaker, lookLock, positionBody, shotSpeakers, styleId],
-  );
 
   useEffect(() => {
     setPositionDraft(null);
@@ -2675,33 +2668,6 @@ function BeatLineEditor({
     // Do not depend on positionBibleIds identity — resolveShotBibleIds
     // returns a new array every render and was wiping chip picks.
   }, [shotId, positionPrompt]);
-
-  useEffect(() => {
-    if (!songDesk) return;
-    setMvEngine(readMvEngine(jobId, beat.id));
-    const drafted = readMvMotionSlot(jobId, beat.id);
-    if (drafted !== null) {
-      setMvSlot(drafted);
-      return;
-    }
-    setMvSlot(extractMuteMvMotionSlot(beat.imageMotion || "", muteLock));
-  }, [beat.id, beat.imageMotion, jobId, muteLock, songDesk]);
-
-  useEffect(() => {
-    if (!songDesk) return;
-    let cancelled = false;
-    fetch("/api/crash/mobile/scratch")
-      .then((res) => res.json())
-      .then((data: { minimax?: boolean }) => {
-        if (!cancelled && typeof data.minimax === "boolean") setH3Ready(data.minimax);
-      })
-      .catch(() => {
-        /* H3 stays dead */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [songDesk]);
 
   // Sticky voice like Scratch — survive take switches / parent story rewrites.
   useEffect(() => {
@@ -3128,23 +3094,6 @@ function BeatLineEditor({
         aiError={positionAssist.aiError}
       />
 
-      {songDesk ? (
-        <MuteMvEnginePanel
-          engine={mvEngine}
-          onEngine={(next) => {
-            setMvEngine(next);
-            writeMvEngine(jobId, beat.id, next);
-          }}
-          h3Ready={h3Ready}
-          motionLock={muteLock}
-          motionSlot={mvSlot}
-          onMotionSlot={(next) => {
-            setMvSlot(next);
-            writeMvMotionSlot(jobId, beat.id, next);
-          }}
-          disabled={saving}
-        />
-      ) : (
       <LtxImageMotionPanel
         open={ltxOpen}
         onToggle={() => setLtxOpen((open) => !open)}
@@ -3164,7 +3113,6 @@ function BeatLineEditor({
         aiBusy={motionAssist.aiBusy}
         aiError={motionAssist.aiError}
       />
-      )}
       {songDesk ? null : (
       <MobilePrimaryButton
         disabled={
