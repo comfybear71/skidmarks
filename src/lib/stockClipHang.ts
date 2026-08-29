@@ -16,7 +16,8 @@ export function clipOwnsHangPlate(clipShotId: string, hangShotId: string): boole
 
 /**
  * Put a finished stock/BYO/Send mp4 on TRACK. First cook on an empty cut
- * stamps that cut only. A second cook appends (`shotId~tail`) — never
+ * stamps that cut only — exact hang id (`jack~still2`), not every cut
+ * with the still's shotId. A second cook appends (`shotId~tail`) — never
  * replaces clip 4 or clip 5's clipFile. Does not invent 15s rows when
  * plateTimings is empty.
  */

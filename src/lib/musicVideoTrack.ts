@@ -497,13 +497,21 @@ export function cookDurationFromHungBar(
   return { durationSec, note: "" };
 }
 
-/** Hung bar clock wins. A stale cut at 5s must not cook 5 when the bar is 15. */
+/**
+ * Hung bar clock wins. A stale cut at 5s must not cook 5 when the bar is 15.
+ * Same still twice: cut.shotId / hang id (`jack~still2`) wins. First
+ * `plateId === originalShotId` match is hang 1 — that used to cook bar 2
+ * on hang 1's clock and stamp clip 1 onto the second bar.
+ */
 export function sliceBoundsForPlate(opts: {
   song: ScratchSong;
   shotId: string;
   cut?: ScratchSongCut;
 }): { startSec: number; durationSec: number } {
-  const timing = (opts.song.plateTimings || []).find((p) => p.plateId === opts.shotId);
+  const hangId = (opts.cut?.shotId || "").trim() || (opts.shotId || "").trim();
+  const timing =
+    (opts.song.plateTimings || []).find((p) => p.plateId === hangId) ||
+    (opts.song.plateTimings || []).find((p) => p.plateId === opts.shotId);
   if (timing && timing.endMs > timing.startMs) {
     const startSec = msToSec(timing.startMs);
     const durationSec = msToSec(timing.endMs - timing.startMs);
@@ -775,6 +783,35 @@ export function extraStillHangPlateId(
     id = `${shot}${EXTRA_HANG_SEP}still${n}`;
   }
   return id;
+}
+
+/**
+ * Send / cook this hang — not the first same-still bar. Picked extra
+ * id wins. Else the empty extra hang (`~still2`). Else the id he passed.
+ */
+export function hangIdForSend(opts: {
+  shotId: string;
+  plateTimings?: PlateTiming[];
+  cuts?: ScratchSongCut[];
+  pickedId?: string;
+}): string {
+  const raw = (opts.shotId || "").trim();
+  if (!raw) return "";
+  const timings = sortPlateTimings(opts.plateTimings || []).filter((t) => isRealPlateHang(t));
+  const still = hangPlateShotId(raw);
+  const hangs = timings.filter((t) => hangPlateShotId(t.plateId) === still);
+  const picked = (opts.pickedId || "").trim();
+  if (picked && hangs.some((t) => t.plateId === picked)) return picked;
+  if (raw !== still && timings.some((t) => t.plateId === raw)) return raw;
+  const empty = hangs.find((t) => {
+    const cut = cutForHungPlate({
+      cuts: opts.cuts,
+      shotId: t.plateId,
+      timing: t,
+    });
+    return !hangClipBasename(cut?.clipFile || "");
+  });
+  return empty?.plateId || raw;
 }
 
 function hangClipBasename(clipFile: string): string {

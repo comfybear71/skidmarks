@@ -6,6 +6,7 @@ import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
 import {
   clipFileBasename,
   nextHumanClipName,
+  songCookAppendsNewClip,
   rememberClipTake,
   takenClipFileNames,
 } from "./mobilePlateClips";
@@ -64,7 +65,7 @@ import {
 import { probeDurationSeconds } from "./mediaDuration";
 import { writeSilentMp3 } from "./silentAudio";
 import { ltxDurationFrames } from "./ltxDuration";
-import { applyLandedClipDuration, hangOneClipOnWave } from "./musicVideoTrack";
+import { applyLandedClipDuration, hangOneClipOnWave, hangPlateShotId } from "./musicVideoTrack";
 import { newId, sortableId } from "./types";
 
 async function ensureComfyReady(): Promise<string> {
@@ -100,7 +101,9 @@ export async function runScratchLtxClip(opts: {
   emptyFrame?: boolean;
   nobodyInShot?: boolean;
 }): Promise<MobileGenJob> {
-  const { story, shotId, sceneId, beatId } = opts;
+  const { story, sceneId, beatId } = opts;
+  const hangId = (opts.shotId || "").trim();
+  const shotId = hangPlateShotId(hangId) || hangId;
   let job = opts.job;
   const jobId = job.id;
   const songEarly = job.scratchSong;
@@ -370,9 +373,13 @@ export async function runScratchLtxClip(opts: {
   ) {
     return job;
   }
-  // A new cook appends. Parking clip 4 then naming from the done-cut count
-  // wrote 05_ over clip 5 and stamped that file onto clip 4.
-  const appendTake = Boolean(existingFile);
+  // A new cook appends. Same beat + a file already on clip 1 used to
+  // rememberClipTake over that row (fourth cook of the first plate).
+  const appendTake = songCookAppendsNewClip({
+    cutClipFile: existingFile,
+    clips: job.clips,
+    beatId,
+  });
 
   if (!appendTake) {
     const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
@@ -380,7 +387,7 @@ export async function runScratchLtxClip(opts: {
           c.beatId === beatId
             ? {
                 ...c,
-                shotId,
+                shotId: hangId || shotId,
                 sceneId,
                 speaker,
                 line,
@@ -395,7 +402,7 @@ export async function runScratchLtxClip(opts: {
           ...(job.clips || []),
           {
             beatId,
-            shotId,
+            shotId: hangId || shotId,
             sceneId,
             clipFile: "",
             clipStatus: "pending",
@@ -464,7 +471,7 @@ export async function runScratchLtxClip(opts: {
         ...(job.clips || []),
         {
           beatId: takeBeat,
-          shotId,
+          shotId: hangId || shotId,
           sceneId,
           clipFile: clipName,
           clipStatus: "done",
@@ -479,7 +486,7 @@ export async function runScratchLtxClip(opts: {
       const hung = hangOneClipOnWave({
         plateTimings: job.scratchSong?.plateTimings,
         cuts: job.scratchSong?.cuts || [],
-        shotId,
+        shotId: hangId || shotId,
         plateFile: wantPlate,
         clipFile: clipName,
         durationSec: probed,

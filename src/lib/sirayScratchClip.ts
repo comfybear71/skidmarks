@@ -10,11 +10,11 @@ import path from "path";
 import { resolveGenOrPackPlate } from "./crashActivePack";
 import { resolveMobileBeatAudio } from "./resolveMobileBeatAudio";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
-import { rememberClipTake } from "./mobilePlateClips";
+import { rememberClipTake, withSongCookPendingClip } from "./mobilePlateClips";
 import { probeDurationSeconds } from "./mediaDuration";
 import { CRASH_DIR } from "./paths";
 import { stripLtxLipSyncLead } from "./mobileImageMotion";
-import { patchMobileGenJob, readMobileGenJob, type MobileClipUnit, type MobileGenJob } from "./mobileGenJob";
+import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "./mobileGenJob";
 import { mobileMediaFolder } from "./mobileJobFolder";
 import type { CrashStoryDoc } from "./crashStoryTypes";
 import { sortableId } from "./types";
@@ -33,6 +33,7 @@ import {
   type SirayI2vId,
 } from "./sirayI2v";
 import type { ScratchClipTask } from "./mobileScratch";
+import { hangPlateShotId } from "./musicVideoTrack";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
@@ -71,7 +72,9 @@ export async function submitScratchSirayClip(opts: {
   if (!sirayConfigured()) {
     throw new Error("Missing SIRAY_API_KEY — https://console.siray.ai/keys");
   }
-  const { story, shotId, sceneId, beatId } = opts;
+  const { story, sceneId, beatId } = opts;
+  const hangId = (opts.shotId || "").trim();
+  const shotId = hangPlateShotId(hangId) || hangId;
   let job = opts.job;
   const jobId = job.id;
   const shot = job.shots.find((s) => s.shotId === shotId);
@@ -119,39 +122,20 @@ export async function submitScratchSirayClip(opts: {
     imageOnly: true,
   });
 
-  const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)
-    ? (job.clips || []).map((c) =>
-        c.beatId === beatId
-          ? {
-              ...c,
-              shotId,
-              sceneId,
-              speaker,
-              line,
-              voiceFile,
-              imageMotion: prompt,
-              clipStatus: "pending",
-              error: "",
-            }
-          : c,
-      )
-    : [
-        ...(job.clips || []),
-        {
-          beatId,
-          shotId,
-          sceneId,
-          clipFile: "",
-          clipStatus: "pending",
-          error: "",
-          speaker,
-          line,
-          voiceFile,
-          imageMotion: prompt,
-        },
-      ];
+  const pending = withSongCookPendingClip({
+    clips: job.clips || [],
+    beatId,
+    hangId: hangId || shotId,
+    sceneId,
+    speaker,
+    line,
+    voiceFile,
+    imageMotion: prompt,
+    newBeatId: () => `cut:${sortableId("take")}`,
+  });
+  const cookBeatId = pending.cookBeatId;
 
-  job = (await patchMobileGenJob(jobId, { clips, error: "" }))!;
+  job = (await patchMobileGenJob(jobId, { clips: pending.clips, error: "" }))!;
 
   try {
     const taskId = await siraySubmitVideoAsync({
@@ -166,9 +150,9 @@ export async function submitScratchSirayClip(opts: {
     });
     const task: ScratchClipTask = {
       taskId,
-      shotId,
+      shotId: hangId || shotId,
       sceneId,
-      beatId,
+      beatId: cookBeatId,
       i2v,
       model: spec.model,
       label: spec.label,
@@ -178,7 +162,7 @@ export async function submitScratchSirayClip(opts: {
     return { job, task, i2v, model: spec.model, label: spec.label };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    job = await markClipError(jobId, beatId, message);
+    job = await markClipError(jobId, cookBeatId, message);
     throw e;
   }
 }
