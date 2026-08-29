@@ -88,6 +88,7 @@ import {
   readMvMuteAction,
   readMvNobodyInShot,
   resolveMvSendEngine,
+  storedMotionNeedsRebuild,
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
 import { MINIMAX_H3_ID, withMinimaxH3CameraCommand } from "@/lib/minimaxH3";
@@ -1419,7 +1420,15 @@ export function MusicVideoTrack({
       const slot = live !== null ? live : extractMuteMvMotionSlot(stored, lock);
       if (targetBeatId) writeMvMotionSlot(job.id, targetBeatId, slot);
       body = composeMuteMvMotion(lock, slot);
-    } else if (imageMotionLooksMuteLock(stored) || !stored.trim()) {
+    } else if (
+      imageMotionLooksMuteLock(stored) ||
+      !stored.trim() ||
+      storedMotionNeedsRebuild(
+        stored,
+        shot?.staging || "",
+        speaker || shot?.title || "",
+      )
+    ) {
       body = buildScratchSongLtxMotion({
         styleId: (job.styleId || "music_video") as ShowStyleId,
         speaker: speaker || shot?.title || "The performer",
