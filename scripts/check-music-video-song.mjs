@@ -303,7 +303,7 @@ assert.doesNotMatch(
 );
 assert.match(songUi, /shortPlateLabel/);
 assert.match(songUi, /deskRowAllDone/);
-assert.match(songRoute, /Still with no mp4 hangs at body\.durationSec \(slider 5–40\)/);
+assert.match(songRoute, /Still with no mp4 hangs at body\.durationSec \(slider 5–60\)/);
 assert.match(songRoute, /leftover mp4 file-first hangs in a gap or at 0/);
 assert.match(songUi, /runOneCut/);
 assert.doesNotMatch(songUi, /Send next/);
@@ -1295,7 +1295,9 @@ assert.doesNotMatch(
   assert.equal(addPlateHangDurationSec(20), 20, "slider 20 hangs 20");
   assert.equal(addPlateHangDurationSec(40), 40, "slider 40 hangs 40");
   assert.equal(addPlateHangDurationSec(undefined), 15, "missing slider still defaults 15");
-  assert.equal(addPlateHangDurationSec(50), 40, "Add cap is hang 40, not H3 15");
+  assert.equal(addPlateHangDurationSec(44), 44, "slider 44 hangs 44");
+  assert.equal(addPlateHangDurationSec(50), 50, "Add cap is hang 60, not H3 15");
+  assert.equal(addPlateHangDurationSec(70), 60, "Add cap is hang 60");
   const slider20 = applyAddPlateOnSong({
     shotId: "jack_ghost",
     plateFile: "jack.png",

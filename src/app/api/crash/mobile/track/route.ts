@@ -71,7 +71,7 @@ function cleanPlateTimings(raw: unknown): PlateTiming[] | undefined {
  *   save-draft — pre-lock peaks/markers/timings on job.trackDraft
  *   save-track — post-lock peaks/markers on scratchSong
  *   set-plate-timing — one plate in/out (+ sync cut row when plate exists)
- *   set-plate-duration — 5–40 slider (10 stays 10). Mints a bar if this still is not hung. Followers slide. No cook.
+ *   set-plate-duration — 5–60 slider (10 stays 10, 44 stays 44). Mints a bar if this still is not hung. Followers slide. No cook.
  *   move-plate — slide this bar into the empty clock on that side. No swap. No cook.
  *   set-who-plays — Forgotten Jack sings + muted trumpet actually plays. Sax stays off.
  *   set-stock-look — free-film theme / colour / type for Support searches
