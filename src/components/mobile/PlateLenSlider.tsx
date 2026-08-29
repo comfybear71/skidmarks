@@ -33,9 +33,10 @@ export function PlateLenSlider({
 }) {
   const live = valueSec > 0 ? valueSec : SCRATCH_SONG_SLICE_DEFAULT_SEC;
   const [draft, setDraft] = useState(String(live));
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
-    setDraft(String(live));
-  }, [live]);
+    if (!focused) setDraft(String(live));
+  }, [live, focused]);
 
   function commit(raw: number) {
     const sec = clampHangLengthSec(raw);
@@ -45,7 +46,14 @@ export function PlateLenSlider({
     onCommit(sec);
   }
 
-  const shown = clampHangLengthSec(Number(draft) || live);
+  const typed = Number(draft);
+  const shown =
+    Number.isFinite(typed) && typed > 0
+      ? typed >= HANG_LENGTH_MIN_SEC
+        ? clampHangLengthSec(typed)
+        : typed
+      : live;
+  const sliderSec = clampHangLengthSec(Number.isFinite(typed) && typed > 0 ? typed : live);
 
   return (
     <div className="m-track-pick-len" role="group" aria-label="Clip length">
@@ -56,7 +64,7 @@ export function PlateLenSlider({
         max={HANG_LENGTH_MAX_SEC}
         step={1}
         aria-label="Seconds on this still"
-        value={shown}
+        value={sliderSec}
         disabled={disabled}
         onChange={(e) => {
           const sec = clampHangLengthSec(Number(e.target.value));
@@ -66,20 +74,24 @@ export function PlateLenSlider({
         }}
       />
       <input
-        type="number"
-        min={HANG_LENGTH_MIN_SEC}
-        max={HANG_LENGTH_MAX_SEC}
-        step={0.1}
+        type="text"
+        className="m-track-len-box"
         inputMode="decimal"
         aria-label="Seconds on the song"
         value={draft}
         disabled={disabled}
+        onFocus={() => setFocused(true)}
         onChange={(e) => {
           setDraft(e.target.value);
           const n = Number(e.target.value);
-          if (Number.isFinite(n) && n > 0) onDraft?.(clampHangLengthSec(n));
+          if (Number.isFinite(n) && n >= HANG_LENGTH_MIN_SEC && n <= HANG_LENGTH_MAX_SEC) {
+            onDraft?.(n);
+          }
         }}
-        onBlur={() => commit(Number(draft))}
+        onBlur={() => {
+          setFocused(false);
+          commit(Number(draft));
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -113,8 +125,8 @@ export function PlateHangLenControl({
   const timing = plateTimingForShot(song, trackDraft, shotId);
   const valueSec = hungBarDurationSec(timing) || 0;
   useEffect(() => {
-    if (jobId && shotId) {
-      writeHangLengthDraft(jobId, shotId, valueSec > 0 ? valueSec : SCRATCH_SONG_SLICE_DEFAULT_SEC);
+    if (jobId && shotId && valueSec > 0) {
+      writeHangLengthDraft(jobId, shotId, valueSec);
     }
   }, [jobId, shotId, valueSec]);
 
@@ -132,6 +144,7 @@ export function PlateHangLenControl({
           plateId: shotId,
           ...(timing ? { startSec: msToSec(timing.startMs) } : {}),
           durationSec: sec,
+          ...(Number(merged?.durationSec) > 0 ? { songDurationSec: Number(merged.durationSec) } : {}),
         }),
       });
       const raw = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);

@@ -423,20 +423,29 @@ assert.match(
 );
 assert.doesNotMatch(mobileCss, /\.m-track-len-chip/, "chip chrome is gone");
 assert.match(mobileCss, /\.m-track-len-slider/);
-assert.match(mobileCss, /\.m-track-pick-len input\[type="number"\]/);
+assert.match(mobileCss, /\.m-track-pick-len input\.m-track-len-box/);
 assert.match(mobileCss, /width: 2\.3rem/, "seconds box is half the old 4.6rem");
 {
   const lenUi = readFileSync(join(here, "../src/components/mobile/PlateLenSlider.tsx"), "utf8");
   assert.match(lenUi, /type="range"/);
   assert.match(lenUi, /m-track-len-slider/);
+  assert.match(lenUi, /type="text"/);
+  assert.match(lenUi, /inputMode="decimal"/);
+  assert.match(lenUi, /m-track-len-box/);
   assert.match(lenUi, /min=\{HANG_LENGTH_MIN_SEC\}/);
   assert.match(lenUi, /max=\{HANG_LENGTH_MAX_SEC\}/);
   assert.match(lenUi, /step=\{1\}/);
   assert.match(lenUi, /aria-label="Seconds on the song"/);
   assert.match(lenUi, /set-plate-duration/);
   assert.match(lenUi, /PlateHangLenControl/);
+  assert.match(lenUi, /valueSec > 0/, "do not write 15 over a typed 9 when the still is not hung");
   assert.doesNotMatch(lenUi, /snapHangLengthSec/);
   assert.doesNotMatch(lenUi, /step=\{5\}/, "slider is continuous 5–40, not 5/10/15 snaps");
+  assert.doesNotMatch(
+    lenUi,
+    /onDraft\?\.\(clampHangLengthSec\(n\)\)/,
+    "typing 1 of 19 must not clamp the box to 5",
+  );
 }
 assert.equal(HANG_LENGTH_MIN_SEC, 5);
 assert.equal(HANG_LENGTH_MAX_SEC, 40);
@@ -606,6 +615,11 @@ assert.match(
 );
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
+  /action === "remember-song-duration"/,
+);
+assert.match(trackUi, /remember-song-duration/);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/track/route.ts"), "utf8"),
   /ensurePlateDuration/,
 );
 assert.match(
@@ -725,6 +739,21 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   );
   assert.equal(singingHangStartMs({ singing: false, lyricCues: silverCues, plateTimings: thirtyIntro }), null);
   assert.equal(singingHangStartMs({ singing: true, lyricCues: silverCues, plateTimings: thirtyIntro }), 31000);
+  assert.equal(
+    singingHangStartMs({ singing: true, lyricCues: silverCues, plateTimings: [] }),
+    null,
+    "first Add on an empty wave starts at 0 — not the first lyric pin",
+  );
+  const emptySing = nextPlateHangWindow([], {
+    singing: true,
+    lyricCues: [
+      { lineIndex: 3, atMs: 15464 },
+      { lineIndex: 4, atMs: 22000 },
+    ],
+    durationSec: 9,
+  });
+  assert.equal(emptySing.startMs, 0, "empty wave first Add is 0, not 0:15.5");
+  assert.equal(emptySing.endMs, 9000, "empty wave first Add keeps the typed 9s");
   assert.equal(
     singingHangStartMs({
       singing: true,
@@ -889,6 +918,22 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(placed?.[1].startMs, 45000);
   assert.equal(placed?.[1].endMs, 53000);
   assert.equal(withPlateWindow([], "missing", 1000, 8000, 180000), null);
+  const typedNine = withPlateWindow(
+    [{ plateId: "a", startMs: 0, endMs: 1000, sortIndex: 0 }],
+    "a",
+    0,
+    9000,
+    0,
+  );
+  assert.equal(typedNine?.[0].startMs, 0);
+  assert.equal(
+    typedNine?.[0].endMs,
+    9000,
+    "typed 9 stays 9s when song length is missing — do not invent a 1s song",
+  );
+  const mintedNine = ensurePlateDuration([], "fresh", 9000, 0);
+  assert.equal(mintedNine?.[0].startMs, 0);
+  assert.equal(mintedNine?.[0].endMs, 9000, "mint a 9s bar when durationSec is 0");
 
   const jumped = withPlateWindow(
     [

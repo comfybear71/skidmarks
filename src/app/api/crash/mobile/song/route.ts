@@ -798,8 +798,9 @@ export async function POST(req: Request) {
         support: body.support === true || isSupportShot(storyShot),
       });
       // applyAddPlateOnSong → addPlateFileFirstHang. fileFirst.hung /
-      // alreadyHung live there. Singing first hang uses lyricCues
-      // startMs (0:31 Silver lines), not max(endMs) after intro clips.
+      // alreadyHung live there. Empty wave starts at 0 + slider seconds.
+      // Singing after a real hang uses lyricCues (0:31 Silver lines),
+      // not max(endMs) after intro clips.
       // Other bars keep their times. Keep done clips. Slider duration stays.
       const added = applyAddPlateOnSong({
         shotId,
