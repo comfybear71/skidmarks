@@ -597,7 +597,7 @@ export function lyricPinTakenByHang(
   t: { startMs?: number; endMs?: number } | null | undefined,
   atMs: number,
 ): boolean {
-  if (!isRealPlateHang(t)) return false;
+  if (!t || !isRealPlateHang(t)) return false;
   const start = Number(t.startMs);
   const end = Number(t.endMs);
   const pin = Math.round(Number(atMs));
