@@ -2047,6 +2047,11 @@ assert.match(songRoute, /nobodyInShot: body.nobodyInShot === true/);
 assert.match(songRoute, /writeScratchCookProgress/, "song run writes the live Send step");
 assert.match(scratchClip, /onProgress:/, "LTX Send keeps the Crash Lab steps");
 assert.match(scratchClip, /writeScratchCookProgress/, "LTX steps land on the job");
+assert.doesNotMatch(
+  readFileSync(join(here, "../src/lib/scratchCookProgress.ts"), "utf8"),
+  /mobileGenJob/,
+  "phone cook words must not import Node job IO",
+);
 assert.match(scratchClip, /step: "error"/, "LTX fail writes the real error on the job");
 
 {

@@ -39,11 +39,11 @@ import {
 import { resolveFfmpeg } from "./mobileStitch";
 import type { ScratchClipTask } from "./mobileScratch";
 import { hangPlateShotId } from "./musicVideoTrack";
+import { h3PhaseToCookStep } from "./scratchCookProgress";
 import {
   clearScratchCookProgress,
-  h3PhaseToCookStep,
   writeScratchCookProgress,
-} from "./scratchCookProgress";
+} from "./scratchCookStore";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");

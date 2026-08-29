@@ -70,7 +70,7 @@ import { newId, sortableId } from "./types";
 import {
   clearScratchCookProgress,
   writeScratchCookProgress,
-} from "./scratchCookProgress";
+} from "./scratchCookStore";
 
 async function ensureComfyReady(): Promise<string> {
   const { preferComfyCloudLtx } = await import("./ltxCloudIa2v");

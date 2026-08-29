@@ -72,7 +72,7 @@ import {
 } from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 import { findStoryShot, isSupportShot } from "@/lib/stockFootage";
-import { writeScratchCookProgress } from "@/lib/scratchCookProgress";
+import { writeScratchCookProgress } from "@/lib/scratchCookStore";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
