@@ -91,6 +91,41 @@ export function hangDoneClipOnTrack(opts: {
   };
 }
 
+/** MATH canvas record is webm. TRACK plays mp4. Silent — our mix stays on the wave. */
+export function transcodeToSilentMp4(srcPath: string, destPath: string): boolean {
+  const { bin } = resolveFfmpeg();
+  if (!bin) return false;
+  try {
+    execFileSync(
+      bin,
+      [
+        "-y",
+        "-i",
+        srcPath,
+        "-an",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        destPath,
+      ],
+      { timeout: 120_000, windowsHide: true },
+    );
+    return fs.existsSync(destPath) && fs.statSync(destPath).size > 0;
+  } catch {
+    if (fs.existsSync(destPath)) {
+      try {
+        fs.unlinkSync(destPath);
+      } catch {
+        /* leave dest missing */
+      }
+    }
+    return false;
+  }
+}
+
 /** Stock often ships with music we cannot keep under our mix. */
 export function stripStockAudio(mp4Path: string): void {
   const { bin } = resolveFfmpeg();

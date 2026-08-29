@@ -15,6 +15,7 @@ import { orderedJobClips } from "@/lib/orderedJobClips";
 import { useMobileAssist } from "./useMobileAssist";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
 import { PositionPromptPanel, LtxImageMotionPanel, MuteMvMotionHole } from "@/components/mobile/ShotPromptPanels";
+import { MathPatternHole } from "@/components/mobile/MathPatternHole";
 import {
   applyBibleTokens,
   stripBibleSoloLock,
@@ -2660,7 +2661,9 @@ function ShotLineEditor({
                   onSend={onSendStill}
                 />
               </div>
-              {styleId === "music_video" && muteAction ? (
+              {styleId === "music_video" && mvEngine === "math" && enginePromptOpen ? (
+                <MathPatternHole jobId={jobId} shotId={shot.id} />
+              ) : styleId === "music_video" && muteAction ? (
                 <EmptyMvMotionHole
                   jobId={jobId}
                   shotId={shot.id}
@@ -2840,7 +2843,7 @@ function PlateSendButton({
   );
 }
 
-/** Add | LTX | H3 | No lips | Send — LTX / H3 open the [ ] hole. No lips is mute. Send cooks. */
+/** Add | LTX | H3 | MATH | No lips | Send — LTX / H3 open the [ ] hole. MATH is noise. */
 function PlateEngineButtons({
   jobId,
   shotId,
@@ -2909,7 +2912,7 @@ function PlateEngineButtons({
       className="m-plate-engine-pair"
       data-motion-open={promptOpen ? "yes" : "no"}
       role="group"
-      aria-label="Open LTX or H3 motion prompt, or No lips for a mute action shot"
+      aria-label="Open LTX, H3, or MATH pattern, or No lips for a mute action shot"
     >
       <MobilePrimaryButton
         tone={engine === "ltx" ? "accent" : "ghost"}
@@ -2923,6 +2926,12 @@ function PlateEngineButtons({
         onClick={() => pick("h3")}
       >
         H3
+      </MobilePrimaryButton>
+      <MobilePrimaryButton
+        tone={engine === "math" ? "accent" : "ghost"}
+        onClick={() => pick("math")}
+      >
+        MATH
       </MobilePrimaryButton>
       <MobilePrimaryButton
         tone={muteOn ? "accent" : "danger"}
@@ -3566,7 +3575,16 @@ function BeatLineEditor({
         aiError={positionAssist.aiError}
       />
 
-      {songDesk && muteLock && enginePromptOpen ? (
+      {songDesk &&
+      resolveMvSendEngine({
+        jobId,
+        shotId,
+        beatId: beat.id,
+        picked: mvEngine,
+      }) === "math" &&
+      enginePromptOpen ? (
+        <MathPatternHole jobId={jobId} shotId={shotId} disabled={saving} />
+      ) : songDesk && muteLock && enginePromptOpen ? (
         <MuteMvMotionHole
           engine={resolveMvSendEngine({
             jobId,

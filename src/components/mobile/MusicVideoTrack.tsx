@@ -73,7 +73,7 @@ import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
-import { readApiJson } from "@/lib/studioFetchError";
+import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { muteMvEmptyFrame, muteMvPadNames, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import {
@@ -93,6 +93,11 @@ import {
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
 import { MINIMAX_H3_ID, withMinimaxH3CameraCommand } from "@/lib/minimaxH3";
+import {
+  composeMathPatternMotion,
+  readMathPatternSettings,
+} from "@/lib/mathPatternMotion";
+import { recordMathPatternForShot } from "@/lib/mathPatternEngine";
 import { readHangLengthDraft, writeHangLengthDraft } from "@/lib/hangLengthDraft";
 import { clampHangLengthSec } from "@/lib/scratchSongWindow";
 import type { ShowStyleId } from "@/lib/showStylePresets";
@@ -1415,6 +1420,11 @@ export function MusicVideoTrack({
       shotId: hangPlateShotId(shotId) || shotId,
       beatId: targetBeatId,
     });
+    if (sendEngine === "math") {
+      return composeMathPatternMotion(
+        readMathPatternSettings(job.id, hangPlateShotId(shotId) || shotId),
+      );
+    }
     let body = stored;
     if (muteOn) {
       const lock = buildMuteMvMotionLock({
@@ -1724,6 +1734,59 @@ export function MusicVideoTrack({
     }
   }
 
+  async function sendMathPattern(cutId: string, shotId: string, targetBeatId: string) {
+    const timing = plateTimingForShot(
+      jobRef.current.scratchSong,
+      jobRef.current.trackDraft,
+      shotId,
+    );
+    const cook = cookDurationFromHungBar(timing, "math");
+    if ("error" in cook) {
+      setNote(cook.error);
+      paintPlateSend(cook.error, "Failed");
+      return;
+    }
+    const hangShot = hangPlateShotId(shotId) || shotId;
+    const beat = targetBeatId || beatIdForShot(hangShot);
+    if (!beat) {
+      const msg = "This still has no line to hang MATH on.";
+      setNote(msg);
+      paintPlateSend(msg, "Failed");
+      return;
+    }
+    setBusy(`send-${cutId}`);
+    paintPlateSend(
+      `Recording MATH ${cook.durationSec}s — noise, not LTX`,
+      "Recording…",
+    );
+    await persistMotionFor(hangShot);
+    const blob = await recordMathPatternForShot({
+      jobId: job.id,
+      shotId: hangShot,
+      durationSec: cook.durationSec,
+      settings: readMathPatternSettings(job.id, hangShot),
+    });
+    const form = new FormData();
+    form.set("jobId", job.id);
+    form.set("beatId", beat);
+    form.set("source", "math");
+    form.set(
+      "file",
+      new File([blob], "math-pattern.webm", { type: blob.type || "video/webm" }),
+    );
+    const res = await fetch("/api/crash/mobile/clip/upload", { method: "POST", body: form });
+    const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+    if (data.job) {
+      onJobChange(data.job);
+      jobRef.current = data.job;
+    }
+    if (!res.ok) {
+      throw new Error(data.error?.trim() || studioFetchError(new Error(""), "Couldn't hang MATH"));
+    }
+    setNote("MATH hung on the song. No LTX.");
+    paintPlateSend("MATH hung on the song. No LTX.", "Send");
+  }
+
   async function sendPlate(shotId: string) {
     const hangId = hangIdForSend({
       shotId,
@@ -1769,18 +1832,23 @@ export function MusicVideoTrack({
     setBusy(`send-${cut.id}`);
     setNote("");
     const startedMs = Date.now();
-    const useH3 =
-      resolveMvSendEngine({
-        jobId: job.id,
-        shotId: hangPlateShotId(hangId) || hangId,
-        beatId: targetBeatId,
-      }) === "h3";
+    const sendEngine = resolveMvSendEngine({
+      jobId: job.id,
+      shotId: hangPlateShotId(hangId) || hangId,
+      beatId: targetBeatId,
+    });
+    const useMath = sendEngine === "math";
+    const useH3 = sendEngine === "h3";
     const engine: ScratchCookEngine = useH3 ? "h3" : "ltx";
     sendPostedRef.current = false;
-    void watchPlateCook(hangId, startedMs, engine);
+    if (!useMath) void watchPlateCook(hangId, startedMs, engine);
     try {
       const motion = motionBodyForSend(hangId);
       paintPlateSend("Starting the Send", "Starting…");
+      if (useMath) {
+        await sendMathPattern(cut.id, hangId, targetBeatId);
+        return;
+      }
       if (useH3) {
         await sendI2v(cut.id, hangId, targetBeatId);
         return;

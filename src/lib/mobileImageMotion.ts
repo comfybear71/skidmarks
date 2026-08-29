@@ -1066,18 +1066,19 @@ function mvMotionSlotKey(jobId: string, beatId: string): string {
   return `skidmarks.mvMotionSlot.${(jobId || "").trim()}.${(beatId || "").trim()}`;
 }
 
-export type MvClipEngine = "ltx" | "h3";
+export type MuteMvEngine = "ltx" | "h3" | "math";
+export type MvClipEngine = MuteMvEngine;
 
 function mvClipEngineKey(jobId: string, shotId: string): string {
   return `skidmarks.mvClipEngine.${(jobId || "").trim()}.${(shotId || "").trim()}`;
 }
 
-/** Next Send of this still — LTX or H3. Not written onto the job. */
+/** Next Send of this still — LTX, H3, or MATH. Not written onto the job. */
 export function readMvClipEngine(jobId: string, shotId: string): MvClipEngine {
   if (typeof window === "undefined") return "ltx";
   try {
     const v = window.sessionStorage.getItem(mvClipEngineKey(jobId, shotId));
-    return v === "h3" ? "h3" : "ltx";
+    return parseMuteMvEngine(v);
   } catch {
     return "ltx";
   }
@@ -1143,17 +1144,17 @@ export function writeMvNobodyInShot(jobId: string, shotId: string, on: boolean):
 }
 
 
-export type MuteMvEngine = "ltx" | "h3";
-
 function mvEngineKey(jobId: string, beatId: string): string {
   return `skidmarks.mvEngine.${(jobId || "").trim()}.${(beatId || "").trim()}`;
 }
 
 export function parseMuteMvEngine(value: string | null | undefined): MuteMvEngine {
-  return value === "h3" ? "h3" : "ltx";
+  if (value === "h3") return "h3";
+  if (value === "math") return "math";
+  return "ltx";
 }
 
-/** Next Send of this plate line — LTX or H3. Not written onto the job. */
+/** Next Send of this plate line — LTX, H3, or MATH. Not written onto the job. */
 export function readMvEngine(jobId: string, beatId: string): MuteMvEngine {
   if (typeof window === "undefined") return "ltx";
   try {
@@ -1172,8 +1173,9 @@ export function writeMvEngine(jobId: string, beatId: string, engine: MuteMvEngin
   }
 }
 
-/** Hole header — LTX vs H3. No lips is mute on the same engine, not a third name. */
+/** Hole header — LTX vs H3 vs MATH. No lips is mute on LTX/H3, not MATH. */
 export function muteMvMotionLabel(engine: MuteMvEngine): string {
+  if (engine === "math") return "MATH pattern";
   return engine === "h3" ? "H3 Image motion" : "LTX Image motion";
 }
 
@@ -1186,6 +1188,7 @@ export const MUTE_MV_LTX_DESK_MAX_SEC = 40;
 
 /** Closed fold under the hole title. Not a TRACK essay. */
 export function muteMvEngineFoldSummary(engine: MuteMvEngine): string {
+  if (engine === "math") return "MATH · noise + feedback · not a plate · not LTX / H3";
   return engine === "h3"
     ? `H3 · ${MINIMAX_H3_MIN_SEC}–${MINIMAX_H3_MAX_SEC}s · first+last · camera · 768P/2K`
     : `LTX · up to ${MUTE_MV_LTX_DESK_MAX_SEC}s · talking/sing ok · 5s ok`;
@@ -1198,6 +1201,14 @@ export function muteMvEngineFoldSummary(engine: MuteMvEngine): string {
  * Same-platform I2V docs list the 15 named moves including Pedestal up (aerial).
  */
 export function muteMvEngineFoldLines(engine: MuteMvEngine): string[] {
+  if (engine === "math") {
+    return [
+      "Empty latent. Perlin / fractal noise, then a feedback trail (tiny zoom + spin).",
+      "Calm = low contrast + sine. Excited = high contrast + tangent spikes.",
+      "The three boxes seed the math. They are not sent to LTX.",
+      "Send records this canvas silent and hangs it on the existing TRACK clock. No Comfy generate. No start image.",
+    ];
+  }
   if (engine === "h3") {
     return [
       `Length: ${MINIMAX_H3_MIN_SEC}–${MINIMAX_H3_MAX_SEC}s.`,
@@ -1223,11 +1234,17 @@ export function resolveMvSendEngine(opts: {
   beatId?: string;
   picked?: MuteMvEngine | null;
 }): MuteMvEngine {
-  if (opts.picked === "h3") return "h3";
+  if (opts.picked === "h3" || opts.picked === "math") return opts.picked;
   const shotId = (opts.shotId || "").trim();
-  if (shotId && readMvClipEngine(opts.jobId, shotId) === "h3") return "h3";
+  if (shotId) {
+    const shot = readMvClipEngine(opts.jobId, shotId);
+    if (shot === "h3" || shot === "math") return shot;
+  }
   const beatId = (opts.beatId || "").trim();
-  if (beatId && readMvEngine(opts.jobId, beatId) === "h3") return "h3";
+  if (beatId) {
+    const beat = readMvEngine(opts.jobId, beatId);
+    if (beat === "h3" || beat === "math") return beat;
+  }
   return "ltx";
 }
 

@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { MobilePrimaryButton, MobileTextInput } from "@/components/mobile/MobileUi";
+import { MathPatternHole } from "@/components/mobile/MathPatternHole";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
 import {
   LTX_LIP_SYNC_LEAD,
@@ -431,7 +432,19 @@ export function MuteMvEnginePanel({
         >
           H3
         </button>
+        <button
+          type="button"
+          className={`shot-prompt-engine${engine === "math" ? " is-on" : ""}`}
+          disabled={disabled}
+          title="Mathematical noise. Not a plate into LTX."
+          onClick={() => onEngine("math")}
+        >
+          MATH
+        </button>
       </div>
+      {engine === "math" && jobId && shotId ? (
+        <MathPatternHole jobId={jobId} shotId={shotId} disabled={disabled} />
+      ) : (
       <MuteMvMotionHole
         engine={engine}
         motionLock={motionLock}
@@ -442,6 +455,7 @@ export function MuteMvEnginePanel({
         shotId={shotId}
         h3LastStills={h3LastStills}
       />
+      )}
     </div>
   );
 }

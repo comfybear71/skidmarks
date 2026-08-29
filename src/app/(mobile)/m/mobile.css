@@ -3583,6 +3583,49 @@ span.scratch-history-blob {
   white-space: nowrap;
 }
 
+.m-math-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 8px 0 6px;
+  border-radius: 4px;
+  background: #000;
+}
+
+.m-math-phase {
+  margin: 0 0 8px;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.m-math-phase-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 0;
+}
+
+.m-math-phase-box span {
+  color: var(--chrome-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.m-math-phase-box textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
 .m-plate-motion-lock {
   margin: 0;
   color: var(--chrome-dim);
