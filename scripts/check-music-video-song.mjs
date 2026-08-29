@@ -1641,6 +1641,12 @@ assert.match(
   /songCookAppendsNewClip/,
   "LTX Send uses the append lock so clip 1 stays",
 );
+assert.match(
+  jobIdRoute,
+  /MOBILE_JOB_READ_MISS/,
+  "/m resume must not say Job not found on a Neon miss",
+);
+assert.match(songRoute, /MOBILE_JOB_READ_MISS/);
 assert.match(songRoute, /skipClipFiles: song.skipClipFiles/, "hang-plates / Add honor X'd files");
 assert.match(songRoute, /Studio has the Send/, "song run writes a live line before LTX");
 assert.match(songRoute, /imageMotion: String\(body.imageMotion/, "LTX run takes the phone [ ] words");

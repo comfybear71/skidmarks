@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   deleteMobileGenJob,
+  MOBILE_JOB_READ_MISS,
   patchMobileGenJob,
   readMobileGenJob,
 } from "@/lib/mobileGenJob";
@@ -51,7 +52,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 export async function GET(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   let job = await readMobileGenJob(id);
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  if (!job) return NextResponse.json({ error: MOBILE_JOB_READ_MISS }, { status: 404 });
   const unstick = bounceStuckStitch({ phase: job.phase, error: job.error });
   if (unstick) {
     job = (await patchMobileGenJob(id, { phase: unstick, error: "" })) || job;
