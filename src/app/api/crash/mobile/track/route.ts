@@ -10,6 +10,7 @@ import {
   hangPlateShotId,
   secToMs,
   songFromTrackDraft,
+  parkSongFilePointers,
   slidePlateIntoGap,
   ensurePlateDuration,
   withPlateWindow,
@@ -180,17 +181,15 @@ export async function POST(req: Request) {
     if (action === "drop-song") {
       // Park it, never delete it: the mp3 stays in Blob, the desk just stops
       // pointing at it, so dropping a song can never lose the file.
-      const draft = { ...(job.trackDraft || {}) };
-      delete draft.songFile;
-      delete draft.songDurationSec;
-      delete draft.waveformPeaks;
-      const song = job.scratchSong;
-      // Song-only attach (no spoken beat) — clear the pointer. A carrier
-      // beat is a Saved line; this desk never unhooks that.
-      const parkPointer = Boolean((song?.fileName || "").trim() && !(song?.carrierBeatId || "").trim());
+      // × must unhook scratchSong.fileName even when a carrier beat exists —
+      // otherwise the player keeps the attached take and the × looks dead.
+      const parked = parkSongFilePointers({
+        trackDraft: job.trackDraft,
+        scratchSong: job.scratchSong,
+      });
       const updated = await patchMobileGenJob(jobId, {
-        trackDraft: draft,
-        ...(parkPointer && song ? { scratchSong: { ...song, fileName: "" } } : {}),
+        trackDraft: parked.trackDraft,
+        ...(parked.scratchSong ? { scratchSong: parked.scratchSong } : {}),
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated });

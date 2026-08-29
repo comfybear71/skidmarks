@@ -404,6 +404,30 @@ export function songFromTrackDraft(
   };
 }
 
+/**
+ * TRACK × — park the mp3 pointer. File stays in Blob. Clips and stills stay.
+ * A carrier beat does not keep the player hooked; drop another mp3 after this.
+ */
+export function parkSongFilePointers(opts: {
+  trackDraft?: MusicVideoTrackDraft | null;
+  scratchSong?: ScratchSong | null;
+}): { trackDraft: MusicVideoTrackDraft; scratchSong?: ScratchSong } {
+  const draft = { ...(opts.trackDraft || {}) };
+  delete draft.songFile;
+  delete draft.songDurationSec;
+  delete draft.waveformPeaks;
+  const song = opts.scratchSong;
+  if (!song) return { trackDraft: draft };
+  return {
+    trackDraft: draft,
+    scratchSong: {
+      ...song,
+      fileName: "",
+      waveformPeaks: undefined,
+    },
+  };
+}
+
 export function plateTimingForShot(
   song: ScratchSong | null | undefined,
   draft: MusicVideoTrackDraft | null | undefined,

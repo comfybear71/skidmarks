@@ -2010,27 +2010,25 @@ export function MusicVideoTrack({
   }
 
   async function dropSong() {
-    // The browser copy and the saved one both have to go, or the x looks dead:
-    // clearing only the parked file left trackDraft.songFile pointing at it and
-    // the player carried on as if nothing happened.
+    // The browser copy and the saved attached take both have to go, or the
+    // × looks dead: clearing only the parked file left scratchSong.fileName
+    // pointing at it and the player carried on. File stays in Blob. Clips stay.
     clearPendingSong(job.id);
     setLocalPeaks([]);
     setPlayheadMs(0);
-    if (job.trackDraft?.songFile) {
-      setBusy("song");
-      try {
-        const updated = await trackAction("drop-song", { jobId: job.id });
-        if (updated) onJobChange(updated);
-      } catch (e) {
-        setNote(e instanceof Error ? e.message : "Couldn't drop that song");
-      } finally {
-        setBusy("");
-      }
-    }
-    // Once the song is a real attached take on the episode, removing it is the
-    // song desk's job — this desk never deletes media.
-    if (song?.fileName) {
-      setNote("Song dropped here. The attached take stays on the episode.");
+    const attached = Boolean(
+      (song?.fileName || "").trim() || (job.trackDraft?.songFile || "").trim(),
+    );
+    if (!attached) return;
+    setBusy("song");
+    try {
+      const updated = await trackAction("drop-song", { jobId: job.id });
+      if (updated) onJobChange(updated);
+      setNote("");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't drop that song");
+    } finally {
+      setBusy("");
     }
   }
 
