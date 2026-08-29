@@ -42,6 +42,10 @@ import {
   muteMvEngineFoldLines,
   MUTE_MV_LTX_DESK_MAX_SEC,
   resolveMvSendEngine,
+  resolveSongSlicePerformance,
+  songPlayInstrument,
+  storedMotionNeedsRebuild,
+  EMPTY_HANDS_NO_INSTRUMENT,
 } from "../src/lib/mobileImageMotion.ts";
 
 assert.match(LTX_LIP_SYNC_LEAD, /dication is perfect/);
@@ -421,6 +425,11 @@ assert.match(muteLock.lead, /empty hands, no phone/);
 assert.match(muteLock.tail, /Mouth stays closed/);
 assert.match(muteLock.tail, /Not singing/);
 assert.match(muteLock.tail, /nothing new enters frame/);
+assert.match(muteLock.tail, /Face stays hidden/);
+assert.match(muteLock.tail, /No saxophone/);
+assert.match(muteLock.tail, /No instrument/);
+assert.doesNotMatch(muteLock.lead + muteLock.tail, /play the same instrument/);
+assert.doesNotMatch(muteLock.lead + muteLock.tail, /plays this instrumental slice/);
 assert.equal(MUTE_MV_SLOT_PLACEHOLDER, "stand up, car drives off");
 const composed = composeMuteMvMotion(muteLock, "stand up, car drives off");
 assert.match(composed, /stand up, car drives off/);
@@ -656,6 +665,146 @@ assert.match(
   clipSrc,
   /speaker: emptyFrame \? "" : speaker/,
   "LTX speaker lock stays empty on Nobody",
+);
+
+const gold = JSON.parse(
+  readFileSync(join(here, "../docs/MUSIC_VIDEO_IMAGE_MOTION_GOLD.json"), "utf8"),
+);
+const goldLook = gold.lookLock;
+const goldPos = defaultSoloStaging("JACK GHOST");
+assert.equal(goldPos, gold.position);
+assert.equal(
+  resolveSongSlicePerformance({
+    speaker: "JACK GHOST",
+    staging: goldPos,
+    performance: "play",
+  }),
+  "sing",
+  "leftover play + empty-hands Position is sing, not play",
+);
+assert.equal(songPlayInstrument("JACK GHOST", goldPos), null);
+assert.equal(songPlayInstrument("FRANK", defaultSoloStaging("FRANK")), null);
+assert.equal(
+  songPlayInstrument("JACK GHOST", "JACK GHOST holds the saxophone at the lips."),
+  "sax",
+);
+
+const rejected = gold.rejected_play_empty_hands_mash;
+assert.match(rejected, /play the same instrument/);
+assert.match(rejected, /Empty hands. No saxophone/);
+assert.equal(
+  storedMotionNeedsRebuild(rejected, goldPos, "JACK GHOST"),
+  true,
+  "the leftover play+empty-hands mash must dump",
+);
+assert.equal(
+  pickSongSendMotionBody({
+    stored: rejected,
+    storedUsable: true,
+    singing: true,
+    singingDefault: "SINGING_DEFAULT",
+    speakingDefault: "talk",
+    mute: true,
+    muteDefault: "MUTE_DEFAULT",
+    staging: goldPos,
+    speaker: "JACK GHOST",
+  }),
+  "MUTE_DEFAULT",
+  "No lips must not send the play mash",
+);
+assert.equal(
+  pickSongSendMotionBody({
+    stored: rejected,
+    storedUsable: true,
+    singing: true,
+    singingDefault: "SINGING_DEFAULT",
+    speakingDefault: "talk",
+    mute: false,
+    staging: goldPos,
+    speaker: "JACK GHOST",
+  }),
+  "SINGING_DEFAULT",
+  "No lips off dumps the play mash for singing gold",
+);
+
+const jackPlayEmptyHands = buildScratchSongLtxMotion({
+  styleId: "music_video",
+  speaker: "JACK GHOST",
+  lookLock: goldLook,
+  staging: goldPos,
+  performance: "play",
+  startSec: 0,
+});
+assert.equal(jackPlayEmptyHands, gold.singing_jack);
+assert.doesNotMatch(jackPlayEmptyHands, /play the same instrument/);
+assert.doesNotMatch(jackPlayEmptyHands, /plays this instrumental slice/);
+assert.match(jackPlayEmptyHands, /Empty hands. No saxophone/);
+
+const jackMuteHold = composeMuteMvMotion(
+  buildMuteMvMotionLock({
+    styleId: "music_video",
+    speaker: "JACK GHOST",
+    lookLock: goldLook,
+    staging: goldPos,
+  }),
+  "",
+);
+assert.equal(jackMuteHold, gold.mute_hold_empty_slot);
+assert.match(jackMuteHold, /empty hands, no phone/);
+assert.match(jackMuteHold, /Face stays hidden/);
+assert.match(jackMuteHold, /No saxophone/);
+assert.match(jackMuteHold, /Mouth stays closed/);
+assert.doesNotMatch(jackMuteHold, /play the same instrument/);
+assert.doesNotMatch(jackMuteHold, /Cyan mouth line/);
+
+const liveMuteMissingHornLock =
+  "Use the provided start image as the first frame. JACK GHOST, Male singer in deep noir shadow, face mostly silhouetted under a wide-brimmed black fedora and dark suit is prominent, empty hands, no phone. Only JACK GHOST in frame, no one else appears. Props and background stay exactly as the start image, nothing new enters frame. No new objects. No readable text or signage. Background stays as the start image. No dialogue. Mouth stays closed. Not singing. Not lip-sync. Camera holds, no cuts. Same person and objects as the start image. No new people enter the frame. music video cinematography, bold colour grade, performance lighting, stylised but not cartoon. Not cartoon, not stylised.";
+assert.doesNotMatch(liveMuteMissingHornLock, /No saxophone/);
+assert.match(jackMuteHold, /No saxophone/, "No lips gold must name no instrument — live lock did not");
+
+const frankEmptySing = buildScratchSongLtxMotion({
+  styleId: "music_video",
+  speaker: "FRANK",
+  lookLock: "short dark hair",
+  staging: defaultSoloStaging("FRANK"),
+});
+assert.equal(frankEmptySing, gold.singing_anyone);
+assert.match(frankEmptySing, /Empty hands\. No saxophone/);
+assert.ok(frankEmptySing.includes(EMPTY_HANDS_NO_INSTRUMENT));
+assert.doesNotMatch(frankEmptySing, /play the same instrument/);
+
+assert.equal(
+  buildScratchSongLtxMotion({
+    styleId: "music_video",
+    speaker: "JACK GHOST",
+    lookLock: goldLook,
+    staging: "JACK GHOST holds the saxophone at the lips.",
+    performance: "play",
+  }),
+  gold.play_sax_named,
+);
+assert.doesNotMatch(gold.play_sax_named, /No saxophone. No trumpet. No instrument/);
+
+assert.equal(
+  buildScratchSongLtxMotion({
+    styleId: "music_video",
+    speaker: "HORN",
+    lookLock: "muted trumpet",
+    staging: "HORN holds the muted trumpet at the lips",
+    performance: "play",
+  }),
+  gold.play_trumpet_named,
+);
+
+assert.match(
+  readFileSync(join(here, "../src/components/mobile/PlateReviewEditor.tsx"), "utf8"),
+  /storedMotionNeedsRebuild\(storedMotion, positionBody, beat.speaker\)/,
+  "LTX box dumps leftover play mash on the song desk",
+);
+assert.match(
+  readFileSync(join(here, "../src/components/mobile/MusicVideoTrack.tsx"), "utf8"),
+  /storedMotionNeedsRebuild/,
+  "Send persist rebuilds a play mash",
 );
 
 console.log("check-mobile-image-motion: ok");

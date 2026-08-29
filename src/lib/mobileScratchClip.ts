@@ -36,8 +36,10 @@ import {
   looksLikePlatePositionPrompt,
   imageMotionLooksEmptyFrame,
   pickSongSendMotionBody,
+  resolveSongSlicePerformance,
   songSendNeedsRecook,
   songStoredMotionUsable,
+  storedMotionNeedsRebuild,
 } from "./mobileImageMotion";
 import {
   clampSongWindow,
@@ -329,21 +331,27 @@ export async function runScratchLtxClip(opts: {
   // Song Send uses the LTX box when he kept words. Empty box still rebuilds
   // the identity lock so later takes do not invent a new face. Gold
   // "Only NAME in frame" on a song cut is not a dumped Position prompt.
+  const stagingText = storyShot.staging || "";
   const storedOk = singing
-    ? songStoredMotionUsable(stored, leftovers)
+    ? songStoredMotionUsable(stored, leftovers, stagingText, speaker)
     : Boolean(stored) &&
       !imageMotionNamesLeftovers(stored, leftovers) &&
-      !looksLikePlatePositionPrompt(stored);
+      !looksLikePlatePositionPrompt(stored) &&
+      !storedMotionNeedsRebuild(stored, stagingText, speaker);
   const cutRow = opts.cutId
     ? (song?.cuts || []).find((c) => c.id === opts.cutId)
     : undefined;
-  const performance = cutRow?.performance;
+  const performance = resolveSongSlicePerformance({
+    speaker,
+    staging: stagingText,
+    performance: cutRow?.performance,
+  });
   const muteLock = buildMuteMvMotionLock({
     styleId: job.styleId,
     speaker,
     lookLock,
     shotSpeakers: emptyFrame ? [] : shotCast,
-    staging: storyShot.staging,
+    staging: stagingText,
     emptyFrame,
   });
   const body = pickSongSendMotionBody({
@@ -354,7 +362,7 @@ export async function runScratchLtxClip(opts: {
       styleId: job.styleId,
       speaker,
       lookLock,
-      staging: storyShot.staging,
+      staging: stagingText,
       performance,
       startSec: cutRow?.startSec,
     }),
@@ -371,8 +379,9 @@ export async function runScratchLtxClip(opts: {
       extractMuteMvMotionSlot(stored, muteLock),
     ),
     emptyFrame,
+    staging: stagingText,
+    speaker,
   });
-  const stagingText = storyShot.staging || "";
   const imageMotion = ltxSendPrompt(body, stagingText, {
     skipLipSyncLead: skipSongLipSyncLead({
       speaker,

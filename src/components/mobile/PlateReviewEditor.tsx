@@ -3229,7 +3229,9 @@ function BeatLineEditor({
   const motionBody = pickLtxMotionBody({
     draft: motionDraft,
     stored:
-      songDesk && !muteOn && imageMotionLooksMuteLock(storedMotion)
+      songDesk &&
+      ((!muteOn && imageMotionLooksMuteLock(storedMotion)) ||
+        storedMotionNeedsRebuild(storedMotion, positionBody, beat.speaker))
         ? ""
         : storedMotion,
     defaultBody: defaultMotionBody,
@@ -3294,7 +3296,7 @@ function BeatLineEditor({
     if (songDesk) return;
     if (motionDraft !== null) return;
     if ((storedMotion || "").trim()) return;
-    if (!storedMotionNeedsRebuild(storedMotion, positionBody)) return;
+    if (!storedMotionNeedsRebuild(storedMotion, positionBody, beat.speaker)) return;
     const next = defaultMotionBody.trim();
     if (!next) return;
     const key = `${beat.id}:${next}`;

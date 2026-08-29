@@ -160,6 +160,40 @@ export function isInstrumentalStaging(staging: string): boolean {
   );
 }
 
+export type SongPlayInstrument = "sax" | "trumpet" | "other";
+
+/**
+ * Play is allowed only when this still names a held instrument.
+ * Empty hands on Position wins — leftover "play" must not invent a horn.
+ */
+export function songPlayInstrument(
+  speaker: string,
+  staging: string,
+): SongPlayInstrument | null {
+  if (directorWantsEmptyHands(staging || "")) return null;
+  const who = (speaker || "").trim().toLowerCase();
+  if (who === "saxophone" || who === "sax") return "sax";
+  if (who === "horn" || who === "trumpet") return "trumpet";
+  const t = (staging || "").toLowerCase();
+  if (/\bsax(?:ophone)?\b/.test(t) && !/\bno saxophone\b/.test(t)) return "sax";
+  if (/\b(?:trumpet|trombone)\b/.test(t) && !/\bno trumpet\b/.test(t)) return "trumpet";
+  if (/\bhorn\b/.test(t) && !/\bno (?:horn|trumpet)\b/.test(t)) return "trumpet";
+  if (isInstrumentalStaging(staging || "")) return "other";
+  return null;
+}
+
+/** Leftover cut.performance "play" with empty-hands Position becomes sing. */
+export function resolveSongSlicePerformance(opts: {
+  speaker: string;
+  staging?: string;
+  performance?: SongSlicePerformance;
+}): SongSlicePerformance {
+  const play = songPlayInstrument(opts.speaker || "", opts.staging || "");
+  const requested = opts.performance || (play ? "play" : "sing");
+  if (requested === "play" && !play) return "sing";
+  return requested;
+}
+
 /**
  * CRAZY BIG HOLE JO (and Jo Too) — phone / keyboard warrior only when
  * Position or the Scratch toggle names it. Same held-prop shape as pies and
@@ -405,6 +439,28 @@ export function storedMotionFightsEmptyHands(
   return imageMotionHasJoPhoneLock(motion || "");
 }
 
+/** Stored LTX said play-an-instrument. */
+export function storedMotionNamesInstrumentPlay(motion: string | undefined): boolean {
+  const t = stripLtxLipSyncLead(motion || "");
+  if (!t) return false;
+  return (
+    /play the same instrument/i.test(t) ||
+    /actually playing the (?:trumpet|saxophone)/i.test(t) ||
+    /plays this instrumental slice/i.test(t) ||
+    /same person, same instrument, same objects/i.test(t)
+  );
+}
+
+/** Play-instrument cook vs empty-hands Position, or leftover play with no named horn. */
+export function storedMotionFightsInstrumentLock(
+  motion: string | undefined,
+  speaker: string,
+  staging: string,
+): boolean {
+  if (!storedMotionNamesInstrumentPlay(motion)) return false;
+  return !songPlayInstrument(speaker || "", staging || "");
+}
+
 /** CAST bio leaked into LTX ("a little bit younger… cleaner") — start image is the look. */
 export function storedMotionReinventsLook(motion: string | undefined): boolean {
   const t = stripLtxLipSyncLead(motion || "").toLowerCase();
@@ -438,8 +494,13 @@ export function imageMotionUsableForLine(
 export function storedMotionNeedsRebuild(
   motion: string | undefined,
   staging: string,
+  speaker = "",
 ): boolean {
-  return storedMotionFightsEmptyHands(motion, staging) || storedMotionReinventsLook(motion);
+  return (
+    storedMotionFightsEmptyHands(motion, staging) ||
+    storedMotionReinventsLook(motion) ||
+    storedMotionFightsInstrumentLock(motion, speaker, staging)
+  );
 }
 
 function inFrameNames(speaker: string, shotSpeakers?: string[]): string[] {
@@ -633,7 +694,36 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
 export type SongSlicePerformance = "play" | "sway" | "sing" | "walk";
 
 const JACK_FACE_HIDDEN =
-  "Face stays hidden in the hat shadow. Do not light the eyes or cheeks. Do not reveal a face. Same silhouette as the start image. Empty hands. No saxophone. No trumpet. No instrument. No microphone.";
+  "Face stays hidden in the hat shadow. Do not light the eyes or cheeks. Do not reveal a face. Same silhouette as the start image.";
+
+/** Every still — not Jack-only. Play is allowed only when Position names the horn. */
+export const EMPTY_HANDS_NO_INSTRUMENT =
+  "Empty hands. No saxophone. No trumpet. No instrument. No microphone.";
+
+const JACK_FACE_HIDDEN_EMPTY = `${JACK_FACE_HIDDEN} ${EMPTY_HANDS_NO_INSTRUMENT}`;
+
+function jackSliceLock(play: SongPlayInstrument | null): string {
+  if (play === "sax") {
+    return `${JACK_FACE_HIDDEN} Same saxophone as the start image. No extra instruments. No microphone.`;
+  }
+  if (play === "trumpet") {
+    return `${JACK_FACE_HIDDEN} Same trumpet as the start image. No extra instruments. No microphone.`;
+  }
+  if (play === "other") {
+    return `${JACK_FACE_HIDDEN} Same held instrument as the start image. No extra instruments. No microphone.`;
+  }
+  return JACK_FACE_HIDDEN_EMPTY;
+}
+
+/** Hands lock for any speaker. Jack also keeps the hidden-face line. */
+function sliceHandsLock(opts: {
+  jack: boolean;
+  play: SongPlayInstrument | null;
+}): string {
+  if (opts.jack) return jackSliceLock(opts.play);
+  if (!opts.play) return EMPTY_HANDS_NO_INSTRUMENT;
+  return "";
+}
 
 /** Body Jack can actually do when the still shows his arms. Tight CU cannot send this. */
 const JACK_ROCKSTAR_MOVES = [
@@ -672,9 +762,12 @@ export function buildScratchSongLtxMotion(opts: {
   const look = shortLtxLookLock(opts.lookLock || "", 160);
   const who = look ? `${name}, ${look}` : name;
   const jack = isJackGhostSpeaker(opts.speaker);
-  const performance =
-    opts.performance ||
-    (isInstrumentalStaging(opts.staging || "") ? "play" : "sing");
+  const playInst = songPlayInstrument(opts.speaker || "", opts.staging || "");
+  const performance = resolveSongSlicePerformance({
+    speaker: opts.speaker || "",
+    staging: opts.staging,
+    performance: opts.performance,
+  });
   const walk = performance === "walk";
   const identityLock = walk
     ? "Same silhouette, same hat, same clothes as the start image — not a different person, not younger. Do not invent a face. Do not invent or change letters on the hat or clothing."
@@ -682,9 +775,9 @@ export function buildScratchSongLtxMotion(opts: {
   const walkCamera = jackWalkCameraForStartSec(opts.startSec ?? 0);
   const action =
     performance === "play"
-      ? /sax/i.test(`${opts.speaker} ${opts.staging || ""}`)
+      ? playInst === "sax"
         ? `${who} is prominent. ${SAX_ACTUALLY_PLAYS}`
-        : /horn|trumpet/i.test(`${opts.speaker} ${opts.staging || ""}`)
+        : playInst === "trumpet"
           ? `${who} is prominent. ${HORN_ACTUALLY_PLAYS}`
           : `${who} is prominent, hands and body play the same instrument as the start image, in time with the music. Not posing. Fingers and breath move.`
       : performance === "sway"
@@ -708,7 +801,10 @@ export function buildScratchSongLtxMotion(opts: {
     [
       GOLD_START_FRAME,
       action,
-      jack ? JACK_FACE_HIDDEN : "",
+      sliceHandsLock({
+        jack,
+        play: performance === "play" ? playInst : null,
+      }),
       GOLD_PROPS_LOCK,
       GOLD_NO_TEXT,
       identityLock,
@@ -731,7 +827,12 @@ export function skipSongLipSyncLead(opts: {
   if (opts.mute) return true;
   if (!opts.singing) return false;
   if (isJackGhostSpeaker(opts.speaker)) return true;
-  if (opts.performance === "play" || opts.performance === "sway" || opts.performance === "walk") {
+  const performance = resolveSongSlicePerformance({
+    speaker: opts.speaker,
+    staging: opts.staging,
+    performance: opts.performance,
+  });
+  if (performance === "play" || performance === "sway" || performance === "walk") {
     return true;
   }
   return isInstrumentalStaging(opts.staging || "");
@@ -831,12 +932,20 @@ export function pickSongSendMotionBody(opts: {
   muteDefault?: string;
   /** Car / scenery / Support — do not keep a stored JACK is-prominent lock. */
   emptyFrame?: boolean;
+  /** Position box — empty hands dumps a stored play-instrument mash. */
+  staging?: string;
+  speaker?: string;
 }): string {
   if (opts.emptyFrame && (opts.muteDefault || "").trim()) {
     return stripLtxLipSyncLead(opts.muteDefault || "");
   }
+  const storedFights = storedMotionNeedsRebuild(
+    opts.stored,
+    opts.staging || "",
+    opts.speaker || "",
+  );
   if (opts.mute && (opts.muteDefault || "").trim()) {
-    if (opts.storedUsable && !isSingingDefaultMotion(opts.stored)) {
+    if (opts.storedUsable && !isSingingDefaultMotion(opts.stored) && !storedFights) {
       return stripLtxLipSyncLead(opts.stored);
     }
     return stripLtxLipSyncLead(opts.muteDefault || "");
@@ -844,7 +953,7 @@ export function pickSongSendMotionBody(opts: {
   if (opts.singing && imageMotionLooksMuteLock(opts.stored)) {
     return opts.singingDefault;
   }
-  if (opts.storedUsable) return stripLtxLipSyncLead(opts.stored);
+  if (opts.storedUsable && !storedFights) return stripLtxLipSyncLead(opts.stored);
   if (opts.singing) return opts.singingDefault;
   return opts.speakingDefault;
 }
@@ -908,10 +1017,14 @@ export function buildMuteMvMotionLock(opts: {
     directorWantsEmptyHands(staging) || !stagingNamesHeldProp(staging, opts.styleId)
       ? "empty hands, no phone"
       : "same held object as the start image";
+  const jack = isJackGhostSpeaker(opts.speaker);
+  const playInst = songPlayInstrument(opts.speaker || "", staging);
+  const handsLock = sliceHandsLock({ jack, play: playInst });
   return {
     lead: clean(`${GOLD_START_FRAME} ${who} is prominent, ${hands}.`),
     tail: clean(
       [
+        handsLock,
         onlyTheseInFrame(inFrameNames(name, opts.shotSpeakers)),
         GOLD_PROPS_LOCK,
         GOLD_NO_TEXT,
@@ -1214,9 +1327,12 @@ export function writeMvH3Resolution(jobId: string, shotId: string, resolution: s
 export function songStoredMotionUsable(
   stored: string,
   leftoverNames: string[] = [],
+  staging = "",
+  speaker = "",
 ): boolean {
   const body = stripLtxLipSyncLead(stored);
   if (!body) return false;
+  if (storedMotionNeedsRebuild(stored, staging, speaker)) return false;
   return !leftoverNames.some((name) => {
     const n = name.trim();
     if (n.length < 2) return false;
