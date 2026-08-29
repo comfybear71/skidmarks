@@ -1650,7 +1650,7 @@ export function MusicVideoTrack({
     const next = nextPlateHangWindow(clock, {
       durationSec: readHangLengthDraft(job.id, shotId),
       singing: singingHangForShot(shotId),
-      lyricCues: song.lyricCues || job.trackDraft?.lyricCues,
+      lyricCues: song?.lyricCues || job.trackDraft?.lyricCues,
     });
     const win =
       rangeChosen && rangeEndMs > rangeStartMs
