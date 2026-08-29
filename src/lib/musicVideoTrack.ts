@@ -404,7 +404,7 @@ export function songFromTrackDraft(
   };
 }
 
-/** TRACK already plays from either pointer. Add and the 5–40 slider must too. */
+/** TRACK already plays from either pointer. Add and the 5–60 slider must too. */
 export function deskHasSong(opts: {
   scratchSong?: ScratchSong | null;
   trackDraft?: MusicVideoTrackDraft | null;
@@ -509,8 +509,8 @@ export function hungBarDurationSec(
 }
 
 /**
- * Send uses this clock. H3 4–15 (7 and 9 stay 7 and 9). LTX 5–40.
- * A 10s bar cooks 10. A 40s bar cooks 40. Never invent 15.
+ * Send uses this clock. H3 4–15 (7 and 9 stay 7 and 9). LTX 5–60.
+ * A 10s bar cooks 10. A 44s bar cooks 44. Never invent 15.
  */
 export function cookDurationFromHungBar(
   timing: { startMs?: number; endMs?: number } | null | undefined,

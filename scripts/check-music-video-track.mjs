@@ -309,13 +309,17 @@ assert.equal(hungBarDurationSec({ startMs: 0, endMs: 500 }), undefined);
   assert.ok(!("error" in fortyLtx));
   assert.equal(fortyLtx.durationSec, 40, "40s bar cooks 40");
   assert.equal(fortyLtx.note, "");
+  const fortyFourLtx = cookDurationFromHungBar({ startMs: 0, endMs: 44000 }, "ltx");
+  assert.ok(!("error" in fortyFourLtx));
+  assert.equal(fortyFourLtx.durationSec, 44, "44s bar cooks 44");
+  assert.equal(fortyFourLtx.note, "");
   const midLtx = cookDurationFromHungBar({ startMs: 0, endMs: 31600 }, "ltx");
   assert.ok(!("error" in midLtx));
   assert.equal(midLtx.durationSec, 31.6);
-  const overLtx = cookDurationFromHungBar({ startMs: 0, endMs: 45000 }, "ltx");
+  const overLtx = cookDurationFromHungBar({ startMs: 0, endMs: 70000 }, "ltx");
   assert.ok(!("error" in overLtx));
-  assert.equal(overLtx.durationSec, 40);
-  assert.match(overLtx.note, /LTX max 40/);
+  assert.equal(overLtx.durationSec, 60);
+  assert.match(overLtx.note, /LTX max 60/);
   const fortyH3 = cookDurationFromHungBar({ startMs: 0, endMs: 40000 }, "h3");
   assert.ok(!("error" in fortyH3));
   assert.equal(fortyH3.durationSec, 15, "H3 stays 4–15");
@@ -448,11 +452,14 @@ assert.match(mobileCss, /width: 2\.3rem/, "seconds box is half the old 4.6rem");
   );
 }
 assert.equal(HANG_LENGTH_MIN_SEC, 5);
-assert.equal(HANG_LENGTH_MAX_SEC, 40);
+assert.equal(HANG_LENGTH_MAX_SEC, 60);
 assert.equal(clampHangLengthSec(10), 10);
 assert.equal(clampHangLengthSec(40), 40);
+assert.equal(clampHangLengthSec(44), 44);
 assert.equal(clampHangLengthSec(31.6), 31.6);
-assert.equal(clampHangLengthSec(50), 40);
+assert.equal(clampHangLengthSec(50), 50);
+assert.equal(clampHangLengthSec(60), 60);
+assert.equal(clampHangLengthSec(70), 60);
 assert.equal(clampHangLengthSec(3), 5);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
@@ -461,7 +468,7 @@ assert.match(
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
   /HANG_LENGTH_MAX_SEC/,
-  "LTX Send clamp is 40, not the old 30",
+  "LTX Send clamp is hang max, not the old 30",
 );
 assert.doesNotMatch(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
@@ -470,7 +477,7 @@ assert.doesNotMatch(
 );
 assert.match(
   readFileSync(join(here, "../src/lib/scratchSongWindow.ts"), "utf8"),
-  /HANG_LENGTH_MAX_SEC = 40/,
+  /HANG_LENGTH_MAX_SEC = 60/,
 );
 assert.match(trackUi, /cookDurationFromHungBar/);
 assert.match(trackUi, /durationSec: cook\.durationSec/);

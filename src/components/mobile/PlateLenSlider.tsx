@@ -19,7 +19,7 @@ import {
 } from "@/lib/scratchSongWindow";
 import { readApiJson } from "@/lib/studioFetchError";
 
-/** 5–40 on this still. Seconds stay visible. Not chips-only 5/10/15. */
+/** 5–60 on this still. Seconds stay visible. Not chips-only 5/10/15. */
 export function PlateLenSlider({
   valueSec,
   disabled,

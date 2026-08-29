@@ -96,7 +96,7 @@ export const maxDuration = 900;
  *   add-plate — leftover mp4 file-first hangs in a gap or at 0
  *     (applyAddPlateOnSong → addPlateFileFirstHang). Singing first hang
  *     (No lips OFF) uses the unused lyric cue so intro clips do not shove
- *     Silver lines off 0:31. No waiting cook on siblings. Still with no mp4 hangs at body.durationSec (slider 5–40). Already hung + extra
+ *     Silver lines off 0:31. No waiting cook on siblings. Still with no mp4 hangs at body.durationSec (slider 5–60). Already hung + extra
  *     mp4 → hang that file in a gap at render length. alreadyHung + no
  *     leftover → another still bar (extraStillHangPlateId) in a gap at
  *     the slider seconds — not on a covered verse pin. Other bars keep

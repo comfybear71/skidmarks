@@ -200,7 +200,7 @@ export function addPlateIsSingingHang(opts: {
  * seconds — not the first lyric pin. Singing (No lips OFF) after a real
  * hang already exists uses the unused lyric cue (Silver lines 0:31),
  * not max(endMs) after intro clips.
- * Other bars keep their times. Slider durationSec stays (5–40).
+ * Other bars keep their times. Slider durationSec stays (5–60).
  * alreadyHung + no leftover writes another bar (extraStillHangPlateId)
  * in a gap / after last — not on a lyric pin a hung bar already covers.
  * Empty cut on that hang id. Does not cook. Does not copy hang 1's
