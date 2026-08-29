@@ -18,6 +18,14 @@ import type { StockLook } from "./stockLook";
 export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
 
 /**
+ * Neon miss / one-shot read fail — the leftover pack is still in the
+ * table. /m resume and song/TRACK posts show this instead of
+ * "Job not found" (that read as wipe and sent people to Start directing).
+ */
+export const MOBILE_JOB_READ_MISS =
+  "Couldn't read this episode. It's still there — don't tap Start directing.";
+
+/**
  * Checkpointed job document for the mobile Auto Studio pipeline. A run can
  * span many /api/crash/mobile/step calls (each doing one bounded unit of
  * work), so unlike every other progress-file in this codebase this is the
@@ -25,9 +33,9 @@ export { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder } from "./
  *
  * On Vercel, local disk is per-invocation scratch — a different serverless
  * instance can (and does) handle the next request, so a job written to
- * /tmp by one call is simply gone by the next ("Job not found" in
- * production). Persists through Neon when useCloudStore() is true; local
- * disk otherwise, matching every other dual-mode store in this codebase.
+ * /tmp by one call is simply gone by the next (MOBILE_JOB_READ_MISS).
+ * Persists through Neon when useCloudStore() is true; local disk
+ * otherwise, matching every other dual-mode store in this codebase.
  */
 export type MobileGenPhase =
   // Cast/locations are built freeform, before there's any script at all —
@@ -273,8 +281,17 @@ export async function createMobileGenJob(opts: {
 }
 
 export async function readMobileGenJob(id: string): Promise<MobileGenJob | null> {
+  const clean = (id || "").trim();
+  if (!clean) return null;
   if (useCloudStore()) {
-    return readMobileJobRow<MobileGenJob>(id);
+    // A one-shot Neon miss used to 404 "Job not found" while the
+    // leftover pack was still in the table. Retry before we lie.
+    for (let i = 0; i < 3; i++) {
+      const row = await readMobileJobRow<MobileGenJob>(clean);
+      if (row?.id) return row;
+      if (i < 2) await new Promise((r) => setTimeout(r, 80 * (i + 1)));
+    }
+    return null;
   }
   const p = jobPath(id);
   if (!fs.existsSync(p)) return null;

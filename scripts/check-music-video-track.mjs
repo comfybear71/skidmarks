@@ -47,6 +47,8 @@ import {
 } from "../src/lib/musicVideoTrack.ts";
 import { hangDoneClipOnTrack } from "../src/lib/stockClipHang.ts";
 import { hungClipFileForPlate } from "../src/lib/orderedJobClips.ts";
+import { applyAddPlateOnSong, removePlateFromSong } from "../src/lib/musicVideoSong.ts";
+import { MOBILE_JOB_READ_MISS } from "../src/lib/mobileGenJob.ts";
 import {
   formatCookClock,
   formatScratchCookNote,
@@ -1155,15 +1157,22 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
 
   const sameTailA = "ab_JackGhostTake.mp4";
   const sameTailB = "cd_JackGhostTake.mp4";
-  assert.equal(
+  assert.notEqual(
     extraTakeHangPlateId("jack4", sameTailA),
     extraTakeHangPlateId("jack4", sameTailB),
-    "same last-12 tail — used to reuse clip 5's plateId",
+    "01_/ab_ vs 02_/cd_ Title must not share a hang slot",
+  );
+  const clashA = "01_JACK_GHOST_ETHING.mp4";
+  const clashB = "01_JACK_XXXXXX_ETHING.mp4";
+  assert.equal(
+    extraTakeHangPlateId("jack4", clashA),
+    extraTakeHangPlateId("jack4", clashB),
+    "same lead+tail still collides — mint must fire",
   );
   const tailClash = hangOneClipOnWave({
     plateTimings: [
       { plateId: "jack4", startMs: 20000, endMs: 25000, sortIndex: 0 },
-      { plateId: extraTakeHangPlateId("jack4", sameTailA), startMs: 25000, endMs: 30000, sortIndex: 1 },
+      { plateId: extraTakeHangPlateId("jack4", clashA), startMs: 25000, endMs: 30000, sortIndex: 1 },
     ],
     cuts: [
       {
@@ -1177,28 +1186,196 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
       },
       {
         id: "c5",
-        shotId: extraTakeHangPlateId("jack4", sameTailA),
+        shotId: extraTakeHangPlateId("jack4", clashA),
         plateFile: "4.png",
         startSec: 25,
         durationSec: 5,
-        clipFile: sameTailA,
+        clipFile: clashA,
         status: "done",
       },
     ],
     shotId: "jack4",
     plateFile: "4.png",
-    clipFile: sameTailB,
+    clipFile: clashB,
     durationSec: 21,
     newCutId: () => "c6",
   });
-  assert.equal(tailClash?.cuts.find((c) => c.clipFile === sameTailA)?.clipFile, sameTailA);
-  assert.ok(tailClash?.cuts.some((c) => c.clipFile === sameTailB), "new file gets its own cut");
+  assert.equal(tailClash?.cuts.find((c) => c.clipFile === clashA)?.clipFile, clashA);
+  assert.ok(tailClash?.cuts.some((c) => c.clipFile === clashB), "new file gets its own cut");
   assert.equal(tailClash?.plateTimings.length, 3, "colliding tail mints a free bar — not a no-op");
   assert.notEqual(
     tailClash?.plateTimings[1]?.plateId,
     tailClash?.plateTimings[2]?.plateId,
-    "do not reuse clip 5's plateId",
+    "do not reuse clip 2 / clip 5's plateId",
   );
+
+  // Stuie: unhang all, hang three 30s JACK GHOST takes, retime clip 2,
+  // hang the 4th — clip 2's clock and file stay. Last-12 only used to
+  // stamp 04_ onto clip 2's slot (01_/02_/03_/04_ Title → VESOMETHING).
+  {
+    const jack = "shot_jack_ghost";
+    const files = [
+      "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      "02_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      "03_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      "04_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+    ];
+    assert.notEqual(extraTakeHangPlateId(jack, files[0]), extraTakeHangPlateId(jack, files[1]));
+    assert.notEqual(extraTakeHangPlateId(jack, files[1]), extraTakeHangPlateId(jack, files[2]));
+    assert.notEqual(extraTakeHangPlateId(jack, files[2]), extraTakeHangPlateId(jack, files[3]));
+    const clips = files.map((clipFile) => ({
+      shotId: jack,
+      clipFile,
+      clipStatus: "done",
+      durationSec: 30,
+    }));
+    const leftoverCuts = files.map((clipFile, i) => ({
+      id: `left_${i + 1}`,
+      shotId: jack,
+      plateFile: "jack.png",
+      startSec: i * 30,
+      durationSec: 30,
+      clipFile,
+      status: "done",
+      error: "",
+    }));
+    let ids = 0;
+    const newCutId = () => `ghost_${++ids}`;
+    let plateTimings = [];
+    let cuts = leftoverCuts;
+    for (let i = 0; i < 3; i++) {
+      const hung = hangOneClipOnWave({
+        plateTimings,
+        cuts,
+        shotId: jack,
+        plateFile: "jack.png",
+        clipFile: files[i],
+        durationSec: 30,
+        newCutId,
+      });
+      assert.ok(hung, `hang clip ${i + 1}`);
+      plateTimings = hung.plateTimings;
+      cuts = hung.cuts;
+    }
+    assert.equal(plateTimings.length, 3, "three 30s bars after hang 1–3");
+    const clip2Id = plateTimings[1]?.plateId;
+    assert.ok(clip2Id);
+    assert.equal(
+      cuts.find((c) => (c.shotId || "").trim() === clip2Id)?.clipFile,
+      files[1],
+      "clip 2 is 02_",
+    );
+    const retimed = withPlateWindow(plateTimings, clip2Id, 30000, 18000, 327000);
+    assert.ok(retimed, "retime clip 2 to 18s — Stuie's tell");
+    plateTimings = retimed;
+    assert.equal(plateTimings.find((t) => t.plateId === clip2Id)?.startMs, 30000);
+    assert.equal(plateTimings.find((t) => t.plateId === clip2Id)?.endMs, 48000);
+
+    const hang4 = hangOneClipOnWave({
+      plateTimings,
+      cuts,
+      shotId: jack,
+      plateFile: "jack.png",
+      clipFile: files[3],
+      durationSec: 30,
+      newCutId,
+    });
+    assert.equal(hang4?.plateTimings.length, 4, "hang 4 is a new bar");
+    assert.equal(
+      hang4?.plateTimings.find((t) => t.plateId === clip2Id)?.startMs,
+      30000,
+      "hang 4 must not move clip 2's start",
+    );
+    assert.equal(
+      hang4?.plateTimings.find((t) => t.plateId === clip2Id)?.endMs,
+      48000,
+      "hang 4 must not reset clip 2's 18s clock",
+    );
+    assert.equal(
+      hang4?.cuts.find((c) => (c.shotId || "").trim() === clip2Id)?.clipFile,
+      files[1],
+      "clip 2 keeps 02_",
+    );
+    assert.ok(
+      hang4?.cuts.some((c) => c.clipFile === files[3]),
+      "04_ gets its own cut",
+    );
+    assert.equal(
+      new Set((hang4?.plateTimings || []).map((t) => t.plateId)).size,
+      4,
+      "four unique hang ids — hang 4 must not reuse clip 2",
+    );
+
+    const add4 = applyAddPlateOnSong({
+      shotId: jack,
+      plateFile: "jack.png",
+      plateTimings,
+      cuts,
+      clips,
+      songSec: 327,
+      newCutId,
+    });
+    assert.equal(add4.hung, true, "Add hangs leftover 04_");
+    assert.equal(add4.plateTimings.length, 4, "Add 4th is a new bar");
+    assert.equal(
+      add4.plateTimings.find((t) => t.plateId === clip2Id)?.endMs,
+      48000,
+      "Add 4th must not reset clip 2's 18s clock",
+    );
+    assert.equal(
+      add4.cuts.find((c) => (c.shotId || "").trim() === clip2Id)?.clipFile,
+      files[1],
+      "Add 4th leaves 02_ on clip 2",
+    );
+    assert.ok(add4.cuts.some((c) => c.clipFile === files[3]));
+    assert.equal(new Set(add4.plateTimings.map((t) => t.plateId)).size, 4);
+
+    let wave = { plateTimings: hang4.plateTimings, cuts: hang4.cuts };
+    for (const t of [...wave.plateTimings].reverse()) {
+      const off = removePlateFromSong({
+        plateId: t.plateId,
+        plateTimings: wave.plateTimings,
+        cuts: wave.cuts,
+        jobShots: [{ shotId: jack, plateFile: "jack.png" }],
+      });
+      wave = { plateTimings: off.plateTimings, cuts: off.cuts };
+    }
+    assert.equal(wave.plateTimings.length, 0, "Off song all four");
+    plateTimings = [];
+    cuts = leftoverCuts;
+    for (let i = 0; i < 3; i++) {
+      const hung = hangOneClipOnWave({
+        plateTimings,
+        cuts,
+        shotId: jack,
+        plateFile: "jack.png",
+        clipFile: files[i],
+        durationSec: 30,
+        newCutId,
+      });
+      plateTimings = hung.plateTimings;
+      cuts = hung.cuts;
+    }
+    const clip2Again = plateTimings[1]?.plateId;
+    const moved = withPlateWindow(plateTimings, clip2Again, 30000, 18000, 327000);
+    plateTimings = moved;
+    const addAfterClear = applyAddPlateOnSong({
+      shotId: jack,
+      plateFile: "jack.png",
+      plateTimings,
+      cuts,
+      clips,
+      songSec: 327,
+      newCutId,
+    });
+    assert.equal(addAfterClear.plateTimings.length, 4, "unhang + hang 3 + Add 4th");
+    assert.equal(
+      addAfterClear.plateTimings.find((t) => t.plateId === clip2Again)?.endMs,
+      48000,
+      "Add after unhang must not stamp clip 2",
+    );
+    assert.equal(new Set(addAfterClear.plateTimings.map((t) => t.plateId)).size, 4);
+  }
 
   const jackGhost = hangOneClipOnWave({
     plateTimings: [
@@ -1824,6 +2001,11 @@ assert.match(trackUi, /hungClipFileForPlate\(job, picked\.shotId\) \? null/);
 assert.match(trackUi, /isRealPlateHang/);
 assert.doesNotMatch(trackUi, /!compact \|\| Boolean\(onCreatePlate\)/);
 assert.doesNotMatch(trackUi, /m-track-film-len">off</);
+assert.match(trackLib, /lead && tail && lead !== compact/, "01_Title and 04_Title must not share last-12");
+assert.match(trackLib, /occupiedByOther/, "mint when another file already owns that hang id");
+assert.match(songRoute, /MOBILE_JOB_READ_MISS/);
+assert.match(trackRoute, /MOBILE_JOB_READ_MISS/);
+assert.match(MOBILE_JOB_READ_MISS, /don't tap Start directing/);
 assert.match(songRoute, /action === "hang-clip"/);
 assert.match(songRoute, /hangOneClipOnWave/);
 assert.match(songRoute, /hangUnhungDoneClips/);

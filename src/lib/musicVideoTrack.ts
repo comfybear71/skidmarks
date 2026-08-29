@@ -780,9 +780,15 @@ export function hangPlateShotId(plateId: string): string {
 export function extraTakeHangPlateId(shotId: string, clipFile: string): string {
   const shot = hangPlateShotId(shotId);
   const stem = hangClipBasename(clipFile).replace(/\.[^.]+$/, "");
-  const tail = stem.replace(/[^a-zA-Z0-9]/g, "").slice(-12);
+  const compact = stem.replace(/[^a-zA-Z0-9]/g, "");
+  // Last-12 only made 01_Title and 02_Title the same slot — Add
+  // stamped clip 3 onto clip 2. Keep the leading NN_ plus a tail.
+  const lead = compact.slice(0, 6);
+  const tail = compact.slice(-6);
+  const token =
+    lead && tail && lead !== compact ? `${lead}${tail}` : compact.slice(-12) || "take";
   if (!shot) return "";
-  return `${shot}${EXTRA_HANG_SEP}${tail || "take"}`;
+  return `${shot}${EXTRA_HANG_SEP}${token}`;
 }
 
 /** Same still, another Add with no leftover mp4 — unique wave slot. */
@@ -949,12 +955,24 @@ export function hangOneClipOnWave(opts: {
   if (!plateId) {
     return { plateTimings: existing, cuts: opts.cuts };
   }
-  // Same tail (`JackGhost`) used to reuse clip 5's slot and no-op the hang
-  // — then Send stamped the new mp4 onto clip 4. Mint a free id.
-  if (existing.some((t) => t.plateId === plateId)) {
+  const occupiedByOther = (opts.cuts || []).some((c) => {
+    if ((c.shotId || "").trim() !== plateId) return false;
+    const owned = hangClipBasename(c.clipFile || "");
+    return Boolean(owned) && owned !== clipFile;
+  });
+  // Same tail (`JackGhost`) used to reuse clip 2 / clip 5's slot —
+  // then Add stamped the new mp4 onto that bar. Mint a free id.
+  if (existing.some((t) => t.plateId === plateId) || occupiedByOther) {
     let n = 2;
     let next = `${plateId}${n}`;
-    while (existing.some((t) => t.plateId === next)) {
+    while (
+      existing.some((t) => t.plateId === next) ||
+      (opts.cuts || []).some((c) => {
+        if ((c.shotId || "").trim() !== next) return false;
+        const owned = hangClipBasename(c.clipFile || "");
+        return Boolean(owned) && owned !== clipFile;
+      })
+    ) {
       n += 1;
       next = `${plateId}${n}`;
     }

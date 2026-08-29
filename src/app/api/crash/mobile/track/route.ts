@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readMobileStory } from "@/lib/mobileStoryStore";
-import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
+import { MOBILE_JOB_READ_MISS, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import {
   applyForgottenWhoPlays,
   canApplyForgottenWhoPlays,
@@ -117,7 +117,7 @@ export async function POST(req: Request) {
   if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
 
   let job = await readMobileGenJob(jobId);
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  if (!job) return NextResponse.json({ error: MOBILE_JOB_READ_MISS }, { status: 404 });
   if (!isMusicVideoSongJob(job)) {
     return NextResponse.json({ error: "TRACK is Music video only." }, { status: 400 });
   }
