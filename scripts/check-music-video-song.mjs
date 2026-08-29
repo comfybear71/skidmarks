@@ -1672,7 +1672,12 @@ assert.match(editor, /addPlateToSong/);
   assert.doesNotMatch(fn, /cookDurationFromHungBar/, "Add is not a cook");
   assert.doesNotMatch(fn, /MINIMAX_H3_MAX_SEC/, "Add must not clamp to H3 15");
 }
-assert.match(editor, /onAddToSong=\{\s*songReady && openShotId\s*\? \(\) => void addPlateToSong\(openShotId\)/);
+assert.match(editor, /onAddToSong=\{\s*showAddHang && openShotId\s*\? \(\) => void addPlateToSong\(openShotId\)/);
+assert.match(editor, /deskHasSong/, "Add sees TRACK songFile as well as scratchSong.fileName");
+assert.match(editor, /focus\?\.plateFile && focus\.plateFile !== "__error__"/, "No still yet only when that card has no picture");
+assert.match(songUi, /Drop a different mp3/, "after TRACK × the drop box is a swap, not first-song");
+assert.match(songUi, /deskHasSong/, "drop box hides when TRACK already has songFile");
+assert.match(songRoute, /songFromTrackDraft\(job\.trackDraft, job\.scratchSong\)/, "hang and Add use TRACK songFile");
 assert.doesNotMatch(editor, /Tap Add\. It goes on the song list/);
 assert.doesNotMatch(editor, /Position this plate/);
 assert.doesNotMatch(editor, /Song slices are under/);

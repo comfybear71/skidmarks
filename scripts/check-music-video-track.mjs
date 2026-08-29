@@ -47,6 +47,7 @@ import {
   cutForHungPlate,
   hangIdForSend,
   parkSongFilePointers,
+  deskHasSong,
 } from "../src/lib/musicVideoTrack.ts";
 import { hangDoneClipOnTrack } from "../src/lib/stockClipHang.ts";
 import { hungClipFileForPlate } from "../src/lib/orderedJobClips.ts";
@@ -2303,7 +2304,35 @@ assert.match(trackUi, /hangIdForSend/, "Send uses the extra hang id, not the fir
   assert.equal(parked.scratchSong?.carrierBeatId, "beat_1");
   assert.equal(parked.scratchSong?.cuts?.[0]?.clipFile, "01_JACK.mp4");
   assert.equal(parked.scratchSong?.waveformPeaks, undefined);
+  assert.equal(
+    deskHasSong({
+      scratchSong: { fileName: "", durationSec: 63, sliceStartSec: 0, sliceDurationSec: 15 },
+      trackDraft: { songFile: "draft.mp3" },
+    }),
+    true,
+    "TRACK songFile counts as a song on the desk",
+  );
+  assert.equal(
+    deskHasSong({
+      scratchSong: { fileName: "attached.mp3", durationSec: 63, sliceStartSec: 0, sliceDurationSec: 15 },
+      trackDraft: {},
+    }),
+    true,
+    "attached scratchSong.fileName counts as a song",
+  );
+  assert.equal(
+    deskHasSong({
+      scratchSong: { fileName: "", durationSec: 63, sliceStartSec: 0, sliceDurationSec: 15 },
+      trackDraft: {},
+    }),
+    false,
+    "empty pointers are not a song",
+  );
+  assert.equal(deskHasSong(parked), false, "after TRACK × the desk has no song");
 }
+assert.match(trackUi, /songFromTrackDraft\(job\.trackDraft, job\.scratchSong\)/, "TRACK hang uses the same song pointer as the player");
+assert.match(trackUi, /const hasSong = Boolean\(\(song\?\.fileName \|\| ""\)\.trim\(\)\)/);
+assert.match(trackRoute, /parkSongFilePointers/);
 
 console.log("check-music-video-track: ok");
 

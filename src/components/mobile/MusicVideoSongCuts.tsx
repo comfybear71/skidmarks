@@ -37,6 +37,7 @@ import {
   waitForSongCut,
 } from "@/lib/songCutCook";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
+import { deskHasSong, songFromTrackDraft } from "@/lib/musicVideoTrack";
 import { mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
 import { attachParkedSongToBeat } from "./MusicVideoStart";
 import { peekPendingSong, takePendingSong } from "@/lib/musicVideoStart";
@@ -142,7 +143,14 @@ export function MusicVideoSongCuts({
   useEffect(() => {
     setFreeLook(parseStockLook(job.stockLook));
   }, [job.stockLook?.theme, job.stockLook?.colour, job.stockLook?.types]);
-  const song = job.scratchSong;
+  const song = songFromTrackDraft(job.trackDraft, job.scratchSong) ?? job.scratchSong;
+  const hasSong =
+    deskHasSong({ scratchSong: job.scratchSong, trackDraft: job.trackDraft }) ||
+    Boolean(peekPendingSong(job.id));
+  const dropHint =
+    job.scratchSong && !(job.scratchSong.fileName || "").trim() && !hasSong
+      ? "Drop a different mp3"
+      : "Drop the song mp3";
   const beatId =
     (song?.carrierBeatId || "").trim() ||
     findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
@@ -390,9 +398,9 @@ export function MusicVideoSongCuts({
   return (
     <div className="scratch-song">
       {note ? <p className="scratch-song-parked">{note}</p> : null}
-      {!song?.fileName ? (
+      {!hasSong ? (
         <label className="scratch-song-hint" style={{ display: "block" }}>
-          Drop the song mp3
+          {dropHint}
           <input
             type="file"
             accept="audio/mpeg,audio/mp3,.mp3"
@@ -405,7 +413,7 @@ export function MusicVideoSongCuts({
           />
         </label>
       ) : null}
-      {song?.fileName && deskPlates.length ? (
+      {hasSong && deskPlates.length ? (
         <DeskFold
           label="Song list"
           count={deskPlates.length}

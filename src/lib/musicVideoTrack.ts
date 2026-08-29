@@ -404,6 +404,14 @@ export function songFromTrackDraft(
   };
 }
 
+/** TRACK already plays from either pointer. Add and the 5–40 slider must too. */
+export function deskHasSong(opts: {
+  scratchSong?: ScratchSong | null;
+  trackDraft?: MusicVideoTrackDraft | null;
+}): boolean {
+  return Boolean(songFromTrackDraft(opts.trackDraft, opts.scratchSong)?.fileName);
+}
+
 /**
  * TRACK × — park the mp3 pointer. File stays in Blob. Clips and stills stay.
  * A carrier beat does not keep the player hooked; drop another mp3 after this.

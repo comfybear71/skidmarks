@@ -7,6 +7,7 @@ import {
   hungBarDurationSec,
   msToSec,
   plateTimingForShot,
+  songFromTrackDraft,
   type MusicVideoTrackDraft,
 } from "@/lib/musicVideoTrack";
 import type { ScratchSong } from "@/lib/scratchSongWindow";
@@ -108,6 +109,7 @@ export function PlateHangLenControl({
   onJobChange?: (job: MobileGenJob) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const merged = songFromTrackDraft(trackDraft, song);
   const timing = plateTimingForShot(song, trackDraft, shotId);
   const valueSec = hungBarDurationSec(timing) || 0;
   useEffect(() => {
@@ -117,7 +119,7 @@ export function PlateHangLenControl({
   }, [jobId, shotId, valueSec]);
 
   async function setLength(durationSec: number) {
-    if (!jobId || !shotId || !song?.fileName) return;
+    if (!jobId || !shotId || !merged?.fileName) return;
     const sec = writeHangLengthDraft(jobId, shotId, durationSec);
     setBusy(true);
     try {
@@ -142,7 +144,7 @@ export function PlateHangLenControl({
     }
   }
 
-  if (!song?.fileName || !shotId) return null;
+  if (!shotId) return null;
 
   return (
     <PlateLenSlider

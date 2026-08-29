@@ -67,7 +67,12 @@ import {
 import { probeDurationSeconds } from "./mediaDuration";
 import { writeSilentMp3 } from "./silentAudio";
 import { ltxDurationFrames } from "./ltxDuration";
-import { applyLandedClipDuration, hangOneClipOnWave, hangPlateShotId } from "./musicVideoTrack";
+import {
+  applyLandedClipDuration,
+  hangOneClipOnWave,
+  hangPlateShotId,
+  songFromTrackDraft,
+} from "./musicVideoTrack";
 import { newId, sortableId } from "./types";
 import {
   clearScratchCookProgress,
@@ -115,7 +120,7 @@ export async function runScratchLtxClip(opts: {
   const shotId = hangPlateShotId(hangId) || hangId;
   let job = opts.job;
   const jobId = job.id;
-  const songEarly = job.scratchSong;
+  const songEarly = songFromTrackDraft(job.trackDraft, job.scratchSong) ?? job.scratchSong;
   const muteSong = !songCutUsesSpokenLine({
     styleId: job.styleId,
     cutId: opts.cutId,
@@ -207,7 +212,7 @@ export async function runScratchLtxClip(opts: {
   const clipRow = (job.clips || []).find((c) => c.beatId === beatId);
   // Cloud story hydrate can blank beat.voiceFile on read while the queued
   // clip still holds the Save take — same fix as /m step/route.ts.
-  const song = job.scratchSong;
+  const song = songFromTrackDraft(job.trackDraft, job.scratchSong) ?? job.scratchSong;
   const songFile = (song?.fileName || "").trim();
   const voiceFile = (songFile || clipRow?.voiceFile || beat.voiceFile || "").trim();
   const line = (clipRow?.line || beat.text || "").trim();
