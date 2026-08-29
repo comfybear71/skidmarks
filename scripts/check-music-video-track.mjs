@@ -1859,7 +1859,13 @@ assert.match(trackUi, /hangIdForSend/, "Send uses the extra hang id, not the fir
     "Send must not hang every leftover mp4",
   );
   assert.match(sendFn, /addPlateToTimeline/, "Send hangs this still only");
-  assert.match(sendFn, /Saving the motion box/, "Send says it is keeping the motion before LTX");
+  assert.doesNotMatch(
+    sendFn,
+    /await persistMotionFor/,
+    "Send must not wait on beat-motion story write before LTX",
+  );
+  assert.match(sendFn, /motionBodyForSend/, "Send keeps the [ ] words on the LTX POST");
+  assert.match(sendFn, /Starting the Send/, "Send starts LTX without Saving the motion box");
 }
 
 console.log("check-music-video-track: ok");
@@ -2080,6 +2086,7 @@ assert.match(trackUi, /emptyFrame \? "" : speaker \|\| shot\?\.title/, "yellow J
 assert.match(songRoute, /emptyFrame: body.emptyFrame === true/);
 assert.match(songRoute, /nobodyInShot: body.nobodyInShot === true/);
 assert.match(songRoute, /writeScratchCookProgress/, "song run writes the live Send step");
+assert.match(songRoute, /imageMotion: String\(body.imageMotion/, "song run takes motion from the phone");
 assert.match(scratchClip, /onProgress:/, "LTX Send keeps the Crash Lab steps");
 assert.match(scratchClip, /writeScratchCookProgress/, "LTX steps land on the job");
 assert.match(scratchClip, /Getting the still/, "Send writes before Blob resolve");
@@ -2138,7 +2145,29 @@ assert.match(scratchClip, /step: "error"/, "LTX fail writes the real error on th
       startedMs: Date.parse(startedAt),
       nowMs: Date.parse(startedAt) + 12_000,
     }),
-    "Studio has the Send. Waiting for LTX — mouths shut · 0:12",
+    "Starting the Send — mouths shut · 0:12",
+  );
+  assert.equal(
+    formatScratchCookNote(null, {
+      engine: "ltx",
+      mute: true,
+      posted: true,
+      cutRunning: true,
+      startedMs: Date.parse(startedAt),
+      nowMs: Date.parse(startedAt) + 12_000,
+    }),
+    "Studio has the Send. Waiting for a step — mouths shut · 0:12",
+  );
+  assert.equal(
+    formatScratchCookNote(null, {
+      engine: "ltx",
+      mute: true,
+      posted: true,
+      cutRunning: false,
+      startedMs: Date.parse(startedAt),
+      nowMs: Date.parse(startedAt) + 20_000,
+    }),
+    "Send has not reached LTX yet — mouths shut · 0:20",
   );
   assert.equal(
     humanScratchCookLine({

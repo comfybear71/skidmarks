@@ -1643,6 +1643,8 @@ assert.match(
 );
 assert.match(songRoute, /skipClipFiles: song.skipClipFiles/, "hang-plates / Add honor X'd files");
 assert.match(songRoute, /Studio has the Send/, "song run writes a live line before LTX");
+assert.match(songRoute, /imageMotion: String\(body.imageMotion/, "LTX run takes the phone [ ] words");
 assert.match(clip, /Getting the still/, "LTX Send writes before Blob resolve");
+assert.match(clip, /opts.imageMotion/, "LTX cook uses the POST motion, not a story wait");
 
 console.log("check-music-video-song: ok");

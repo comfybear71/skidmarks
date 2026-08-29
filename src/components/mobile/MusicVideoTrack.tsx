@@ -916,6 +916,7 @@ export function MusicVideoTrack({
   const sendLabelRef = useRef(onSendStillLabel);
   sendLabelRef.current = onSendStillLabel;
   const cookLock = useRef(false);
+  const sendPostedRef = useRef(false);
   const cookCancel = useRef(false);
   const cookWatchLive = useRef(false);
   const blobRef = useRef("");
@@ -1370,9 +1371,8 @@ export function MusicVideoTrack({
     };
   }
 
-  async function persistMotionFor(shotId: string) {
+  function motionBodyForSend(shotId: string): string {
     const targetBeatId = beatIdForShot(shotId);
-    if (!targetBeatId) return "";
     const shot = storyShotFor(shotId);
     const emptyFrame = sendEmptyFrameFor(shotId);
     const speaker = emptyFrame ? "" : (shot?.beats[0]?.speaker || "").trim();
@@ -1415,9 +1415,9 @@ export function MusicVideoTrack({
         staging: shot?.staging || "",
         emptyFrame,
       });
-      const live = readMvMotionSlot(job.id, targetBeatId);
+      const live = targetBeatId ? readMvMotionSlot(job.id, targetBeatId) : null;
       const slot = live !== null ? live : extractMuteMvMotionSlot(stored, lock);
-      writeMvMotionSlot(job.id, targetBeatId, slot);
+      if (targetBeatId) writeMvMotionSlot(job.id, targetBeatId, slot);
       body = composeMuteMvMotion(lock, slot);
     } else if (imageMotionLooksMuteLock(stored) || !stored.trim()) {
       body = buildScratchSongLtxMotion({
@@ -1435,6 +1435,13 @@ export function MusicVideoTrack({
         readMvH3Camera(job.id, hangPlateShotId(shotId) || shotId),
       );
     }
+    return body;
+  }
+
+  async function persistMotionFor(shotId: string) {
+    const targetBeatId = beatIdForShot(shotId);
+    const body = motionBodyForSend(shotId);
+    if (!targetBeatId || !body.trim()) return body;
     const res = await fetch("/api/crash/mobile/beat-motion", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1481,8 +1488,16 @@ export function MusicVideoTrack({
       return;
     }
     const now = Date.now();
+    const cutRunning = (live.scratchSong?.cuts || []).some((c) => c.status === "running");
     paintPlateSend(
-      formatScratchCookNote(cook, { nowMs: now, startedMs, engine, mute }),
+      formatScratchCookNote(cook, {
+        nowMs: now,
+        startedMs,
+        engine,
+        mute,
+        posted: sendPostedRef.current,
+        cutRunning,
+      }),
       scratchCookButtonLabel(cook, true, { nowMs: now, startedMs }),
     );
   }
@@ -1542,6 +1557,7 @@ export function MusicVideoTrack({
     }
     askSongCookNotifyPermission();
     setBusy(`send-${cutId}`);
+    sendPostedRef.current = true;
     try {
       const raw = await songPost("run", {
         cutId,
@@ -1634,7 +1650,12 @@ export function MusicVideoTrack({
     setNote("On the song. Pull the handle, then Send.");
   }
 
-  async function sendOneCutBody(cutId: string, shotId: string, targetBeatId: string) {
+  async function sendOneCutBody(
+    cutId: string,
+    shotId: string,
+    targetBeatId: string,
+    imageMotion?: string,
+  ) {
     const id = cutId.trim();
     if (!id) {
       setNote("Add this still to the timeline first.");
@@ -1658,6 +1679,7 @@ export function MusicVideoTrack({
     }
     askSongCookNotifyPermission();
     setBusy(`send-${id}`);
+    sendPostedRef.current = true;
     try {
       await songPost("run", {
         cutId: id,
@@ -1665,6 +1687,7 @@ export function MusicVideoTrack({
         clipEngine: "ltx",
         durationSec: cook.durationSec,
         ...songRunEmptyExtras(shotId),
+        ...(imageMotion?.trim() ? { imageMotion: imageMotion.trim() } : {}),
       });
       await waitForSongCut({
         jobId: job.id,
@@ -1735,15 +1758,16 @@ export function MusicVideoTrack({
         beatId: targetBeatId,
       }) === "h3";
     const engine: ScratchCookEngine = useH3 ? "h3" : "ltx";
+    sendPostedRef.current = false;
     void watchPlateCook(hangId, startedMs, engine);
     try {
-      paintPlateSend("Saving the motion box", "Saving…");
-      await persistMotionFor(hangId);
+      const motion = motionBodyForSend(hangId);
+      paintPlateSend("Starting the Send", "Starting…");
       if (useH3) {
         await sendI2v(cut.id, hangId, targetBeatId);
         return;
       }
-      await sendOneCutBody(cut.id, hangId, targetBeatId);
+      await sendOneCutBody(cut.id, hangId, targetBeatId, motion);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Couldn't send that still";
       setNote(msg);
@@ -1751,6 +1775,7 @@ export function MusicVideoTrack({
     } finally {
       cookWatchLive.current = false;
       cookLock.current = false;
+      sendPostedRef.current = false;
       setBusy("");
     }
   }

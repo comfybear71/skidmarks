@@ -125,6 +125,7 @@ export async function POST(req: Request) {
     endPlateFile?: string;
     resolution?: string;
     h3Camera?: string;
+    imageMotion?: string;
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -495,6 +496,7 @@ export async function POST(req: Request) {
           mute: body.mute === true,
           emptyFrame: body.emptyFrame === true,
           nobodyInShot: body.nobodyInShot === true,
+          imageMotion: String(body.imageMotion || "").trim() || undefined,
         });
         return NextResponse.json({
           ok: true,
