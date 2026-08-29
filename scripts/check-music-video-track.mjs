@@ -23,7 +23,9 @@ import {
   clipFileOnWave,
   hitPlateEdge,
   firstUnusedLyricHangStartMs,
+  lyricPinTakenByHang,
   singingHangStartMs,
+  nextPlateHangStartMs,
   nextPlateHangWindow,
   resolvePlateTimings,
   stretchPlateEdge,
@@ -701,8 +703,35 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     81000,
     "Jack already on Silver yields wheels",
   );
+  assert.equal(
+    lyricPinTakenByHang({ startMs: 30000, endMs: 69000 }, 31000),
+    true,
+    "clip 2 at 0:30–1:09 covers the verse pin at 0:31",
+  );
+  assert.equal(
+    lyricPinTakenByHang({ startMs: 0, endMs: 30000 }, 31000),
+    false,
+    "intro 0:00–0:30 does not cover 0:31",
+  );
+  assert.equal(
+    firstUnusedLyricHangStartMs(silverCues, [
+      { plateId: "clip2", startMs: 30000, endMs: 69000, sortIndex: 0 },
+    ]),
+    81000,
+    "clip 2 starting at 0:30 covers 0:31 — pin is taken even though start is 1000ms away",
+  );
   assert.equal(singingHangStartMs({ singing: false, lyricCues: silverCues, plateTimings: thirtyIntro }), null);
   assert.equal(singingHangStartMs({ singing: true, lyricCues: silverCues, plateTimings: thirtyIntro }), 31000);
+  assert.equal(
+    singingHangStartMs({
+      singing: true,
+      lyricCues: silverCues,
+      plateTimings: thirtyIntro,
+      alreadyOnWave: true,
+    }),
+    null,
+    "extra take of a still already on the wave does not reuse a lyric pin",
+  );
   const singingWin = nextPlateHangWindow(thirtyIntro, { singing: true, lyricCues: silverCues });
   assert.equal(singingWin.startMs, 31000, "TRACK first Add of a singing still uses Silver 0:31");
   assert.equal(singingWin.endMs, 46000);
@@ -1377,6 +1406,196 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     assert.equal(new Set(addAfterClear.plateTimings.map((t) => t.plateId)).size, 4);
   }
 
+  // Stuie: three packed JACK GHOST bars 0:00–0:30 / 0:30–1:09 / 1:09–1:40
+  // on a 5:27 song. Verse pin at 0:31 (highway). Add of the 4th 30s take
+  // must sit in the hole at 1:40 — not stack on clip 2 at 0:31.
+  {
+    const jack = "shot_jack_ghost";
+    const files = [
+      "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      "02_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      "03_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      "04_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+    ];
+    const songSec = 327;
+    const highway = [
+      { lineIndex: 0, atMs: 31000 },
+      { lineIndex: 1, atMs: 120000 },
+    ];
+    const id1 = jack;
+    const id2 = extraTakeHangPlateId(jack, files[1]);
+    const id3 = extraTakeHangPlateId(jack, files[2]);
+    const packed = [
+      { plateId: id1, startMs: 0, endMs: 30000, sortIndex: 0 },
+      { plateId: id2, startMs: 30000, endMs: 69000, sortIndex: 1 },
+      { plateId: id3, startMs: 69000, endMs: 100000, sortIndex: 2 },
+    ];
+    const cuts = [
+      {
+        id: "c1",
+        shotId: id1,
+        plateFile: "jack.png",
+        startSec: 0,
+        durationSec: 30,
+        clipFile: files[0],
+        status: "done",
+      },
+      {
+        id: "c2",
+        shotId: id2,
+        plateFile: "jack.png",
+        startSec: 30,
+        durationSec: 39,
+        clipFile: files[1],
+        status: "done",
+      },
+      {
+        id: "c3",
+        shotId: id3,
+        plateFile: "jack.png",
+        startSec: 69,
+        durationSec: 31,
+        clipFile: files[2],
+        status: "done",
+      },
+    ];
+    const clips3 = [
+      { shotId: jack, clipFile: files[0], clipStatus: "done", durationSec: 30 },
+      { shotId: jack, clipFile: files[1], clipStatus: "done", durationSec: 39 },
+      { shotId: jack, clipFile: files[2], clipStatus: "done", durationSec: 31 },
+    ];
+    const clips4 = [
+      ...clips3,
+      { shotId: jack, clipFile: files[3], clipStatus: "done", durationSec: 30 },
+    ];
+    assert.equal(formatTrackClock(100000), "1:40");
+    assert.equal(formatTrackClock(31000), "0:31");
+    assert.equal(
+      firstUnusedLyricHangStartMs(highway, packed),
+      120000,
+      "0:31 is under clip 2 — next free pin is later, not the verse",
+    );
+    assert.equal(
+      singingHangStartMs({
+        singing: true,
+        lyricCues: highway,
+        plateTimings: packed,
+        alreadyOnWave: true,
+      }),
+      null,
+      "4th JACK GHOST take does not grab the highway pin",
+    );
+    assert.equal(nextPlateHangStartMs(packed, 30000), 100000, "first hole after packed bars is 1:40");
+
+    function clip2Stays(timings, nextCuts, label) {
+      assert.equal(
+        timings.find((t) => t.plateId === id2)?.startMs,
+        30000,
+        `${label}: clip 2 stays 0:30`,
+      );
+      assert.equal(
+        timings.find((t) => t.plateId === id2)?.endMs,
+        69000,
+        `${label}: clip 2 stays 1:09`,
+      );
+      assert.equal(
+        nextCuts.find((c) => (c.shotId || "").trim() === id2)?.clipFile,
+        files[1],
+        `${label}: clip 2 keeps 02_`,
+      );
+      assert.equal(new Set(timings.map((t) => t.plateId)).size, 4, `${label}: four unique plateIds`);
+      const fourth = timings.find((t) => t.plateId !== id1 && t.plateId !== id2 && t.plateId !== id3);
+      assert.equal(fourth?.startMs, 100000, `${label}: 4th bar starts at 1:40`);
+      assert.notEqual(fourth?.startMs, 31000, `${label}: 4th bar must not start at 0:31`);
+      return fourth;
+    }
+
+    const sung4 = applyAddPlateOnSong({
+      shotId: jack,
+      plateFile: "jack.png",
+      plateTimings: packed,
+      cuts,
+      clips: clips3,
+      songPlateIds: [jack],
+      rowSlices: [1],
+      songSec,
+      durationSec: 30,
+      singing: true,
+      lyricCues: highway,
+      newCutId: () => "cut_sung4",
+    });
+    assert.equal(sung4.hung, false, "still-only singing Add does not cook");
+    const still4 = extraStillHangPlateId(jack, packed);
+    assert.equal(sung4.plateTimings.find((t) => t.plateId === still4)?.startMs, 100000);
+    clip2Stays(sung4.plateTimings, sung4.cuts, "singing still Add");
+
+    const leftoverSung = applyAddPlateOnSong({
+      shotId: jack,
+      plateFile: "jack.png",
+      plateTimings: packed,
+      cuts,
+      clips: clips4,
+      songPlateIds: [jack],
+      rowSlices: [1],
+      songSec,
+      singing: true,
+      lyricCues: highway,
+      newCutId: () => "cut_left_sung",
+    });
+    assert.equal(leftoverSung.hung, true, "singing Add hangs leftover 04_");
+    clip2Stays(leftoverSung.plateTimings, leftoverSung.cuts, "singing leftover Add");
+    assert.ok(leftoverSung.cuts.some((c) => c.clipFile === files[3]), "04_ gets its own cut");
+    assert.equal(
+      leftoverSung.plateTimings.find((t) => t.plateId === id2)?.endMs,
+      69000,
+    );
+
+    const leftoverMute = applyAddPlateOnSong({
+      shotId: jack,
+      plateFile: "jack.png",
+      plateTimings: packed,
+      cuts,
+      clips: clips4,
+      songPlateIds: [jack],
+      rowSlices: [1],
+      songSec,
+      singing: false,
+      lyricCues: highway,
+      newCutId: () => "cut_left_mute",
+    });
+    assert.equal(leftoverMute.hung, true, "mute leftover 04_ still hangs (428)");
+    clip2Stays(leftoverMute.plateTimings, leftoverMute.cuts, "mute leftover Add");
+    assert.equal(
+      leftoverMute.cuts.find((c) => c.clipFile === files[3])?.clipFile,
+      files[3],
+    );
+
+    const fileFirst = addPlateFileFirstHang({
+      shotId: jack,
+      plateFile: "jack.png",
+      plateTimings: packed,
+      cuts,
+      clips: clips4,
+      singing: true,
+      lyricCues: highway,
+      newCutId: () => "cut_ff",
+    });
+    assert.equal(fileFirst.hung, true);
+    clip2Stays(fileFirst.plateTimings, fileFirst.cuts, "file-first leftover");
+
+    const forcedPin = hangOneClipOnWave({
+      plateTimings: packed,
+      cuts,
+      shotId: jack,
+      plateFile: "jack.png",
+      clipFile: files[3],
+      durationSec: 30,
+      preferStartMs: 31000,
+      newCutId: () => "cut_forced",
+    });
+    clip2Stays(forcedPin?.plateTimings || [], forcedPin?.cuts || [], "covered preferStartMs");
+  }
+
   const jackGhost = hangOneClipOnWave({
     plateTimings: [
       { plateId: "jack1", startMs: 0, endMs: 15000, sortIndex: 0 },
@@ -2027,6 +2246,21 @@ assert.match(
   songLib,
   /alreadyHung/,
   "STILLS ADD alreadyHung lives on applyAddPlateOnSong — second bar after last end",
+);
+assert.match(
+  songLib,
+  /alreadyOnWave: alreadyHung/,
+  "singing extra Add sits in a gap — not on a covered verse pin",
+);
+assert.match(
+  trackLib,
+  /lyricPinTakenByHang/,
+  "a lyric pin under a hung bar is taken, not only a hang that starts on it",
+);
+assert.match(
+  trackLib,
+  /alreadyOnWave/,
+  "extra take of a still already on the wave does not reuse a lyric pin",
 );
 assert.match(trackUi, /hangIdForSend/, "Send uses the extra hang id, not the first still");
 {
