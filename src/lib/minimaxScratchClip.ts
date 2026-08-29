@@ -39,6 +39,11 @@ import {
 import { resolveFfmpeg } from "./mobileStitch";
 import type { ScratchClipTask } from "./mobileScratch";
 import { hangPlateShotId } from "./musicVideoTrack";
+import {
+  clearScratchCookProgress,
+  h3PhaseToCookStep,
+  writeScratchCookProgress,
+} from "./scratchCookProgress";
 
 function genDir() {
   const d = path.join(CRASH_DIR, "gen");
@@ -89,6 +94,11 @@ async function markClipError(jobId: string, beatId: string, message: string): Pr
   const next = (job.clips || []).map((c) =>
     c.beatId === beatId ? { ...c, clipStatus: "error" as const, error: message } : c,
   );
+  await writeScratchCookProgress(jobId, {
+    engine: "h3",
+    step: "error",
+    message,
+  });
   return (await patchMobileGenJob(jobId, { clips: next, scratchClip: null, error: message }))!;
 }
 
@@ -202,6 +212,11 @@ export async function submitScratchMinimaxClip(opts: {
       startedAt: new Date().toISOString(),
     };
     job = (await patchMobileGenJob(jobId, { scratchClip: task, error: "" }))!;
+    await writeScratchCookProgress(jobId, {
+      engine: "h3",
+      step: "queued",
+      startedAt: task.startedAt,
+    });
     return { job, task, model: MINIMAX_H3_MODEL, label: task.label, durationSec };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -223,6 +238,11 @@ export async function finishScratchMinimaxClip(opts: {
     throw new Error(message);
   }
   if (tick.status !== "done") {
+    await writeScratchCookProgress(jobId, {
+      engine: "h3",
+      step: h3PhaseToCookStep(tick.phase || "pending"),
+      startedAt: task.startedAt,
+    });
     return { pending: true, job: opts.job };
   }
   const buffer = await minimaxDownloadUrl(tick.url);
@@ -253,7 +273,13 @@ export async function finishScratchMinimaxClip(opts: {
         }
       : c,
   );
-  const job = (await patchMobileGenJob(jobId, { clips: next, scratchClip: null, error: "" }))!;
+  const job = (await patchMobileGenJob(jobId, {
+    clips: next,
+    scratchClip: null,
+    error: "",
+    scratchCook: null,
+  }))!;
+  await clearScratchCookProgress(jobId);
   return { pending: false, job };
 }
 

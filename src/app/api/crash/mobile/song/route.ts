@@ -72,6 +72,7 @@ import {
 } from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 import { findStoryShot, isSupportShot } from "@/lib/stockFootage";
+import { writeScratchCookProgress } from "@/lib/scratchCookProgress";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -284,6 +285,7 @@ export async function POST(req: Request) {
         const updated = await patchMobileGenJob(jobId, {
           scratchSong: { ...song, cuts },
           error: "",
+          scratchCook: null,
         });
         return NextResponse.json({ ok: true, job: updated });
       }
@@ -313,6 +315,7 @@ export async function POST(req: Request) {
           sliceDurationSec: nextWin.durationSec,
         },
         error: "",
+        scratchCook: null,
       });
       return NextResponse.json({ ok: true, job: updated });
     }
@@ -472,6 +475,12 @@ export async function POST(req: Request) {
           song.durationSec,
           HANG_LENGTH_MAX_SEC,
         );
+        await writeScratchCookProgress(jobId, {
+          cutId: cut.id,
+          engine: "ltx",
+          step: "sending",
+          mute: body.mute === true,
+        });
         const updated = await runScratchLtxClip({
           job,
           story,

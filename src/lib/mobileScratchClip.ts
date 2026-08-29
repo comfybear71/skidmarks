@@ -67,6 +67,10 @@ import { writeSilentMp3 } from "./silentAudio";
 import { ltxDurationFrames } from "./ltxDuration";
 import { applyLandedClipDuration, hangOneClipOnWave, hangPlateShotId } from "./musicVideoTrack";
 import { newId, sortableId } from "./types";
+import {
+  clearScratchCookProgress,
+  writeScratchCookProgress,
+} from "./scratchCookProgress";
 
 async function ensureComfyReady(): Promise<string> {
   const { preferComfyCloudLtx } = await import("./ltxCloudIa2v");
@@ -421,6 +425,15 @@ export async function runScratchLtxClip(opts: {
   // prior clip (that chains bad poses: sitting, phone, cropped head, walkers).
   const platePath = defaultPlatePath;
 
+  const cookStartedAt = new Date().toISOString();
+  await writeScratchCookProgress(jobId, {
+    cutId: opts.cutId,
+    engine: "ltx",
+    step: "sending",
+    mute: muteAction,
+    startedAt: cookStartedAt,
+  });
+
   try {
     const comfyUrl = await ensureComfyReady();
     const result = await runLtxSmoke({
@@ -435,6 +448,16 @@ export async function runScratchLtxClip(opts: {
       styleId: job.styleId,
       beatId: beat.id,
       durationFrames: muteAction ? ltxDurationFrames(window.durationSec) : undefined,
+      onProgress: (ev) => {
+        void writeScratchCookProgress(jobId, {
+          cutId: opts.cutId,
+          engine: "ltx",
+          step: ev.step,
+          message: ev.message,
+          mute: muteAction,
+          startedAt: cookStartedAt,
+        });
+      },
     });
     const humanName = nextHumanClipName({
       speaker: (storyShot?.title || speaker).trim() || speaker,
@@ -497,6 +520,7 @@ export async function runScratchLtxClip(opts: {
         scratchSong: hung
           ? { ...job.scratchSong!, cuts: hung.cuts, plateTimings: hung.plateTimings }
           : job.scratchSong,
+        scratchCook: null,
       }))!;
     } else {
       const next = job.clips.map((c) =>
@@ -517,10 +541,20 @@ export async function runScratchLtxClip(opts: {
           error: "",
           durationSec: probed,
         }),
+        scratchCook: null,
       }))!;
     }
+    await clearScratchCookProgress(jobId);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    await writeScratchCookProgress(jobId, {
+      cutId: opts.cutId,
+      engine: "ltx",
+      step: "error",
+      message: msg,
+      mute: muteAction,
+      startedAt: cookStartedAt,
+    });
     if (appendTake) throw e;
     const next = job.clips.map((c) =>
       c.beatId === beatId
@@ -576,6 +610,14 @@ export async function failScratchSongCutRun(opts: {
       error: msg,
     }),
     error: "",
+    scratchCook: {
+      cutId: opts.cutId,
+      engine: "ltx",
+      step: "error",
+      message: msg,
+      startedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
   });
   return next || opts.job;
 }

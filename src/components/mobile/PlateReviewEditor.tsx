@@ -245,6 +245,7 @@ export function PlateReviewEditor({
   onSendStill,
   sendStillBusy,
   sendStillNote,
+  sendStillLabel,
 }: {
   job: MobileGenJob;
   onJobChange?: (job: MobileGenJob) => void;
@@ -260,6 +261,8 @@ export function PlateReviewEditor({
   sendStillBusy?: boolean;
   /** Cooking / fail line on the open plate — Sending… is not enough. */
   sendStillNote?: string;
+  /** Queued… / 0:45 / Failed on the Send button. */
+  sendStillLabel?: string;
 }) {
   const [story, setStory] = useState<CrashStoryDoc | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -1142,6 +1145,7 @@ export function PlateReviewEditor({
           onSendStill={onSendStill}
           sendStillBusy={sendStillBusy}
           sendStillNote={sendStillNote}
+          sendStillLabel={sendStillLabel}
           onJobChange={onJobChange}
           siblingPlates={[
             ...(story?.scenes || []).flatMap((sc) =>
@@ -2335,6 +2339,7 @@ function ShotLineEditor({
   onSendStill,
   sendStillBusy,
   sendStillNote,
+  sendStillLabel,
   onJobChange,
   siblingPlates,
   onShotMeta,
@@ -2367,6 +2372,7 @@ function ShotLineEditor({
           onSendStill?: (shotId: string) => Promise<void>;
           sendStillBusy?: boolean;
           sendStillNote?: string;
+          sendStillLabel?: string;
           onJobChange?: (job: MobileGenJob) => void;
           siblingPlates?: { fileName?: string; title?: string }[];
           onShotMeta?: (patch: {
@@ -2644,6 +2650,7 @@ function ShotLineEditor({
                 <PlateSendButton
                   shotId={shot.id}
                   busy={sendStillBusy}
+                  label={sendStillLabel}
                   disabled={songAdding}
                   onSend={onSendStill}
                 />
@@ -2712,6 +2719,7 @@ function ShotLineEditor({
                 <PlateSendButton
                   shotId={shot.id}
                   busy={sendStillBusy}
+                  label={sendStillLabel}
                   disabled={songAdding}
                   onSend={onSendStill}
                 />
@@ -2739,6 +2747,7 @@ function ShotLineEditor({
         <p
           className={sendStillBusy ? "m-song-cook-note" : "m-track-err"}
           role="status"
+          aria-live="polite"
         >
           {sendStillNote}
         </p>
@@ -2804,11 +2813,13 @@ function EmptyMvMotionHole({
 function PlateSendButton({
   shotId,
   busy,
+  label,
   disabled,
   onSend,
 }: {
   shotId: string;
   busy?: boolean;
+  label?: string;
   disabled?: boolean;
   onSend?: (shotId: string) => Promise<void>;
 }) {
@@ -2819,7 +2830,7 @@ function PlateSendButton({
       disabled={Boolean(disabled || busy)}
       onClick={() => void onSend(shotId)}
     >
-      {busy ? "Sending…" : "Send"}
+      {busy ? label?.trim() || "Sending…" : "Send"}
     </MobilePrimaryButton>
   );
 }
