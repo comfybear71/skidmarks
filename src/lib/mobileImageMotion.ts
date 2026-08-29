@@ -194,6 +194,50 @@ export function resolveSongSlicePerformance(opts: {
   return requested;
 }
 
+const SONG_SLICE_PERFORMANCES = ["play", "sway", "sing", "walk", "hum"] as const;
+
+export function parseSongSlicePerformance(
+  value: unknown,
+): SongSlicePerformance | undefined {
+  const raw = String(value || "").trim().toLowerCase();
+  return (SONG_SLICE_PERFORMANCES as readonly string[]).includes(raw)
+    ? (raw as SongSlicePerformance)
+    : undefined;
+}
+
+/** Camera / framing slot used as a person name — LTX invents a singer. */
+export function looksLikeCameraSlotName(speaker: string): boolean {
+  const n = clean(speaker).toLowerCase();
+  if (!n) return false;
+  if (/^(centre|center)([-\s]?(left|right|frame))?$/.test(n)) return true;
+  if (/^(left|right|centre|center)([-\s](third|frame))?$/.test(n)) return true;
+  return (
+    n === "three-quarter" ||
+    n === "over shoulder" ||
+    n === "over shoulder two-shot" ||
+    n === "wide three-shot" ||
+    n === "tight close-up" ||
+    n === "medium close-up" ||
+    n === "sitting" ||
+    n === "wide"
+  );
+}
+
+function songMotionSpeaker(speaker: string): string {
+  const n = clean(speaker);
+  if (!n || looksLikeCameraSlotName(n)) return "The performer";
+  return n;
+}
+
+/** Still / Position already has a mic — do not send "No microphone". */
+export function stillNamesMicrophone(...texts: string[]): boolean {
+  return texts.some((t) =>
+    /\bmicrophones?\b|\bon mic\b|\binto (?:a |the )?(?:mic|microphone)\b/i.test(
+      t || "",
+    ),
+  );
+}
+
 /**
  * CRAZY BIG HOLE JO (and Jo Too) — phone / keyboard warrior only when
  * Position or the Scratch toggle names it. Same held-prop shape as pies and
@@ -691,7 +735,7 @@ export function buildGlobalPrompt(styleId: ShowStyleId): string {
   return clean([LTX_LIP_SYNC_LEAD, motionStyleLock(styleId)].join(" "));
 }
 
-export type SongSlicePerformance = "play" | "sway" | "sing" | "walk";
+export type SongSlicePerformance = "play" | "sway" | "sing" | "walk" | "hum";
 
 const JACK_FACE_HIDDEN =
   "Face stays hidden in the hat shadow. Do not light the eyes or cheeks. Do not reveal a face. Same silhouette as the start image.";
@@ -757,7 +801,7 @@ export function buildScratchSongLtxMotion(opts: {
   performance?: SongSlicePerformance;
   startSec?: number;
 }): string {
-  const name = clean(opts.speaker) || "The performer";
+  const name = songMotionSpeaker(opts.speaker);
   // Song slices drift hard on later cuts — keep more of the cast look than the 120-char speak trim.
   const look = shortLtxLookLock(opts.lookLock || "", 160);
   const who = look ? `${name}, ${look}` : name;
@@ -769,10 +813,12 @@ export function buildScratchSongLtxMotion(opts: {
     performance: opts.performance,
   });
   const walk = performance === "walk";
+  const hum = performance === "hum";
   const identityLock = walk
     ? "Same silhouette, same hat, same clothes as the start image — not a different person, not younger. Do not invent a face. Do not invent or change letters on the hat or clothing."
     : "Same face, same hair, same hat, same clothes as the start image — not a different person, not younger, not a new face. Do not invent or change letters on the hat or clothing.";
   const walkCamera = jackWalkCameraForStartSec(opts.startSec ?? 0);
+  const keepMic = stillNamesMicrophone(opts.staging || "", opts.lookLock || "", opts.speaker || "");
   const action =
     performance === "play"
       ? playInst === "sax"
@@ -784,6 +830,8 @@ export function buildScratchSongLtxMotion(opts: {
         ? `${who} is prominent, body and shoulders sway to the groove. Cyan mouth line stays still. Not singing. Not lip-sync.`
         : walk
           ? `${who} is prominent. ${walkCamera} He walks away from camera, measured, ominous. Full silhouette — fedora, dark suit, empty hands. Face never readable. Does not turn around to show a face. Not singing. Not lip-sync. No cyan glow on a face.`
+          : hum
+            ? `${who} is prominent, lips barely part, a soft hum with the music. Not singing words. Not lip-sync. Not mouthing lyrics.`
           : jack
             ? `${who} is prominent. Cyan mouth line moves with the vocal. ${jackRockstarMoveForStartSec(opts.startSec ?? 0)} Hits the high notes with the body, not a visible face. Not a statue. Not a talking-head CU.`
             : `${who} is prominent, mouth and head move naturally with the music, singing, lip-sync.`;
@@ -794,17 +842,23 @@ export function buildScratchSongLtxMotion(opts: {
         ? `${name} sways this slice. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image. Not singing.`
         : walk
           ? `${name} walks away from camera this slice. Camera stays behind him at this angle. Same silhouette and objects as the start image. Not singing.`
+          : hum
+            ? `${name} hums this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`
           : jack
             ? `${name} sings this slice of the track. Rockstar body — arms in the air, empty hands, chest and weight on the vocal, including the high notes. ${GOLD_CAMERA_HOLDS} Face stays hidden. Same person and objects as the start image.`
             : `${name} sings this slice of the track. ${GOLD_CAMERA_HOLDS} Same person and objects as the start image.`;
+  const hands =
+    hum && keepMic
+      ? "Same microphone as the start image. Do not remove the microphone. Empty hands except that mic. No saxophone. No trumpet. No extra instrument."
+      : sliceHandsLock({
+          jack,
+          play: performance === "play" ? playInst : null,
+        });
   return clean(
     [
       GOLD_START_FRAME,
       action,
-      sliceHandsLock({
-        jack,
-        play: performance === "play" ? playInst : null,
-      }),
+      hands,
       GOLD_PROPS_LOCK,
       GOLD_NO_TEXT,
       identityLock,
@@ -832,7 +886,12 @@ export function skipSongLipSyncLead(opts: {
     staging: opts.staging,
     performance: opts.performance,
   });
-  if (performance === "play" || performance === "sway" || performance === "walk") {
+  if (
+    performance === "play" ||
+    performance === "sway" ||
+    performance === "walk" ||
+    performance === "hum"
+  ) {
     return true;
   }
   return isInstrumentalStaging(opts.staging || "");
@@ -935,6 +994,9 @@ export function pickSongSendMotionBody(opts: {
   /** Position box — empty hands dumps a stored play-instrument mash. */
   staging?: string;
   speaker?: string;
+  /** Hum tap — intro / no lyrics. Dumps a stored singing cook. */
+  hum?: boolean;
+  humDefault?: string;
 }): string {
   if (opts.emptyFrame && (opts.muteDefault || "").trim()) {
     return stripLtxLipSyncLead(opts.muteDefault || "");
@@ -944,6 +1006,12 @@ export function pickSongSendMotionBody(opts: {
     opts.staging || "",
     opts.speaker || "",
   );
+  if (opts.hum && (opts.humDefault || opts.singingDefault || "").trim()) {
+    if (opts.storedUsable && isHummingDefaultMotion(opts.stored) && !storedFights) {
+      return stripLtxLipSyncLead(opts.stored);
+    }
+    return stripLtxLipSyncLead(opts.humDefault || opts.singingDefault);
+  }
   if (opts.mute && (opts.muteDefault || "").trim()) {
     if (opts.storedUsable && !isSingingDefaultMotion(opts.stored) && !storedFights) {
       return stripLtxLipSyncLead(opts.stored);
@@ -986,11 +1054,21 @@ export function imageMotionLooksEmptyFrame(text: string): boolean {
 export function isSingingDefaultMotion(text: string): boolean {
   const t = stripLtxLipSyncLead(text);
   if (!t) return false;
+  if (isHummingDefaultMotion(t)) return false;
   if (/\bmouth stays closed\b/i.test(t) && /\bnot singing\b/i.test(t)) return false;
   return (
     /\bsings this slice\b/i.test(t) ||
     /\bcyan mouth line\b/i.test(t) ||
     /\bmouth and head move naturally with the music, singing\b/i.test(t)
+  );
+}
+
+export function isHummingDefaultMotion(text: string): boolean {
+  const t = stripLtxLipSyncLead(text);
+  if (!t) return false;
+  return (
+    /\bhums this slice\b/i.test(t) ||
+    /\ba soft hum with the music\b/i.test(t)
   );
 }
 
@@ -1110,6 +1188,31 @@ export function writeMvMuteAction(jobId: string, shotId: string, on: boolean): v
   if (typeof window === "undefined") return;
   try {
     const key = mvMuteActionKey(jobId, shotId);
+    if (on) window.sessionStorage.setItem(key, "1");
+    else window.sessionStorage.removeItem(key);
+  } catch {
+    /* private mode */
+  }
+}
+
+function mvHumActionKey(jobId: string, shotId: string): string {
+  return `skidmarks.mvHumAction.${(jobId || "").trim()}.${(shotId || "").trim()}`;
+}
+
+/** Next Send of this still is a hum — song in, no lip-sync, not a verse. */
+export function readMvHumAction(jobId: string, shotId: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(mvHumActionKey(jobId, shotId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function writeMvHumAction(jobId: string, shotId: string, on: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = mvHumActionKey(jobId, shotId);
     if (on) window.sessionStorage.setItem(key, "1");
     else window.sessionStorage.removeItem(key);
   } catch {

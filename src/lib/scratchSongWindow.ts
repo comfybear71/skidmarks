@@ -36,8 +36,8 @@ export type ScratchSongCut = {
   clipFile?: string;
   status?: "pending" | "running" | "done" | "error";
   error?: string;
-  /** Forgotten who-plays: trumpet plays, Jack sings hidden or walks away. */
-  performance?: "play" | "sway" | "sing" | "walk";
+  /** Forgotten who-plays: trumpet plays, Jack sings hidden or walks away. Hum is intro / no lyrics. */
+  performance?: "play" | "sway" | "sing" | "walk" | "hum";
 };
 
 export type ScratchSong = {
