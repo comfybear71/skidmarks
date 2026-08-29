@@ -112,7 +112,7 @@ export async function minimaxSubmitVideo(opts: {
 }
 
 export type MinimaxVideoPoll =
-  | { status: "pending" }
+  | { status: "pending"; phase?: string }
   | { status: "done"; url: string }
   | { status: "failed"; message: string };
 
@@ -136,7 +136,7 @@ export async function minimaxPollVideo(taskId: string): Promise<MinimaxVideoPoll
     status === "preparing" ||
     status === "running"
   ) {
-    return { status: "pending" };
+    return { status: "pending", phase: status || "pending" };
   }
   if (status === "succeeded" || status === "success" || status === "done") {
     const content = (
@@ -149,7 +149,7 @@ export async function minimaxPollVideo(taskId: string): Promise<MinimaxVideoPoll
   if (status === "failed" || status === "cancelled" || status === "canceled" || status === "error") {
     return { status: "failed", message: minimaxError(res.status, raw) || `MiniMax H3 ${status}` };
   }
-  return { status: "pending" };
+  return { status: "pending", phase: status || "pending" };
 }
 
 export async function minimaxDownloadUrl(url: string): Promise<Buffer> {

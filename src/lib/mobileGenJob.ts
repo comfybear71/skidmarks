@@ -189,6 +189,11 @@ export type MobileGenJob = {
   plateDraw?: ScratchDrawTask | null;
   /** Scratch I2V clip in flight (Siray or Grok). Cleared when the mp4 lands. */
   scratchClip?: ScratchClipTask | null;
+  /**
+   * Last Send step the phone can poll. LTX is one long POST — Crash Lab
+   * streams these; /m used to throw them away. Older jobs omit it.
+   */
+  scratchCook?: import("./scratchCookProgress").ScratchCookProgress | null;
   /** Scratch-only full song + cut list. Never an episode stitch. */
   scratchSong?: ScratchSong | null;
   /**

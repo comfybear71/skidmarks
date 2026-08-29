@@ -102,12 +102,19 @@ import { PlateLenSlider } from "./PlateLenSlider";
 import {
   askSongCookNotifyPermission,
   clearSongCookStop,
+  refreshMobileJob,
   requestSongCookStop,
   setSongCookFlag,
   songCookFlagOn,
   songCookStopRequested,
   waitForSongCut,
 } from "@/lib/songCutCook";
+import {
+  formatScratchCookNote,
+  parseScratchCook,
+  scratchCookButtonLabel,
+  type ScratchCookEngine,
+} from "@/lib/scratchCookProgress";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
 
 /** Tall enough to read the bars and the plate lane on a phone. */
@@ -854,6 +861,7 @@ export function MusicVideoTrack({
   onBindSendStill,
   onSendStillBusy,
   onSendStillNote,
+  onSendStillLabel,
 }: {
   job: MobileGenJob;
   story: CrashStoryDoc | null;
@@ -872,6 +880,8 @@ export function MusicVideoTrack({
   onSendStillBusy?: (busy: boolean) => void;
   /** Human line on the JACK GHOST card while Send is running or if it failed. */
   onSendStillNote?: (note: string) => void;
+  /** Short Send-button face — Queued… / 0:45 / Failed. */
+  onSendStillLabel?: (label: string) => void;
 }) {
   const song = job.scratchSong;
   const parked = usePendingSong(job.id);
@@ -903,8 +913,11 @@ export function MusicVideoTrack({
   const sendPlateRef = useRef<(shotId: string) => Promise<void>>(async () => {});
   const sendNoteRef = useRef(onSendStillNote);
   sendNoteRef.current = onSendStillNote;
+  const sendLabelRef = useRef(onSendStillLabel);
+  sendLabelRef.current = onSendStillLabel;
   const cookLock = useRef(false);
   const cookCancel = useRef(false);
+  const cookWatchLive = useRef(false);
   const blobRef = useRef("");
   const lyricImportTried = useRef(false);
 
@@ -1444,26 +1457,61 @@ export function MusicVideoTrack({
     return persistMotionFor(picked.shotId);
   }
 
-  function plateCookNote(shotId: string, stillGoing = false) {
-    const mute = readMvMuteAction(job.id, hangPlateShotId(shotId) || shotId);
-    if (mute) {
-      return stillGoing
-        ? "Cooking — mouths shut. Still going."
-        : "Cooking — mouths shut. This can take a few minutes.";
-    }
-    return stillGoing
-      ? "Cooking. Still going."
-      : "Cooking. This can take a few minutes.";
+  function paintPlateSend(msg: string, label?: string) {
+    sendNoteRef.current?.(msg);
+    if (label !== undefined) sendLabelRef.current?.(label);
   }
 
-  function paintPlateSend(msg: string) {
-    sendNoteRef.current?.(msg);
+  function paintCookWatch(
+    live: MobileGenJob,
+    shotId: string,
+    startedMs: number,
+    engine: ScratchCookEngine,
+  ) {
+    const cook = parseScratchCook(live.scratchCook);
+    const mute = Boolean(
+      cook?.mute || readMvMuteAction(job.id, hangPlateShotId(shotId) || shotId),
+    );
+    const cutErr = (live.scratchSong?.cuts || []).find(
+      (c) => (c.error || "").trim() && (c.status === "error" || cook?.step === "error"),
+    );
+    if (cook?.step === "error" || (cutErr?.error || "").trim()) {
+      const msg = (cook?.message || cutErr?.error || live.error || "Clip failed").trim();
+      paintPlateSend(msg, scratchCookButtonLabel(cook, true));
+      return;
+    }
+    const now = Date.now();
+    paintPlateSend(
+      formatScratchCookNote(cook, { nowMs: now, startedMs, engine, mute }),
+      scratchCookButtonLabel(cook, true, { nowMs: now, startedMs }),
+    );
+  }
+
+  async function watchPlateCook(
+    shotId: string,
+    startedMs: number,
+    engine: ScratchCookEngine,
+  ) {
+    cookWatchLive.current = true;
+    paintCookWatch(jobRef.current, shotId, startedMs, engine);
+    while (cookWatchLive.current) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (!cookWatchLive.current) return;
+      const live = await refreshMobileJob(job.id);
+      if (!cookWatchLive.current) return;
+      if (live) {
+        onJobChange(live);
+        jobRef.current = live;
+        paintCookWatch(live, shotId, startedMs, engine);
+      } else {
+        paintCookWatch(jobRef.current, shotId, startedMs, engine);
+      }
+    }
   }
 
   async function pollI2v(cutId: string, shotId: string, targetBeatId: string) {
     for (let i = 0; i < 80; i++) {
       if (cookCancel.current || songCookStopRequested(job.id)) return;
-      if (i > 0) paintPlateSend(plateCookNote(shotId, true));
       const raw = await songPost("clip-poll", {
         cutId,
         beatId: targetBeatId || beatId,
@@ -1483,8 +1531,9 @@ export function MusicVideoTrack({
     );
     const cook = cookDurationFromHungBar(timing, "h3");
     if ("error" in cook) {
+      cookWatchLive.current = false;
       setNote(cook.error);
-      paintPlateSend(cook.error);
+      paintPlateSend(cook.error, "Failed");
       return;
     }
     if (cook.note) {
@@ -1493,7 +1542,6 @@ export function MusicVideoTrack({
     }
     askSongCookNotifyPermission();
     setBusy(`send-${cutId}`);
-    paintPlateSend(plateCookNote(shotId));
     try {
       const raw = await songPost("run", {
         cutId,
@@ -1507,7 +1555,7 @@ export function MusicVideoTrack({
       });
       if (raw.pending) await pollI2v(cutId, shotId, targetBeatId);
       if (cookCancel.current || songCookStopRequested(job.id)) return;
-      paintPlateSend("");
+      paintPlateSend("", "Send");
     } finally {
       setBusy("");
     }
@@ -1599,8 +1647,9 @@ export function MusicVideoTrack({
     );
     const cook = cookDurationFromHungBar(timing, "ltx");
     if ("error" in cook) {
+      cookWatchLive.current = false;
       setNote(cook.error);
-      paintPlateSend(cook.error);
+      paintPlateSend(cook.error, "Failed");
       return;
     }
     if (cook.note) {
@@ -1609,7 +1658,6 @@ export function MusicVideoTrack({
     }
     askSongCookNotifyPermission();
     setBusy(`send-${id}`);
-    paintPlateSend(plateCookNote(shotId));
     try {
       await songPost("run", {
         cutId: id,
@@ -1625,11 +1673,11 @@ export function MusicVideoTrack({
         cancelled: () => cookCancel.current || songCookStopRequested(job.id),
       });
       if (cookCancel.current || songCookStopRequested(job.id)) return;
-      paintPlateSend("");
+      paintPlateSend("", "Send");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Couldn't send that cut";
       setNote(msg);
-      paintPlateSend(msg);
+      paintPlateSend(msg, "Failed");
     } finally {
       setBusy("");
     }
@@ -1682,19 +1730,17 @@ export function MusicVideoTrack({
     clearSongCookStop(job.id);
     setBusy(`send-${cut.id}`);
     setNote("");
-    paintPlateSend(plateCookNote(hangId));
-    let cookTickLive = true;
-    const cookTick = window.setInterval(() => {
-      if (cookTickLive) paintPlateSend(plateCookNote(hangId, true));
-    }, 15000);
+    const startedMs = Date.now();
+    const useH3 =
+      resolveMvSendEngine({
+        jobId: job.id,
+        shotId: hangPlateShotId(hangId) || hangId,
+        beatId: targetBeatId,
+      }) === "h3";
+    const engine: ScratchCookEngine = useH3 ? "h3" : "ltx";
+    void watchPlateCook(hangId, startedMs, engine);
     try {
       await persistMotionFor(hangId);
-      const useH3 =
-        resolveMvSendEngine({
-          jobId: job.id,
-          shotId: hangPlateShotId(hangId) || hangId,
-          beatId: targetBeatId,
-        }) === "h3";
       if (useH3) {
         await sendI2v(cut.id, hangId, targetBeatId);
         return;
@@ -1703,10 +1749,9 @@ export function MusicVideoTrack({
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Couldn't send that still";
       setNote(msg);
-      paintPlateSend(msg);
+      paintPlateSend(msg, "Failed");
     } finally {
-      cookTickLive = false;
-      window.clearInterval(cookTick);
+      cookWatchLive.current = false;
       cookLock.current = false;
       setBusy("");
     }
@@ -1764,6 +1809,20 @@ export function MusicVideoTrack({
   }, [busy, onSendStillBusy]);
 
   useEffect(() => {
+    const cook = parseScratchCook(job.scratchCook);
+    if (!cook || cook.step === "done") return;
+    if (busy.startsWith("send-")) return;
+    if (cook.step === "error") {
+      paintPlateSend(cook.message || "Clip failed", "Send");
+      return;
+    }
+    paintPlateSend(
+      formatScratchCookNote(cook),
+      scratchCookButtonLabel(cook, true),
+    );
+  }, [busy, job.scratchCook]);
+
+  useEffect(() => {
     if (lyricImportTried.current) return;
     if (busy) return;
     if (
@@ -1803,6 +1862,7 @@ export function MusicVideoTrack({
   async function stopSend() {
     cookCancel.current = true;
     cookLock.current = false;
+    cookWatchLive.current = false;
     requestSongCookStop(job.id);
     setBusy("stop");
     setNote("");

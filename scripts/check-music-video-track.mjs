@@ -48,6 +48,14 @@ import {
 import { hangDoneClipOnTrack } from "../src/lib/stockClipHang.ts";
 import { hungClipFileForPlate } from "../src/lib/orderedJobClips.ts";
 import {
+  formatCookClock,
+  formatScratchCookNote,
+  h3PhaseToCookStep,
+  humanScratchCookLine,
+  parseScratchCook,
+  scratchCookButtonLabel,
+} from "../src/lib/scratchCookProgress.ts";
+import {
   clampHangLengthSec,
   HANG_LENGTH_MAX_SEC,
   HANG_LENGTH_MIN_SEC,
@@ -1925,27 +1933,37 @@ assert.match(editor, /m-plate-add-engines/, "Add | LTX | H3 | Send share one row
 assert.match(editor, /onClick=\{onAddToSong\}/, "plate-row Add next to LTX is onAddToSong");
 assert.match(editor, />\s*LTX\s*</, "LTX is a real button next to Add");
 assert.match(editor, />\s*H3\s*</, "H3 is a real button next to Add");
-assert.match(editor, /busy \? "Sending…" : "Send"/, "Send is on the same row as Add / LTX / H3");
+assert.match(editor, /busy \? label\?\.trim\(\) \|\| "Sending…" : "Send"/, "Send is on the same row as Add / LTX / H3");
 assert.match(editor, /onSendStill/, "plate Send uses the one TRACK cook");
-assert.match(editor, /Sending…/, "plate Send shows Sending while the cook runs");
+assert.match(editor, /Sending…/, "plate Send falls back to Sending until a step lands");
 assert.match(editor, /sendStillNote/, "plate card can show a cook line under Send");
+assert.match(editor, /sendStillLabel/, "plate Send button shows the live step");
 assert.match(
   editor,
   /sendStillBusy \? "m-song-cook-note" : "m-track-err"/,
-  "cook line is dim while Sending, pink if it failed",
+  "cook line is lime while Sending, pink if it failed",
 );
 assert.match(trackUi, /onSendStillNote/, "TRACK paints the plate cook line");
-assert.match(
+assert.match(trackUi, /onSendStillLabel/, "TRACK paints the Send button step");
+assert.match(trackUi, /formatScratchCookNote/, "Send paints LTX/H3 steps, not Still going");
+assert.match(trackUi, /watchPlateCook/, "Send polls the job while the LTX POST is open");
+assert.match(trackUi, /refreshMobileJob/, "Send reads scratchCook off the job");
+assert.doesNotMatch(trackUi, /Cooking\. Still going\./, "no more silent still-going tick");
+assert.doesNotMatch(
   trackUi,
-  /Cooking — mouths shut\. This can take a few minutes\./,
-  "No lips Send says mouths shut, not a mute percent bar",
+  /Cooking — mouths shut\. Still going\./,
+  "No lips Send uses the same live step + clock",
 );
-assert.match(trackUi, /Cooking — mouths shut\. Still going\./, "No lips Send ticks still going");
 assert.match(trackUi, /paintPlateSend/, "Send writes the plate line, not only TRACK setNote");
 assert.match(
   tree,
   /onSendStillNote=\{setSendStillNote\}/,
   "tree passes the cook line to the open plate",
+);
+assert.match(
+  tree,
+  /onSendStillLabel=\{setSendStillLabel\}/,
+  "tree passes the Send-button step to the open plate",
 );
 assert.doesNotMatch(editor, />\s*Siray\s*</, "Siray stays off the plate");
 assert.doesNotMatch(editor, />\s*Free\s*</, "Free stays off the plate");
@@ -2026,6 +2044,59 @@ assert.match(trackUi, /emptyFrame: true/, "Nobody Send tells song run the frame 
 assert.match(trackUi, /emptyFrame \? "" : speaker \|\| shot\?\.title/, "yellow JACK title does not override Nobody");
 assert.match(songRoute, /emptyFrame: body.emptyFrame === true/);
 assert.match(songRoute, /nobodyInShot: body.nobodyInShot === true/);
+assert.match(songRoute, /writeScratchCookProgress/, "song run writes the live Send step");
+assert.match(scratchClip, /onProgress:/, "LTX Send keeps the Crash Lab steps");
+assert.match(scratchClip, /writeScratchCookProgress/, "LTX steps land on the job");
+assert.doesNotMatch(
+  readFileSync(join(here, "../src/lib/scratchCookProgress.ts"), "utf8"),
+  /mobileGenJob/,
+  "phone cook words must not import Node job IO",
+);
+assert.match(scratchClip, /step: "error"/, "LTX fail writes the real error on the job");
+
+{
+  const startedAt = "2026-08-29T02:00:00.000Z";
+  const cook = parseScratchCook({
+    engine: "ltx",
+    step: "running",
+    mute: true,
+    startedAt,
+    updatedAt: startedAt,
+  });
+  assert.ok(cook);
+  assert.equal(humanScratchCookLine(cook), "LTX cooking — mouths shut");
+  assert.equal(
+    formatScratchCookNote(cook, { nowMs: Date.parse(startedAt) + 45_000 }),
+    "LTX cooking — mouths shut · 0:45",
+  );
+  assert.equal(
+    scratchCookButtonLabel(cook, true, { nowMs: Date.parse(startedAt) + 45_000 }),
+    "0:45",
+  );
+  assert.equal(
+    formatScratchCookNote(null, {
+      engine: "ltx",
+      mute: true,
+      startedMs: Date.parse(startedAt),
+      nowMs: Date.parse(startedAt) + 12_000,
+    }),
+    "Sending to LTX — mouths shut · 0:12",
+  );
+  assert.equal(formatCookClock(62), "1:02");
+  assert.equal(h3PhaseToCookStep("queueing"), "queued");
+  assert.equal(h3PhaseToCookStep("processing"), "running");
+  assert.equal(
+    formatScratchCookNote({
+      engine: "ltx",
+      step: "error",
+      message: "COMFY_CLOUD_API_KEY missing — set it in your environment variables",
+      startedAt,
+      updatedAt: startedAt,
+    }),
+    "COMFY_CLOUD_API_KEY missing — set it in your environment variables",
+  );
+  assert.equal(scratchCookButtonLabel({ engine: "h3", step: "queued", startedAt, updatedAt: startedAt }, true), "Queued…");
+}
 assert.match(
   readFileSync(join(here, "../src/lib/mobileImageMotion.ts"), "utf8"),
   /readMvMuteAction/,
