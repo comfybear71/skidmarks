@@ -196,6 +196,7 @@ assert.equal(both.nextSong.cuts[1].status, "error");
 assert.equal(both.nextSong.cuts[2].status, "pending");
 assert.equal(both.stoppedCook, true);
 assert.deepEqual(both.filesToPark, ["01_JACK_GHOST.mp4"]);
+assert.deepEqual(both.nextSong.skipClipFiles, ["01_JACK_GHOST.mp4"]);
 assert.equal(both.nextSong.plateTimings[0].plateId, "jack");
 
 const railBefore = clipsForStillsDesk({
@@ -289,5 +290,6 @@ assert.equal(isEpisodeClipPlanError(xHung), false);
 assert.equal(xHung.next.every((c) => !stackedClipFiles(c).includes("01_JACK_GHOST.mp4")), true);
 assert.equal(xHung.nextSong.cuts.find((c) => c.id === "c4")?.status, "pending");
 assert.deepEqual(xHung.filesToPark, ["01_JACK_GHOST.mp4"]);
+assert.deepEqual(xHung.nextSong.skipClipFiles, ["01_JACK_GHOST.mp4"]);
 
 console.log("check-mobile-episode-clips: ok");

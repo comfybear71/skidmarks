@@ -1457,6 +1457,23 @@ assert.doesNotMatch(
     0,
     "No lips still Add does not mint a WAITING cook",
   );
+  const xdFile = applyAddPlateOnSong({
+    shotId: "jack",
+    plateFile: "jack.png",
+    plateTimings: [],
+    cuts: [],
+    clips: [{ shotId: "jack", clipFile: "01_Jack.mp4", clipStatus: "done", durationSec: 8 }],
+    skipClipFiles: ["01_Jack.mp4"],
+    songPlateIds: [],
+    rowSlices: [],
+    songSec: 180,
+    durationSec: 10,
+    newCutId: () => "cut_xd",
+  });
+  assert.equal(xdFile.hung, false, "X'd leftover mp4 must not file-first hang");
+  assert.equal((xdFile.cuts.find((c) => c.shotId === "jack")?.clipFile || "").trim(), "");
+  assert.equal(xdFile.plateTimings[0]?.plateId, "jack");
+  assert.equal(xdFile.plateTimings[0]?.endMs - xdFile.plateTimings[0]?.startMs, 10000);
   const muteList = deskRowSongSpan({
     cuts: [],
     shotId: "road",
@@ -1624,5 +1641,8 @@ assert.match(
   /songCookAppendsNewClip/,
   "LTX Send uses the append lock so clip 1 stays",
 );
+assert.match(songRoute, /skipClipFiles: song.skipClipFiles/, "hang-plates / Add honor X'd files");
+assert.match(songRoute, /Studio has the Send/, "song run writes a live line before LTX");
+assert.match(clip, /Getting the still/, "LTX Send writes before Blob resolve");
 
 console.log("check-music-video-song: ok");

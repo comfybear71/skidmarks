@@ -54,6 +54,7 @@ import {
   humanScratchCookLine,
   parseScratchCook,
   scratchCookButtonLabel,
+  scratchCookShouldWrite,
 } from "../src/lib/scratchCookProgress.ts";
 import {
   clampHangLengthSec,
@@ -1538,6 +1539,26 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
     skipShotIds: ["car"],
   });
   assert.deepEqual(skipWholeCar.map((r) => r.clipFile), [], "skip car still skips the car still");
+  assert.deepEqual(
+    listUnhungDoneClips({
+      clips: [{ shotId: "jack", clipFile: "01_Jack.mp4", clipStatus: "done", durationSec: 8 }],
+      cuts: [],
+      plateTimings: [],
+      skipClipFiles: ["01_Jack.mp4"],
+    }).map((r) => r.clipFile),
+    [],
+    "X'd mp4 stays off Add / Hang / hang-plates",
+  );
+  const skippedStill = addPlateFileFirstHang({
+    shotId: "jack",
+    plateFile: "jack.png",
+    plateTimings: [],
+    cuts: [],
+    clips: [{ shotId: "jack", clipFile: "01_Jack.mp4", clipStatus: "done", durationSec: 8 }],
+    skipClipFiles: ["01_Jack.mp4"],
+    newCutId: () => "cut_skip",
+  });
+  assert.equal(skippedStill.hung, false, "X'd file does not file-first hang");
 
   const stillsStayOff = hangMissingPlateTimings(
     [{ plateId: "plate_1", startMs: 0, endMs: 15000, sortIndex: 0 }],
@@ -1826,6 +1847,20 @@ assert.match(
   "STILLS ADD alreadyHung lives on applyAddPlateOnSong — second bar after last end",
 );
 assert.match(trackUi, /hangIdForSend/, "Send uses the extra hang id, not the first still");
+{
+  const sendFn =
+    trackUi.slice(
+      trackUi.indexOf("async function sendPlate"),
+      trackUi.indexOf("sendPlateRef.current = sendPlate"),
+    ) || "";
+  assert.doesNotMatch(
+    sendFn,
+    /hangStillsOnWave/,
+    "Send must not hang every leftover mp4",
+  );
+  assert.match(sendFn, /addPlateToTimeline/, "Send hangs this still only");
+  assert.match(sendFn, /Saving the motion box/, "Send says it is keeping the motion before LTX");
+}
 
 console.log("check-music-video-track: ok");
 
@@ -2047,6 +2082,20 @@ assert.match(songRoute, /nobodyInShot: body.nobodyInShot === true/);
 assert.match(songRoute, /writeScratchCookProgress/, "song run writes the live Send step");
 assert.match(scratchClip, /onProgress:/, "LTX Send keeps the Crash Lab steps");
 assert.match(scratchClip, /writeScratchCookProgress/, "LTX steps land on the job");
+assert.match(scratchClip, /Getting the still/, "Send writes before Blob resolve");
+assert.match(scratchClip, /Making the silent length/, "No lips writes before the silent mp3");
+assert.match(scratchClip, /Finding LTX/, "Send writes before Comfy probe");
+assert.match(
+  readFileSync(join(here, "../src/lib/songCutCook.ts"), "utf8"),
+  /cache: "no-store"/,
+  "Send poll must not reuse a cached job GET",
+);
+assert.match(
+  readFileSync(join(here, "../src/app/api/crash/mobile/job/[id]/route.ts"), "utf8"),
+  /Cache-Control": "no-store"/,
+  "job GET must not cache scratchCook",
+);
+assert.match(park, /skipClipFiles/, "X'd mp4 names stay on the song skip list");
 assert.doesNotMatch(
   readFileSync(join(here, "../src/lib/scratchCookProgress.ts"), "utf8"),
   /mobileGenJob/,
@@ -2078,9 +2127,56 @@ assert.match(scratchClip, /step: "error"/, "LTX fail writes the real error on th
       engine: "ltx",
       mute: true,
       startedMs: Date.parse(startedAt),
+      nowMs: Date.parse(startedAt) + 3_000,
+    }),
+    "Sending to LTX — mouths shut · 0:03",
+  );
+  assert.equal(
+    formatScratchCookNote(null, {
+      engine: "ltx",
+      mute: true,
+      startedMs: Date.parse(startedAt),
       nowMs: Date.parse(startedAt) + 12_000,
     }),
-    "Sending to LTX — mouths shut · 0:12",
+    "Studio has the Send. Waiting for LTX — mouths shut · 0:12",
+  );
+  assert.equal(
+    humanScratchCookLine({
+      engine: "ltx",
+      step: "sending",
+      message: "Getting the still",
+      mute: true,
+      startedAt,
+      updatedAt: startedAt,
+    }),
+    "Getting the still — mouths shut",
+  );
+  assert.equal(
+    scratchCookShouldWrite(
+      {
+        engine: "ltx",
+        step: "sending",
+        startedAt,
+        updatedAt: startedAt,
+      },
+      { step: "sending", message: "Getting the still" },
+    ),
+    true,
+    "same sending step with a new line must write",
+  );
+  assert.equal(
+    scratchCookShouldWrite(
+      {
+        engine: "ltx",
+        step: "sending",
+        message: "Getting the still",
+        startedAt,
+        updatedAt: startedAt,
+      },
+      { step: "sending", message: "Getting the still" },
+    ),
+    false,
+    "same sending line must not hammer Neon",
   );
   assert.equal(formatCookClock(62), "1:02");
   assert.equal(h3PhaseToCookStep("queueing"), "queued");

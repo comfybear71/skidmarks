@@ -55,6 +55,8 @@ export type ScratchSong = {
   rowSlices?: number[];
   /** Off song — still stays in STILLS; hang-plates must not put it back. */
   skipShotIds?: string[];
+  /** X'd mp4s — Add / Send / hang-plates must not put these files back. */
+  skipClipFiles?: string[];
   /** TRACK timeline — normalized waveform peaks 0..1 */
   waveformPeaks?: number[];
   /** Verse / chorus / sax break regions on the MP3 */

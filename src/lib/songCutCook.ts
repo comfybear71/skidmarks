@@ -170,7 +170,9 @@ export function songCutById(
 
 export async function refreshMobileJob(jobId: string): Promise<MobileGenJob | null> {
   try {
-    const res = await fetch(`/api/crash/mobile/job/${encodeURIComponent(jobId)}`);
+    const res = await fetch(`/api/crash/mobile/job/${encodeURIComponent(jobId)}`, {
+      cache: "no-store",
+    });
     const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
     return data.job || null;
   } catch {

@@ -479,6 +479,7 @@ export async function POST(req: Request) {
           cutId: cut.id,
           engine: "ltx",
           step: "sending",
+          message: "Studio has the Send",
           mute: body.mute === true,
         });
         const updated = await runScratchLtxClip({
@@ -650,6 +651,7 @@ export async function POST(req: Request) {
         cuts,
         plateTimings: song.plateTimings,
         skipShotIds: song.skipShotIds,
+        skipClipFiles: song.skipClipFiles,
       });
       if (!needsDoneClipHang(songNow, jobShots, job.clips || []) && !extraFiles.length) {
         return NextResponse.json({ ok: true, job });
@@ -664,6 +666,7 @@ export async function POST(req: Request) {
         clips: job.clips || [],
         jobShots,
         skipShotIds: song.skipShotIds,
+        skipClipFiles: song.skipClipFiles,
       }).filter((row) => needIds.includes(row.shotId));
       const hangCuts = rows.map((row) => ({
         shotId: row.shotId,
@@ -679,6 +682,7 @@ export async function POST(req: Request) {
         cuts,
         clips: job.clips || [],
         skipShotIds: song.skipShotIds,
+        skipClipFiles: song.skipClipFiles,
         plateFileFor: (id) =>
           (jobShots.find((s) => s.shotId === id)?.plateFile || "").trim(),
         newCutId: () => newId("cut"),
@@ -725,7 +729,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Couldn't hang that clip." }, { status: 400 });
       }
       const updated = await patchMobileGenJob(jobId, {
-        scratchSong: { ...song, cuts: hung.cuts, plateTimings: hung.plateTimings },
+        scratchSong: {
+          ...song,
+          cuts: hung.cuts,
+          plateTimings: hung.plateTimings,
+          skipClipFiles: (song.skipClipFiles || []).filter((f) => f !== clipFile),
+        },
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated });
@@ -790,6 +799,7 @@ export async function POST(req: Request) {
         cuts: song.cuts || [],
         clips: job.clips || [],
         skipShotIds: song.skipShotIds,
+        skipClipFiles: song.skipClipFiles,
         songPlateIds: song.songPlateIds,
         rowSlices: song.rowSlices,
         songSec: song.durationSec,
