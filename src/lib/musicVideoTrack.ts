@@ -719,6 +719,9 @@ export function ensurePlateDuration(
 /**
  * After the mp4 lands — the wave uses the real clip length.
  * He does not type How long first. Other bars keep their song times.
+ * A done cut with no real hang gets one write: this bar in a gap.
+ * File length stays. Does not invent 15s when duration is known.
+ * Does not restamp another hang.
  */
 export function applyLandedClipDuration(
   song: ScratchSong,
@@ -733,18 +736,34 @@ export function applyLandedClipDuration(
   const plateId =
     (opts.plateId || "").trim() ||
     (cutId ? (cuts.find((c) => c.id === cutId)?.shotId || "").trim() : "");
-  const plateTimings = plateId
-    ? withPlateDuration(
-        song.plateTimings,
-        plateId,
-        secToMs(durationSec),
-        secToMs(song.durationSec),
-      )
-    : null;
+  if (!plateId) return { ...song, cuts };
+  const durMs = secToMs(durationSec);
+  const songMs = secToMs(song.durationSec);
+  const exact = (song.plateTimings || []).find(
+    (t) => isRealPlateHang(t) && t.plateId === plateId,
+  );
+  const mapped = (song.plateTimings || []).find(
+    (t) => isRealPlateHang(t) && hangPlateShotId(t.plateId) === hangPlateShotId(plateId),
+  );
+  const hangId = (exact || mapped)?.plateId || plateId;
+  const resized = withPlateDuration(song.plateTimings, hangId, durMs, songMs);
+  if (resized) {
+    return { ...song, cuts, plateTimings: resized };
+  }
+  const minted = ensurePlateDuration(song.plateTimings, plateId, durMs, songMs);
+  const hang = minted?.find((t) => t.plateId === plateId);
+  const stamped =
+    hang && cutId
+      ? cuts.map((c) =>
+          c.id === cutId
+            ? { ...c, startSec: msToSec(hang.startMs), durationSec }
+            : c,
+        )
+      : cuts;
   return {
     ...song,
-    cuts,
-    plateTimings: plateTimings || song.plateTimings,
+    cuts: stamped,
+    plateTimings: minted || song.plateTimings,
   };
 }
 

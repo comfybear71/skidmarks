@@ -41,6 +41,7 @@ import {
   syncSongCutsToDesk,
   applyAddPlateOnSong,
   addPlateIsSingingHang,
+  deskRowSongSpan,
   addPlateHangDurationSec,
   songCutsOrderBroken,
   expectedDeskCutCount,
@@ -294,6 +295,12 @@ assert.doesNotMatch(songUi, /You pick/);
 assert.doesNotMatch(songUi, /Set 1 × 15s or 4 × 15s/);
 assert.match(songUi, /songOrdinal/);
 assert.match(songUi, /\{n\} × 15s/);
+assert.match(songUi, /deskRowSongSpan/, "song list clock uses hung plateTimings when cuts are empty");
+assert.doesNotMatch(
+  songUi,
+  /const spanObj = plateCutSpan\(mine\)/,
+  "list must not hide No lips hangs that have plateTimings but no cut",
+);
 assert.match(songUi, /shortPlateLabel/);
 assert.match(songUi, /deskRowAllDone/);
 assert.match(songRoute, /Still with no mp4 hangs at body\.durationSec \(slider 5–40\)/);
@@ -1422,6 +1429,63 @@ assert.doesNotMatch(
     "Send cooks the hang id, not the first still match",
   );
   assert.match(songRoute, /sliceBoundsForPlate\(\{ song, shotId: hangId/);
+  const muteStill = applyAddPlateOnSong({
+    shotId: "road",
+    plateFile: "road.png",
+    singing: false,
+    lyricCues: [
+      { lineIndex: 0, atMs: 31000 },
+      { lineIndex: 1, atMs: 81000 },
+    ],
+    plateTimings: [
+      { plateId: "intro", startMs: 0, endMs: 30000, sortIndex: 0 },
+      { plateId: "jack", startMs: 31000, endMs: 46000, sortIndex: 1 },
+    ],
+    cuts: [],
+    clips: [],
+    songPlateIds: ["intro", "jack"],
+    rowSlices: [1, 1],
+    songSec: 180,
+    durationSec: 8,
+    newCutId: () => "cut_mute",
+  });
+  assert.equal(muteStill.plateTimings.find((t) => t.plateId === "road")?.startMs, 46000);
+  assert.equal(muteStill.plateTimings.find((t) => t.plateId === "road")?.endMs, 54000);
+  assert.equal(muteStill.plateTimings.find((t) => t.plateId === "jack")?.startMs, 31000);
+  assert.equal(
+    muteStill.cuts.filter((c) => c.status === "pending").length,
+    0,
+    "No lips still Add does not mint a WAITING cook",
+  );
+  const muteList = deskRowSongSpan({
+    cuts: [],
+    shotId: "road",
+    plateTimings: muteStill.plateTimings,
+  });
+  assert.equal(muteList?.startSec, 46, "No lips hang shows the song clock with no cut");
+  assert.equal(muteList?.endSec, 54);
+  assert.equal(
+    formatSongSpan(muteList.startSec, muteList.endSec),
+    "0:46.0–0:54.0",
+  );
+  assert.equal(
+    deskRowSongSpan({
+      cuts: [],
+      shotId: "ghost",
+      plateTimings: [{ plateId: "ghost", startMs: 0, endMs: 500, sortIndex: 0 }],
+    }),
+    null,
+    "leftover 0.5s is not a time signature",
+  );
+  assert.equal(
+    deskRowSongSpan({
+      cuts: [{ startSec: 0, durationSec: 15 }],
+      shotId: "road",
+      plateTimings: [{ plateId: "road", startMs: 46000, endMs: 54000, sortIndex: 0 }],
+    })?.startSec,
+    0,
+    "real cut clock wins over plateTimings",
+  );
   assert.match(
     songLib,
     /const durMs = secToMs\(addPlateHangDurationSec\(opts\.durationSec\)\)/,

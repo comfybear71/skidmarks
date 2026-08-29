@@ -21,7 +21,7 @@ import {
   formatSongSpan,
   hasStuckSongCook,
   MUSIC_VIDEO_SLICE_DEFAULT,
-  plateCutSpan,
+  deskRowSongSpan,
   shortPlateLabel,
   songCutsOrderBroken,
   songDeskPlateIds,
@@ -418,7 +418,11 @@ export function MusicVideoSongCuts({
             const n = clampPlateSliceCount(rowSlices[row.listIndex] ?? MUSIC_VIDEO_SLICE_DEFAULT);
             const name = shortPlateLabel(story, s.shotId, i + 1);
             const mine = cutsForDeskRow(cuts, rowSlices, row.listIndex);
-            const spanObj = plateCutSpan(mine);
+            const spanObj = deskRowSongSpan({
+              cuts: mine,
+              shotId: row.shotId,
+              plateTimings: song?.plateTimings,
+            });
             const span = spanObj ? formatSongSpan(spanObj.startSec, spanObj.endSec) : "";
             const rowDone = deskRowAllDone(mine);
             const rowRun = mine.some((c) => c.status === "running");

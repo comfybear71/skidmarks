@@ -38,6 +38,7 @@ import {
   hungBarDurationSec,
   cookDurationFromHungBar,
   ensurePlateDuration,
+  applyLandedClipDuration,
   sliceBoundsForPlate,
   sortPlateTimings,
   trackWaveCssWidth,
@@ -730,6 +731,69 @@ assert.equal(formatTrackClockPrecise(0), "0:00.0");
   assert.equal(afterLast?.[1].plateId, "b");
   assert.equal(afterLast?.[1].startMs, 15000);
   assert.equal(afterLast?.[1].endMs, 25000);
+
+  const muteLand = applyLandedClipDuration(
+    {
+      fileName: "song.mp3",
+      durationSec: 180,
+      sliceStartSec: 0,
+      sliceDurationSec: 15,
+      plateTimings: [{ plateId: "intro", startMs: 0, endMs: 30000, sortIndex: 0 }],
+      cuts: [
+        {
+          id: "mute1",
+          shotId: "road",
+          plateFile: "road.png",
+          startSec: 0,
+          durationSec: 0,
+          clipFile: "04_Road.mp4",
+          status: "done",
+        },
+      ],
+    },
+    { cutId: "mute1", durationSec: 8 },
+  );
+  assert.equal(
+    muteLand.plateTimings.find((t) => t.plateId === "road")?.startMs,
+    30000,
+    "No lips cook with no hang gets a clock after intro",
+  );
+  assert.equal(muteLand.plateTimings.find((t) => t.plateId === "road")?.endMs, 38000);
+  assert.equal(muteLand.plateTimings[0]?.startMs, 0, "intro stays");
+  assert.equal(muteLand.plateTimings[0]?.endMs, 30000, "intro is not shoved");
+  assert.equal(muteLand.cuts.find((c) => c.id === "mute1")?.startSec, 30);
+  assert.equal(muteLand.cuts.find((c) => c.id === "mute1")?.durationSec, 8);
+  const keepJack = applyLandedClipDuration(
+    {
+      fileName: "song.mp3",
+      durationSec: 180,
+      sliceStartSec: 0,
+      sliceDurationSec: 15,
+      plateTimings: [
+        { plateId: "intro", startMs: 0, endMs: 30000, sortIndex: 0 },
+        { plateId: "jack", startMs: 31000, endMs: 46000, sortIndex: 1 },
+      ],
+      cuts: [
+        {
+          id: "j1",
+          shotId: "jack",
+          plateFile: "j.png",
+          startSec: 31,
+          durationSec: 15,
+          clipFile: "03_Jack.mp4",
+          status: "done",
+        },
+      ],
+    },
+    { cutId: "j1", durationSec: 8 },
+  );
+  assert.equal(keepJack.plateTimings.find((t) => t.plateId === "jack")?.startMs, 31000);
+  assert.equal(keepJack.plateTimings.find((t) => t.plateId === "jack")?.endMs, 39000);
+  assert.equal(
+    keepJack.plateTimings.find((t) => t.plateId === "intro")?.endMs,
+    30000,
+    "landing a clip must not restamp intro",
+  );
 
   const sevenBar = withPlateDuration(
     [{ plateId: "a", startMs: 0, endMs: 15000, sortIndex: 0 }],
