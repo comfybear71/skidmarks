@@ -357,17 +357,17 @@ assert.match(trackUi, /startSec/);
 assert.doesNotMatch(trackUi, /Send all/);
 assert.doesNotMatch(trackUi, /Sending…/, "TRACK pick has no Send — Send sits on the plate row");
 assert.doesNotMatch(trackUi, /void sendPlate\(picked\.shotId\)/, "TRACK does not run Send");
-assert.match(trackUi, /Take off the song/);
 assert.match(
   trackUi,
-  /aria-label="Take off the song"[\s\S]{0,220}dropPlateFromWave/,
-  "TRACK X unhangs — it must not park the mp4",
+  /"Off song"/,
+  "Off song is the only unhang on the hung row",
 );
-assert.doesNotMatch(
+assert.match(
   trackUi,
-  /aria-label="Take off the song"[\s\S]{0,220}redoPlate/,
-  "TRACK X is not Redo / park",
+  /dropPlateFromWave/,
+  "Off song unhangs — it must not park the mp4",
 );
+assert.doesNotMatch(trackUi, /void redoPlate/, "TRACK hung row has no Redo");
 assert.doesNotMatch(trackUi, /Park this clip/);
 assert.match(trackUi, /requestSongCookStop/);
 assert.match(trackUi, /m-track-film/);
@@ -2165,6 +2165,21 @@ assert.match(trackUi, /remove-plate-timing/);
 assert.match(trackUi, /dropPlateFromWave/);
 assert.match(trackUi, /Off song/);
 assert.match(trackUi, /Off the wave\. Clip stays/);
+assert.doesNotMatch(
+  trackUi,
+  /busy\.startsWith\("redo-"\)/,
+  "TRACK hung row must not grow Redo — that removal sat on a branch and came back",
+);
+assert.doesNotMatch(
+  trackUi,
+  />\s*Open\s*</,
+  "TRACK hung row has no Open button",
+);
+assert.doesNotMatch(
+  trackUi,
+  /aria-label="Take off the song"/,
+  "Off song is the only unhang — no second X on the hung row",
+);
 assert.doesNotMatch(songLib, /the route can park them/);
 assert.match(trackRoute, /keepClipsAfterUnhang/);
 assert.doesNotMatch(

@@ -859,7 +859,6 @@ export function MusicVideoTrack({
   busy: startBusy = false,
   canStart = false,
   onStart,
-  onOpenPlate,
   onBindSendStill,
   onSendStillBusy,
   onSendStillNote,
@@ -1813,27 +1812,6 @@ export function MusicVideoTrack({
     }
   }
 
-  async function redoPlate(shotId: string) {
-    const cut = doneCutForPlate(shotId) || waitingCutForPlate(shotId);
-    if (!cut?.id) {
-      setNote("Nothing to redo on that still.");
-      return;
-    }
-    requestSongCookStop(job.id);
-    cookCancel.current = true;
-    cookLock.current = false;
-    setBusy(`redo-${cut.id}`);
-    setNote("");
-    try {
-      await songPost("redo-cut", { cutId: cut.id });
-      setNote("Clip parked. Still stays on the song. Send again when you want.");
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't redo that cut");
-    } finally {
-      setBusy("");
-    }
-  }
-
   useEffect(() => {
     onBindSendStill?.((shotId) => sendPlateRef.current(shotId));
   }, [onBindSendStill]);
@@ -2299,30 +2277,6 @@ export function MusicVideoTrack({
                         void setHungPlateLength(sec);
                       }}
                     />
-                    {/* Send lives on the JACK GHOST plate row — one cook. */}
-                    {doneCutForPlate(picked.shotId)?.id ||
-                    waitingCutForPlate(picked.shotId)?.clipFile ||
-                    waitingCutForPlate(picked.shotId)?.status === "error" ? (
-                      <>
-                        <button
-                          type="button"
-                          className="m-track-btn"
-                          disabled={busy.startsWith("redo-")}
-                          onClick={() => void redoPlate(picked.shotId)}
-                        >
-                          {busy.startsWith("redo-") ? "…" : "Redo"}
-                        </button>
-                        <button
-                          type="button"
-                          className="m-track-btn"
-                          aria-label="Take off the song"
-                          disabled={Boolean(busy) || busy === `drop-${picked.shotId}`}
-                          onClick={() => void dropPlateFromWave(picked.shotId)}
-                        >
-                          {busy === `drop-${picked.shotId}` ? "…" : "X"}
-                        </button>
-                      </>
-                    ) : null}
                   </>
                 ) : hungClipFileForPlate(job, picked.shotId) ? null : (
                   <button
@@ -2334,15 +2288,6 @@ export function MusicVideoTrack({
                     Add
                   </button>
                 )}
-                {onOpenPlate ? (
-                  <button
-                    type="button"
-                    className="m-track-btn"
-                    onClick={() => onOpenPlate(hangPlateShotId(picked.shotId))}
-                  >
-                    Open
-                  </button>
-                ) : null}
               </div>
             </div>
           ) : null}
