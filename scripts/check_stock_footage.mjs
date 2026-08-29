@@ -235,6 +235,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const panel = readFileSync(join(here, "../src/components/StockFootagePanel.tsx"), "utf8");
 assert(panel.includes("Nobody"), "Nobody sits next to HERO/SUPPORT");
 assert(panel.includes("onNobodyChange"), "Nobody is optional — desk storyboard stays as-is");
+assert(
+  !panel.includes("Plates / Speak / Animate as normal"),
+  "Hero type line is gone — buttons stay, the essay does not",
+);
 const songUi = readFileSync(join(here, "../src/components/mobile/MusicVideoSongCuts.tsx"), "utf8");
 const trackUi = readFileSync(join(here, "../src/components/mobile/MusicVideoTrack.tsx"), "utf8");
 assert(songUi.includes('label="Free look"'), "free look fold is under Song list");

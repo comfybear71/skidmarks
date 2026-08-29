@@ -91,7 +91,7 @@ function RoleToggle({
   };
   return (
     <div className={compact ? undefined : "flex items-center gap-1"} style={compact ? { display: "flex", gap: "6px" } : undefined}>
-      {btn("hero", "Hero", "Needs our character — Plates / Speak / Animate as normal")}
+      {btn("hero", "Hero", "Hero")}
       {btn("support", "Support", "B-roll / scenery / mood — hang licensed stock, do not cook")}
     </div>
   );
@@ -391,14 +391,7 @@ export function StockFootagePanel({
             </div>
           ) : null}
         </>
-      ) : (
-        <p
-          className={compact ? undefined : "text-[10px] text-[var(--mute)]"}
-          style={compact ? { fontSize: "12px", color: "var(--mute)", margin: 0 } : undefined}
-        >
-          Hero — Plates / Speak / Animate as normal.
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }
