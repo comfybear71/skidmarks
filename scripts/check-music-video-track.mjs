@@ -60,6 +60,7 @@ import {
   humanScratchCookLine,
   parseScratchCook,
   scratchCookButtonLabel,
+  scratchCookIsLive,
   scratchCookShouldWrite,
 } from "../src/lib/scratchCookProgress.ts";
 import {
@@ -2611,6 +2612,10 @@ assert.match(scratchClip, /step: "error"/, "LTX fail writes the real error on th
     updatedAt: startedAt,
   });
   assert.ok(cook);
+  assert.equal(scratchCookIsLive(cook), true);
+  assert.equal(scratchCookIsLive({ ...cook, step: "done" }), false);
+  assert.equal(scratchCookIsLive({ ...cook, step: "error" }), false);
+  assert.equal(scratchCookIsLive(null), false);
   assert.equal(humanScratchCookLine(cook), "LTX cooking — mouths shut");
   assert.equal(
     formatScratchCookNote(cook, { nowMs: Date.parse(startedAt) + 45_000 }),

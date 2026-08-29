@@ -36,6 +36,8 @@ import {
   songCookStopRequested,
   waitForSongCut,
 } from "@/lib/songCutCook";
+import { parseScratchCook, scratchCookIsLive } from "@/lib/scratchCookProgress";
+import { SongCookAlertBanner } from "./SongCookAlertBanner";
 import { approvedCandidateFileName } from "@/lib/mobileJobReady";
 import { deskHasSong, songFromTrackDraft } from "@/lib/musicVideoTrack";
 import { mobilePlacePreviewUrl } from "@/lib/mobileCandidateUrls";
@@ -394,10 +396,16 @@ export function MusicVideoSongCuts({
     })
     .filter((row): row is { unit: MobileShotUnit; listIndex: number; shotId: string } => Boolean(row));
   const runningCut = cuts.find((c) => c.status === "running");
+  const cookLive =
+    workingNow ||
+    songCookFlagOn(job.id) ||
+    scratchCookIsLive(parseScratchCook(job.scratchCook));
+  const showNote = Boolean(note) && !(cookLive && /^Stopped\./i.test(note));
 
   return (
     <div className="scratch-song">
-      {note ? <p className="scratch-song-parked">{note}</p> : null}
+      <SongCookAlertBanner cuts={cuts} cooking={cookLive} />
+      {showNote ? <p className="scratch-song-parked">{note}</p> : null}
       {!hasSong ? (
         <label className="scratch-song-hint" style={{ display: "block" }}>
           {dropHint}

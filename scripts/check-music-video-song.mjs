@@ -340,7 +340,9 @@ assert.match(songUi, /--row-progress/);
 assert.doesNotMatch(songUi, /Cooking/);
 assert.doesNotMatch(songUi, /cooking \$\{/);
 assert.match(songUi, /Sending…/);
-assert.doesNotMatch(songUi, /SongCookAlertBanner/);
+assert.match(songUi, /SongCookAlertBanner/);
+assert.match(songUi, /scratchCookIsLive/);
+assert.match(songUi, /Stopped\./);
 assert.match(songUi, /askSongCookNotifyPermission/);
 assert.match(songUi, /is-error/);
 assert.match(songUi, /unstick-all/);
@@ -349,8 +351,25 @@ const trackUi = readFileSync(join(here, "../src/components/mobile/MusicVideoTrac
 const alertUi = readFileSync(join(here, "../src/components/mobile/SongCookAlertBanner.tsx"), "utf8");
 const cookLib = readFileSync(join(here, "../src/lib/songCutCook.ts"), "utf8");
 assert.match(trackUi, /SongCookAlertBanner/);
+assert.ok(
+  trackUi.indexOf("m-track-song-top") < trackUi.indexOf("<SongCookAlertBanner"),
+  "stuck banner sits with Stop send / the hung plate, not above the song title",
+);
+assert.ok(
+  trackUi.indexOf("m-track-toolbar") < trackUi.indexOf("<SongCookAlertBanner"),
+  "stuck banner is below the player, next to the plate controls",
+);
+assert.ok(
+  trackUi.indexOf("<SongCookAlertBanner") < trackUi.indexOf("m-track-pick"),
+  "stuck banner sits on the hung JACK GHOST card",
+);
 assert.match(alertUi, /role="alert"/);
 assert.match(alertUi, /m-song-cook-alert/);
+assert.doesNotMatch(
+  alertUi,
+  /notifySongCookProblem/,
+  "leftover stuck must not ping the phone island — cook loop still notifies a real fail",
+);
 assert.match(songCss, /\.m-song-cook-alert/);
 assert.match(cookLib, /notifySongCookProblem/);
 assert.match(cookLib, /pushCookStatus/);
