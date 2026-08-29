@@ -5,6 +5,7 @@
 import { patchMobileGenJob, readMobileGenJob } from "./mobileGenJob";
 import {
   parseScratchCook,
+  scratchCookShouldWrite,
   type ScratchCookEngine,
   type ScratchCookProgress,
   type ScratchCookStep,
@@ -30,11 +31,11 @@ export async function writeScratchCookProgress(
     const now = new Date().toISOString();
     const sameCut = Boolean(prev && (next.cutId || "") === (prev.cutId || ""));
     if (
-      prev &&
-      sameCut &&
-      prev.step === next.step &&
-      next.step !== "error" &&
-      next.step !== "done"
+      !scratchCookShouldWrite(prev, {
+        cutId: next.cutId,
+        step: next.step,
+        message: next.message,
+      })
     ) {
       return;
     }

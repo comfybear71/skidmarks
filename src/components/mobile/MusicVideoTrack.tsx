@@ -1698,13 +1698,10 @@ export function MusicVideoTrack({
         jobRef.current.trackDraft,
         hangId,
       );
-    // Hung mp4s already have a clock. Add is only for a still with no clip.
+    // Still with no clock hangs as a still. Do not hang-plates every leftover
+    // mp4 — that put old cooks back after he cleared the song.
     if (!isRealPlateHang(timingNow())) {
-      if (hungClipFileForPlate(jobRef.current, hangId)) {
-        await hangStillsOnWave();
-      } else {
-        await addPlateToTimeline(hangPlateShotId(hangId) || hangId);
-      }
+      await addPlateToTimeline(hangPlateShotId(hangId) || hangId);
     }
     const hungCut = () =>
       cutForHungPlate({
@@ -1740,6 +1737,7 @@ export function MusicVideoTrack({
     const engine: ScratchCookEngine = useH3 ? "h3" : "ltx";
     void watchPlateCook(hangId, startedMs, engine);
     try {
+      paintPlateSend("Saving the motion box", "Saving…");
       await persistMotionFor(hangId);
       if (useH3) {
         await sendI2v(cut.id, hangId, targetBeatId);

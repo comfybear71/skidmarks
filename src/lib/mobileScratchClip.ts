@@ -71,6 +71,7 @@ import {
   clearScratchCookProgress,
   writeScratchCookProgress,
 } from "./scratchCookStore";
+import type { ScratchCookStep } from "./scratchCookProgress";
 
 async function ensureComfyReady(): Promise<string> {
   const { preferComfyCloudLtx } = await import("./ltxCloudIa2v");
@@ -127,6 +128,20 @@ export async function runScratchLtxClip(opts: {
       shot.error ? `Plate failed — ${shot.error}` : "Draw the still first",
     );
   }
+
+  const cookStartedAt = new Date().toISOString();
+  let cookMute = opts.mute === true || opts.emptyFrame === true || opts.nobodyInShot === true;
+  const writeCook = async (step: ScratchCookStep, message?: string) => {
+    await writeScratchCookProgress(jobId, {
+      cutId: opts.cutId,
+      engine: "ltx",
+      step,
+      ...(message ? { message } : {}),
+      mute: cookMute,
+      startedAt: cookStartedAt,
+    });
+  };
+  await writeCook("sending", "Getting the still");
   const scene = story.scenes.find((sc) => sc.id === sceneId);
   let storyShot: CrashStoryShot | undefined =
     scene?.shots.find((sh) => sh.id === shotId) ||
@@ -260,14 +275,17 @@ export async function runScratchLtxClip(opts: {
     song?.durationSec || 0,
   );
   let audioPath = "";
+  cookMute = muteAction;
   if (muteAction) {
     // Mute cinema — silent length only. Never the song mix (mouths follow the mp3).
+    await writeCook("sending", "Making the silent length");
     const dest = scratchSongSliceTempPath(jobId);
     if (!writeSilentMp3(dest, window.durationSec, { overwrite: true })) {
       throw new Error("Couldn't make a silent length for this action shot.");
     }
     audioPath = dest;
   } else {
+    await writeCook("sending", "Getting the song length");
     const sourceAudio = await resolveMobileBeatAudio({
       styleId: job.styleId,
       folderName: mediaFolder,
@@ -375,6 +393,7 @@ export async function runScratchLtxClip(opts: {
       emptyFrame,
     })
   ) {
+    await clearScratchCookProgress(jobId);
     return job;
   }
   // A new cook appends. Same beat + a file already on clip 1 used to
@@ -425,16 +444,9 @@ export async function runScratchLtxClip(opts: {
   // prior clip (that chains bad poses: sitting, phone, cropped head, walkers).
   const platePath = defaultPlatePath;
 
-  const cookStartedAt = new Date().toISOString();
-  await writeScratchCookProgress(jobId, {
-    cutId: opts.cutId,
-    engine: "ltx",
-    step: "sending",
-    mute: muteAction,
-    startedAt: cookStartedAt,
-  });
-
   try {
+    cookMute = muteAction;
+    await writeCook("resolving", "Finding LTX");
     const comfyUrl = await ensureComfyReady();
     const result = await runLtxSmoke({
       platePath,

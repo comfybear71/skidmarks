@@ -218,6 +218,7 @@ export function applyAddPlateOnSong(opts: {
     durationSec?: number;
   }>;
   skipShotIds?: string[];
+  skipClipFiles?: string[];
   songPlateIds?: string[];
   rowSlices?: number[];
   songSec: number;
@@ -259,6 +260,7 @@ export function applyAddPlateOnSong(opts: {
     cuts: opts.cuts,
     clips: opts.clips,
     skipShotIds: skipForHang,
+    skipClipFiles: opts.skipClipFiles,
     singing: opts.singing,
     lyricCues: opts.lyricCues,
     newCutId: opts.newCutId,
@@ -671,9 +673,13 @@ export function doneClipRowsForHang(opts: {
   }[];
   jobShots?: { shotId: string; plateFile?: string }[];
   skipShotIds?: string[];
+  skipClipFiles?: string[];
 }): DoneClipHangRow[] {
   const jobShots = opts.jobShots || [];
   const skipped = new Set(skipSongPlateIds({ skipShotIds: opts.skipShotIds }));
+  const skippedFiles = new Set(
+    (opts.skipClipFiles || []).map((f) => (f || "").trim().split(/[\\/]/).pop() || "").filter(Boolean),
+  );
   const byShot = new Map<string, DoneClipHangRow>();
   const takeFile = (raw?: string) => (raw || "").trim().split(/[\\/]/).pop() || "";
   const plateFileFor = (shotId: string, cutFile?: string) =>
@@ -682,7 +688,7 @@ export function doneClipRowsForHang(opts: {
   for (const clip of opts.clips || []) {
     const shotId = (clip.shotId || "").trim();
     const clipFile = takeFile(clip.clipFile);
-    if (!shotId || !clipFile || skipped.has(shotId)) continue;
+    if (!shotId || !clipFile || skipped.has(shotId) || skippedFiles.has(clipFile)) continue;
     if (clip.clipStatus && clip.clipStatus !== "done") continue;
     const prev = byShot.get(shotId);
     const durationSec =
@@ -701,7 +707,7 @@ export function doneClipRowsForHang(opts: {
   for (const cut of opts.cuts || []) {
     const shotId = shotIdForSongCut(cut, jobShots);
     const clipFile = takeFile(cut.clipFile);
-    if (!shotId || !clipFile || skipped.has(shotId)) continue;
+    if (!shotId || !clipFile || skipped.has(shotId) || skippedFiles.has(clipFile)) continue;
     if (cut.status && cut.status !== "done") continue;
     const prev = byShot.get(shotId);
     const cutDur = Number(cut.durationSec);
@@ -742,6 +748,7 @@ export function plateIdsNeedingDoneClipHang(opts: {
     }[];
     plateTimings?: { plateId?: string; startMs?: number; endMs?: number }[];
     skipShotIds?: string[];
+    skipClipFiles?: string[];
   } | null;
   clips?: {
     shotId?: string;
@@ -762,6 +769,7 @@ export function plateIdsNeedingDoneClipHang(opts: {
     clips: opts.clips,
     jobShots: opts.jobShots,
     skipShotIds: opts.song?.skipShotIds,
+    skipClipFiles: opts.song?.skipClipFiles,
   })
     .map((row) => row.shotId)
     .filter((id) => !have.has(id));
@@ -778,6 +786,7 @@ export function needsDoneClipHang(
     }[];
     plateTimings?: { plateId?: string; startMs?: number; endMs?: number }[];
     skipShotIds?: string[];
+    skipClipFiles?: string[];
   } | null,
   jobShots?: { shotId: string; plateFile?: string }[],
   clips?: {
@@ -797,6 +806,7 @@ export function needsDoneClipHang(
         | { plateId: string; startMs: number; endMs: number; sortIndex: number }[]
         | undefined,
       skipShotIds: song?.skipShotIds,
+      skipClipFiles: song?.skipClipFiles,
     }).length > 0
   );
 }

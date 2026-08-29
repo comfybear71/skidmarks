@@ -98,11 +98,12 @@ export function humanScratchCookLine(cook: ScratchCookProgress): string {
   if (cook.step === "error") return (cook.message || "Clip failed").trim();
   const name = scratchCookEngineName(cook.engine);
   const mute = cook.mute ? " — mouths shut" : "";
+  const said = (cook.message || "").trim();
   switch (cook.step) {
     case "sending":
-      return `Sending to ${name}${mute}`;
+      return `${said || `Sending to ${name}`}${mute}`;
     case "resolving":
-      return `Finding ${name}${mute}`;
+      return `${said || `Finding ${name}`}${mute}`;
     case "uploading":
       return `Uploading the still${mute}`;
     case "converting":
@@ -138,8 +139,32 @@ export function formatScratchCookNote(
   const engine = opts?.engine || "ltx";
   const name = scratchCookEngineName(engine);
   const mute = opts?.mute ? " — mouths shut" : "";
-  const clock = formatCookClock(scratchCookElapsedSec(null, now, opts?.startedMs));
+  const elapsed = scratchCookElapsedSec(null, now, opts?.startedMs);
+  const clock = formatCookClock(elapsed);
+  if (elapsed >= 8) {
+    return `Studio has the Send. Waiting for LTX${mute} · ${clock}`;
+  }
   return `Sending to ${name}${mute} · ${clock}`;
+}
+
+/** Same step with a new line must land. Running ticks throttle Neon. */
+export const SCRATCH_COOK_RUNNING_WRITE_MS = 4000;
+
+export function scratchCookShouldWrite(
+  prev: ScratchCookProgress | null,
+  next: { cutId?: string; step: ScratchCookStep; message?: string },
+  nowMs = Date.now(),
+): boolean {
+  if (!prev) return true;
+  if (next.step === "error" || next.step === "done") return true;
+  const sameCut = (next.cutId || "") === (prev.cutId || "");
+  if (!sameCut) return true;
+  if (prev.step !== next.step) return true;
+  if (next.step === "running") {
+    const last = Date.parse(prev.updatedAt);
+    return !Number.isFinite(last) || nowMs - last >= SCRATCH_COOK_RUNNING_WRITE_MS;
+  }
+  return String(next.message || "").trim() !== String(prev.message || "").trim();
 }
 
 /** Short Send-button face. Clock once it is actually cooking. */

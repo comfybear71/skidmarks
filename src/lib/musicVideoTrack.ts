@@ -1010,11 +1010,15 @@ export function listUnhungDoneClips(opts: {
   }>;
   plateTimings?: PlateTiming[];
   skipShotIds?: string[];
+  skipClipFiles?: string[];
 }): UnhungDoneClip[] {
   // Exact ids only. Mapping skip through hangPlateShotId used to treat
   // `car~6ir` as skip-the-whole-car, so Add missed the leftover mp4 and
   // fell through to a 15s WAITING desk rebuild.
   const skipped = new Set((opts.skipShotIds || []).map((id) => id.trim()).filter(Boolean));
+  const skippedFiles = new Set(
+    (opts.skipClipFiles || []).map((f) => hangClipBasename(f)).filter(Boolean),
+  );
   const clock = { cuts: opts.cuts, plateTimings: opts.plateTimings };
   const impliedHung = impliedHungClipFiles(opts);
   const seen = new Set<string>();
@@ -1028,6 +1032,7 @@ export function listUnhungDoneClips(opts: {
     const file = hangClipBasename(clipFile);
     const shot = hangPlateShotId(shotId);
     if (!file || !shot) return;
+    if (skippedFiles.has(file)) return;
     if (skipped.has(shot) || skipped.has(extraTakeHangPlateId(shot, file))) return;
     if (clipFileOnWave(clock, file) || impliedHung.has(file)) return;
     const existing = out.find((r) => r.clipFile === file);
@@ -1139,6 +1144,7 @@ export function hangUnhungDoneClips(opts: {
     durationSec?: number;
   }>;
   skipShotIds?: string[];
+  skipClipFiles?: string[];
   plateFileFor: (shotId: string) => string;
   newCutId: () => string;
   onlyShotId?: string;
@@ -1151,6 +1157,7 @@ export function hangUnhungDoneClips(opts: {
     cuts,
     plateTimings,
     skipShotIds: opts.skipShotIds,
+    skipClipFiles: opts.skipClipFiles,
   }).filter((row) => !only || row.shotId === only);
   for (const row of rows) {
     const hung = hangOneClipOnWave({
@@ -1188,6 +1195,7 @@ export function addPlateFileFirstHang(opts: {
     durationSec?: number;
   }>;
   skipShotIds?: string[];
+  skipClipFiles?: string[];
   singing?: boolean;
   lyricCues?: LyricCue[];
   newCutId: () => string;
@@ -1198,6 +1206,7 @@ export function addPlateFileFirstHang(opts: {
     cuts: opts.cuts,
     plateTimings: opts.plateTimings,
     skipShotIds: opts.skipShotIds,
+    skipClipFiles: opts.skipClipFiles,
   }).filter((row) => row.shotId === shotId);
   if (!shotId || !leftover.length) {
     return {
@@ -1258,6 +1267,7 @@ export function addPlateHangOnTrack(opts: {
   hangCuts: Array<Pick<ScratchSongCut, "shotId" | "startSec"> & { durationSec?: number }>;
   extraIds: string[];
   skipShotIds?: string[];
+  skipClipFiles?: string[];
   plateFileFor: (shotId: string) => string;
   newCutId: () => string;
 }): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } {
@@ -1266,6 +1276,7 @@ export function addPlateHangOnTrack(opts: {
     cuts: opts.cuts,
     clips: opts.clips,
     skipShotIds: opts.skipShotIds,
+    skipClipFiles: opts.skipClipFiles,
     plateFileFor: opts.plateFileFor,
     newCutId: opts.newCutId,
     onlyShotId: opts.shotId,

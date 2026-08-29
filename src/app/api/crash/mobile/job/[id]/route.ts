@@ -64,7 +64,10 @@ export async function GET(_req: Request, ctx: Ctx) {
         locationCandidates: picked.locationCandidates,
       })) || job;
   }
-  return NextResponse.json({ ok: true, job });
+  return NextResponse.json(
+    { ok: true, job },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 /** DELETE — drop the job from Your episodes (document only; no media wipe). */

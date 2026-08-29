@@ -198,10 +198,18 @@ export function planParkDeskClipTake(opts: {
     (c) => c.status === "done" && matchedFiles.has(cutFile(c)),
   );
 
+  const filesToPark = fileStillNeeded || hungOtherPlate ? [] : [...matchedFiles];
+  const skipClipFiles = [
+    ...new Set(
+      [...(song?.skipClipFiles || []), ...filesToPark]
+        .map((f) => clipFileBasename(f))
+        .filter(Boolean),
+    ),
+  ];
   return {
     next: nextClips,
-    nextSong: song ? { ...song, cuts: nextCuts } : song,
-    filesToPark: fileStillNeeded || hungOtherPlate ? [] : [...matchedFiles],
+    nextSong: song ? { ...song, cuts: nextCuts, skipClipFiles } : song,
+    filesToPark,
     clearedEpisodeErrors: !nextClips.some((c) => isEpisode(c) && c.clipStatus === "error"),
     stoppedCook,
   };
