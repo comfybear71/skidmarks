@@ -172,6 +172,27 @@ export function dropCandidateTake<T extends { id: string }>(
   return (existing || []).filter((c) => c.id !== id);
 }
 
+/** Write LOOK words onto one take. Empty candidateId hits the picked take. */
+export function applyCandidateLook<T extends { id: string; approved?: boolean; prompt?: string }>(
+  existing: T[] | undefined,
+  candidateId: string,
+  prompt: string,
+): T[] {
+  const id = candidateId.trim();
+  const look = prompt.trim();
+  return (existing || []).map((c) => {
+    const match = id ? c.id === id : Boolean(c.approved);
+    return match ? { ...c, prompt: look } : c;
+  });
+}
+
+/** LOOK box when you open a person/place — the pick, else the last take. */
+export function pickerLookSeed<T extends { approved?: boolean; prompt?: string }>(
+  list: T[] | undefined,
+): string {
+  return preferredCandidate(list)?.prompt?.trim() || "";
+}
+
 export function latestCandidate<T>(list: T[] | undefined): T | undefined {
   if (!list?.length) return undefined;
   return list[list.length - 1];

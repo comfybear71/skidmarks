@@ -16,6 +16,8 @@ import {
   phaseAfterPlateAdd,
   canLockEpisode,
   preferredCandidate,
+  pickerLookSeed,
+  applyCandidateLook,
   candidateLookPrompt,
 } from "../src/lib/mobileJobReady.ts";
 import { screenplaySceneCount } from "../src/lib/mobileScreenplaySize.ts";
@@ -167,6 +169,15 @@ const teeTakes = [
 assert.equal(preferredCandidate(teeTakes)?.id, "b");
 assert.equal(preferredCandidate(teeTakes)?.prompt, "A lovely overweight but bubbly middle aged woman");
 assert.equal(preferredCandidate([{ id: "only", approved: false, prompt: "last" }])?.prompt, "last");
+assert.equal(pickerLookSeed(teeTakes), "A lovely overweight but bubbly middle aged woman");
+assert.equal(pickerLookSeed([]), "");
+{
+  const next = applyCandidateLook(teeTakes, "b", "dreads, rasta beanie, pink glasses");
+  assert.equal(next.find((c) => c.id === "b")?.prompt, "dreads, rasta beanie, pink glasses");
+  assert.equal(next.find((c) => c.id === "a")?.prompt, "first tee");
+  const byPick = applyCandidateLook(teeTakes, "", "typed in the box");
+  assert.equal(byPick.find((c) => c.id === "b")?.prompt, "typed in the box");
+}
 
 assert.equal(MOBILE_LAST_JOB_KEY, "skidmarks.mobile.lastJobId");
 assert.equal(

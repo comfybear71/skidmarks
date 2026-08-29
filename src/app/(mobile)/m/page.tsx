@@ -746,20 +746,52 @@ export default function MobileHomePage() {
       } catch {
         // Plate row on the tree holds the why. A page banner here made
         // it look like the episode died — the cast is still on the job.
+        const live = await getMobileJob(job.id);
+        if (live) setJob(live);
+      }
+    },
+    [job],
+  );
+
+  const saveCandidateLook = useCallback(
+    async (kind: "cast" | "location", target: string, candidateId: string, look: string) => {
+      if (!job) return;
+      try {
+        const { job: updated } = await postJson<{ job: MobileGenJob }>(
+          "/api/crash/mobile/candidates",
+          {
+            jobId: job.id,
+            kind,
+            target,
+            action: "set-look",
+            candidateId,
+            customPrompt: look,
+          },
+        );
+        setJob(updated);
+      } catch {
+        /* LOOK stays in the box — next Pick / blur can try again */
       }
     },
     [job],
   );
 
   const approveCandidate = useCallback(
-    async (kind: "cast" | "location", target: string, candidateId: string) => {
+    async (kind: "cast" | "location", target: string, candidateId: string, look?: string) => {
       if (!job) return false;
       setBusy(true);
       setError("");
       try {
         const { job: updated } = await postJson<{ job: MobileGenJob }>(
           "/api/crash/mobile/candidates",
-          { jobId: job.id, kind, target, action: "approve", candidateId },
+          {
+            jobId: job.id,
+            kind,
+            target,
+            action: "approve",
+            candidateId,
+            customPrompt: look || "",
+          },
         );
         setJob(updated);
         // After the script, leftover pick screens still need /step to move
@@ -1143,7 +1175,12 @@ export default function MobileHomePage() {
           error={isStudioReachError(error) ? "" : error}
           lockingScript={lockingScript}
           onGenerateCast={(name, customPrompt) => genCandidates("cast", name, customPrompt)}
-          onApproveCast={(name, candidateId) => approveCandidate("cast", name, candidateId)}
+          onApproveCast={(name, candidateId, look) =>
+            approveCandidate("cast", name, candidateId, look)
+          }
+          onSaveLook={(kind, target, candidateId, look) =>
+            void saveCandidateLook(kind, target, candidateId, look)
+          }
           onMakeCharacterPlate={(name) => void makeCharacterPlate(name)}
           onAddCast={(name, description, file) =>
             addRosterItem("cast", name, description, file)
@@ -1153,7 +1190,9 @@ export default function MobileHomePage() {
           onApplyBand={(name) => void applyCastBand(name)}
           onUploadCast={(name, file) => uploadCandidate("cast", name, file)}
           onGenerateLocation={(id, customPrompt) => genCandidates("location", id, customPrompt)}
-          onApproveLocation={(id, candidateId) => approveCandidate("location", id, candidateId)}
+          onApproveLocation={(id, candidateId, look) =>
+            approveCandidate("location", id, candidateId, look)
+          }
           onAddLocation={(name, file) => void addRosterItem("location", name, undefined, file)}
           onAddWorldLocation={(thumbKey, name) => void addWorldLocation(thumbKey, name)}
           onUploadLocation={(id, file) => uploadCandidate("location", id, file)}
