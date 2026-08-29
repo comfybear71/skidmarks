@@ -36,6 +36,45 @@ body {
   margin-top: 12px;
 }
 
+.m-series-plate {
+  width: 100%;
+  min-width: 0;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.m-series-plate-label {
+  color: var(--chrome-dim);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.m-series-plate-sheet {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 10px;
+  border: 2px solid var(--acid);
+  background: var(--void);
+}
+
+.m-series-plate-note {
+  color: var(--chrome-dim);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.m-series-plate-err {
+  color: var(--magenta-hot);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .m-place-lock-still {
   display: block;
   width: 100%;

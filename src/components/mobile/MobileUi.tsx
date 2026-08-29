@@ -247,6 +247,7 @@ export function MobileTextInput({
   rows = 3,
   onAi,
   aiBusy,
+  onBlur,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -255,6 +256,7 @@ export function MobileTextInput({
   rows?: number;
   onAi?: () => void;
   aiBusy?: boolean;
+  onBlur?: () => void;
 }) {
   const fieldStyle: CSSProperties = onAi
     ? {
@@ -283,6 +285,7 @@ export function MobileTextInput({
       onChange(e.target.value),
     placeholder,
     style: fieldStyle,
+    onBlur,
   };
   const field = multiline ? (
     <textarea {...shared} rows={rows} />

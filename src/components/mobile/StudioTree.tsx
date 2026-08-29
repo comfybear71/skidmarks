@@ -26,6 +26,7 @@ import {
   candidateLookPrompt,
   faceCandidateTakes,
   latestCandidate,
+  pickerLookSeed,
   preferredCandidate,
   shouldAutoGenerateCastFace,
   shouldAutoOpenNextCast,
@@ -38,6 +39,7 @@ import {
   placeLookWords,
 } from "@/lib/mobilePlaceLabels";
 import { getShowStylePreset } from "@/lib/showStylePresets";
+import { characterPlateFileUrl } from "@/lib/characterPlatePrompt";
 import { styleRealismLabel } from "@/lib/types";
 import { MOBILE_STITCH_MOVIES } from "@/lib/mobilePipeline";
 import { episodePlateCounts } from "@/lib/mobilePlateGraph";
@@ -573,8 +575,11 @@ function CandidatePicker({
   extra,
   skipAutoGenerate,
   emptyMessage,
+  seriesPlate,
   onGenerate,
   onApprove,
+  onSaveLook,
+  onMakeSeriesPlate,
   onUpload,
   onRemove,
   onDropFromJob,
@@ -603,8 +608,12 @@ function CandidatePicker({
   /** Shown instead of the default (location-worded) message when
    * skipAutoGenerate is on and there's nothing to show yet. */
   emptyMessage?: string;
+  /** Series turnaround sheet for CAST — QA lock, not a Draw reference. */
+  seriesPlate?: NonNullable<MobileGenJob["characterPlates"]>[string];
   onGenerate: (customPrompt?: string) => void;
-  onApprove: (candidateId: string) => void;
+  onApprove: (candidateId: string, look?: string) => void;
+  onSaveLook?: (candidateId: string, look: string) => void;
+  onMakeSeriesPlate?: () => void;
   onUpload: (file: File) => void;
   onRemove?: (candidateId: string) => void;
   /** Pull this person/place off the job (not just one still take). */
@@ -613,7 +622,7 @@ function CandidatePicker({
 }) {
   const takes = faceCandidateTakes(candidates);
   const seed = preferredCandidate(takes);
-  const [customPrompt, setCustomPrompt] = useState(seed?.prompt || "");
+  const [customPrompt, setCustomPrompt] = useState(pickerLookSeed(takes));
   const [focusId, setFocusId] = useState<string | null>(seed?.id || null);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -642,6 +651,15 @@ function CandidatePicker({
     asked.current = true;
     onGenerate();
   }, [busy, takes.length, onGenerate, skipAutoGenerate]);
+
+  useEffect(() => {
+    const take = takes.find((c) => c.id === focusId) || seed;
+    if (!take) return;
+    setCustomPrompt(take.prompt || "");
+    // Seed id/prompt is the open lock. Do not list `takes` — a new array
+    // every render would wipe the box while they type.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, seed?.id, seed?.prompt]);
 
   const newest = latestCandidate(takes);
   const focused =
@@ -730,7 +748,7 @@ function CandidatePicker({
           candidate={focused}
           imageSrc={imageSrc}
           busy={busy}
-          onApprove={(c) => onApprove(c.id)}
+          onApprove={(c) => onApprove(c.id, customPrompt)}
           onReroll={() => {
             setFocusId(null);
             onGenerate(customPrompt || undefined);
@@ -828,6 +846,11 @@ function CandidatePicker({
             rows={2}
             onAi={() => void promptAssist.runAssist()}
             aiBusy={promptAssist.aiBusy}
+            onBlur={() => {
+              if (!focused || !onSaveLook) return;
+              if (customPrompt.trim() === (focused.prompt || "").trim()) return;
+              onSaveLook(focused.id, customPrompt);
+            }}
           />
           <div className="m-picker-actions">
             <button
@@ -873,6 +896,43 @@ function CandidatePicker({
               More
             </button>
           </div>
+        </div>
+      ) : null}
+      {onMakeSeriesPlate || seriesPlate ? (
+        <div className="m-series-plate">
+          <div className="m-series-plate-label">Series plate</div>
+          {seriesPlate?.status === "done" && seriesPlate.fileName ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              className="m-series-plate-sheet"
+              src={characterPlateFileUrl(styleId, seriesPlate.fileName)}
+              alt={`${label} series plate`}
+            />
+          ) : null}
+          {seriesPlate?.status === "pending" ? (
+            <div className="m-series-plate-note">Making four views of this person…</div>
+          ) : null}
+          {seriesPlate?.status === "error" ? (
+            <div className="m-series-plate-err">
+              {seriesPlate.error || "Couldn't make the series plate"}
+            </div>
+          ) : null}
+          {seriesPlate?.status === "done" && seriesPlate.fileName ? (
+            <div className="m-series-plate-note">
+              This sheet is the lock. Later stills must look like this person.
+            </div>
+          ) : null}
+          {onMakeSeriesPlate &&
+          seriesPlate?.status !== "pending" &&
+          seriesPlate?.status !== "done" ? (
+            <MobilePrimaryButton
+              size="chip"
+              disabled={busy || !takes.some((c) => c.approved)}
+              onClick={onMakeSeriesPlate}
+            >
+              {seriesPlate?.status === "error" ? "Try series plate again" : "Make series plate"}
+            </MobilePrimaryButton>
+          ) : null}
         </div>
       ) : null}
       {extra ? <div className="m-picker-extra">{extra}</div> : null}
@@ -929,6 +989,7 @@ export function StudioTree({
   lockingScript,
   onGenerateCast,
   onApproveCast,
+  onSaveLook,
   onMakeCharacterPlate,
   onAddCast,
   onUploadCast,
@@ -957,7 +1018,17 @@ export function StudioTree({
   error: string;
   lockingScript: boolean;
   onGenerateCast: (name: string, customPrompt?: string) => void;
-  onApproveCast: (name: string, candidateId: string) => void | Promise<boolean | void>;
+  onApproveCast: (
+    name: string,
+    candidateId: string,
+    look?: string,
+  ) => void | Promise<boolean | void>;
+  onSaveLook: (
+    kind: "cast" | "location",
+    target: string,
+    candidateId: string,
+    look: string,
+  ) => void;
   onMakeCharacterPlate: (name: string) => void | Promise<void>;
   onAddCast: (name: string, description?: string, file?: File) => void;
   onUploadCast: (name: string, file: File) => void;
@@ -966,7 +1037,7 @@ export function StudioTree({
   onSaveBand: (name: string) => void;
   onApplyBand: (name: string) => void;
   onGenerateLocation: (sceneId: string, customPrompt?: string) => void;
-  onApproveLocation: (sceneId: string, candidateId: string) => void;
+  onApproveLocation: (sceneId: string, candidateId: string, look?: string) => void;
   onAddLocation: (name: string, file?: File) => void;
   /** World gallery thumb → Locations row (drag from Crash Lab World, or file drop). */
   onAddWorldLocation: (thumbKey: string, name?: string) => void;
@@ -1664,12 +1735,14 @@ export function StudioTree({
                 <CastVoiceRow key={castFocus} jobId={job.id} styleId={job.styleId} name={castFocus} />
               )
             }
+            seriesPlate={job.characterPlates?.[castFocus]}
             onGenerate={(p) => onGenerateCast(castFocus, p)}
-            onApprove={(id) => {
+            onSaveLook={(id, look) => onSaveLook("cast", castFocus, id, look)}
+            onMakeSeriesPlate={() => void onMakeCharacterPlate(castFocus)}
+            onApprove={(id, look) => {
               void (async () => {
-                const ok = await onApproveCast(castFocus, id);
+                const ok = await onApproveCast(castFocus, id, look);
                 if (ok !== false) await onMakeCharacterPlate(castFocus);
-                setOpenCast(null);
               })();
             }}
             onUpload={(file) => onUploadCast(castFocus, file)}
@@ -1895,8 +1968,9 @@ export function StudioTree({
               </>
             }
             onGenerate={(p) => onGenerateLocation(placeFocus, p)}
-            onApprove={(id) => {
-              onApproveLocation(placeFocus, id);
+            onSaveLook={(id, look) => onSaveLook("location", placeFocus, id, look)}
+            onApprove={(id, look) => {
+              onApproveLocation(placeFocus, id, look);
               setOpenPlace(null);
             }}
             onUpload={(file) => onUploadLocation(placeFocus, file)}

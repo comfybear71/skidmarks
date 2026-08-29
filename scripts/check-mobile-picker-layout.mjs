@@ -39,6 +39,17 @@ assert.match(
   "Dropped photo must append — do not wipe earlier stills",
 );
 assert.match(tree, /className="m-picker-extra"/);
+assert.match(tree, /className="m-series-plate"/);
+assert.match(tree, /pickerLookSeed/);
+assert.match(tree, /onSaveLook/);
+assert.match(tree, /onMakeSeriesPlate/);
+assert.match(tree, /characterPlateFileUrl/);
+assert.doesNotMatch(
+  tree.slice(tree.indexOf("onApprove={(id, look)"), tree.indexOf("onApprove={(id, look)") + 280),
+  /setOpenCast\(null\)/,
+  "Stay on CAST after Pick so the series plate can show",
+);
+assert.match(css, /\.m-series-plate-sheet/);
 assert.match(tree, /className="m-place-plate-extra"/);
 assert.match(tree, /className="m-place-plate-hint"/);
 assert.doesNotMatch(tree, /Plate this place/);

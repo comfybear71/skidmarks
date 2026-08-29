@@ -10,7 +10,13 @@ import { createCharacter, listCharacters } from "@/lib/characters";
 import { createCharactersFromScriptRoster } from "@/lib/mobileRoster";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { jobHasEpisodePack, mobileCandidateFolders, mobileMediaFolder, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
-import { dropCandidateTake, keepCandidateTakes, latestCandidate } from "@/lib/mobileJobReady";
+import {
+  applyCandidateLook,
+  dropCandidateTake,
+  keepCandidateTakes,
+  latestCandidate,
+  preferredCandidate,
+} from "@/lib/mobileJobReady";
 import {
   castNamesMatch,
   clipsAfterDroppedSpeaker,
@@ -57,7 +63,7 @@ type Body = {
   jobId?: string;
   kind?: "cast" | "location";
   target?: string; // speaker name (cast) or scene id (location)
-  action?: "generate" | "approve" | "add" | "remove" | "drop";
+  action?: "generate" | "approve" | "add" | "remove" | "drop" | "set-look";
   customPrompt?: string;
   candidateId?: string;
   /** action "add" only — new speaker name, or new place name. */
@@ -105,6 +111,30 @@ export async function POST(req: Request) {
 
     const job = await readMobileGenJob(jobId);
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+    if (action === "set-look") {
+      const look = (body.customPrompt || "").trim();
+      const list =
+        kind === "cast" ? job.castCandidates[target] : job.locationCandidates[target];
+      const candidateId =
+        (body.candidateId || "").trim() || preferredCandidate(list)?.id || "";
+      if (kind === "cast") {
+        const updated = await patchMobileGenJob(jobId, {
+          castCandidates: {
+            ...job.castCandidates,
+            [target]: applyCandidateLook(list, candidateId, look),
+          },
+        });
+        return NextResponse.json({ ok: true, job: updated });
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        locationCandidates: {
+          ...job.locationCandidates,
+          [target]: applyCandidateLook(list, candidateId, look),
+        },
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
 
     if (action === "add") {
       const name = (body.name || "").trim();
@@ -287,6 +317,8 @@ export async function POST(req: Request) {
       if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
       const candidate = (job.castCandidates[target] || []).find((c) => c.id === candidateId);
       if (!candidate) return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
+      const lookIn = (body.customPrompt || "").trim();
+      const storedPrompt = lookIn || candidate.prompt || "";
       await approveCastCandidate(
         job.styleId,
         mobileMediaFolder(job),
@@ -294,12 +326,13 @@ export async function POST(req: Request) {
         candidateId,
         candidate.fileName,
         mobileCandidateFolders(job),
-        // The words that made this face go onto the shelf with it.
-        candidate.prompt || "",
+        // The words in the LOOK box go onto the shelf with the face.
+        storedPrompt,
       );
       const nextCandidates = (job.castCandidates[target] || []).map((c) => ({
         ...c,
         approved: c.id === candidateId,
+        prompt: c.id === candidateId ? storedPrompt : c.prompt,
       }));
       const updated = await patchMobileGenJob(jobId, {
         castCandidates: { ...job.castCandidates, [target]: nextCandidates },
@@ -386,9 +419,11 @@ export async function POST(req: Request) {
       await writeMobileStory({ ...story, scenes: nextScenes }, job.folderName);
     }
 
+    const lookIn = (body.customPrompt || "").trim();
     const nextCandidates = (job.locationCandidates[target] || []).map((c) => ({
       ...c,
       approved: c.id === candidateId,
+      prompt: c.id === candidateId ? lookIn || c.prompt : c.prompt,
     }));
     const nextJobScenes = job.scenes.map((s) =>
       s.id === target ? { ...s, worldThumbKey: thumbKey } : s,

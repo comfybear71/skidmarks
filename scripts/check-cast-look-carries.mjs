@@ -25,8 +25,10 @@ assert.doesNotMatch(
 );
 assert.match(candidates, /labelBrief:\s*look\.trim\(\)\s*\|\|\s*name/);
 
-// 2. Approving a face sends its words along.
-assert.match(approve, /candidate\.prompt \|\| ""/, "approve passes the look");
+// 2. Approving a face sends the LOOK box (or the stored take words).
+assert.match(approve, /storedPrompt/, "approve writes the LOOK box onto the take");
+assert.match(approve, /lookIn \|\| candidate\.prompt/, "LOOK box wins over a blank stored take");
+assert.match(approve, /action === "set-look"/, "typed LOOK saves without a second Pick");
 
 // 3. Saving a band collects each member's words.
 assert.match(bands, /looks\[member\] = take\.prompt\.trim\(\)/);
