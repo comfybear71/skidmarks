@@ -51,6 +51,14 @@ function asEngine(raw: unknown): ScratchCookEngine | "" {
   return (ENGINES as string[]).includes(s) ? (s as ScratchCookEngine) : "";
 }
 
+/** Plate Send / LTX is actually going — leftover running cuts are not “stuck”. */
+export function scratchCookIsLive(
+  cook: ScratchCookProgress | null | undefined,
+): boolean {
+  if (!cook) return false;
+  return cook.step !== "done" && cook.step !== "error";
+}
+
 export function parseScratchCook(raw: unknown): ScratchCookProgress | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;

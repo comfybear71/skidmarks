@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import type { ScratchSongCut } from "@/lib/scratchSongWindow";
 import { songCookAlert } from "@/lib/musicVideoSong";
-import { notifySongCookProblem, restoreSongCookTitle } from "@/lib/songCutCook";
 
 export function SongCookAlertBanner({
   cuts,
@@ -11,19 +9,12 @@ export function SongCookAlertBanner({
   showGoing = false,
 }: {
   cuts: ScratchSongCut[];
-  /** This phone is still driving Generate. */
+  /** This phone is still driving Generate, or a plate LTX cook is live. */
   cooking?: boolean;
   /** Song-cuts desk can show the quiet “keeps going” line. TRACK only shouts. */
   showGoing?: boolean;
 }) {
   const alert = songCookAlert(cuts, { cooking });
-
-  useEffect(() => {
-    notifySongCookProblem(alert);
-    return () => {
-      restoreSongCookTitle();
-    };
-  }, [alert.fingerprint, alert.kind, alert.short, alert.title, alert.detail]);
 
   if (alert.kind === "ok") return null;
   if (alert.kind === "cooking" && !showGoing) return null;

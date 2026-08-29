@@ -115,6 +115,7 @@ import {
   formatScratchCookNote,
   parseScratchCook,
   scratchCookButtonLabel,
+  scratchCookIsLive,
   type ScratchCookEngine,
 } from "@/lib/scratchCookProgress";
 import { SongCookAlertBanner } from "./SongCookAlertBanner";
@@ -2034,6 +2035,11 @@ export function MusicVideoTrack({
     }
   }
 
+  const cookLive =
+    songCookFlagOn(job.id) ||
+    busy.startsWith("send-") ||
+    scratchCookIsLive(parseScratchCook(job.scratchCook));
+
   return (
     <div className="m-track">
       {/* One UI, empty or full. No separate "add the song" screen: the same
@@ -2042,34 +2048,6 @@ export function MusicVideoTrack({
       <>
           {/* Title line owns the card: name left, Lyrics and drop right.
               Lyrics stay shut — that box is for entering them, not reading. */}
-          <SongCookAlertBanner
-            cuts={song?.cuts || []}
-            cooking={songCookFlagOn(job.id)}
-          />
-          <div className="m-track-stop-row">
-            {needsDoneClipHang(song, job.shots, job.clips || []) && hasSong ? (
-              <MobilePrimaryButton
-                size="chip"
-                disabled={busy === "hang"}
-                onClick={() => void hangStillsOnWave()}
-              >
-                {busy === "hang" ? "Adding…" : "Put stills on the song"}
-              </MobilePrimaryButton>
-            ) : null}
-            {(songCookFlagOn(job.id) ||
-              hasStuckSongCook(song?.cuts || []) ||
-              busy.startsWith("send-") ||
-              (song?.cuts || []).some((c) => c.status === "running")) ? (
-              <MobilePrimaryButton
-                size="chip"
-                tone="ghost"
-                disabled={busy === "stop"}
-                onClick={() => void stopSend()}
-              >
-                {busy === "stop" ? "Stopping…" : "Stop send"}
-              </MobilePrimaryButton>
-            ) : null}
-          </div>
           <div className="m-track-song-top">
             <span className="m-track-song-name">
               {musicVideoCreditLine(job) ||
@@ -2248,6 +2226,34 @@ export function MusicVideoTrack({
           {stretchReadout ? (
             <p className="m-track-stretch-hint">{stretchReadout}</p>
           ) : null}
+
+          <SongCookAlertBanner
+            cuts={song?.cuts || []}
+            cooking={cookLive}
+          />
+          <div className="m-track-stop-row">
+            {needsDoneClipHang(song, job.shots, job.clips || []) && hasSong ? (
+              <MobilePrimaryButton
+                size="chip"
+                disabled={busy === "hang"}
+                onClick={() => void hangStillsOnWave()}
+              >
+                {busy === "hang" ? "Adding…" : "Put stills on the song"}
+              </MobilePrimaryButton>
+            ) : null}
+            {(cookLive ||
+              hasStuckSongCook(song?.cuts || []) ||
+              (song?.cuts || []).some((c) => c.status === "running")) ? (
+              <MobilePrimaryButton
+                size="chip"
+                tone="ghost"
+                disabled={busy === "stop"}
+                onClick={() => void stopSend()}
+              >
+                {busy === "stop" ? "Stopping…" : "Stop send"}
+              </MobilePrimaryButton>
+            ) : null}
+          </div>
 
           {picked ? (
             <div className="m-track-pick">
