@@ -97,8 +97,9 @@ export const maxDuration = 900;
  *     (No lips OFF) uses the unused lyric cue so intro clips do not shove
  *     Silver lines off 0:31. No waiting cook on siblings. Still with no mp4 hangs at body.durationSec (slider 5–40). Already hung + extra
  *     mp4 → hang that file in a gap at render length. alreadyHung + no
- *     leftover → another still bar (extraStillHangPlateId) at the slider
- *     seconds. Other bars keep their times. No cook. fileFirst.hung /
+ *     leftover → another still bar (extraStillHangPlateId) in a gap at
+ *     the slider seconds — not on a covered verse pin. Other bars keep
+ *     their times. No cook. fileFirst.hung /
  *     alreadyHung live there. No desk rebuild. Does not clamp the TRACK
  *     bar to H3's 15.
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.

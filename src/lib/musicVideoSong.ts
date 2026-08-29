@@ -201,7 +201,7 @@ export function addPlateIsSingingHang(opts: {
  * (Silver lines 0:31), not max(endMs) after intro clips.
  * Other bars keep their times. Slider durationSec stays (5–40).
  * alreadyHung + no leftover writes another bar (extraStillHangPlateId)
- * — singing uses the next unused lyric pin, else a gap / after last.
+ * in a gap / after last — not on a lyric pin a hung bar already covers.
  * Empty cut on that hang id. Does not cook. Does not copy hang 1's
  * clipFile onto hang 2.
  */
@@ -285,6 +285,7 @@ export function applyAddPlateOnSong(opts: {
     singing: opts.singing,
     lyricCues: opts.lyricCues,
     plateTimings: kept,
+    alreadyOnWave: alreadyHung,
   });
   const startMs = lyricStart != null ? lyricStart : nextPlateHangStartMs(kept, durMs);
   const hangId = alreadyHung ? extraStillHangPlateId(shotId, kept) : shotId;

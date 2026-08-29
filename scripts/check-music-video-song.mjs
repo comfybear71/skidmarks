@@ -1361,7 +1361,11 @@ assert.doesNotMatch(
     newCutId: () => "cut_silver",
   });
   const jackBar = afterLastWouldBeWheels.plateTimings.find((t) => t.plateId === "jack");
-  assert.equal(jackBar?.startMs, 31000, "30s at the start must not shove Jack to wheels 1:21");
+  assert.equal(
+    jackBar?.startMs,
+    81000,
+    "0:31 is covered by clip20 — singing uses the next free pin, not a stack on clip 2",
+  );
   assert.equal(afterLastWouldBeWheels.plateTimings[0]?.startMs, 0);
   assert.equal(afterLastWouldBeWheels.plateTimings[0]?.endMs, 30000, "intro stays");
   assert.equal(afterLastWouldBeWheels.plateTimings[2]?.startMs, 50000);
@@ -1416,7 +1420,11 @@ assert.doesNotMatch(
   });
   const jack2Id = extraStillHangPlateId("jack", afterLastWouldBeWheels.plateTimings);
   const jack2Bar = jackAgain.plateTimings.find((t) => t.plateId === jack2Id);
-  assert.equal(jack2Bar?.startMs, 81000, "second singing hang uses the next unused lyric pin");
+  assert.equal(
+    jack2Bar?.startMs,
+    96000,
+    "second singing hang sits in the gap after last bar, not on a covered pin",
+  );
   assert.equal(
     jackAgain.cuts.find((c) => c.clipFile === "03_More.mp4")?.clipFile,
     "03_More.mp4",
@@ -1429,6 +1437,111 @@ assert.doesNotMatch(
     "Send cooks the hang id, not the first still match",
   );
   assert.match(songRoute, /sliceBoundsForPlate\(\{ song, shotId: hangId/);
+  {
+    const jack = "shot_jack_ghost";
+    const files = [
+      "01_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      "02_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      "03_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      "04_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+    ];
+    const id2 = extraTakeHangPlateId(jack, files[1]);
+    const id3 = extraTakeHangPlateId(jack, files[2]);
+    const packed = [
+      { plateId: jack, startMs: 0, endMs: 30000, sortIndex: 0 },
+      { plateId: id2, startMs: 30000, endMs: 69000, sortIndex: 1 },
+      { plateId: id3, startMs: 69000, endMs: 100000, sortIndex: 2 },
+    ];
+    const cuts = [
+      {
+        id: "c1",
+        shotId: jack,
+        plateFile: "jack.png",
+        startSec: 0,
+        durationSec: 30,
+        clipFile: files[0],
+        status: "done",
+      },
+      {
+        id: "c2",
+        shotId: id2,
+        plateFile: "jack.png",
+        startSec: 30,
+        durationSec: 39,
+        clipFile: files[1],
+        status: "done",
+      },
+      {
+        id: "c3",
+        shotId: id3,
+        plateFile: "jack.png",
+        startSec: 69,
+        durationSec: 31,
+        clipFile: files[2],
+        status: "done",
+      },
+    ];
+    const highway = [
+      { lineIndex: 0, atMs: 31000 },
+      { lineIndex: 1, atMs: 120000 },
+    ];
+    const sung4 = applyAddPlateOnSong({
+      shotId: jack,
+      plateFile: "jack.png",
+      plateTimings: packed,
+      cuts,
+      clips: files.slice(0, 3).map((clipFile, i) => ({
+        shotId: jack,
+        clipFile,
+        clipStatus: "done",
+        durationSec: [30, 39, 31][i],
+      })),
+      songPlateIds: [jack],
+      rowSlices: [1],
+      songSec: 327,
+      durationSec: 30,
+      singing: true,
+      lyricCues: highway,
+      newCutId: () => "cut_highway",
+    });
+    const still4 = extraStillHangPlateId(jack, packed);
+    assert.equal(sung4.plateTimings.find((t) => t.plateId === still4)?.startMs, 100000);
+    assert.equal(sung4.plateTimings.find((t) => t.plateId === id2)?.startMs, 30000);
+    assert.equal(sung4.plateTimings.find((t) => t.plateId === id2)?.endMs, 69000);
+    assert.equal(sung4.cuts.find((c) => c.shotId === id2)?.clipFile, files[1]);
+    assert.equal(new Set(sung4.plateTimings.map((t) => t.plateId)).size, 4);
+    const leftoverMute = applyAddPlateOnSong({
+      shotId: jack,
+      plateFile: "jack.png",
+      plateTimings: packed,
+      cuts,
+      clips: [
+        ...files.slice(0, 3).map((clipFile, i) => ({
+          shotId: jack,
+          clipFile,
+          clipStatus: "done",
+          durationSec: [30, 39, 31][i],
+        })),
+        { shotId: jack, clipFile: files[3], clipStatus: "done", durationSec: 30 },
+      ],
+      songPlateIds: [jack],
+      rowSlices: [1],
+      songSec: 327,
+      singing: false,
+      lyricCues: highway,
+      newCutId: () => "cut_428",
+    });
+    assert.equal(leftoverMute.hung, true, "mute leftover 04_ still hangs at 1:40 (428)");
+    const fourth = leftoverMute.plateTimings.find(
+      (t) => t.plateId !== jack && t.plateId !== id2 && t.plateId !== id3,
+    );
+    assert.equal(fourth?.startMs, 100000, "file-first leftover 04_ starts at 1:40");
+    assert.notEqual(fourth?.startMs, 31000);
+    assert.equal(leftoverMute.plateTimings.find((t) => t.plateId === id2)?.endMs, 69000);
+    assert.equal(leftoverMute.cuts.find((c) => c.shotId === id2)?.clipFile, files[1]);
+    assert.ok(leftoverMute.cuts.some((c) => c.clipFile === files[3]));
+    assert.equal(new Set(leftoverMute.plateTimings.map((t) => t.plateId)).size, 4);
+  }
   const muteStill = applyAddPlateOnSong({
     shotId: "road",
     plateFile: "road.png",

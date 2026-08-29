@@ -588,9 +588,28 @@ export function nextPlateHangStartMs(
 const LYRIC_HANG_MATCH_MS = 400;
 
 /**
+ * A lyric pin is taken if a hang starts on it (within 400ms) or if any
+ * hung bar covers that ms. Clip 2 at 0:30–1:09 covers the verse at 0:31
+ * even though it starts a second earlier. Intro 0:00–0:30 does not cover
+ * 0:31 — Silver stays free.
+ */
+export function lyricPinTakenByHang(
+  t: { startMs?: number; endMs?: number } | null | undefined,
+  atMs: number,
+): boolean {
+  if (!isRealPlateHang(t)) return false;
+  const start = Number(t.startMs);
+  const end = Number(t.endMs);
+  const pin = Math.round(Number(atMs));
+  if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(pin)) return false;
+  if (Math.abs(start - pin) <= LYRIC_HANG_MATCH_MS) return true;
+  return start <= pin && pin < end;
+}
+
+/**
  * First unused lyric pin. Silver lines at 0:31 stays 0:31 while intro
- * clips occupy 0:00–0:30. A hang that already starts on a pin yields
- * the next pin. Does not move other bars.
+ * clips occupy 0:00–0:30. A hang that already starts on a pin, or covers
+ * that clock, yields the next pin. Does not move other bars.
  */
 export function firstUnusedLyricHangStartMs(
   cues: LyricCue[] | undefined,
@@ -600,23 +619,25 @@ export function firstUnusedLyricHangStartMs(
     .filter((c) => Number.isFinite(c.atMs) && c.atMs >= 0)
     .sort((a, b) => a.atMs - b.atMs || a.lineIndex - b.lineIndex);
   if (!pins.length) return null;
-  const starts = sortPlateTimings(plateTimings || [])
-    .filter((t) => isRealPlateHang(t))
-    .map((t) => t.startMs);
+  const hung = sortPlateTimings(plateTimings || []).filter((t) => isRealPlateHang(t));
   for (const cue of pins) {
-    const taken = starts.some((ms) => Math.abs(ms - cue.atMs) <= LYRIC_HANG_MATCH_MS);
+    const taken = hung.some((t) => lyricPinTakenByHang(t, cue.atMs));
     if (!taken) return Math.round(cue.atMs);
   }
   return null;
 }
 
-/** Singing Add (No lips OFF). Null when mute/support or the sheet has no pins. */
+/**
+ * Singing Add (No lips OFF). Null when mute/support, the sheet has no
+ * pins, or this still is already on the wave — extra take sits in a gap.
+ */
 export function singingHangStartMs(opts: {
   singing?: boolean;
   lyricCues?: LyricCue[];
   plateTimings?: PlateTiming[];
+  alreadyOnWave?: boolean;
 }): number | null {
-  if (!opts.singing) return null;
+  if (!opts.singing || opts.alreadyOnWave) return null;
   return firstUnusedLyricHangStartMs(opts.lyricCues, opts.plateTimings);
 }
 
@@ -921,10 +942,11 @@ function upsertClipHangCut(
 
 /**
  * File first — hang this mp4 on the wave. Same still, second take gets its
- * own clock (`shotId~tail`). Gap from 0, or a lyric pin. Known length
- * else 15. Does not cook. Does not invent 15s when this file already has
- * a real in/out. Does not move other bars. Overlap with a hung bar
- * (two takes both at 0:20) uses the next gap — do not stack another 0:20.
+ * own clock (`shotId~tail`). Gap from 0, or a lyric pin that no hung bar
+ * covers. Known length else 15. Does not cook. Does not invent 15s when
+ * this file already has a real in/out. Does not move other bars. Overlap
+ * with a hung bar (two takes both at 0:20, or a verse pin under clip 2)
+ * uses the next gap — do not stack another 0:20.
  */
 export function hangOneClipOnWave(opts: {
   plateTimings?: PlateTiming[];
@@ -933,7 +955,7 @@ export function hangOneClipOnWave(opts: {
   plateFile: string;
   clipFile: string;
   durationSec?: number;
-  /** Singing first hang — lyric pin. Extra takes omit this and sit in a gap. */
+  /** Singing first hang — unused uncovered lyric pin. Extra takes omit this. */
   preferStartMs?: number;
   newCutId: () => string;
 }): { plateTimings: PlateTiming[]; cuts: ScratchSongCut[] } | null {
@@ -982,6 +1004,8 @@ export function hangOneClipOnWave(opts: {
   const durMs = hangClipDurationMs(opts.durationSec, cutForFile?.durationSec);
   const lyricStart = Number(opts.preferStartMs);
   const useLyric = Number.isFinite(lyricStart) && lyricStart >= 0;
+  const lyricCovered =
+    useLyric && existing.some((t) => lyricPinTakenByHang(t, lyricStart));
   const askedStart =
     cutForFile && Number(cutForFile.durationSec) > MIN_PLATE_BOX_MS / 1000
       ? secToMs(Number(cutForFile.startSec) || 0)
@@ -990,7 +1014,8 @@ export function hangOneClipOnWave(opts: {
   const overlaps = existing.some(
     (t) => askedStart < t.endMs && askedStart + durMs > t.startMs,
   );
-  const startMs = useLyric ? lyricStart : !askedStart || overlaps ? gapStart : askedStart;
+  const startMs =
+    useLyric && !lyricCovered ? lyricStart : !askedStart || overlaps ? gapStart : askedStart;
   const timing: PlateTiming = {
     plateId,
     startMs,
@@ -1196,9 +1221,11 @@ export function hangUnhungDoneClips(opts: {
 
 /**
  * STILLS ADD / plate-row Add / Open→Add: if this still already has an
- * unhung mp4, hang that file in a gap or on the unused lyric pin.
- * Cut + plateTiming together. Does not mint a waiting cook. hung=false
- * when there is no leftover file (caller may queue a still with no clip).
+ * unhung mp4, hang that file in a gap — or on an unused lyric pin only
+ * when this still is not already on the wave. A pin a hung bar covers
+ * is not unused. Cut + plateTiming together. Does not mint a waiting
+ * cook. hung=false when there is no leftover file (caller may queue a
+ * still with no clip).
  */
 export function addPlateFileFirstHang(opts: {
   shotId: string;
@@ -1240,14 +1267,12 @@ export function addPlateFileFirstHang(opts: {
   let cuts = opts.cuts;
   let first = true;
   for (const row of leftover) {
-    const lyricStart =
-      first && !alreadyOnWave
-        ? singingHangStartMs({
-            singing: opts.singing,
-            lyricCues: opts.lyricCues,
-            plateTimings,
-          })
-        : null;
+    const lyricStart = singingHangStartMs({
+      singing: Boolean(first && opts.singing),
+      lyricCues: opts.lyricCues,
+      plateTimings,
+      alreadyOnWave,
+    });
     first = false;
     const hung = hangOneClipOnWave({
       plateTimings,
