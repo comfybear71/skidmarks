@@ -18,7 +18,7 @@ import {
   cacheJobPlateFile,
   mobileCandidateFolders,
 } from "./mobilePlateMedia";
-import { candidateLookPrompt } from "./mobileJobReady";
+import { candidateLookPrompt, locationStillFileName } from "./mobileJobReady";
 import { pickCastCardIndexByName } from "./castCardMatch";
 import { plateCastStagingNote, shotSpeakersOnCard } from "./mobilePlateLines";
 import type { CrashStoryScene, CrashStoryShot } from "./crashStoryTypes";
@@ -109,29 +109,26 @@ export async function resolvePlateBackground(
 ): Promise<string> {
   const folders = job ? mobileCandidateFolders(job) : [];
   const locationFile = job
-    ? approvedCandidateFileName(job.locationCandidates, scene.id)
+    ? locationStillFileName(job.locationCandidates, scene.id)
     : null;
 
-  // Local galleries are written by the request that approved the pick, and on
-  // Vercel this phase runs on a different invocation with empty /tmp. The
-  // show shelf is only populated for series reuse — a first job's still is
-  // the approved candidate under the job id (same file the phone already
-  // shows). worldThumbKey (g:place_…) is a local-gallery copy that does
-  // not exist in Blob.
+  // The phone already shows the job take (Pick, or the last generate).
+  // Read that first. Local galleries and g:place_… are this instance's
+  // /tmp — gone on the next Vercel invoke, and not in Blob.
   const bgPath =
+    (locationFile ? await cacheJobPlateFile({ styleId, folders, fileName: locationFile }) : null) ||
     (scene.worldThumbKey.trim()
       ? resolveWorldCardThumbPath(styleId, scene.worldThumbKey)
       : null) ||
     (scene.worldThumbKey.trim()
       ? await cacheShelfAsset(styleId, "world", scene.worldThumbKey)
-      : null) ||
-    (locationFile ? await cacheJobPlateFile({ styleId, folders, fileName: locationFile }) : null);
+      : null);
   if (!bgPath) {
     if (!scene.worldThumbKey.trim() && !locationFile) {
-      throw new Error(`Scene "${scene.title}" has no approved location yet`);
+      throw new Error(`Scene "${scene.title}" has no location still yet`);
     }
     throw new Error(
-      `Location image for "${scene.placeName}"${locationFile ? ` (${locationFile})` : ""} not found on disk, the show's world shelf, or this job's approved still`,
+      `Location image for "${scene.placeName}"${locationFile ? ` (${locationFile})` : ""} not found on disk, the show's world shelf, or this job's place still`,
     );
   }
   return bgPath;

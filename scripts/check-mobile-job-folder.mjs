@@ -19,6 +19,7 @@ import {
   pickerLookSeed,
   applyCandidateLook,
   candidateLookPrompt,
+  locationStillFileName,
 } from "../src/lib/mobileJobReady.ts";
 import { screenplaySceneCount } from "../src/lib/mobileScreenplaySize.ts";
 import { MOBILE_LAST_JOB_KEY, readResumedJobId } from "../src/lib/mobileJobResume.ts";
@@ -106,6 +107,33 @@ const beatAudioSrc = fs.readFileSync(
 assert.match(beatAudioSrc, /folderName:\s*mediaFolder/);
 assert.match(beatAudioSrc, /mobileCandidateFolders\(job\)/);
 
+const candidateLib = fs.readFileSync(
+  new URL("../src/lib/mobileCandidates.ts", import.meta.url),
+  "utf8",
+);
+assert.match(
+  candidateLib,
+  /export async function approveLocationCandidate[\s\S]*resolveCandidateStill/,
+  "Pick must pull the place still from job id + pack, not only this /tmp",
+);
+const candidateRoute = fs.readFileSync(
+  new URL("../src/app/api/crash/mobile/candidates/route.ts", import.meta.url),
+  "utf8",
+);
+assert.match(
+  candidateRoute,
+  /approveLocationCandidate\([\s\S]*mobileCandidateFolders\(job\)/,
+);
+const plateLib = fs.readFileSync(
+  new URL("../src/lib/mobilePlates.ts", import.meta.url),
+  "utf8",
+);
+assert.match(
+  plateLib,
+  /locationStillFileName\(job\.locationCandidates, scene\.id\)/,
+  "Draw reads the same place take the phone shows",
+);
+
 const tomatoFace = "face_tomato.png";
 const holeStill = "mloc_hole.png";
 assert.equal(
@@ -169,6 +197,30 @@ const teeTakes = [
 assert.equal(preferredCandidate(teeTakes)?.id, "b");
 assert.equal(preferredCandidate(teeTakes)?.prompt, "A lovely overweight but bubbly middle aged woman");
 assert.equal(preferredCandidate([{ id: "only", approved: false, prompt: "last" }])?.prompt, "last");
+assert.equal(
+  locationStillFileName(
+    {
+      scene_y3wiphv: [
+        { id: "mloc_sunrise.png", fileName: "mloc_sunrise.png", approved: false },
+      ],
+    },
+    "scene_y3wiphv",
+  ),
+  "mloc_sunrise.png",
+  "Draw uses the take the phone already shows, even before Pick",
+);
+assert.equal(
+  locationStillFileName(
+    {
+      scene_87h84ws: [
+        { id: "old.png", fileName: "old.png", approved: false },
+        { id: "pick.png", fileName: "pick.png", approved: true },
+      ],
+    },
+    "scene_87h84ws",
+  ),
+  "pick.png",
+);
 assert.equal(pickerLookSeed(teeTakes), "A lovely overweight but bubbly middle aged woman");
 assert.equal(pickerLookSeed([]), "");
 {

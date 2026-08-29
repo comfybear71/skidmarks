@@ -3,7 +3,7 @@ import path from "path";
 import { CRASH_DIR } from "./paths";
 import { resolveMobileMedia, resolveMobileMediaByFilename } from "./mobileMediaStore";
 import type { ShowStyleId } from "./showStylePresets";
-import { approvedCandidateFileName } from "./mobileJobReady";
+import { locationStillFileName } from "./mobileJobReady";
 import { mobileCandidateFolders } from "./mobileJobFolder";
 import type { MobileGenJob } from "./mobileGenJob";
 import { newId } from "./types";
@@ -47,7 +47,7 @@ export async function copyPlaceStillAsEmptyPlate(opts: {
   job: MobileGenJob;
   sceneId: string;
 }): Promise<string | null> {
-  const srcName = approvedCandidateFileName(opts.job.locationCandidates, opts.sceneId);
+  const srcName = locationStillFileName(opts.job.locationCandidates, opts.sceneId);
   if (!srcName) return null;
   const srcPath = await cacheJobPlateFile({
     styleId: opts.job.styleId,
