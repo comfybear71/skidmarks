@@ -69,6 +69,7 @@ import {
   hangUnhungDoneClips,
   listUnhungDoneClips,
   sliceBoundsForPlate,
+  songFromTrackDraft,
 } from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 import { findStoryShot, isSupportShot } from "@/lib/stockFootage";
@@ -143,7 +144,7 @@ export async function POST(req: Request) {
 
   try {
     if (action === "assign") {
-      const song = job.scratchSong;
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       if (!song?.fileName) {
         return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
       }
@@ -325,7 +326,7 @@ export async function POST(req: Request) {
     }
 
     if (action === "run") {
-      let song = job.scratchSong;
+      let song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       if (!song?.fileName) {
         return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
       }
@@ -641,7 +642,7 @@ export async function POST(req: Request) {
     }
 
     if (action === "hang-plates") {
-      const song = job.scratchSong;
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       if (!song?.fileName) {
         return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
       }
@@ -702,7 +703,7 @@ export async function POST(req: Request) {
     }
 
     if (action === "hang-clip") {
-      const song = job.scratchSong;
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       if (!song?.fileName) {
         return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
       }
@@ -746,9 +747,12 @@ export async function POST(req: Request) {
     }
 
     if (action === "add-plate") {
-      let song = job.scratchSong;
+      let song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       const shotId = String(body.shotId || "").trim();
-      if (!song || !shotId) {
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
+      }
+      if (!shotId) {
         return NextResponse.json({ error: "Need a plate to add." }, { status: 400 });
       }
       song = { ...song, cuts: clearStuckSongCooks(song.cuts || []) };
@@ -831,7 +835,7 @@ export async function POST(req: Request) {
     }
 
     if (action === "set-row-slices") {
-      let song = job.scratchSong;
+      let song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       if (!song?.fileName) {
         return NextResponse.json({ error: "Drop the song mp3 first." }, { status: 400 });
       }

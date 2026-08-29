@@ -22,6 +22,7 @@ import {
   withLyricCue,
   withoutLyricCue,
   plateTimingForShot,
+  songFromTrackDraft,
   cookDurationFromHungBar,
   cutForHungPlate,
   hangIdForSend,
@@ -884,8 +885,9 @@ export function MusicVideoTrack({
   /** Short Send-button face — Queued… / 0:45 / Failed. */
   onSendStillLabel?: (label: string) => void;
 }) {
-  const song = job.scratchSong;
+  const song = songFromTrackDraft(job.trackDraft, job.scratchSong) ?? job.scratchSong;
   const parked = usePendingSong(job.id);
+  const hasSong = Boolean((song?.fileName || "").trim());
   const beatId =
     (song?.carrierBeatId || "").trim() ||
     findSongCarrierBeatId(story, song?.fileName, plated[0]?.shotId);
@@ -1249,7 +1251,7 @@ export function MusicVideoTrack({
 
   /** He taps Put stills / Hang. TRACK open must not POST hang-plates. */
   async function hangStillsOnWave() {
-    if (!song?.fileName) {
+    if (!hasSong) {
       setNote("Drop the song first.");
       return;
     }
@@ -1587,7 +1589,7 @@ export function MusicVideoTrack({
   }
 
   async function addPlateToTimeline(shotId: string) {
-    if (!song?.fileName) {
+    if (!hasSong) {
       setNote("Drop the song first.");
       return;
     }
@@ -1791,7 +1793,7 @@ export function MusicVideoTrack({
   sendPlateRef.current = sendPlate;
 
   async function dropPlateFromWave(shotId: string) {
-    if (!song?.fileName) {
+    if (!hasSong) {
       setNote("Nothing on the song to drop.");
       return;
     }
@@ -1871,7 +1873,7 @@ export function MusicVideoTrack({
   }, [busy, effectiveDurationMs, job.lyrics, markers]);
 
   async function movePlate(shotId: string, direction: "earlier" | "later") {
-    if (!song?.fileName) {
+    if (!hasSong) {
       setNote("Hang the stills on the song first.");
       return;
     }
@@ -1924,7 +1926,7 @@ export function MusicVideoTrack({
   }
 
   async function schedulePlate(shotId: string, startMs: number, endMs: number, sortIndex: number) {
-    if (!song?.fileName) {
+    if (!hasSong) {
       setNote("Start the video and attach the song before timing plates.");
       return;
     }
@@ -1947,7 +1949,7 @@ export function MusicVideoTrack({
   }
 
   async function saveStretchedBoxes(next: PlateTiming[]) {
-    if (!song?.fileName) {
+    if (!hasSong) {
       setNote("Drop the song first.");
       setStretchTimings(null);
       setStretchReadout("");
@@ -2045,7 +2047,7 @@ export function MusicVideoTrack({
             cooking={songCookFlagOn(job.id)}
           />
           <div className="m-track-stop-row">
-            {needsDoneClipHang(song, job.shots, job.clips || []) && song?.fileName ? (
+            {needsDoneClipHang(song, job.shots, job.clips || []) && hasSong ? (
               <MobilePrimaryButton
                 size="chip"
                 disabled={busy === "hang"}
@@ -2070,7 +2072,8 @@ export function MusicVideoTrack({
           </div>
           <div className="m-track-song-top">
             <span className="m-track-song-name">
-              {musicVideoCreditLine(job) || songChipName(song?.fileName || parked?.file.name || "")}
+              {musicVideoCreditLine(job) ||
+                songChipName(song?.fileName || job.trackDraft?.songFile || parked?.file.name || "")}
             </span>
             <button
               type="button"

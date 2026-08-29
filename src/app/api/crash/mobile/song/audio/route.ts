@@ -25,7 +25,11 @@ export async function GET(req: Request) {
 
   const job = await readMobileGenJob(jobId);
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-  const fileName = (job.scratchSong?.fileName || "").trim();
+  const fileName = (
+    job.scratchSong?.fileName ||
+    job.trackDraft?.songFile ||
+    ""
+  ).trim();
   if (!fileName || !job.folderName) {
     return NextResponse.json({ error: "No song on this job" }, { status: 404 });
   }

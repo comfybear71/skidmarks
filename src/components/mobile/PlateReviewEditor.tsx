@@ -96,7 +96,7 @@ import { PlateHangLenControl } from "@/components/mobile/PlateLenSlider";
 import { readHangLengthDraft } from "@/lib/hangLengthDraft";
 import { requestSongCookStop } from "@/lib/songCutCook";
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
-import type { MusicVideoTrackDraft } from "@/lib/musicVideoTrack";
+import { deskHasSong, type MusicVideoTrackDraft } from "@/lib/musicVideoTrack";
 import type { ScratchSong } from "@/lib/scratchSongWindow";
 
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
@@ -549,7 +549,7 @@ export function PlateReviewEditor({
   }
 
   async function hangClipOnSong(shotId: string, fileName: string) {
-    if (!job.scratchSong?.fileName) {
+    if (!deskHasSong({ scratchSong: job.scratchSong, trackDraft: job.trackDraft })) {
       setActionError("Drop the song mp3 first.");
       return;
     }
@@ -576,7 +576,7 @@ export function PlateReviewEditor({
   }
 
   async function addPlateToSong(shotId: string) {
-    if (!job.scratchSong?.fileName) {
+    if (!deskHasSong({ scratchSong: job.scratchSong, trackDraft: job.trackDraft })) {
       setActionError("Drop the song mp3 first.");
       return;
     }
@@ -630,7 +630,10 @@ export function PlateReviewEditor({
     }
   }
 
-  const songReady = isMusicVideoSongJob(job) && Boolean(job.scratchSong?.fileName);
+  const songReady =
+    isMusicVideoSongJob(job) &&
+    deskHasSong({ scratchSong: job.scratchSong, trackDraft: job.trackDraft });
+  const showAddHang = isMusicVideoSongJob(job);
   // Music video adds plates from the track rail under the wave — this empty
   // strip duplicated the + and the "no plates yet" line under Sections.
   const musicVideoTrackOwnsEmptyPlates = isMusicVideoSongJob(job) && !shots.length;
@@ -645,11 +648,15 @@ export function PlateReviewEditor({
           No plates yet. Tap + for an empty card, or tap a name on a place then Add.
         </div>
       ) : null}
-      {focusShotId && shots.some((s) => s.shotId === focusShotId) ? (
-        <div className="m-place-plate-note" style={{ margin: "0 2px 8px" }}>
-          New plate — this one. No still yet. Tap it, then Draw.
-        </div>
-      ) : null}
+      {(() => {
+        const focus = shots.find((s) => s.shotId === focusShotId);
+        const hasStill = Boolean(focus?.plateFile && focus.plateFile !== "__error__");
+        return focus && !hasStill ? (
+          <div className="m-place-plate-note" style={{ margin: "0 2px 8px" }}>
+            New plate — this one. No still yet. Tap it, then Draw.
+          </div>
+        ) : null;
+      })()}
       {musicVideoTrackOwnsEmptyPlates ? null : (
       <DeskFold
         label="Stills"
@@ -931,7 +938,7 @@ export function PlateReviewEditor({
               {!collapsed && songTally.total ? (
                 <div className="m-song-plate-tally">{songCutTallyLine(songTally)}</div>
               ) : null}
-              {!collapsed && songReady ? (
+              {!collapsed && showAddHang ? (
                 <div
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
@@ -1135,7 +1142,7 @@ export function PlateReviewEditor({
             setCastPickerShotId(openShotId);
           }}
           onAddToSong={
-            songReady && openShotId
+            showAddHang && openShotId
               ? () => void addPlateToSong(openShotId)
               : undefined
           }
