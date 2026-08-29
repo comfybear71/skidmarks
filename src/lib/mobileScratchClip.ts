@@ -6,6 +6,7 @@ import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
 import {
   clipFileBasename,
   nextHumanClipName,
+  songCookAppendsNewClip,
   rememberClipTake,
   takenClipFileNames,
 } from "./mobilePlateClips";
@@ -372,9 +373,13 @@ export async function runScratchLtxClip(opts: {
   ) {
     return job;
   }
-  // A new cook appends. Parking clip 4 then naming from the done-cut count
-  // wrote 05_ over clip 5 and stamped that file onto clip 4.
-  const appendTake = Boolean(existingFile);
+  // A new cook appends. Same beat + a file already on clip 1 used to
+  // rememberClipTake over that row (fourth cook of the first plate).
+  const appendTake = songCookAppendsNewClip({
+    cutClipFile: existingFile,
+    clips: job.clips,
+    beatId,
+  });
 
   if (!appendTake) {
     const clips: MobileClipUnit[] = (job.clips || []).some((c) => c.beatId === beatId)

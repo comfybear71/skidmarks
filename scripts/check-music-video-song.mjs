@@ -57,7 +57,12 @@ import {
   extraTakeHangPlateId,
   hangMissingPlateTimings,
 } from "../src/lib/musicVideoTrack.ts";
-import { gatherClipsForStillsRail, keepClipsAfterUnhang } from "../src/lib/mobilePlateClips.ts";
+import {
+  gatherClipsForStillsRail,
+  keepClipsAfterUnhang,
+  songCookAppendsNewClip,
+  withSongCookPendingClip,
+} from "../src/lib/mobilePlateClips.ts";
 import { emptyStageFarOutStaging } from "../src/lib/emptyStagePlate.ts";
 import { isInstrumentalStaging, buildScratchSongLtxMotion } from "../src/lib/mobileImageMotion.ts";
 import { songCookStorageKey } from "../src/lib/songCutCook.ts";
@@ -1498,6 +1503,62 @@ assert.doesNotMatch(
   editor,
   /isMusicVideoSongJob\(job\) && plateClipRail/,
   "clips fold is not music-video only",
+);
+
+{
+  const first = {
+    beatId: "beat_aai6zao",
+    clipFile: "03_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+    clipStatus: "done",
+  };
+  assert.equal(
+    songCookAppendsNewClip({
+      beatId: "beat_aai6zao",
+      clips: [first],
+    }),
+    true,
+    "fourth cook of the first plate must not reuse clip 1's row",
+  );
+  assert.equal(
+    songCookAppendsNewClip({
+      beatId: "beat_aai6zao",
+      clips: [{ beatId: "beat_aai6zao", clipFile: "", clipStatus: "pending" }],
+    }),
+    false,
+    "first cook on a beat still writes that row",
+  );
+  assert.equal(
+    songCookAppendsNewClip({
+      cutClipFile: "03_JACK_GHOST_GIVE_ME_SOMETHING.mp4",
+      beatId: "beat_other",
+      clips: [],
+    }),
+    true,
+    "a cut that already has a file appends",
+  );
+  const started = withSongCookPendingClip({
+    clips: [first],
+    beatId: "beat_aai6zao",
+    hangId: "shot_espv62u~still2",
+    sceneId: "scene_1",
+    speaker: "JACK GHOST",
+    line: "",
+    voiceFile: "",
+    imageMotion: "next",
+    newBeatId: () => "cut:take_4",
+  });
+  assert.equal(started.cookBeatId, "cut:take_4");
+  assert.equal(started.clips.length, 2);
+  assert.equal(started.clips[0]?.clipFile, "03_JACK_GHOST_GIVE_ME_SOMETHING.mp4");
+  assert.equal(started.clips[0]?.clipStatus, "done");
+  assert.equal(started.clips[1]?.beatId, "cut:take_4");
+  assert.equal(started.clips[1]?.shotId, "shot_espv62u~still2");
+  assert.equal(started.clips[1]?.clipFile, "");
+}
+assert.match(
+  clip,
+  /songCookAppendsNewClip/,
+  "LTX Send uses the append lock so clip 1 stays",
 );
 
 console.log("check-music-video-song: ok");

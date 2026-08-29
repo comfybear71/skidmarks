@@ -262,6 +262,74 @@ export function clipRailLabels(count: number): string[] {
   return Array.from({ length: n }, (_, i) => `clip ${i + 1}`);
 }
 
+/**
+ * Fourth cook of the first plate used the same beat and overwrote clip 1.
+ * A cut that already has a file, or a done clip on this beat, must append.
+ */
+export function songCookAppendsNewClip(opts: {
+  cutClipFile?: string;
+  clips?: Array<{ beatId?: string; clipFile?: string; clipStatus?: string }>;
+  beatId: string;
+}): boolean {
+  if (clipFileBasename(opts.cutClipFile || "")) return true;
+  const beat = (opts.beatId || "").trim();
+  if (!beat) return false;
+  return (opts.clips || []).some((c) => {
+    if ((c.beatId || "").trim() !== beat) return false;
+    if ((c.clipStatus || "") === "error") return false;
+    return Boolean(clipFileBasename(c.clipFile || ""));
+  });
+}
+
+/** Start a cook without stomping a done clip on this beat. */
+export function withSongCookPendingClip(opts: {
+  clips: MobileClipUnit[];
+  beatId: string;
+  cutClipFile?: string;
+  hangId: string;
+  sceneId: string;
+  speaker: string;
+  line: string;
+  voiceFile: string;
+  imageMotion: string;
+  newBeatId: () => string;
+}): { clips: MobileClipUnit[]; cookBeatId: string } {
+  const hangId = (opts.hangId || "").trim();
+  const patch = {
+    shotId: hangId,
+    sceneId: opts.sceneId,
+    speaker: opts.speaker,
+    line: opts.line,
+    voiceFile: opts.voiceFile,
+    imageMotion: opts.imageMotion,
+    clipStatus: "pending" as const,
+    error: "",
+  };
+  if (
+    songCookAppendsNewClip({
+      cutClipFile: opts.cutClipFile,
+      clips: opts.clips,
+      beatId: opts.beatId,
+    })
+  ) {
+    const cookBeatId = opts.newBeatId();
+    return {
+      cookBeatId,
+      clips: [...opts.clips, { ...patch, beatId: cookBeatId, clipFile: "" }],
+    };
+  }
+  if (opts.clips.some((c) => c.beatId === opts.beatId)) {
+    return {
+      cookBeatId: opts.beatId,
+      clips: opts.clips.map((c) => (c.beatId === opts.beatId ? { ...c, ...patch } : c)),
+    };
+  }
+  return {
+    cookBeatId: opts.beatId,
+    clips: [...opts.clips, { ...patch, beatId: opts.beatId, clipFile: "" }],
+  };
+}
+
 /** Keep the old mp4 on the stack when a new LTX take lands. Files stay in Blob. */
 export function rememberClipTake(
   clip: Pick<MobileClipUnit, "clipFile" | "priorClipFiles">,
