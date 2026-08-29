@@ -205,6 +205,28 @@ export function preferredCandidate<T extends { approved?: boolean }>(
   return list?.find((c) => c.approved) || latestCandidate(list);
 }
 
+/** The place picture the phone already shows — the pick, else the last take. */
+export function locationStillFileName(
+  candidates: Record<string, { approved?: boolean; fileName: string }[] | undefined>,
+  sceneId: string,
+): string | null {
+  const approved = approvedCandidateFileName(
+    candidates as Record<string, { approved: boolean; fileName: string }[] | undefined>,
+    sceneId,
+  );
+  if (approved) return approved;
+  const exact = preferredCandidate(candidates[sceneId] || [])?.fileName?.trim();
+  if (exact) return exact;
+  const want = sceneId.trim().toLowerCase();
+  if (!want) return null;
+  for (const [name, list] of Object.entries(candidates)) {
+    if (name.trim().toLowerCase() !== want) continue;
+    const hit = preferredCandidate(list)?.fileName?.trim();
+    if (hit) return hit;
+  }
+  return null;
+}
+
 /** Tweak adds to the look. It must not replace it — a few extra words
  * used to become the whole description, which is how Jo turned into a raccoon. */
 export function directorNote(tweak: string | undefined, look: string | undefined): string {

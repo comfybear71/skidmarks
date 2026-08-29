@@ -484,16 +484,21 @@ export async function approveLocationCandidate(
   folderName: string,
   placeName: string,
   fileName: string,
+  /** Job id + pack — places minted before Lock live under the job id. */
+  altFolders: string[] = [],
 ): Promise<string> {
-  await resolveMobileMedia({
+  const resolved = await resolveCandidateStill(
     styleId,
     folderName,
-    kind: CANDIDATE_BLOB_KIND,
     fileName,
-    destPath: path.join(candidateGenDir(), fileName),
-  });
+    undefined,
+    altFolders,
+  );
+  if (!resolved) {
+    throw new Error("That place still is not on this job — tap Pick again");
+  }
   const saved = saveGenStillAsWorldCard({
-    genFileName: fileName,
+    genFileName: path.basename(resolved),
     styleId,
     prompt: `${placeName} — Location`,
     placeType: "social_public",

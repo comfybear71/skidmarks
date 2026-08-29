@@ -141,7 +141,7 @@ export async function POST(req: Request) {
     }
 
     if (action === "save-track") {
-      const song = job.scratchSong;
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       if (!song?.fileName) {
         return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
       }
@@ -295,7 +295,7 @@ export async function POST(req: Request) {
     }
 
     if (action === "set-who-plays") {
-      const song = job.scratchSong;
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       if (!song?.fileName) {
         return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
       }

@@ -2333,6 +2333,16 @@ assert.match(trackUi, /hangIdForSend/, "Send uses the extra hang id, not the fir
 assert.match(trackUi, /songFromTrackDraft\(job\.trackDraft, job\.scratchSong\)/, "TRACK hang uses the same song pointer as the player");
 assert.match(trackUi, /const hasSong = Boolean\(\(song\?\.fileName \|\| ""\)\.trim\(\)\)/);
 assert.match(trackRoute, /parkSongFilePointers/);
+assert.match(
+  trackRoute,
+  /action === "save-track"[\s\S]*songFromTrackDraft\(job\.trackDraft, job\.scratchSong\)/,
+  "save-track must see TRACK songFile — that is the pink Add-the-song lie",
+);
+assert.match(
+  trackRoute,
+  /action === "set-who-plays"[\s\S]*songFromTrackDraft\(job\.trackDraft, job\.scratchSong\)/,
+  "who-plays uses the same song pointer as the player",
+);
 
 console.log("check-music-video-track: ok");
 

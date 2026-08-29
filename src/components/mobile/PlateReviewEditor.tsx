@@ -32,6 +32,7 @@ import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import {
   approvedCandidateFileName,
   candidateLookPrompt,
+  locationStillFileName,
   preferredCandidate,
 } from "@/lib/mobileJobReady";
 import { imageMotionAssistHint, platePositionAssistHint } from "@/lib/mobileAssist";
@@ -100,10 +101,7 @@ import { deskHasSong, type MusicVideoTrackDraft } from "@/lib/musicVideoTrack";
 import type { ScratchSong } from "@/lib/scratchSongWindow";
 
 function placeStillUrl(job: MobileGenJob, sceneId: string): string {
-  const file =
-    approvedCandidateFileName(job.locationCandidates, sceneId) ||
-    preferredCandidate(job.locationCandidates[sceneId] || [])?.fileName ||
-    "";
+  const file = locationStillFileName(job.locationCandidates, sceneId) || "";
   return file ? mobileLocationStillUrl(job, file) : "";
 }
 

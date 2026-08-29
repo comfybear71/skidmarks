@@ -405,7 +405,13 @@ export async function POST(req: Request) {
 
     const candidateId = (body.candidateId || "").trim();
     if (!candidateId) return NextResponse.json({ error: "Need candidateId" }, { status: 400 });
-    const thumbKey = await approveLocationCandidate(job.styleId, mobileMediaFolder(job), scene.placeName, candidateId);
+    const thumbKey = await approveLocationCandidate(
+      job.styleId,
+      mobileMediaFolder(job),
+      scene.placeName,
+      candidateId,
+      mobileCandidateFolders(job),
+    );
 
     // Patch the real story doc so the plates phase can find it — not just the
     // job doc. Nothing to patch yet during location_build (no pack, no
