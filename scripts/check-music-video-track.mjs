@@ -46,6 +46,7 @@ import {
   trackWaveCssWidth,
   cutForHungPlate,
   hangIdForSend,
+  parkSongFilePointers,
 } from "../src/lib/musicVideoTrack.ts";
 import { hangDoneClipOnTrack } from "../src/lib/stockClipHang.ts";
 import { hungClipFileForPlate } from "../src/lib/orderedJobClips.ts";
@@ -2282,6 +2283,26 @@ assert.match(trackUi, /hangIdForSend/, "Send uses the extra hang id, not the fir
   );
   assert.match(sendFn, /motionBodyForSend/, "Send keeps the [ ] words on the LTX POST");
   assert.match(sendFn, /Starting the Send/, "Send starts LTX without Saving the motion box");
+}
+
+{
+  const parked = parkSongFilePointers({
+    trackDraft: { songFile: "draft.mp3", songDurationSec: 63, waveformPeaks: [0.2] },
+    scratchSong: {
+      fileName: "attached.mp3",
+      durationSec: 63,
+      sliceStartSec: 0,
+      sliceDurationSec: 15,
+      cuts: [{ id: "c1", status: "done", clipFile: "01_JACK.mp4" }],
+      carrierBeatId: "beat_1",
+      waveformPeaks: [0.5],
+    },
+  });
+  assert.equal(parked.trackDraft.songFile, undefined);
+  assert.equal(parked.scratchSong?.fileName, "");
+  assert.equal(parked.scratchSong?.carrierBeatId, "beat_1");
+  assert.equal(parked.scratchSong?.cuts?.[0]?.clipFile, "01_JACK.mp4");
+  assert.equal(parked.scratchSong?.waveformPeaks, undefined);
 }
 
 console.log("check-music-video-track: ok");

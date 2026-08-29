@@ -782,15 +782,22 @@ console.log("check-music-video-plate-picker OK");
 
   // Clearing only the browser copy left trackDraft.songFile pointing at the
   // mp3, so the player carried on and the x looked dead.
-  const drop = ui.slice(ui.indexOf("async function dropSong"), ui.indexOf("async function dropSong") + 1200);
+  const drop = ui.slice(ui.indexOf("async function dropSong"), ui.indexOf("async function dropSong") + 1600);
   assert.match(drop, /clearPendingSong/, "the browser copy goes");
   assert.match(drop, /drop-song/, "and the saved reference goes with it");
+  assert.match(drop, /song\?\.fileName/, "× also unhooks the attached take");
+  assert.doesNotMatch(
+    drop,
+    /The attached take stays on the episode/,
+    "× must not leave the attached mp3 on the player",
+  );
 
   assert.match(route, /action === "drop-song"/);
+  assert.match(route, /parkSongFilePointers/, "attached take pointer parks even with a carrier beat");
   assert.match(route, /body.lyricCues !== undefined/, "Import from lyrics can save pins with the sections");
   // Park, never delete: the mp3 stays in Blob so dropping cannot lose a file.
-  const action = route.slice(route.indexOf('action === "drop-song"'), route.indexOf('action === "drop-song"') + 700);
-  assert.match(action, /delete draft\.songFile/);
+  const action = route.slice(route.indexOf('action === "drop-song"'), route.indexOf('action === "drop-song"') + 900);
+  assert.doesNotMatch(action, /carrierBeatId/, "carrier beat must not keep the player hooked");
   assert.doesNotMatch(action, /deleteBlob|deleteNeon|rmSync|unlink/, "nothing is deleted");
 }
 
