@@ -128,6 +128,10 @@ export function formatScratchCookNote(
     startedMs?: number;
     engine?: ScratchCookEngine;
     mute?: boolean;
+    /** Song / LTX POST has left the phone. */
+    posted?: boolean;
+    /** Job cut is marked running. */
+    cutRunning?: boolean;
   },
 ): string {
   const now = opts?.nowMs ?? Date.now();
@@ -141,8 +145,17 @@ export function formatScratchCookNote(
   const mute = opts?.mute ? " — mouths shut" : "";
   const elapsed = scratchCookElapsedSec(null, now, opts?.startedMs);
   const clock = formatCookClock(elapsed);
+  const posted = opts?.posted === true;
+  const cutRunning = opts?.cutRunning === true;
+  if (!posted && !cutRunning) {
+    if (elapsed >= 8) return `Starting the Send${mute} · ${clock}`;
+    return `Sending to ${name}${mute} · ${clock}`;
+  }
+  if (posted && !cutRunning && elapsed >= 15) {
+    return `Send has not reached LTX yet${mute} · ${clock}`;
+  }
   if (elapsed >= 8) {
-    return `Studio has the Send. Waiting for LTX${mute} · ${clock}`;
+    return `Studio has the Send. Waiting for a step${mute} · ${clock}`;
   }
   return `Sending to ${name}${mute} · ${clock}`;
 }

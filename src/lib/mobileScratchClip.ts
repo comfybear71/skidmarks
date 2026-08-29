@@ -105,6 +105,8 @@ export async function runScratchLtxClip(opts: {
   /** TRACK Nobody / empty-road lock — do not wait on Neon story. */
   emptyFrame?: boolean;
   nobodyInShot?: boolean;
+  /** Phone [ ] / mute lock — do not wait on beat-motion story write. */
+  imageMotion?: string;
 }): Promise<MobileGenJob> {
   const { story, sceneId, beatId } = opts;
   const hangId = (opts.shotId || "").trim();
@@ -217,7 +219,9 @@ export async function runScratchLtxClip(opts: {
     jobSpeakers: job.speakers,
     beats: storyShot.beats,
   });
-  const storedEarly = stripLtxLipSyncLead(beat.imageMotion || "");
+  const storedEarly = stripLtxLipSyncLead(
+    (opts.imageMotion || "").trim() || beat.imageMotion || "",
+  );
   const padNames = muteMvPadNames({
     roster: [...new Set([...(shotCast || []), (clipRow?.speaker || beat.speaker || "").trim()].filter(Boolean))],
     staging: storyShot.staging,
