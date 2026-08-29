@@ -196,9 +196,10 @@ export function addPlateIsSingingHang(opts: {
 
 /**
  * Plate-row / STILLS Add. File-first leftover of the OPEN shot in a gap
- * or at 0, at the cooked mp4 length — unless this is a singing first hang
- * (No lips OFF) with lyric pins: then startMs is the unused lyric cue
- * (Silver lines 0:31), not max(endMs) after intro clips.
+ * or at 0, at the cooked mp4 length. Empty wave: startMs is 0 + slider
+ * seconds — not the first lyric pin. Singing (No lips OFF) after a real
+ * hang already exists uses the unused lyric cue (Silver lines 0:31),
+ * not max(endMs) after intro clips.
  * Other bars keep their times. Slider durationSec stays (5–40).
  * alreadyHung + no leftover writes another bar (extraStillHangPlateId)
  * in a gap / after last — not on a lyric pin a hung bar already covers.

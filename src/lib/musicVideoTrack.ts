@@ -660,8 +660,11 @@ export function firstUnusedLyricHangStartMs(
 }
 
 /**
- * Singing Add (No lips OFF). Null when mute/support, the sheet has no
- * pins, or this still is already on the wave — extra take sits in a gap.
+ * Singing Add (No lips OFF). First still on an empty wave starts at 0 —
+ * not the first lyric pin (lineIndex 3 at 0:15.5 is not "3rd place").
+ * Lyric pins only after a real hang already exists (Silver 0:31 after
+ * intro). Null when mute/support, the sheet has no pins, or this still
+ * is already on the wave — extra take sits in a gap.
  */
 export function singingHangStartMs(opts: {
   singing?: boolean;
@@ -670,6 +673,8 @@ export function singingHangStartMs(opts: {
   alreadyOnWave?: boolean;
 }): number | null {
   if (!opts.singing || opts.alreadyOnWave) return null;
+  const hung = sortPlateTimings(opts.plateTimings || []).filter((t) => isRealPlateHang(t));
+  if (!hung.length) return null;
   return firstUnusedLyricHangStartMs(opts.lyricCues, opts.plateTimings);
 }
 
@@ -698,6 +703,7 @@ const PLATE_DURATION_MAX_MS = secToMs(LTX_MAX_DURATION_SEC);
 /**
  * Where this still sits, and how long it covers. Other stills keep their
  * song times — plates must not push the song back.
+ * Missing / 0 song length must not invent a 1s song that clamps 9s to 1s.
  */
 export function withPlateWindow(
   existing: PlateTiming[] | undefined,
@@ -710,17 +716,21 @@ export function withPlateWindow(
   const id = (plateId || "").trim();
   const i = sorted.findIndex((t) => t.plateId === id);
   if (i < 0) return null;
-  const song = Math.max(PLATE_DURATION_MIN_MS, Math.round(Number(songMs) || 0));
+  const songRaw = Math.round(Number(songMs) || 0);
   const askedStart = Math.round(Number(startMs));
-  const askedDur = Math.round(Number(durationMs) || 0);
-  const start = Math.max(
-    0,
-    Math.min(Number.isFinite(askedStart) ? askedStart : 0, song - PLATE_DURATION_MIN_MS),
-  );
-  const dur = Math.max(
+  const askedDur = Math.max(
     PLATE_DURATION_MIN_MS,
-    Math.min(PLATE_DURATION_MAX_MS, askedDur > 0 ? askedDur : PLATE_DURATION_MIN_MS, song - start),
+    Math.min(PLATE_DURATION_MAX_MS, Math.round(Number(durationMs) || 0) || PLATE_DURATION_MIN_MS),
   );
+  const startAsked = Number.isFinite(askedStart) ? Math.max(0, askedStart) : 0;
+  const start =
+    songRaw > 0
+      ? Math.min(startAsked, Math.max(0, songRaw - PLATE_DURATION_MIN_MS))
+      : startAsked;
+  const dur =
+    songRaw > 0
+      ? Math.max(PLATE_DURATION_MIN_MS, Math.min(askedDur, songRaw - start))
+      : askedDur;
   const next = sorted.map((t) => ({ ...t }));
   next[i] = { ...next[i]!, startMs: start, endMs: start + dur };
   next.sort((a, b) => a.startMs - b.startMs || a.sortIndex - b.sortIndex);

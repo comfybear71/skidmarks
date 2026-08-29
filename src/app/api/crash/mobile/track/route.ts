@@ -110,6 +110,7 @@ export async function POST(req: Request) {
     direction?: string;
     durationSec?: number;
     startSec?: number;
+    songDurationSec?: number;
     lyricCues?: LyricCue[];
     stockLook?: unknown;
   };
@@ -223,6 +224,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, job: updated, timing });
     }
 
+    if (action === "remember-song-duration") {
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Add the song before you time plates." }, { status: 400 });
+      }
+      const incoming = Number(body.durationSec);
+      const current = Number(song.durationSec) || 0;
+      if (!(incoming > 1) || current > 0) {
+        return NextResponse.json({ ok: true, job });
+      }
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, durationSec: incoming },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
     if (action === "set-plate-duration") {
       const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
       if (!song?.fileName) {
@@ -230,7 +248,14 @@ export async function POST(req: Request) {
       }
       const plateId = String(body.plateId || "").trim();
       if (!plateId) return NextResponse.json({ error: "Need plateId" }, { status: 400 });
-      const songMs = secToMs(song.durationSec);
+      const playerSec = Number(body.songDurationSec);
+      const knownSec =
+        Number(song.durationSec) > 0
+          ? Number(song.durationSec)
+          : Number.isFinite(playerSec) && playerSec > 1
+            ? playerSec
+            : 0;
+      const songMs = knownSec > 0 ? secToMs(knownSec) : 0;
       const durationMs = secToMs(clampHangLengthSec(Number(body.durationSec)));
       const askedStart = Number(body.startSec);
       const plateTimings =
@@ -249,8 +274,9 @@ export async function POST(req: Request) {
         if (!plateFile || plateFile === "__error__") continue;
         cuts = cutFromPlateTiming(cuts, timing, plateFile, () => newId("cut"));
       }
+      const healed = knownSec > 0 && !(Number(song.durationSec) > 0) ? { ...song, durationSec: knownSec } : song;
       const updated = await patchMobileGenJob(jobId, {
-        scratchSong: { ...song, plateTimings, cuts },
+        scratchSong: { ...healed, plateTimings, cuts },
         error: "",
       });
       return NextResponse.json({ ok: true, job: updated });

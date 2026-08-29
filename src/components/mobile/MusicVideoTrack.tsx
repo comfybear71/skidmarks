@@ -924,6 +924,7 @@ export function MusicVideoTrack({
   const cookWatchLive = useRef(false);
   const blobRef = useRef("");
   const lyricImportTried = useRef(false);
+  const rememberedSongSecRef = useRef(false);
 
   // Plain arithmetic — memoising it only confused the compiler about which
   // song field it depends on.
@@ -1101,6 +1102,12 @@ export function MusicVideoTrack({
   useEffect(() => {
     if (pickedOnSong && pickedLenSec > 0) setLenDraft(String(pickedLenSec));
   }, [picked?.shotId, pickedLenSec, pickedOnSong]);
+
+  useEffect(() => {
+    rememberedSongSecRef.current =
+      Number(job.scratchSong?.durationSec) > 0 ||
+      Number(job.trackDraft?.songDurationSec) > 0;
+  }, [job.id]);
 
   const zipClips = useMemo(() => orderedJobClips(job), [job]);
   const zipHref = zipClips.length
@@ -1970,6 +1977,7 @@ export function MusicVideoTrack({
         plateId: picked.shotId,
         startSec,
         durationSec,
+        ...(effectiveDurationMs > 1000 ? { songDurationSec: effectiveDurationMs / 1000 } : {}),
       });
       if (updated) onJobChange(updated);
       setLenDraft(String(durationSec));
@@ -2098,7 +2106,25 @@ export function MusicVideoTrack({
                 src={audioSrc}
                 audioRef={audioRef}
                 onTime={(sec) => setPlayheadMs(Math.round(sec * 1000))}
-                onDuration={(sec) => setAudioDurationMs(Math.round(sec * 1000))}
+                onDuration={(sec) => {
+                  setAudioDurationMs(Math.round(sec * 1000));
+                  const live = jobRef.current;
+                  const have =
+                    Number(live.scratchSong?.durationSec) > 0 ||
+                    Number(live.trackDraft?.songDurationSec) > 0;
+                  if (have || rememberedSongSecRef.current || !(sec > 1) || !live.id) return;
+                  rememberedSongSecRef.current = true;
+                  void trackAction("remember-song-duration", {
+                    jobId: live.id,
+                    durationSec: sec,
+                  })
+                    .then((updated) => {
+                      if (updated) onJobChange(updated);
+                    })
+                    .catch(() => {
+                      rememberedSongSecRef.current = false;
+                    });
+                }}
                 onPlayingChange={setPlaying}
               />
             ) : (

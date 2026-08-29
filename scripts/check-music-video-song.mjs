@@ -1352,6 +1352,27 @@ assert.doesNotMatch(
   assert.equal(sung.plateTimings[0]?.endMs, 30000, "intro is not shoved");
   assert.equal(sung.plateTimings[1]?.plateId, "jack_ghost");
   assert.equal(sung.plateTimings[1]?.startMs, 31000, "Jack hangs at Silver 0:31, not after 0:30");
+  const firstSoul = applyAddPlateOnSong({
+    shotId: "soul_rebel",
+    plateFile: "soul.png",
+    plateTimings: [],
+    cuts: [],
+    clips: [],
+    songPlateIds: [],
+    rowSlices: [],
+    songSec: 0,
+    durationSec: 9,
+    singing: true,
+    lyricCues: [
+      { lineIndex: 3, atMs: 15464 },
+      { lineIndex: 4, atMs: 22000 },
+    ],
+    newCutId: () => "cut_soul0",
+  });
+  assert.equal(firstSoul.plateTimings[0]?.plateId, "soul_rebel");
+  assert.equal(firstSoul.plateTimings[0]?.startMs, 0, "first plate on an empty wave starts at 0");
+  assert.equal(firstSoul.plateTimings[0]?.endMs, 9000, "first plate keeps the typed 9s — not 15s");
+  assert.notEqual(firstSoul.plateTimings[0]?.startMs, 15464, "do not jump to lyric line 3");
   assert.equal(sung.plateTimings[1]?.endMs, 51000, "slider 20s on the lyric pin");
   assert.equal(
     sung.cuts.filter((c) => c.status === "pending").length,
