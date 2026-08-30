@@ -12,6 +12,7 @@ import {
   type GrokImagineMode,
   type GrokImagineSettings,
 } from "@/lib/grokImagine";
+import { writeMvClipEngine } from "@/lib/mobileImageMotion";
 
 function GrokSpeakerIcon({ on }: { on: boolean }) {
   return (
@@ -63,6 +64,10 @@ export function GrokImagineHole({
       plateFile: stored.plateFile || first,
     });
   });
+
+  useEffect(() => {
+    writeMvClipEngine(jobId, shotId, "grok");
+  }, [jobId, shotId]);
 
   useEffect(() => {
     let live = true;

@@ -1568,7 +1568,11 @@ export function MusicVideoTrack({
       return;
     }
     const now = Date.now();
-    const cutRunning = (live.scratchSong?.cuts || []).some((c) => c.status === "running");
+    const cutRunning = (live.scratchSong?.cuts || []).some((c) => {
+      if (c.status !== "running") return false;
+      if (cook?.cutId) return c.id === cook.cutId;
+      return false;
+    });
     paintPlateSend(
       formatScratchCookNote(cook, {
         nowMs: now,
@@ -2026,7 +2030,8 @@ export function MusicVideoTrack({
     const grokMode = useGrok ? readGrokImagineSettings(job.id, hangPlateShotId(hangId) || hangId).mode : "video";
     const engine: ScratchCookEngine = useH3 ? "h3" : "ltx";
     sendPostedRef.current = false;
-    if (!useMath && !(useGrok && grokMode === "image")) void watchPlateCook(hangId, startedMs, engine);
+    // GROK paints its own line. The LTX watcher called this "Sending to LTX".
+    if (!useMath && !useGrok) void watchPlateCook(hangId, startedMs, engine);
     try {
       const motion = motionBodyForSend(hangId);
       void persistMotionFor(hangId);

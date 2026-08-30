@@ -2533,6 +2533,11 @@ assert.match(trackUi, /onSendStillNote/, "TRACK paints the plate cook line");
 assert.match(trackUi, /onSendStillLabel/, "TRACK paints the Send button step");
 assert.match(trackUi, /formatScratchCookNote/, "Send paints LTX/H3 steps, not Still going");
 assert.match(trackUi, /watchPlateCook/, "Send polls the job while the LTX POST is open");
+assert.match(
+  trackUi,
+  /if \(!useMath && !useGrok\) void watchPlateCook/,
+  "GROK Send must not start the LTX watcher",
+);
 assert.match(trackUi, /refreshMobileJob/, "Send reads scratchCook off the job");
 assert.match(
   trackUi,
