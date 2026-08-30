@@ -2734,12 +2734,29 @@ function ShotLineEditor({
                   onJobChange={onJobChange}
                   onImagine={onSendStill ? () => void onSendStill(shot.id) : undefined}
                 />
-              ) : styleId === "music_video" && muteAction ? (
+              ) : styleId === "music_video" &&
+                (mvEngine === "h3" || mvEngine === "ltx") &&
+                (enginePromptOpen || muteAction) ? (
                 <EmptyMvMotionHole
                   jobId={jobId}
                   shotId={shot.id}
                   beatId={shot.beats[0]?.id || ""}
                   engine={mvEngine}
+                  mute={muteAction}
+                  emptyFrame={muteMvEmptyFrame({
+                    footageRole: shot.footageRole,
+                    nobodyInShot:
+                      Boolean(shot.nobodyInShot) || readMvNobodyInShot(jobId, shot.id),
+                    staging: shot.staging,
+                    summary: shot.summary,
+                    castNames: shot.castNames,
+                    padNames: muteMvPadNames({
+                      roster: jobSpeakers,
+                      staging: shot.staging,
+                      summary: shot.summary,
+                      castNames: shot.castNames,
+                    }),
+                  })}
                   h3LastStills={h3LastStills}
                 />
               ) : null}
@@ -2851,19 +2868,23 @@ function ShotLineEditor({
 
 /**
  * Empty plate + Nobody: no spoken beat, so BeatLineEditor never mounts.
- * LTX / H3 still open this hole. Lock is empty road — no people, mouth N/A.
+ * LTX / H3 still open this hole — H3 camera chips (Drone lift) live here.
  */
 function EmptyMvMotionHole({
   jobId,
   shotId,
   beatId,
   engine,
+  mute = true,
+  emptyFrame = true,
   h3LastStills,
 }: {
   jobId: string;
   shotId: string;
   beatId: string;
   engine: MuteMvEngine;
+  mute?: boolean;
+  emptyFrame?: boolean;
   h3LastStills?: MinimaxH3LastStill[];
 }) {
   const muteLock = useMemo(
@@ -2871,9 +2892,9 @@ function EmptyMvMotionHole({
       buildMuteMvMotionLock({
         styleId: "music_video",
         speaker: "",
-        emptyFrame: true,
+        emptyFrame,
       }),
-    [],
+    [emptyFrame],
   );
   const [muteSlot, setMuteSlot] = useState(
     () => readMvMotionSlot(jobId, beatId) || "",
@@ -2899,6 +2920,7 @@ function EmptyMvMotionHole({
       jobId={jobId}
       shotId={shotId}
       h3LastStills={h3LastStills}
+      mute={mute}
     />
   );
 }

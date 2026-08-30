@@ -2600,13 +2600,19 @@ assert.match(
 );
 assert.match(
   editor,
-  /styleId === "music_video" && muteAction/,
-  "empty-plate mute hole only when No lips is on",
+  /\(mvEngine === "h3" \|\| mvEngine === "ltx"\) &&\s*\n\s*\(enginePromptOpen \|\| muteAction\)/,
+  "H3 tap opens camera chips — not only No lips",
 );
 assert.match(
+  readFileSync(join(here, "../src/lib/minimaxH3.ts"), "utf8"),
+  /label: "Drone lift"/,
+  "H3 pile still has Drone lift ([Pedestal up])",
+);
+assert.match(panels, /MINIMAX_H3_CAMERAS\.map/, "H3 hole paints the camera chips");
+assert.match(
   editor,
-  /emptyFrame:\s*true/,
-  "empty + Nobody lock is empty road, no people, mouth N/A",
+  /emptyFrame = true/,
+  "empty + Nobody lock still defaults to empty road",
 );
 {
   const emptyHoleFn =
