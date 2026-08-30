@@ -73,7 +73,7 @@ import { lyricsPanelOpensAt } from "@/lib/musicVideoStart";
 import { mobileLocationStillUrl } from "@/lib/mobileCandidateUrls";
 import { mobileClipSrc } from "@/lib/mobilePlateClips";
 import { hungClipFileForPlate, orderedJobClips } from "@/lib/orderedJobClips";
-import { readApiJson } from "@/lib/studioFetchError";
+import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import { candidateLookPrompt } from "@/lib/mobileJobReady";
 import { muteMvEmptyFrame, muteMvPadNames, shotSpeakersOnCard } from "@/lib/mobilePlateLines";
 import {
@@ -96,6 +96,16 @@ import {
   writeMvMotionSlot,
 } from "@/lib/mobileImageMotion";
 import { MINIMAX_H3_ID, withMinimaxH3CameraCommand } from "@/lib/minimaxH3";
+import {
+  composeMathPatternMotion,
+  readMathPatternSettings,
+} from "@/lib/mathPatternMotion";
+import { recordMathPatternForShot } from "@/lib/mathPatternEngine";
+import {
+  composeGrokImagineMotion,
+  readGrokImagineSettings,
+} from "@/lib/grokImagine";
+import { GROK_I2V_ID } from "@/lib/grokI2v";
 import { readHangLengthDraft, writeHangLengthDraft } from "@/lib/hangLengthDraft";
 import { clampHangLengthSec } from "@/lib/scratchSongWindow";
 import type { ShowStyleId } from "@/lib/showStylePresets";
@@ -1437,6 +1447,16 @@ export function MusicVideoTrack({
       shotId: hangPlateShotId(shotId) || shotId,
       beatId: targetBeatId,
     });
+    if (sendEngine === "math") {
+      return composeMathPatternMotion(
+        readMathPatternSettings(job.id, hangPlateShotId(shotId) || shotId),
+      );
+    }
+    if (sendEngine === "grok") {
+      return composeGrokImagineMotion(
+        readGrokImagineSettings(job.id, hangPlateShotId(shotId) || shotId),
+      );
+    }
     let body = drafted || stored;
     if (muteOn) {
       const lock = buildMuteMvMotionLock({
@@ -1633,6 +1653,85 @@ export function MusicVideoTrack({
     }
   }
 
+  async function sendGrokImagineImage(shotId: string) {
+    const hangShot = hangPlateShotId(shotId) || shotId;
+    const settings = readGrokImagineSettings(job.id, hangShot);
+    if (!settings.prompt.trim()) {
+      const msg = "Type something to imagine first.";
+      setNote(msg);
+      paintPlateSend(msg, "Failed");
+      return;
+    }
+    paintPlateSend("GROK Imagine 2.0 still — not LTX", "Imagining…");
+    await persistMotionFor(hangShot);
+    const res = await fetch("/api/crash/mobile/imagine", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jobId: job.id,
+        shotId: hangShot,
+        prompt: settings.prompt,
+        plateFile: settings.plateFile || undefined,
+        aspectRatio: settings.aspect,
+        resolution: settings.imageRes,
+      }),
+    });
+    const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+    if (data.job) {
+      onJobChange(data.job);
+      jobRef.current = data.job;
+    }
+    if (!res.ok) {
+      throw new Error(data.error?.trim() || studioFetchError(new Error(""), "Couldn't imagine that still"));
+    }
+    setNote("GROK still landed as a plate take. No LTX.");
+    paintPlateSend("GROK still landed as a plate take. No LTX.", "Send");
+  }
+
+  async function sendGrokVideo(cutId: string, shotId: string, targetBeatId: string) {
+    const hangShot = hangPlateShotId(shotId) || shotId;
+    const settings = readGrokImagineSettings(job.id, hangShot);
+    const timing = plateTimingForShot(
+      jobRef.current.scratchSong,
+      jobRef.current.trackDraft,
+      shotId,
+    );
+    const cook = cookDurationFromHungBar(timing, "grok");
+    if ("error" in cook) {
+      cookWatchLive.current = false;
+      setNote(cook.error);
+      paintPlateSend(cook.error, "Failed");
+      return;
+    }
+    if (cook.note) {
+      setNote(cook.note);
+      paintPlateSend(cook.note);
+    }
+    const durationSec = Math.min(settings.durationSec || cook.durationSec, cook.durationSec);
+    askSongCookNotifyPermission();
+    setBusy(`send-${cutId}`);
+    sendPostedRef.current = true;
+    paintPlateSend(`GROK Imagine video ${durationSec}s — not LTX`, "GROK…");
+    try {
+      const raw = await songPost("run", {
+        cutId,
+        beatId: targetBeatId || beatId,
+        clipEngine: GROK_I2V_ID,
+        durationSec,
+        plateFile: settings.plateFile || undefined,
+        resolution: settings.videoRes,
+        keepAudio: settings.keepAudio,
+        imageMotion: settings.prompt || undefined,
+        ...songRunEmptyExtras(shotId),
+      });
+      if (raw.pending) await pollI2v(cutId, shotId, targetBeatId);
+      if (cookCancel.current || songCookStopRequested(job.id)) return;
+      paintPlateSend("", "Send");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function addPlateToTimeline(shotId: string) {
     if (!hasSong) {
       setNote("Drop the song first.");
@@ -1762,6 +1861,59 @@ export function MusicVideoTrack({
     }
   }
 
+  async function sendMathPattern(cutId: string, shotId: string, targetBeatId: string) {
+    const timing = plateTimingForShot(
+      jobRef.current.scratchSong,
+      jobRef.current.trackDraft,
+      shotId,
+    );
+    const cook = cookDurationFromHungBar(timing, "math");
+    if ("error" in cook) {
+      setNote(cook.error);
+      paintPlateSend(cook.error, "Failed");
+      return;
+    }
+    const hangShot = hangPlateShotId(shotId) || shotId;
+    const beat = targetBeatId || beatIdForShot(hangShot);
+    if (!beat) {
+      const msg = "This still has no line to hang MATH on.";
+      setNote(msg);
+      paintPlateSend(msg, "Failed");
+      return;
+    }
+    setBusy(`send-${cutId}`);
+    paintPlateSend(
+      `Recording MATH ${cook.durationSec}s — noise, not LTX`,
+      "Recording…",
+    );
+    await persistMotionFor(hangShot);
+    const blob = await recordMathPatternForShot({
+      jobId: job.id,
+      shotId: hangShot,
+      durationSec: cook.durationSec,
+      settings: readMathPatternSettings(job.id, hangShot),
+    });
+    const form = new FormData();
+    form.set("jobId", job.id);
+    form.set("beatId", beat);
+    form.set("source", "math");
+    form.set(
+      "file",
+      new File([blob], "math-pattern.webm", { type: blob.type || "video/webm" }),
+    );
+    const res = await fetch("/api/crash/mobile/clip/upload", { method: "POST", body: form });
+    const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+    if (data.job) {
+      onJobChange(data.job);
+      jobRef.current = data.job;
+    }
+    if (!res.ok) {
+      throw new Error(data.error?.trim() || studioFetchError(new Error(""), "Couldn't hang MATH"));
+    }
+    setNote("MATH hung on the song. No LTX.");
+    paintPlateSend("MATH hung on the song. No LTX.", "Send");
+  }
+
   async function sendPlate(shotId: string) {
     const hangId = hangIdForSend({
       shotId,
@@ -1771,6 +1923,32 @@ export function MusicVideoTrack({
     });
     setPickedId(hangId);
     const targetBeatId = beatIdForShot(hangId);
+    const earlyEngine = resolveMvSendEngine({
+      jobId: job.id,
+      shotId: hangPlateShotId(hangId) || hangId,
+      beatId: targetBeatId,
+    });
+    if (
+      earlyEngine === "grok" &&
+      readGrokImagineSettings(job.id, hangPlateShotId(hangId) || hangId).mode === "image"
+    ) {
+      if (cookLock.current) return;
+      cookLock.current = true;
+      cookCancel.current = false;
+      setBusy(`send-${hangId}`);
+      setNote("");
+      try {
+        await sendGrokImagineImage(hangId);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Couldn't imagine that still";
+        setNote(msg);
+        paintPlateSend(msg, "Failed");
+      } finally {
+        cookLock.current = false;
+        setBusy("");
+      }
+      return;
+    }
     const timingNow = () =>
       plateTimingForShot(
         jobRef.current.scratchSong,
@@ -1807,18 +1985,34 @@ export function MusicVideoTrack({
     setBusy(`send-${cut.id}`);
     setNote("");
     const startedMs = Date.now();
-    const useH3 =
-      resolveMvSendEngine({
-        jobId: job.id,
-        shotId: hangPlateShotId(hangId) || hangId,
-        beatId: targetBeatId,
-      }) === "h3";
+    const sendEngine = resolveMvSendEngine({
+      jobId: job.id,
+      shotId: hangPlateShotId(hangId) || hangId,
+      beatId: targetBeatId,
+    });
+    const useMath = sendEngine === "math";
+    const useH3 = sendEngine === "h3";
+    const useGrok = sendEngine === "grok";
+    const grokMode = useGrok ? readGrokImagineSettings(job.id, hangPlateShotId(hangId) || hangId).mode : "video";
     const engine: ScratchCookEngine = useH3 ? "h3" : "ltx";
     sendPostedRef.current = false;
-    void watchPlateCook(hangId, startedMs, engine);
+    if (!useMath && !(useGrok && grokMode === "image")) void watchPlateCook(hangId, startedMs, engine);
     try {
-      const motion = await persistMotionFor(hangId);
+      const motion = motionBodyForSend(hangId);
+      void persistMotionFor(hangId);
       paintPlateSend("Starting the Send", "Starting…");
+      if (useMath) {
+        await sendMathPattern(cut.id, hangId, targetBeatId);
+        return;
+      }
+      if (useGrok && grokMode === "image") {
+        await sendGrokImagineImage(hangId);
+        return;
+      }
+      if (useGrok) {
+        await sendGrokVideo(cut.id, hangId, targetBeatId);
+        return;
+      }
       if (useH3) {
         await sendI2v(cut.id, hangId, targetBeatId);
         return;

@@ -10,6 +10,14 @@ import {
 } from "@/lib/minimaxScratchClip";
 import { parseScratchClipEngine } from "@/lib/sirayI2v";
 import {
+  finishScratchGrokClip,
+  isGrokScratchClipTask,
+  submitScratchGrokClip,
+} from "@/lib/grokScratchClip";
+import { GROK_I2V_ID, snapGrokI2vDurationSec } from "@/lib/grokI2v";
+import { grokVideoConfigured } from "@/lib/grokVideo";
+import { parseGrokImagineVideoRes } from "@/lib/grokImagine";
+import {
   MINIMAX_H3_ID,
   parseMinimaxH3Camera,
   parseMinimaxH3Resolution,
@@ -130,6 +138,8 @@ export async function POST(req: Request) {
     h3Camera?: string;
     imageMotion?: string;
     performance?: string;
+    plateFile?: string;
+    keepAudio?: boolean;
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -454,7 +464,44 @@ export async function POST(req: Request) {
             ...(refuse ? { note: refuse } : {}),
           });
         }
-        if (clipPick !== "ltx" && clipPick !== "grok") {
+        if (clipPick === GROK_I2V_ID) {
+          if (!grokVideoConfigured()) {
+            return NextResponse.json({ error: "GROK is not on this Studio." }, { status: 400 });
+          }
+          const asked = Number(body.durationSec ?? bounds.durationSec);
+          if (!Number.isFinite(asked) || asked <= 0) {
+            return NextResponse.json(
+              { error: "Hang the still on the song first." },
+              { status: 400 },
+            );
+          }
+          const durationSec = snapGrokI2vDurationSec(asked);
+          const drawn = await submitScratchGrokClip({
+            job,
+            story,
+            shotId: hangId || shotId,
+            sceneId,
+            beatId,
+            durationSec,
+            prompt: String(body.imageMotion || "").trim() || undefined,
+            plateFile: String(body.plateFile || "").trim() || undefined,
+            resolution: parseGrokImagineVideoRes(body.resolution),
+            keepAudio: body.keepAudio === true,
+          });
+          return NextResponse.json({
+            ok: true,
+            pending: true,
+            job: drawn.job,
+            cutId: cut.id,
+            backend: "grok-i2v",
+            clipEngine: GROK_I2V_ID,
+            durationSec,
+            ...(asked > durationSec
+              ? { note: `GROK max 15s — cooking ${durationSec}` }
+              : {}),
+          });
+        }
+        if (clipPick !== "ltx") {
           if (!sirayConfigured()) {
             return NextResponse.json({ error: "Siray is not on this Studio." }, { status: 400 });
           }
@@ -584,15 +631,21 @@ export async function POST(req: Request) {
         );
       }
       try {
-        const tick = isMinimaxScratchClipTask(task)
-          ? await finishScratchMinimaxClip({ job, task })
-          : await finishScratchSirayClip({ job, task });
+        const tick = isGrokScratchClipTask(task)
+          ? await finishScratchGrokClip({ job, task })
+          : isMinimaxScratchClipTask(task)
+            ? await finishScratchMinimaxClip({ job, task })
+            : await finishScratchSirayClip({ job, task });
         if (tick.pending) {
           return NextResponse.json({
             ok: true,
             pending: true,
             job: tick.job,
-            backend: isMinimaxScratchClipTask(task) ? "minimax-h3" : "siray-i2v",
+            backend: isGrokScratchClipTask(task)
+              ? "grok-i2v"
+              : isMinimaxScratchClipTask(task)
+                ? "minimax-h3"
+                : "siray-i2v",
           });
         }
         const landed = (tick.job.clips || []).find(
@@ -631,7 +684,11 @@ export async function POST(req: Request) {
           ok: true,
           pending: false,
           job: next,
-          backend: isMinimaxScratchClipTask(task) ? "minimax-h3" : "siray-i2v",
+          backend: isGrokScratchClipTask(task)
+            ? "grok-i2v"
+            : isMinimaxScratchClipTask(task)
+              ? "minimax-h3"
+              : "siray-i2v",
         });
       } catch (e) {
         const latest = (await readMobileGenJob(jobId)) || job;

@@ -8,7 +8,7 @@ import { readMobileStory } from "@/lib/mobileStoryStore";
 import { newId, sortableId } from "@/lib/types";
 import { CRASH_DIR } from "@/lib/paths";
 import { probeDurationSeconds } from "@/lib/mediaDuration";
-import { hangDoneClipOnTrack, stripStockAudio } from "@/lib/stockClipHang";
+import { hangDoneClipOnTrack, stripStockAudio, transcodeToSilentMp4 } from "@/lib/stockClipHang";
 import { isMusicVideoSongJob } from "@/lib/musicVideoSong";
 
 export const runtime = "nodejs";
@@ -22,6 +22,8 @@ export const maxDuration = 60;
  *
  * source=stock — strip audio (our mix stays on TRACK) and hang the cut
  * onto an existing plateTiming clock. Does not invent 15s rows.
+ * source=math — same hang, transcode the canvas webm to silent mp4.
+ * Not LTX. Not H3.
  */
 export async function POST(req: Request) {
   try {
@@ -85,17 +87,39 @@ export async function POST(req: Request) {
 
     const dir = path.join(CRASH_DIR, "ltx");
     fs.mkdirSync(dir, { recursive: true });
-    const fileName =
-      source === "stock"
-        ? nextHumanClipName({
-            speaker: "stock",
-            title: home?.title || "clip",
-            taken: takenClipFileNames({ clips, cuts: job.scratchSong?.cuts }),
-          })
-        : `${sortableId("byoclip")}.mp4`;
+    const hangAsClip = source === "stock" || source === "math";
+    const fileName = hangAsClip
+      ? nextHumanClipName({
+          speaker: source === "math" ? "MATH" : "stock",
+          title: home?.title || "clip",
+          taken: takenClipFileNames({ clips, cuts: job.scratchSong?.cuts }),
+        })
+      : `${sortableId("byoclip")}.mp4`;
     const localPath = path.join(dir, fileName);
-    fs.writeFileSync(localPath, Buffer.from(await file.arrayBuffer()));
-    if (source === "stock") stripStockAudio(localPath);
+    const incoming = Buffer.from(await file.arrayBuffer());
+    const looksWebm =
+      source === "math" ||
+      String(file.type || "").includes("webm") ||
+      /\.webm$/i.test(file.name || "");
+    if (source === "math" || looksWebm) {
+      const tmp = path.join(dir, `${sortableId("mathtmp")}.webm`);
+      fs.writeFileSync(tmp, incoming);
+      const ok = transcodeToSilentMp4(tmp, localPath);
+      try {
+        fs.unlinkSync(tmp);
+      } catch {
+        /* tmp leftover is fine */
+      }
+      if (!ok) {
+        return NextResponse.json(
+          { error: "Couldn't turn that MATH record into an mp4. ffmpeg missing or the record was empty." },
+          { status: 500 },
+        );
+      }
+    } else {
+      fs.writeFileSync(localPath, incoming);
+      if (source === "stock") stripStockAudio(localPath);
+    }
     const durationSec = probeDurationSeconds(localPath);
 
     try {

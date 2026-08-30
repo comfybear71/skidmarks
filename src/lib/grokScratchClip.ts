@@ -82,6 +82,10 @@ export async function submitScratchGrokClip(opts: {
   sceneId: string;
   beatId: string;
   durationSec?: number;
+  prompt?: string;
+  plateFile?: string;
+  resolution?: "480p" | "720p" | "1080p";
+  keepAudio?: boolean;
 }): Promise<{
   job: MobileGenJob;
   task: ScratchClipTask;
@@ -106,14 +110,16 @@ export async function submitScratchGrokClip(opts: {
   if (!shot.plateFile) throw new Error("Draw the still first");
   if (!storyShot || !beat) throw new Error("That line is missing from the scratch plate");
 
+  const plateFile = (opts.plateFile || shot.plateFile || "").trim();
+  if (!plateFile) throw new Error("Add a plate image first — tap + on GROK.");
   const platePath =
-    resolveGenOrPackPlate(shot.plateFile) ||
+    resolveGenOrPackPlate(plateFile) ||
     (await resolveMobileMedia({
       styleId: job.styleId,
       folderName: job.folderName,
       kind: "plates",
-      fileName: shot.plateFile,
-      destPath: path.join(CRASH_DIR, "gen", shot.plateFile),
+      fileName: plateFile,
+      destPath: path.join(CRASH_DIR, "gen", plateFile),
     }));
   if (!platePath) throw new Error("Plate file missing on disk");
 
@@ -122,12 +128,15 @@ export async function submitScratchGrokClip(opts: {
   const line = (beat.text || "").trim();
   const durationSec = snapGrokI2vDurationSec(opts.durationSec ?? 5);
   const motion = stripLtxLipSyncLead(beat.imageMotion || "");
-  const prompt = buildSirayI2vPrompt({
-    speaker,
-    motion,
-    staging: storyShot.staging || "",
-    imageOnly: true,
-  });
+  const typed = (opts.prompt || "").trim();
+  const prompt =
+    typed ||
+    buildSirayI2vPrompt({
+      speaker,
+      motion,
+      staging: storyShot.staging || "",
+      imageOnly: true,
+    });
 
   const pending = withSongCookPendingClip({
     clips: job.clips || [],
@@ -149,6 +158,7 @@ export async function submitScratchGrokClip(opts: {
       prompt,
       imageUrl: await fileToSirayVideoDataUrl(platePath),
       durationSec,
+      resolution: opts.resolution,
     });
     const task: ScratchClipTask = {
       taskId,
@@ -160,6 +170,7 @@ export async function submitScratchGrokClip(opts: {
       model: GROK_I2V_MODEL,
       label: `${GROK_I2V_LABEL} · ${durationSec}s`,
       durationSec,
+      keepAudio: opts.keepAudio === true,
       startedAt: new Date().toISOString(),
     };
     job = (await patchMobileGenJob(jobId, { scratchClip: task, error: "" }))!;
@@ -190,7 +201,7 @@ export async function finishScratchGrokClip(opts: {
   const fileName = `${sortableId("gclip")}.mp4`;
   const localMp4 = path.join(genDir(), fileName);
   fs.writeFileSync(localMp4, buffer);
-  stripInventedAudio(localMp4);
+  if (task.keepAudio !== true) stripInventedAudio(localMp4);
   try {
     await uploadMobileMedia({
       styleId: opts.job.styleId,

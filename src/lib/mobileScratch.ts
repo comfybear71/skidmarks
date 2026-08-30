@@ -54,6 +54,7 @@ export type ScratchClipTask = {
   label: string;
   startedAt: string;
   durationSec?: number;
+  keepAudio?: boolean;
 };
 
 export const SCRATCH_CLIP_RESUME_MS = 720_000;
