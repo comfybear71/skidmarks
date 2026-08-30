@@ -35,6 +35,7 @@ export function GrokImagineHole({
   onJobChange?: (job: import("@/lib/mobileGenJob").MobileGenJob) => void;
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const [tail, setTail] = useState<GrokImaginePlate | null>(null);
   const [settings, setSettings] = useState<GrokImagineSettings>(() => {
     const stored = readGrokImagineSettings(jobId, shotId);
     const first = plates[0]?.fileName || "";
@@ -45,15 +46,42 @@ export function GrokImagineHole({
   });
 
   useEffect(() => {
+    let live = true;
+    setTail(null);
+    void fetch("/api/crash/mobile/clip-tail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId, shotId }),
+    })
+      .then((res) => res.json())
+      .then((data: { fileName?: string; label?: string }) => {
+        const fileName = (data.fileName || "").trim();
+        if (!live || !fileName) return;
+        setTail({
+          fileName,
+          label: (data.label || "").trim() || "Last frame · clip 1",
+        });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [jobId, shotId]);
+
+  const allPlates = tail
+    ? [tail, ...plates.filter((p) => p.fileName !== tail.fileName)]
+    : plates;
+
+  useEffect(() => {
     const stored = readGrokImagineSettings(jobId, shotId);
-    const first = plates[0]?.fileName || "";
+    const first = tail?.fileName || plates[0]?.fileName || "";
     setSettings(
       normalizeGrokImagineSettings({
         ...stored,
-        plateFile: stored.plateFile || first,
+        plateFile: tail?.fileName || stored.plateFile || first,
       }),
     );
-  }, [jobId, plates, shotId]);
+  }, [jobId, plates, shotId, tail]);
 
   useEffect(() => {
     writeGrokImagineSettings(jobId, shotId, settings);
@@ -228,8 +256,8 @@ export function GrokImagineHole({
       </div>
       <p className="m-grok-attach-label">Plate image — tap one, or + for a file</p>
       <div className="m-plate-h3-lasts" role="group" aria-label="GROK plate image">
-        {plates.length ? (
-          plates.map((plate) => (
+        {allPlates.length ? (
+          allPlates.map((plate) => (
             <button
               key={plate.fileName}
               type="button"
@@ -252,6 +280,9 @@ export function GrokImagineHole({
           <p className="m-plate-h3-caps-note">No plate on this card yet. Draw one, or tap +.</p>
         )}
       </div>
+      {tail && settings.plateFile === tail.fileName ? (
+        <p className="m-plate-h3-caps-note">Clip 2 starts from clip 1 last frame.</p>
+      ) : null}
     </div>
   );
 }

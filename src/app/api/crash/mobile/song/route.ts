@@ -83,6 +83,7 @@ import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
 import { parseSongSlicePerformance } from "@/lib/mobileImageMotion";
 import { findStoryShot, isSupportShot } from "@/lib/stockFootage";
 import { writeScratchCookProgress } from "@/lib/scratchCookStore";
+import { resolveStartPlateForNextClip } from "@/lib/clipTailFrame";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -476,12 +477,15 @@ export async function POST(req: Request) {
             );
           }
           const durationSec = snapGrokI2vDurationSec(asked);
-          const grokPlate =
-            String(body.plateFile || "").trim() ||
-            (cut.plateFile || "").trim() ||
-            (jobShot?.plateFile || "").trim() ||
-            (storyShot?.plateFile || "").trim() ||
-            undefined;
+          const grokPlate = await resolveStartPlateForNextClip({
+            job,
+            shotId: hangId || shotId,
+            askedPlate: String(body.plateFile || "").trim(),
+            fallback:
+              (cut.plateFile || "").trim() ||
+              (jobShot?.plateFile || "").trim() ||
+              (storyShot?.plateFile || "").trim(),
+          });
           const drawn = await submitScratchGrokClip({
             job,
             story,
@@ -490,7 +494,7 @@ export async function POST(req: Request) {
             beatId,
             durationSec,
             prompt: String(body.imageMotion || "").trim() || undefined,
-            plateFile: grokPlate,
+            plateFile: grokPlate || undefined,
             resolution: parseGrokImagineVideoRes(body.resolution),
             keepAudio: body.keepAudio === true,
           });
@@ -550,13 +554,19 @@ export async function POST(req: Request) {
           message: "Studio has the Send",
           mute: body.mute === true,
         });
+        const ltxPlate = await resolveStartPlateForNextClip({
+          job,
+          shotId: hangId || shotId,
+          askedPlate: String(body.plateFile || "").trim(),
+          fallback: (cut.plateFile || "").trim(),
+        });
         const updated = await runScratchLtxClip({
           job,
           story,
           shotId: hangId || shotId,
           sceneId,
           beatId,
-          plateFile: cut.plateFile,
+          plateFile: ltxPlate || cut.plateFile,
           sliceStartSec: slice.startSec,
           sliceDurationSec: slice.durationSec,
           cutId: cut.id,

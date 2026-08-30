@@ -106,6 +106,7 @@ import {
   readGrokImagineSettings,
 } from "@/lib/grokImagine";
 import { GROK_I2V_ID } from "@/lib/grokI2v";
+import { previousDoneClipOnStill } from "@/lib/clipTailStart";
 import { readHangLengthDraft, writeHangLengthDraft } from "@/lib/hangLengthDraft";
 import { clampHangLengthSec } from "@/lib/scratchSongWindow";
 import type { ShowStyleId } from "@/lib/showStylePresets";
@@ -1708,10 +1709,30 @@ export function MusicVideoTrack({
       paintPlateSend(cook.note);
     }
     const durationSec = Math.min(settings.durationSec || cook.durationSec, cook.durationSec);
+    const prior = previousDoneClipOnStill(jobRef.current.clips, hangShot);
+    const storyPlate = (storyShotFor(hangShot)?.plateFile || "").trim();
+    let plateFile = (settings.plateFile || "").trim();
+    if (prior && (!plateFile || plateFile === storyPlate || plateFile.startsWith("tail_"))) {
+      const tailRes = await fetch("/api/crash/mobile/clip-tail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, shotId: hangShot }),
+      });
+      const tail = await readApiJson<{ fileName?: string; error?: string }>(tailRes);
+      if (!tailRes.ok) {
+        throw new Error(tail.error?.trim() || "Couldn't pull clip 1's last frame");
+      }
+      if (tail.fileName) plateFile = tail.fileName;
+    }
     askSongCookNotifyPermission();
     setBusy(`send-${cutId}`);
     sendPostedRef.current = true;
-    paintPlateSend(`GROK Imagine video ${durationSec}s — not LTX`, "GROK…");
+    paintPlateSend(
+      prior
+        ? `GROK clip 2 from clip 1 last frame · ${durationSec}s`
+        : `GROK Imagine video ${durationSec}s — not LTX`,
+      "GROK…",
+    );
     try {
       const raw = await songPost("run", {
         cutId,
@@ -1719,8 +1740,8 @@ export function MusicVideoTrack({
         clipEngine: GROK_I2V_ID,
         durationSec,
         plateFile:
-          settings.plateFile ||
-          (storyShotFor(hangShot)?.plateFile || "").trim() ||
+          plateFile ||
+          storyPlate ||
           (
             jobRef.current.shots.find((s) => s.shotId === hangShot)?.plateFile || ""
           ).trim() ||
