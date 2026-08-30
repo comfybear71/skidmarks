@@ -127,6 +127,7 @@ import {
 } from "@/lib/songCutCook";
 import {
   formatScratchCookNote,
+  humanStudioCookError,
   parseScratchCook,
   scratchCookButtonLabel,
   scratchCookIsLive,
@@ -1560,7 +1561,9 @@ export function MusicVideoTrack({
       (c) => (c.error || "").trim() && (c.status === "error" || cook?.step === "error"),
     );
     if (cook?.step === "error" || (cutErr?.error || "").trim()) {
-      const msg = (cook?.message || cutErr?.error || live.error || "Clip failed").trim();
+      const msg = humanStudioCookError(
+        (cook?.message || cutErr?.error || live.error || "Clip failed").trim(),
+      );
       paintPlateSend(msg, scratchCookButtonLabel(cook, true));
       return;
     }
@@ -2092,7 +2095,8 @@ export function MusicVideoTrack({
     if (!cook || cook.step === "done") return;
     if (busy.startsWith("send-")) return;
     if (cook.step === "error") {
-      paintPlateSend(cook.message || "Clip failed", "Send");
+      // Leftover fail from an earlier Send. Do not keep painting
+      // "Scratch plate is not on this job" when he taps GROK or +.
       return;
     }
     paintPlateSend(
