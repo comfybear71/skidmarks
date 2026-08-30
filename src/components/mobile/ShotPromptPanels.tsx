@@ -278,7 +278,7 @@ export function MuteMvMotionHole({
   }
 
   function pickLast(fileName: string) {
-    const next = h3Last === fileName ? "" : fileName;
+    const next = !fileName || h3Last === fileName ? "" : fileName;
     setH3Last(next);
     if (jobId && shotId) writeMvH3LastFrame(jobId, shotId, next);
   }
@@ -332,32 +332,41 @@ export function MuteMvMotionHole({
               </button>
             ))}
           </div>
-          {(h3LastStills || []).length ? (
-            <>
-              <p className="m-plate-h3-caps-label">Last frame — optional. Not the first still.</p>
-              <div className="m-plate-h3-lasts" role="group" aria-label="H3 last frame">
-                {(h3LastStills || []).map((still) => (
-                  <button
-                    key={still.fileName}
-                    type="button"
-                    className={`m-plate-h3-last${h3Last === still.fileName ? " is-on" : ""}`}
-                    disabled={disabled}
-                    title={still.label}
-                    onClick={() => pickLast(still.fileName)}
-                  >
-                    <span
-                      className="m-plate-h3-last-thumb"
-                      style={{
-                        backgroundImage: `url(/api/crash/gen/file?name=${encodeURIComponent(still.fileName)})`,
-                      }}
-                      aria-hidden
-                    />
-                    <span>{still.label}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
+          <p className="m-plate-h3-caps-label">
+            Last frame — other still only. The big picture is the start. Off = stay on that still.
+          </p>
+          <div className="m-plate-h3-lasts" role="group" aria-label="H3 last frame">
+            <button
+              type="button"
+              className={`m-plate-h3-last m-plate-h3-last-off${!h3Last ? " is-on" : ""}`}
+              disabled={disabled}
+              title="No last frame — H3 stays on the big picture"
+              onClick={() => pickLast("")}
+            >
+              <span className="m-plate-h3-last-thumb m-plate-h3-last-none" aria-hidden />
+              <span>Off</span>
+            </button>
+            {(h3LastStills || []).map((still) => (
+              <button
+                key={still.fileName}
+                type="button"
+                className={`m-plate-h3-last${h3Last === still.fileName ? " is-on" : ""}`}
+                disabled={disabled}
+                title={still.label}
+                onClick={() => pickLast(still.fileName)}
+              >
+                <span
+                  className="m-plate-h3-last-thumb"
+                  style={{
+                    backgroundImage: `url(/api/crash/gen/file?name=${encodeURIComponent(still.fileName)})`,
+                  }}
+                  aria-hidden
+                />
+                <span>{still.label}</span>
+              </button>
+            ))}
+          </div>
+          {(h3LastStills || []).length ? null : (
             <p className="m-plate-h3-caps-note">No other still for last frame yet. Draw another take or plate.</p>
           )}
         </div>
