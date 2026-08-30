@@ -67,6 +67,8 @@ import {
   pickLtxMotionBody,
   readLtxMotionDraft,
   readMvMotionSlot,
+  isSingingDefaultMotion,
+  readMvHumAction,
   readMvMuteAction,
   readMvNobodyInShot,
   resolveMvSendEngine,
@@ -75,6 +77,7 @@ import {
   writeLtxMotionDraft,
   writeMvClipEngine,
   writeMvEngine,
+  writeMvHumAction,
   writeMvMotionSlot,
   writeMvMuteAction,
   writeMvNobodyInShot,
@@ -2184,6 +2187,7 @@ function ShotStockPanel({
     footageRole?: ShotFootageRole;
     stockQuery?: string;
     nobodyInShot?: boolean;
+    noLips?: boolean;
   }) => void;
   onJobChange?: (job: MobileGenJob) => void;
 }) {
@@ -2195,6 +2199,7 @@ function ShotStockPanel({
     footageRole?: ShotFootageRole;
     stockQuery?: string;
     nobodyInShot?: boolean;
+    noLips?: boolean;
   }) {
     onShotMeta?.(patch);
     setError("");
@@ -2385,6 +2390,7 @@ function ShotLineEditor({
             footageRole?: ShotFootageRole;
             stockQuery?: string;
             nobodyInShot?: boolean;
+            noLips?: boolean;
           }) => void;
           onPlateRebuilt: (
     plateFile: string | undefined,
@@ -2400,8 +2406,27 @@ function ShotLineEditor({
   );
   const leftoverCutaway = (shot?.beats || []).some((b) => b.kind === "cutaway");
   const [muteAction, setMuteAction] = useState(
-    () => leftoverCutaway || Boolean(shot?.id && readMvMuteAction(jobId, shot.id)),
+    () =>
+      leftoverCutaway ||
+      Boolean(shot?.noLips) ||
+      Boolean(shot?.id && readMvMuteAction(jobId, shot.id)),
   );
+  const [humAction, setHumAction] = useState(
+    () => Boolean(shot?.id && !leftoverCutaway && !shot?.noLips && readMvHumAction(jobId, shot.id)),
+  );
+
+  function persistNoLips(on: boolean) {
+    if (!shot?.id) return;
+    writeMvMuteAction(jobId, shot.id, on);
+    void fetch("/api/crash/mobile/plate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId, shotId: shot.id, action: "save", noLips: on }),
+    }).catch(() => {
+      /* next Send still has session */
+    });
+    onShotMeta?.({ noLips: on });
+  }
 
   useEffect(() => {
     setEnginePromptOpen(false);
@@ -2409,12 +2434,12 @@ function ShotLineEditor({
       setMvEngine(
         resolveMvSendEngine({ jobId, shotId: shot.id, beatId: shot.beats?.[0]?.id }),
       );
-      setMuteAction(
-        (shot.beats || []).some((b) => b.kind === "cutaway") ||
-          readMvMuteAction(jobId, shot.id),
-      );
+      const leftover = (shot.beats || []).some((b) => b.kind === "cutaway");
+      const mute = leftover || Boolean(shot.noLips) || readMvMuteAction(jobId, shot.id);
+      setMuteAction(mute);
+      setHumAction(!mute && readMvHumAction(jobId, shot.id));
     }
-  }, [jobId, shot?.id]);
+  }, [jobId, shot?.id, shot?.noLips]);
 
   if (loading) {
     return (
@@ -2589,6 +2614,7 @@ function ShotLineEditor({
             clipStatus={clips.find((c) => c.beatId === beat.id)?.clipStatus}
             songDesk={styleId === "music_video"}
             muteOn={muteAction}
+            humOn={humAction}
             positionPrompt={shot.staging || ""}
             positionBibleIds={resolveShotBibleIds(shot)}
             onPositionSaved={(staging, plate) =>
@@ -2642,10 +2668,24 @@ function ShotLineEditor({
                   engine={mvEngine}
                   promptOpen={enginePromptOpen}
                   muteOn={muteAction}
+                  humOn={humAction}
                   onMute={(on) => {
                     setMuteAction(on);
-                    writeMvMuteAction(jobId, shot.id, on);
-                    if (on) setEnginePromptOpen(true);
+                    persistNoLips(on);
+                    if (on) {
+                      setHumAction(false);
+                      writeMvHumAction(jobId, shot.id, false);
+                      setEnginePromptOpen(true);
+                    }
+                  }}
+                  onHum={(on) => {
+                    setHumAction(on);
+                    writeMvHumAction(jobId, shot.id, on);
+                    if (on) {
+                      setMuteAction(false);
+                      persistNoLips(false);
+                      setEnginePromptOpen(true);
+                    }
                   }}
                   onEngine={setMvEngine}
                   onOpen={(next) => {
@@ -2713,10 +2753,24 @@ function ShotLineEditor({
             engine={mvEngine}
             promptOpen={enginePromptOpen}
             muteOn={muteAction}
+            humOn={humAction}
             onMute={(on) => {
               setMuteAction(on);
-              writeMvMuteAction(jobId, shot.id, on);
-              if (on) setEnginePromptOpen(true);
+              persistNoLips(on);
+              if (on) {
+                setHumAction(false);
+                writeMvHumAction(jobId, shot.id, false);
+                setEnginePromptOpen(true);
+              }
+            }}
+            onHum={(on) => {
+              setHumAction(on);
+              writeMvHumAction(jobId, shot.id, on);
+              if (on) {
+                setMuteAction(false);
+                persistNoLips(false);
+                setEnginePromptOpen(true);
+              }
             }}
             onEngine={setMvEngine}
             onOpen={(next) => {
@@ -2843,7 +2897,7 @@ function PlateSendButton({
   );
 }
 
-/** Add | LTX | H3 | MATH | No lips | Send — LTX / H3 open the [ ] hole. MATH is noise. */
+/** Add | LTX | H3 | MATH | GROK | No lips | Hum | Send. MATH is noise. GROK is Imagine. */
 function PlateEngineButtons({
   jobId,
   shotId,
@@ -2851,7 +2905,9 @@ function PlateEngineButtons({
   engine: engineProp,
   promptOpen,
   muteOn,
+  humOn,
   onMute,
+  onHum,
   onEngine,
   onOpen,
 }: {
@@ -2861,7 +2917,9 @@ function PlateEngineButtons({
   engine?: MuteMvEngine;
   promptOpen?: boolean;
   muteOn?: boolean;
+  humOn?: boolean;
   onMute?: (on: boolean) => void;
+  onHum?: (on: boolean) => void;
   onEngine?: (engine: MuteMvEngine) => void;
   onOpen?: (engine: MuteMvEngine) => void;
 }) {
@@ -2912,7 +2970,7 @@ function PlateEngineButtons({
       className="m-plate-engine-pair"
       data-motion-open={promptOpen ? "yes" : "no"}
       role="group"
-      aria-label="Open LTX, H3, or MATH pattern, or No lips for a mute action shot"
+      aria-label="Open LTX, H3, MATH, or GROK, or No lips for mute, or Hum for an intro"
     >
       <MobilePrimaryButton
         tone={engine === "ltx" ? "accent" : "ghost"}
@@ -2938,6 +2996,12 @@ function PlateEngineButtons({
         onClick={() => onMute?.(!muteOn)}
       >
         No lips
+      </MobilePrimaryButton>
+      <MobilePrimaryButton
+        tone={humOn ? "accent" : "ghost"}
+        onClick={() => onHum?.(!humOn)}
+      >
+        Hum
       </MobilePrimaryButton>
     </div>
   );
@@ -3023,6 +3087,7 @@ function BeatLineEditor({
   clipStatus,
   songDesk,
   muteOn,
+  humOn,
   positionPrompt,
   positionBibleIds,
   onPositionSaved,
@@ -3045,6 +3110,7 @@ function BeatLineEditor({
   clipStatus?: MobileClipUnit["clipStatus"];
   songDesk?: boolean;
   muteOn?: boolean;
+  humOn?: boolean;
   positionPrompt: string;
   positionBibleIds?: string[];
   onPositionSaved: (
@@ -3203,6 +3269,7 @@ function BeatLineEditor({
               speaker: beat.speaker,
               lookLock,
               staging: positionBody,
+              performance: humOn ? "hum" : undefined,
             })
           : buildDefaultBeatMotion({
               styleId: styleId as ShowStyleId,
@@ -3213,7 +3280,7 @@ function BeatLineEditor({
               staging: positionBody,
             }),
       ),
-    [beat.speaker, lookLock, positionBody, shotSpeakers, songDesk, styleId, text],
+    [beat.speaker, humOn, lookLock, positionBody, shotSpeakers, songDesk, styleId, text],
   );
   const storedMotion = stripLtxLipSyncLead(beat.imageMotion || "");
   const muteLock = useMemo(
@@ -3244,7 +3311,8 @@ function BeatLineEditor({
     draft: motionDraft,
     stored:
       songDesk &&
-      ((!muteOn && imageMotionLooksMuteLock(storedMotion)) ||
+      ((!muteOn && !humOn && imageMotionLooksMuteLock(storedMotion)) ||
+        (humOn && isSingingDefaultMotion(storedMotion)) ||
         storedMotionNeedsRebuild(storedMotion, positionBody, beat.speaker))
         ? ""
         : storedMotion,
@@ -3601,6 +3669,10 @@ function BeatLineEditor({
           disabled={saving}
           mute={Boolean(muteOn)}
           singingBody={motionBody}
+          onSingingBody={(next) => {
+            writeLtxMotionDraft(jobId, beat.id, next);
+            setMotionDraft(next);
+          }}
           jobId={jobId}
           shotId={shotId}
           h3LastStills={h3LastStills}

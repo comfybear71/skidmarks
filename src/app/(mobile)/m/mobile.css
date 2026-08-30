@@ -3661,6 +3661,10 @@ span.scratch-history-blob {
   resize: vertical;
 }
 
+.m-plate-motion-sing textarea {
+  min-height: 140px;
+}
+
 .m-track-engines {
   display: flex;
   flex-wrap: wrap;

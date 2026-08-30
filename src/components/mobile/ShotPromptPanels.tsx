@@ -240,6 +240,7 @@ export function MuteMvMotionHole({
   disabled,
   mute = true,
   singingBody,
+  onSingingBody,
   jobId,
   shotId,
   h3LastStills,
@@ -252,6 +253,8 @@ export function MuteMvMotionHole({
   /** No lips on — mute tail. Off shows the singing stack. */
   mute?: boolean;
   singingBody?: string;
+  /** Singing / hum stack — was a locked paragraph. */
+  onSingingBody?: (value: string) => void;
   jobId?: string;
   shotId?: string;
   h3LastStills?: MinimaxH3LastStill[];
@@ -379,7 +382,15 @@ export function MuteMvMotionHole({
           <p className="m-plate-motion-lock">{motionLock.tail}</p>
         </>
       ) : (
-        <p className="m-plate-motion-lock">{singingBody}</p>
+        <label className="m-plate-motion-slot m-plate-motion-sing">
+          <textarea
+            aria-label="LTX Image motion"
+            value={singingBody || ""}
+            rows={8}
+            disabled={disabled || !onSingingBody}
+            onChange={(e) => onSingingBody?.(e.target.value)}
+          />
+        </label>
       )}
     </div>
   );

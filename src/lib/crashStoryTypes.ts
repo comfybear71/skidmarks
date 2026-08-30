@@ -62,6 +62,11 @@ export type CrashStoryShot = {
    * name the plate title (JACK GHOST) or say "is prominent".
    */
   nobodyInShot?: boolean;
+  /**
+   * No lips — mute cook. Mouths shut, no song into LTX.
+   * Survives refresh. Session tap is only a draft until this is saved.
+   */
+  noLips?: boolean;
   /** Words for the stock search links. Empty = title + summary + staging. */
   stockQuery?: string;
   /**

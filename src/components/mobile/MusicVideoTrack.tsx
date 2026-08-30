@@ -82,9 +82,12 @@ import {
   composeMuteMvMotion,
   extractMuteMvMotionSlot,
   imageMotionLooksMuteLock,
+  isSingingDefaultMotion,
+  readLtxMotionDraft,
   readMvH3Camera,
   readMvH3LastFrame,
   readMvH3Resolution,
+  readMvHumAction,
   readMvMotionSlot,
   readMvMuteAction,
   readMvNobodyInShot,
@@ -1370,7 +1373,10 @@ export function MusicVideoTrack({
     const shot = storyShotFor(shotId);
     const empty = sendEmptyFrameFor(shotId);
     return addPlateIsSingingHang({
-      mute: readMvMuteAction(job.id, shotId),
+      mute:
+        readMvMuteAction(job.id, shotId) ||
+        Boolean(shot?.noLips) ||
+        empty,
       emptyFrame: empty,
       nobodyInShot: empty || readMvNobodyInShot(job.id, shotId) || Boolean(shot?.nobodyInShot),
       support: isSupportShot(shot),
@@ -1381,7 +1387,18 @@ export function MusicVideoTrack({
     const still = hangPlateShotId(shotId) || shotId;
     const empty = sendEmptyFrameFor(still);
     return {
-      ...(readMvMuteAction(job.id, still) || empty ? { mute: true } : {}),
+      ...(
+        readMvMuteAction(job.id, still) ||
+        Boolean(storyShotFor(still)?.noLips) ||
+        empty
+          ? { mute: true }
+          : {}
+      ),
+      ...(readMvHumAction(job.id, still) &&
+      !readMvMuteAction(job.id, still) &&
+      !storyShotFor(still)?.noLips
+        ? { performance: "hum" }
+        : {}),
       ...(empty ? { emptyFrame: true, nobodyInShot: true } : {}),
     };
   }
@@ -1411,9 +1428,14 @@ export function MusicVideoTrack({
           ?.appearance ||
         "";
     const muteOn = Boolean(
-      readMvMuteAction(job.id, hangPlateShotId(shotId) || shotId) || emptyFrame,
+      readMvMuteAction(job.id, hangPlateShotId(shotId) || shotId) ||
+        Boolean(shot?.noLips) ||
+        emptyFrame,
     );
+    const humOn =
+      !muteOn && readMvHumAction(job.id, hangPlateShotId(shotId) || shotId);
     const stored = shot?.beats[0]?.imageMotion || "";
+    const drafted = targetBeatId ? readLtxMotionDraft(job.id, targetBeatId) : null;
     const cut = waitingCutForPlate(shotId) || doneCutForPlate(shotId);
     const sendEngine = resolveMvSendEngine({
       jobId: job.id,
@@ -1425,7 +1447,7 @@ export function MusicVideoTrack({
         readMathPatternSettings(job.id, hangPlateShotId(shotId) || shotId),
       );
     }
-    let body = stored;
+    let body = drafted || stored;
     if (muteOn) {
       const lock = buildMuteMvMotionLock({
         styleId: (job.styleId || "music_video") as ShowStyleId,
@@ -1439,6 +1461,22 @@ export function MusicVideoTrack({
       const slot = live !== null ? live : extractMuteMvMotionSlot(stored, lock);
       if (targetBeatId) writeMvMotionSlot(job.id, targetBeatId, slot);
       body = composeMuteMvMotion(lock, slot);
+    } else if (humOn) {
+      body =
+        drafted &&
+        !isSingingDefaultMotion(drafted) &&
+        !imageMotionLooksMuteLock(drafted)
+          ? drafted
+          : buildScratchSongLtxMotion({
+              styleId: (job.styleId || "music_video") as ShowStyleId,
+              speaker: speaker || shot?.title || "The performer",
+              lookLock: look,
+              staging: shot?.staging || "",
+              performance: "hum",
+              startSec: cut?.startSec,
+            });
+    } else if (drafted && !imageMotionLooksMuteLock(drafted)) {
+      body = drafted;
     } else if (
       imageMotionLooksMuteLock(stored) ||
       !stored.trim() ||
@@ -1843,7 +1881,7 @@ export function MusicVideoTrack({
     sendPostedRef.current = false;
     if (!useMath) void watchPlateCook(hangId, startedMs, engine);
     try {
-      const motion = motionBodyForSend(hangId);
+      const motion = await persistMotionFor(hangId);
       paintPlateSend("Starting the Send", "Starting…");
       if (useMath) {
         await sendMathPattern(cut.id, hangId, targetBeatId);

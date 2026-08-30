@@ -72,6 +72,7 @@ import {
   songFromTrackDraft,
 } from "@/lib/musicVideoTrack";
 import { forgottenTrumpetLtxBlockReason } from "@/lib/forgottenWhoPlays";
+import { parseSongSlicePerformance } from "@/lib/mobileImageMotion";
 import { findStoryShot, isSupportShot } from "@/lib/stockFootage";
 import { writeScratchCookProgress } from "@/lib/scratchCookStore";
 
@@ -128,6 +129,7 @@ export async function POST(req: Request) {
     resolution?: string;
     h3Camera?: string;
     imageMotion?: string;
+    performance?: string;
   };
   const action = String(body.action || "").trim();
   const jobId = String(body.jobId || "").trim();
@@ -480,6 +482,14 @@ export async function POST(req: Request) {
           song.durationSec,
           HANG_LENGTH_MAX_SEC,
         );
+        const performance = parseSongSlicePerformance(body.performance);
+        if (performance && song) {
+          const cuts = (song.cuts || []).map((c) =>
+            c.id === cut.id ? { ...c, performance } : c,
+          );
+          song = { ...song, cuts };
+          job = (await patchMobileGenJob(jobId, { scratchSong: song, error: "" }))!;
+        }
         await writeScratchCookProgress(jobId, {
           cutId: cut.id,
           engine: "ltx",
@@ -501,6 +511,7 @@ export async function POST(req: Request) {
           emptyFrame: body.emptyFrame === true,
           nobodyInShot: body.nobodyInShot === true,
           imageMotion: String(body.imageMotion || "").trim() || undefined,
+          performance,
         });
         return NextResponse.json({
           ok: true,
