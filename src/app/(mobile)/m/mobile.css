@@ -3656,6 +3656,15 @@ span.scratch-history-blob {
   color: #111;
 }
 
+.m-grok-speaker {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .m-grok-attach-label {
   margin: 8px 0 4px;
   color: var(--chrome-dim);

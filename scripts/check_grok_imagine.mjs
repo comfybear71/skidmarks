@@ -9,7 +9,9 @@ import {
   grokImagineFoldSummary,
   grokImagineMotionLooksLike,
   grokPlatesForShot,
+  normalizeGrokImagineSettings,
   parseGrokImagineMode,
+  parseGrokImagineVideoRes,
   snapGrokImagineDurationSec,
 } from "../src/lib/grokImagine.ts";
 import { resolveGrokClipRefs } from "../src/lib/grokScratchClip.ts";
@@ -27,6 +29,11 @@ assert(GROK_IMAGINE_IMAGE_MODEL === "grok-imagine-image-2.0", "image 2.0");
 assert(GROK_IMAGINE_VIDEO_MODEL === "grok-imagine-video-1.5", "video 1.5 — no 2.0 yet");
 assert(snapGrokImagineDurationSec(40) === 15, "video max 15");
 assert(snapGrokImagineDurationSec(6) === 6, "6 stays 6");
+assert(parseGrokImagineVideoRes("1080p") === "720p", "desk locks 720p");
+assert(
+  normalizeGrokImagineSettings({ prompt: "Slowly " }).prompt === "Slowly ",
+  "prompt keeps the space while typing",
+);
 
 const composed = composeGrokImagineMotion({
   mode: "image",
@@ -118,5 +125,12 @@ const storyOnly = resolveGrokClipRefs({
 assert(storyOnly.plateFile === "buddha.png", "story plate without job.shots");
 assert(storyOnly.stillId === "shotA", "extra hang strips to the still");
 assert(storyOnly.beat, "music-video beat is not required on the pad");
+
+const hole = readFileSync(join(root, "src/components/mobile/GrokImagineHole.tsx"), "utf8");
+assert(!hole.includes("480p"), "no 480p chip");
+assert(!hole.includes("1080p"), "no 1080p chip");
+assert(!hole.includes("16:9"), "no aspect chips");
+assert(hole.includes("GrokSpeakerIcon"), "audio is a speaker icon");
+assert(hole.includes("e.stopPropagation()"), "space is not stolen from the box");
 
 console.log("check_grok_imagine: ok");
