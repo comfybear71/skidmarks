@@ -48,8 +48,7 @@ export function parseGrokImagineImageRes(value: string | null | undefined): Grok
   return value === "2k" ? "2k" : "1k";
 }
 
-export function parseGrokImagineVideoRes(value: string | null | undefined): GrokImagineVideoRes {
-  if (value === "480p" || value === "1080p") return value;
+export function parseGrokImagineVideoRes(_value?: string | null): GrokImagineVideoRes {
   return "720p";
 }
 
@@ -68,7 +67,7 @@ export function normalizeGrokImagineSettings(
 ): GrokImagineSettings {
   return {
     mode: parseGrokImagineMode(raw?.mode),
-    prompt: (raw?.prompt || "").trim(),
+    prompt: raw?.prompt ?? "",
     plateFile: (raw?.plateFile || "").trim(),
     imageRes: parseGrokImagineImageRes(raw?.imageRes),
     videoRes: parseGrokImagineVideoRes(raw?.videoRes),

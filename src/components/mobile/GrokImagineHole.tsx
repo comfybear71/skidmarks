@@ -2,20 +2,38 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  GROK_IMAGINE_ASPECTS,
-  GROK_IMAGINE_VIDEO_RES,
   GROK_IMAGINE_VIDEO_SECS,
   grokImagineFoldLines,
   grokImagineFoldSummary,
   normalizeGrokImagineSettings,
   readGrokImagineSettings,
   writeGrokImagineSettings,
-  type GrokImagineAspect,
   type GrokImagineImageRes,
   type GrokImagineMode,
   type GrokImagineSettings,
-  type GrokImagineVideoRes,
 } from "@/lib/grokImagine";
+
+function GrokSpeakerIcon({ on }: { on: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M4 9h3.2L12 5.4v13.2L7.2 15H4V9z"
+      />
+      {on ? (
+        <path
+          fill="currentColor"
+          d="M14.2 8.2c1.2 1.1 1.9 2.4 1.9 3.8s-.7 2.7-1.9 3.8l-1.1-1.3c.8-.7 1.2-1.5 1.2-2.5s-.4-1.8-1.2-2.5l1.1-1.3zm2.7-2.6C18.8 7.3 20 9.5 20 12s-1.2 4.7-3.1 6.4l-1.2-1.3C17.2 15.8 18 14 18 12s-.8-3.8-2.3-5.1l1.2-1.3z"
+        />
+      ) : (
+        <path
+          fill="currentColor"
+          d="M15.2 9.1 16.6 7.7l4 4-4 4-1.4-1.4 2.6-2.6-2.6-2.6z"
+        />
+      )}
+    </svg>
+  );
+}
 
 export type GrokImaginePlate = { fileName: string; label: string };
 
@@ -75,9 +93,10 @@ export function GrokImagineHole({
   useEffect(() => {
     const stored = readGrokImagineSettings(jobId, shotId);
     const first = tail?.fileName || plates[0]?.fileName || "";
-    setSettings(
+    setSettings((prev) =>
       normalizeGrokImagineSettings({
         ...stored,
+        prompt: prev.prompt || stored.prompt,
         plateFile: tail?.fileName || stored.plateFile || first,
       }),
     );
@@ -112,6 +131,7 @@ export function GrokImagineHole({
           placeholder="Type to imagine"
           value={settings.prompt}
           onChange={(e) => patch({ prompt: e.target.value })}
+          onKeyDown={(e) => e.stopPropagation()}
         />
         <div className="m-grok-tools">
           <input
@@ -170,16 +190,16 @@ export function GrokImagineHole({
             </button>
           </div>
           {video ? (
-            <div className="m-grok-mode" role="group" aria-label="GROK resolution">
-              {GROK_IMAGINE_VIDEO_RES.map((res) => (
+            <div className="m-grok-mode" role="group" aria-label="GROK length">
+              {GROK_IMAGINE_VIDEO_SECS.map((sec) => (
                 <button
-                  key={res}
+                  key={sec}
                   type="button"
-                  className={`m-grok-chip${settings.videoRes === res ? " is-on" : ""}`}
+                  className={`m-grok-chip${settings.durationSec === sec ? " is-on" : ""}`}
                   disabled={disabled}
-                  onClick={() => patch({ videoRes: res as GrokImagineVideoRes })}
+                  onClick={() => patch({ durationSec: sec })}
                 >
-                  {res}
+                  {sec}s
                 </button>
               ))}
             </div>
@@ -198,24 +218,9 @@ export function GrokImagineHole({
               ))}
             </div>
           )}
-          {video ? (
-            <div className="m-grok-mode" role="group" aria-label="GROK length">
-              {GROK_IMAGINE_VIDEO_SECS.map((sec) => (
-                <button
-                  key={sec}
-                  type="button"
-                  className={`m-grok-chip${settings.durationSec === sec ? " is-on" : ""}`}
-                  disabled={disabled}
-                  onClick={() => patch({ durationSec: sec })}
-                >
-                  {sec}s
-                </button>
-              ))}
-            </div>
-          ) : null}
           <button
             type="button"
-            className={`m-grok-chip${settings.keepAudio ? " is-on" : ""}`}
+            className={`m-grok-chip m-grok-speaker${settings.keepAudio ? " is-on" : ""}`}
             disabled={disabled || !video}
             title={
               video
@@ -224,23 +229,11 @@ export function GrokImagineHole({
                   : "Strip Grok audio — song stays on TRACK"
                 : "Stills have no audio"
             }
+            aria-label={settings.keepAudio ? "Audio on" : "Audio off"}
             onClick={() => patch({ keepAudio: !settings.keepAudio })}
           >
-            {settings.keepAudio ? "Audio on" : "Audio off"}
+            <GrokSpeakerIcon on={settings.keepAudio} />
           </button>
-          <div className="m-grok-mode" role="group" aria-label="Aspect">
-            {GROK_IMAGINE_ASPECTS.map((ratio) => (
-              <button
-                key={ratio}
-                type="button"
-                className={`m-grok-chip${settings.aspect === ratio ? " is-on" : ""}`}
-                disabled={disabled}
-                onClick={() => patch({ aspect: ratio as GrokImagineAspect })}
-              >
-                {ratio}
-              </button>
-            ))}
-          </div>
           {onImagine ? (
             <button
               type="button"
