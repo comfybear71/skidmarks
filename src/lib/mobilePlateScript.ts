@@ -1,3 +1,5 @@
+import { rewriteStockStandingSoloStaging } from "./mobileImageMotion";
+
 /** Scripted talking-plate Position — human only types the Line after this. */
 export function compileScriptedPosition(opts: { name: string; place: string }): string {
   const name = opts.name.trim() || "The character";
@@ -135,8 +137,8 @@ export function resolvePlateStaging(opts: {
   speakers?: string[];
   place: string;
 }): string {
-  const incoming = (opts.stagingIn || "").trim();
-  const existing = (opts.existingStaging || "").trim();
+  const incoming = rewriteStockStandingSoloStaging(opts.stagingIn || "");
+  const existing = rewriteStockStandingSoloStaging(opts.existingStaging || "");
   const visual = visualActionFromSummary(opts.summary);
   const cheap = isCheapTalkingTake(opts.summary);
   const speakers = (opts.speakers || [])

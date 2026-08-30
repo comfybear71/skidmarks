@@ -1,5 +1,9 @@
 import { voiceNamesMatch } from "./voiceNameMatch";
-import { emptyHandsStillLock, joPhoneStagingExtra } from "./mobileImageMotion";
+import {
+  emptyHandsStillLock,
+  joPhoneStagingExtra,
+  rewriteStockStandingSoloStaging,
+} from "./mobileImageMotion";
 import { isEmptyStageStaging } from "./emptyStagePlate";
 import type { ShowStyleId } from "./showStylePresets";
 import { isLeftoverPackVoiceFile, isMobileSavedVoiceFile } from "./mobileSavedVoice";
@@ -310,7 +314,7 @@ export function plateCastStagingNote(opts: {
   const name = speakers[0] || "The character";
   const joPhone = Boolean(opts.joPhone);
   const staging =
-    (opts.staging || "").trim() ||
+    rewriteStockStandingSoloStaging(opts.staging || "") ||
     (solo
       ? `${name} alone. Only ${name} in frame, no one else appears.`
       : "People inhabit the place — sitting, leaning, presenting, using the furniture.");

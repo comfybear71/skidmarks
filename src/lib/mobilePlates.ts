@@ -134,30 +134,29 @@ export async function resolvePlateBackground(
   return bgPath;
 }
 
-/** One face for a speaker — local gallery, job pick, then show shelf. */
+/** One face for a speaker — this job's picked still first, then show shelf.
+ * A leftover shelf card that merely shares the name must not replace the
+ * face he picked (Amitabha's golden Buddha becoming a stranger). */
 export async function resolvePlateCastPath(
   styleId: ShowStyleId,
   name: string,
   job?: PlateJobRef,
 ): Promise<string | null> {
   const folders = job ? mobileCandidateFolders(job) : [];
+  const jobFile = job ? approvedCandidateFileName(job.castCandidates, name) : null;
+  if (jobFile) {
+    const jobPath = await cacheJobPlateFile({ styleId, folders, fileName: jobFile });
+    if (jobPath) return jobPath;
+    const shelfByFile = await cacheShelfAsset(styleId, "cast", jobFile);
+    if (shelfByFile) return shelfByFile;
+    // Picked a face on this job — do not swap in a leftover shelf card.
+    return null;
+  }
   const manifest = readStyleCardManifest(styleId);
   const key = resolveCastKeyByName(manifest, name);
   const localPath = key ? resolveStyleCardThumbPath(styleId, key) : null;
-  const jobFile = job ? approvedCandidateFileName(job.castCandidates, name) : null;
-  const jobPath =
-    localPath || !jobFile
-      ? null
-      : await cacheJobPlateFile({ styleId, folders, fileName: jobFile });
-  const shelfByFile =
-    localPath || jobPath || !jobFile
-      ? null
-      : await cacheShelfAsset(styleId, "cast", jobFile);
-  const cloudPath =
-    localPath || jobPath || shelfByFile
-      ? null
-      : await cacheShelfCastByName(styleId, name);
-  return localPath || jobPath || shelfByFile || cloudPath;
+  if (localPath) return localPath;
+  return cacheShelfCastByName(styleId, name);
 }
 
 /**

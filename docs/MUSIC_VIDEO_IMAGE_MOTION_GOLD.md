@@ -10,7 +10,7 @@ Do **not** write these onto a live leftover pack unless Stuie says **go**. The n
 
 ## Rule (whole app)
 
-- **Position is the still.** Who stands where, empty hands, no extra objects.
+- **Position is the still.** Keep that still's pose and clothes. Empty hands, no extra objects. Do not stand a seated still up.
 - **LTX / H3 is a second prompt.** It must not fight Position.
 - If Position says empty hands, the cook must **not** say play an instrument.
 - Play only when **this** still’s Position names the horn, or the pad is `HORN` / `SAXOPHONE`.
@@ -26,10 +26,10 @@ Jack Ash / JACK GHOST on one leftover clip does not make these Jack-only. Frank,
 GOLD fill (one person):
 
 ```
-JACK GHOST alone. Only JACK GHOST in frame, no one else appears. Standing centre-frame, facing camera, mid body. Empty hands. No phone. No extra objects.
+JACK GHOST alone. Only JACK GHOST in frame, no one else appears. Same person as the JACK GHOST still — keep that still's pose, clothes, and body. Empty hands. No phone. No extra objects.
 ```
 
-Same shape for any name. This is the still lock, not the cook.
+Same shape for any name. This is the still lock, not the cook. Auto-fill used to say "Standing centre-frame, mid body" — that stood a seated still (Amitabha) into a different person. The picked still is the pose.
 
 ---
 

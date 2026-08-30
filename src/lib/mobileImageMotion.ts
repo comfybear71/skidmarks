@@ -336,9 +336,44 @@ export function joPhoneStagingExtra(
   return `Holding her mobile phone, texting, staring at the screen like a crazed maniac.`;
 }
 
+/**
+ * Auto add-cast used to stand everyone up ("Standing centre-frame, mid body").
+ * That overrode the picked still — seated Amitabha became a standing man
+ * in a singlet. The still is the pose. Empty hands stay.
+ */
 export function defaultSoloStaging(speaker: string): string {
   const who = speaker.trim() || "The character";
-  return `${who} alone. Only ${who} in frame, no one else appears. Standing centre-frame, facing camera, mid body. Empty hands. No phone. No extra objects.`;
+  return `${who} alone. Only ${who} in frame, no one else appears. Same person as the ${who} still — keep that still's pose, clothes, and body. Empty hands. No phone. No extra objects.`;
+}
+
+const STOCK_STANDING_SOLO =
+  /^(.+) alone\. Only \1 in frame, no one else appears\. Standing centre-frame, facing camera, mid body\. Empty hands\. No phone\. No extra objects\.?$/i;
+
+/** Leftover auto-fill from before keep-pose. Not a director-typed Position. */
+export function isStockStandingSoloStaging(text: string): boolean {
+  return STOCK_STANDING_SOLO.test((text || "").trim());
+}
+
+/** Swap leftover standing auto-fill for keep-pose. Leave real Position alone. */
+export function rewriteStockStandingSoloStaging(text: string): string {
+  const t = (text || "").trim();
+  const m = t.match(STOCK_STANDING_SOLO);
+  if (!m) return t;
+  return defaultSoloStaging(m[1]);
+}
+
+/**
+ * True only when the director named a different pose. Stock standing and
+ * "keep that still's pose" are not overrides — those keep image 2.
+ */
+export function tweakNamesDirectorPose(tweak: string): boolean {
+  const raw = (tweak || "").trim();
+  if (!raw || isStockStandingSoloStaging(raw)) return false;
+  const t = rewriteStockStandingSoloStaging(raw);
+  if (/keep (?:that |the )?(?:still|image|reference|card)'?s pose/i.test(t)) {
+    return false;
+  }
+  return /\b(standing|sitting|seated|kneeling|lying|walking|leaning|crouching)\b/i.test(t);
 }
 
 function speakingAction(speaker: string, staging = "", styleId?: ShowStyleId): string {
