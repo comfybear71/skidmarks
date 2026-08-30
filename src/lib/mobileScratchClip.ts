@@ -37,6 +37,7 @@ import {
   imageMotionLooksEmptyFrame,
   pickSongSendMotionBody,
   resolveSongSlicePerformance,
+  type SongSlicePerformance,
   songSendNeedsRecook,
   songStoredMotionUsable,
   storedMotionNeedsRebuild,
@@ -114,6 +115,8 @@ export async function runScratchLtxClip(opts: {
   nobodyInShot?: boolean;
   /** Phone [ ] / mute lock — do not wait on beat-motion story write. */
   imageMotion?: string;
+  /** Hum tap — intro / no lyrics. Overrides leftover cut.performance sing. */
+  performance?: SongSlicePerformance;
 }): Promise<MobileGenJob> {
   const { story, sceneId, beatId } = opts;
   const hangId = (opts.shotId || "").trim();
@@ -249,7 +252,7 @@ export async function runScratchLtxClip(opts: {
     imageMotionLooksEmptyFrame(storedEarly);
   const muteAction =
     songCutIsMuteAction({
-      mute: opts.mute || emptyFrame,
+      mute: opts.mute || emptyFrame || Boolean(storyShot.noLips),
       styleId: job.styleId,
       beatKind: beat.kind,
     }) || isCutawayMotion(beat.imageMotion || "");
@@ -349,7 +352,7 @@ export async function runScratchLtxClip(opts: {
   const performance = resolveSongSlicePerformance({
     speaker,
     staging: stagingText,
-    performance: cutRow?.performance,
+    performance: opts.performance || cutRow?.performance,
   });
   const muteLock = buildMuteMvMotionLock({
     styleId: job.styleId,
@@ -386,6 +389,15 @@ export async function runScratchLtxClip(opts: {
     emptyFrame,
     staging: stagingText,
     speaker,
+    hum: performance === "hum",
+    humDefault: buildScratchSongLtxMotion({
+      styleId: job.styleId,
+      speaker,
+      lookLock,
+      staging: stagingText,
+      performance: "hum",
+      startSec: cutRow?.startSec,
+    }),
   });
   const imageMotion = ltxSendPrompt(body, stagingText, {
     skipLipSyncLead: skipSongLipSyncLead({

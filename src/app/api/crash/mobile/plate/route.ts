@@ -47,6 +47,7 @@ function patchShotFields(
     footageRole?: ShotFootageRole;
     stockQuery?: string;
     nobodyInShot?: boolean;
+    noLips?: boolean;
   },
 ): CrashStoryDoc {
   return {
@@ -115,8 +116,9 @@ export async function POST(req: Request) {
       reuseScene?: boolean;
       footageRole?: ShotFootageRole;
       stockQuery?: string;
-      nobodyInShot?: boolean;
-      action?: string;
+    nobodyInShot?: boolean;
+    noLips?: boolean;
+    action?: string;
       shot?: CrashStoryShot;
       takeId?: string;
       beatId?: string;
@@ -141,6 +143,8 @@ export async function POST(req: Request) {
     const stockQueryIn = body.stockQuery !== undefined ? String(body.stockQuery) : undefined;
     const nobodyInShotIn =
       body.nobodyInShot === true ? true : body.nobodyInShot === false ? false : undefined;
+    const noLipsIn =
+      body.noLips === true ? true : body.noLips === false ? false : undefined;
     const action = (body.action || "rebuild").trim().toLowerCase();
     const drop = action === "drop";
     const saveOnly = action === "save";
@@ -174,7 +178,8 @@ export async function POST(req: Request) {
       titleIn === undefined &&
       footageRoleIn === undefined &&
       stockQueryIn === undefined &&
-      nobodyInShotIn === undefined
+      nobodyInShotIn === undefined &&
+      noLipsIn === undefined
     ) {
       return NextResponse.json({ error: "Nothing to save" }, { status: 400 });
     }
@@ -764,6 +769,7 @@ export async function POST(req: Request) {
         footageRole?: ShotFootageRole;
         stockQuery?: string;
         nobodyInShot?: boolean;
+        noLips?: boolean;
       } = {};
       if (stagingIn !== undefined) patch.staging = stagingIn;
       if (summaryIn !== undefined) patch.summary = summaryIn;
@@ -772,6 +778,7 @@ export async function POST(req: Request) {
       if (footageRoleIn !== undefined) patch.footageRole = footageRoleIn;
       if (stockQueryIn !== undefined) patch.stockQuery = stockQueryIn;
       if (nobodyInShotIn !== undefined) patch.nobodyInShot = nobodyInShotIn;
+      if (noLipsIn !== undefined) patch.noLips = noLipsIn;
       const saved = patchShotFields(story, shotId, patch);
       await writeMobileStory(saved, job.folderName);
       const next = saved.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === shotId);
@@ -785,6 +792,7 @@ export async function POST(req: Request) {
         footageRole: next?.footageRole,
         stockQuery: next?.stockQuery,
         nobodyInShot: next?.nobodyInShot,
+        noLips: next?.noLips,
       });
     }
 
