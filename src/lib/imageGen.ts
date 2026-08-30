@@ -244,6 +244,48 @@ export async function generateFaceImage(opts: {
   );
 }
 
+/** /m GROK Imagine still — official Image 2.0. Does not change face/plate cooks. */
+export async function generateImagineImage(opts: {
+  prompt: string;
+  referencePaths?: string[];
+  aspectRatio?: string;
+  resolution?: "1k" | "2k";
+}): Promise<{ buffer: Buffer; ext: string }> {
+  const key = xaiKey();
+  if (!key) {
+    throw new Error(
+      "Missing XAI_API_KEY. Add it to your environment variables then restart Studio.",
+    );
+  }
+  const prompt = (opts.prompt || "").trim();
+  if (!prompt) throw new Error("Type something to imagine first.");
+  const paths = (opts.referencePaths || []).slice(0, 3);
+  const body: Record<string, unknown> = {
+    model: "grok-imagine-image-2.0",
+    prompt,
+    response_format: "b64_json",
+    quality: "medium",
+  };
+  if (opts.resolution === "1k" || opts.resolution === "2k") {
+    body.resolution = opts.resolution;
+  }
+  if (paths.length > 0) {
+    const imagePayloads = paths.map((p) => ({
+      url: dataUri(p),
+      type: "image_url" as const,
+    }));
+    if (imagePayloads.length === 1) body.image = imagePayloads[0];
+    else body.images = imagePayloads;
+    return await xaiImageRequest("https://api.x.ai/v1/images/edits", body, key, [
+      "grok-imagine-image-2.0",
+    ]);
+  }
+  body.aspect_ratio = opts.aspectRatio || "16:9";
+  return await xaiImageRequest("https://api.x.ai/v1/images/generations", body, key, [
+    "grok-imagine-image-2.0",
+  ]);
+}
+
 function xaiErrorMessage(status: number, data: unknown): string {
   const d = data as {
     error?: string | { message?: string; code?: string };
@@ -284,11 +326,11 @@ async function xaiImageRequest(
   url: string,
   body: Record<string, unknown>,
   key: string,
+  onlyModels?: string[],
 ): Promise<{ buffer: Buffer; ext: string }> {
-  const models = [
-    String(body.model || "grok-imagine-image"),
-    "grok-imagine-image-quality",
-  ];
+  const models = onlyModels?.length
+    ? onlyModels
+    : [String(body.model || "grok-imagine-image"), "grok-imagine-image-quality"];
   const tryModels = [...new Set(models)];
 
   let lastErr = "";

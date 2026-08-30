@@ -1144,7 +1144,7 @@ function mvMotionSlotKey(jobId: string, beatId: string): string {
   return `skidmarks.mvMotionSlot.${(jobId || "").trim()}.${(beatId || "").trim()}`;
 }
 
-export type MuteMvEngine = "ltx" | "h3" | "math";
+export type MuteMvEngine = "ltx" | "h3" | "math" | "grok";
 export type MvClipEngine = MuteMvEngine;
 
 function mvClipEngineKey(jobId: string, shotId: string): string {
@@ -1254,6 +1254,7 @@ function mvEngineKey(jobId: string, beatId: string): string {
 export function parseMuteMvEngine(value: string | null | undefined): MuteMvEngine {
   if (value === "h3") return "h3";
   if (value === "math") return "math";
+  if (value === "grok") return "grok";
   return "ltx";
 }
 
@@ -1279,6 +1280,7 @@ export function writeMvEngine(jobId: string, beatId: string, engine: MuteMvEngin
 /** Hole header — LTX vs H3 vs MATH. No lips is mute on LTX/H3, not MATH. */
 export function muteMvMotionLabel(engine: MuteMvEngine): string {
   if (engine === "math") return "MATH pattern";
+  if (engine === "grok") return "GROK Imagine 2.0";
   return engine === "h3" ? "H3 Image motion" : "LTX Image motion";
 }
 
@@ -1292,6 +1294,7 @@ export const MUTE_MV_LTX_DESK_MAX_SEC = 40;
 /** Closed fold under the hole title. Not a TRACK essay. */
 export function muteMvEngineFoldSummary(engine: MuteMvEngine): string {
   if (engine === "math") return "MATH · noise + feedback · not a plate · not LTX / H3";
+  if (engine === "grok") return "GROK Imagine 2.0 · plate + prompt · in house · not LTX";
   return engine === "h3"
     ? `H3 · ${MINIMAX_H3_MIN_SEC}–${MINIMAX_H3_MAX_SEC}s · first+last · camera · 768P/2K`
     : `LTX · up to ${MUTE_MV_LTX_DESK_MAX_SEC}s · talking/sing ok · 5s ok`;
@@ -1310,6 +1313,13 @@ export function muteMvEngineFoldLines(engine: MuteMvEngine): string[] {
       "Calm = low contrast + sine. Excited = high contrast + tangent spikes.",
       "The three boxes seed the math. They are not sent to LTX.",
       "Send records this canvas silent and hangs it on the existing TRACK clock. No Comfy generate. No start image.",
+    ];
+  }
+  if (engine === "grok") {
+    return [
+      "Type to imagine. + attaches this plate. No leaving for grok.com.",
+      "Image is grok-imagine-image-2.0. Video is grok-imagine-video-1.5 (max 15s).",
+      "Image Send writes a new plate take. Video Send hangs on the TRACK clock.",
     ];
   }
   if (engine === "h3") {
@@ -1337,16 +1347,18 @@ export function resolveMvSendEngine(opts: {
   beatId?: string;
   picked?: MuteMvEngine | null;
 }): MuteMvEngine {
-  if (opts.picked === "h3" || opts.picked === "math") return opts.picked;
+  if (opts.picked === "h3" || opts.picked === "math" || opts.picked === "grok") {
+    return opts.picked;
+  }
   const shotId = (opts.shotId || "").trim();
   if (shotId) {
     const shot = readMvClipEngine(opts.jobId, shotId);
-    if (shot === "h3" || shot === "math") return shot;
+    if (shot === "h3" || shot === "math" || shot === "grok") return shot;
   }
   const beatId = (opts.beatId || "").trim();
   if (beatId) {
     const beat = readMvEngine(opts.jobId, beatId);
-    if (beat === "h3" || beat === "math") return beat;
+    if (beat === "h3" || beat === "math" || beat === "grok") return beat;
   }
   return "ltx";
 }

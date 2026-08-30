@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { MobilePrimaryButton, MobileTextInput } from "@/components/mobile/MobileUi";
 import { MathPatternHole } from "@/components/mobile/MathPatternHole";
+import { GrokImagineHole } from "@/components/mobile/GrokImagineHole";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
 import {
   LTX_LIP_SYNC_LEAD,
@@ -452,9 +453,20 @@ export function MuteMvEnginePanel({
         >
           MATH
         </button>
+        <button
+          type="button"
+          className={`shot-prompt-engine${engine === "grok" ? " is-on" : ""}`}
+          disabled={disabled}
+          title="GROK Imagine 2.0 — plate + prompt, in house"
+          onClick={() => onEngine("grok")}
+        >
+          GROK
+        </button>
       </div>
       {engine === "math" && jobId && shotId ? (
         <MathPatternHole jobId={jobId} shotId={shotId} disabled={disabled} />
+      ) : engine === "grok" && jobId && shotId ? (
+        <GrokImagineHole jobId={jobId} shotId={shotId} plates={[]} disabled={disabled} />
       ) : (
       <MuteMvMotionHole
         engine={engine}

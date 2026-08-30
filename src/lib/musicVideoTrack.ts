@@ -514,10 +514,17 @@ export function hungBarDurationSec(
  */
 export function cookDurationFromHungBar(
   timing: { startMs?: number; endMs?: number } | null | undefined,
-  engine: "h3" | "ltx" | "math",
+  engine: "h3" | "ltx" | "math" | "grok",
 ): { durationSec: number; note: string } | { error: string } {
   const hang = hungBarDurationSec(timing);
   if (hang == null) return { error: "Hang the still on the song first." };
+  if (engine === "grok") {
+    const durationSec = Math.min(15, Math.max(1, Math.round(hang)));
+    if (hang > 15) {
+      return { durationSec, note: `GROK max 15s — cooking ${durationSec}` };
+    }
+    return { durationSec, note: "" };
+  }
   if (engine === "math") {
     const durationSec = Math.min(HANG_LENGTH_MAX_SEC, Math.max(1, Math.round(hang * 10) / 10));
     if (hang > HANG_LENGTH_MAX_SEC) {

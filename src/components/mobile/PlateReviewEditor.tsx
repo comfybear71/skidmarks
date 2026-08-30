@@ -16,6 +16,7 @@ import { useMobileAssist } from "./useMobileAssist";
 import { ScratchPromptBible, type ScratchBiblePickMode } from "@/components/scratch";
 import { PositionPromptPanel, LtxImageMotionPanel, MuteMvMotionHole } from "@/components/mobile/ShotPromptPanels";
 import { MathPatternHole } from "@/components/mobile/MathPatternHole";
+import { GrokImagineHole } from "@/components/mobile/GrokImagineHole";
 import {
   applyBibleTokens,
   stripBibleSoloLock,
@@ -2641,6 +2642,8 @@ function ShotLineEditor({
               onLineRemoved?.(beatId, nextJob);
               if (emptyBeat) onLineAdded?.(emptyBeat);
             }}
+            onJobChange={onJobChange}
+            onSendStill={onSendStill}
           />
             )}
           </div>
@@ -2703,6 +2706,14 @@ function ShotLineEditor({
               </div>
               {styleId === "music_video" && mvEngine === "math" && enginePromptOpen ? (
                 <MathPatternHole jobId={jobId} shotId={shot.id} />
+              ) : styleId === "music_video" && mvEngine === "grok" && enginePromptOpen ? (
+                <GrokImagineHole
+                  jobId={jobId}
+                  shotId={shot.id}
+                  plates={grokPlatesForShot(shot, siblingPlates)}
+                  onJobChange={onJobChange}
+                  onImagine={onSendStill ? () => void onSendStill(shot.id) : undefined}
+                />
               ) : styleId === "music_video" && muteAction ? (
                 <EmptyMvMotionHole
                   jobId={jobId}
@@ -2897,6 +2908,24 @@ function PlateSendButton({
   );
 }
 
+function grokPlatesForShot(
+  shot: { plateFile?: string; plateTakes?: PlateTake[]; title?: string },
+  siblings?: { fileName?: string; title?: string }[],
+): { fileName: string; label: string }[] {
+  const out: { fileName: string; label: string }[] = [];
+  const seen = new Set<string>();
+  const add = (file?: string, label?: string) => {
+    const name = (file || "").trim();
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    out.push({ fileName: name, label: label || "Plate" });
+  };
+  add(shot.plateFile, shot.title || "This plate");
+  for (const take of shot.plateTakes || []) add(take.fileName, "Take");
+  for (const other of siblings || []) add(other.fileName, other.title || "Still");
+  return out;
+}
+
 /** Add | LTX | H3 | MATH | GROK | No lips | Hum | Send. MATH is noise. GROK is Imagine. */
 function PlateEngineButtons({
   jobId,
@@ -2990,6 +3019,12 @@ function PlateEngineButtons({
         onClick={() => pick("math")}
       >
         MATH
+      </MobilePrimaryButton>
+      <MobilePrimaryButton
+        tone={engine === "grok" ? "accent" : "ghost"}
+        onClick={() => pick("grok")}
+      >
+        GROK
       </MobilePrimaryButton>
       <MobilePrimaryButton
         tone={muteOn ? "accent" : "danger"}
@@ -3093,6 +3128,8 @@ function BeatLineEditor({
   onPositionSaved,
   onSaved,
   onRemoved,
+  onJobChange,
+  onSendStill,
 }: {
   styleId: string;
   folderName: string;
@@ -3125,6 +3162,8 @@ function BeatLineEditor({
     addedBeats?: { id: string; text: string; voiceFile: string }[],
   ) => void;
   onRemoved?: (beatId: string, job?: MobileGenJob, emptyBeat?: CrashStoryBeat) => void;
+  onJobChange?: (job: MobileGenJob) => void;
+  onSendStill?: (shotId: string) => Promise<void>;
 }) {
   const [text, setText] = useState(
     isLeftoverPackVoiceFile(beat.voiceFile) ? "" : beat.text,
@@ -3652,6 +3691,25 @@ function BeatLineEditor({
       }) === "math" &&
       enginePromptOpen ? (
         <MathPatternHole jobId={jobId} shotId={shotId} disabled={saving} />
+      ) : songDesk &&
+        resolveMvSendEngine({
+          jobId,
+          shotId,
+          beatId: beat.id,
+          picked: mvEngine,
+        }) === "grok" &&
+        enginePromptOpen ? (
+        <GrokImagineHole
+          jobId={jobId}
+          shotId={shotId}
+          plates={(h3LastStills || []).map((s) => ({
+            fileName: s.fileName,
+            label: s.label,
+          }))}
+          disabled={saving}
+          onJobChange={onJobChange}
+          onImagine={onSendStill ? () => void onSendStill(shotId) : undefined}
+        />
       ) : songDesk && muteLock && enginePromptOpen ? (
         <MuteMvMotionHole
           engine={resolveMvSendEngine({

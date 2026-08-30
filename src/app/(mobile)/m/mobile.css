@@ -3583,6 +3583,86 @@ span.scratch-history-blob {
   white-space: nowrap;
 }
 
+.m-grok-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.m-grok-prompt {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--chrome);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.m-grok-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.m-grok-plus,
+.m-grok-go {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--chrome);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.m-grok-go {
+  margin-left: auto;
+  background: var(--acid);
+  border-color: var(--acid);
+  color: #111;
+}
+
+.m-grok-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.m-grok-chip {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--chrome);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.m-grok-chip.is-on {
+  background: #fff;
+  border-color: #fff;
+  color: #111;
+}
+
+.m-grok-attach-label {
+  margin: 8px 0 4px;
+  color: var(--chrome-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .m-math-canvas {
   display: block;
   width: 100%;

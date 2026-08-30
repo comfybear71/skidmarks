@@ -83,8 +83,11 @@ assert(!/clipEngine:\s*"ltx"/.test(engineSrc), "engine file does not send LTX");
 const buttons = readFileSync(join(root, "src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 const h3At = buttons.indexOf("onClick={() => pick(\"h3\")}");
 const mathAt = buttons.indexOf("onClick={() => pick(\"math\")}");
+const grokAt = buttons.indexOf("onClick={() => pick(\"grok\")}");
 assert(h3At >= 0 && mathAt > h3At, "MATH button sits after H3");
+assert(grokAt > mathAt, "GROK button sits after MATH");
 assert(buttons.includes("MathPatternHole"), "plate card mounts MATH hole");
+assert(buttons.includes("GrokImagineHole"), "plate card mounts GROK hole");
 
 const track = readFileSync(join(root, "src/components/mobile/MusicVideoTrack.tsx"), "utf8");
 assert(track.includes("sendMathPattern"), "Send has a MATH path");
