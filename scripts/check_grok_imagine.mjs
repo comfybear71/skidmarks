@@ -132,5 +132,13 @@ assert(!hole.includes("1080p"), "no 1080p chip");
 assert(!hole.includes("16:9"), "no aspect chips");
 assert(hole.includes("GrokSpeakerIcon"), "audio is a speaker icon");
 assert(hole.includes("e.stopPropagation()"), "space is not stolen from the box");
+assert(hole.includes("setAttachError"), "+ shows a real error, not scratch plate");
+assert(hole.includes("m-grok-attach-err"), "+ error sits under the box");
+assert(hole.includes('writeMvClipEngine(jobId, shotId, "grok")'), "open GROK locks Send to GROK");
+
+const imagineRoute = readFileSync(join(root, "src/app/api/crash/mobile/imagine/route.ts"), "utf8");
+assert(imagineRoute.includes("hangPlateShotId"), "+ attach finds hung TRACK stills");
+assert(imagineRoute.includes("findImagineShot"), "+ attach does not require Scratch job.shots");
+assert(!imagineRoute.includes("scratch plate"), "imagine route never says scratch plate");
 
 console.log("check_grok_imagine: ok");

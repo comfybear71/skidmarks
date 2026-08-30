@@ -102,8 +102,29 @@ export function scratchCookElapsedSec(
   return Math.max(0, (nowMs - start) / 1000);
 }
 
+/**
+ * Studio leftovers still say "scratch plate". That floor is not /m.
+ * Keep the file, change the words.
+ */
+export function humanStudioCookError(msg: string): string {
+  const t = (msg || "").trim();
+  if (!t) return "";
+  if (/scratch plate is not on this job/i.test(t)) {
+    return "That still is not on this song. Tap the still, then Send.";
+  }
+  if (/missing from the scratch plate/i.test(t)) {
+    return "That still is not ready. Draw it again, then Send.";
+  }
+  if (/scratch plate is missing/i.test(t)) {
+    return "That still is gone. Draw it again.";
+  }
+  return t;
+}
+
 export function humanScratchCookLine(cook: ScratchCookProgress): string {
-  if (cook.step === "error") return (cook.message || "Clip failed").trim();
+  if (cook.step === "error") {
+    return humanStudioCookError(cook.message || "Clip failed") || "Clip failed";
+  }
   const name = scratchCookEngineName(cook.engine);
   const mute = cook.mute ? " — mouths shut" : "";
   const said = (cook.message || "").trim();

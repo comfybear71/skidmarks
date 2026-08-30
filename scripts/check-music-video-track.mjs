@@ -58,6 +58,7 @@ import {
   formatScratchCookNote,
   h3PhaseToCookStep,
   humanScratchCookLine,
+  humanStudioCookError,
   parseScratchCook,
   scratchCookButtonLabel,
   scratchCookIsLive,
@@ -2532,7 +2533,32 @@ assert.match(trackUi, /onSendStillNote/, "TRACK paints the plate cook line");
 assert.match(trackUi, /onSendStillLabel/, "TRACK paints the Send button step");
 assert.match(trackUi, /formatScratchCookNote/, "Send paints LTX/H3 steps, not Still going");
 assert.match(trackUi, /watchPlateCook/, "Send polls the job while the LTX POST is open");
+assert.match(
+  trackUi,
+  /if \(!useMath && !useGrok\) void watchPlateCook/,
+  "GROK Send must not start the LTX watcher",
+);
 assert.match(trackUi, /refreshMobileJob/, "Send reads scratchCook off the job");
+assert.match(
+  trackUi,
+  /Leftover fail from an earlier Send/,
+  "TRACK must not keep painting a leftover scratch-plate fail",
+);
+assert.equal(
+  humanStudioCookError("Scratch plate is not on this job"),
+  "That still is not on this song. Tap the still, then Send.",
+  "never say scratch plate on /m",
+);
+assert.equal(
+  humanScratchCookLine({
+    engine: "ltx",
+    step: "error",
+    message: "Scratch plate is not on this job",
+    startedAt: "2026-08-30T11:23:14.279Z",
+    updatedAt: "2026-08-30T11:23:14.279Z",
+  }),
+  "That still is not on this song. Tap the still, then Send.",
+);
 assert.doesNotMatch(trackUi, /Cooking\. Still going\./, "no more silent still-going tick");
 assert.doesNotMatch(
   trackUi,

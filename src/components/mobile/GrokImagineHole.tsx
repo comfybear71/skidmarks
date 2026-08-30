@@ -12,6 +12,7 @@ import {
   type GrokImagineMode,
   type GrokImagineSettings,
 } from "@/lib/grokImagine";
+import { writeMvClipEngine } from "@/lib/mobileImageMotion";
 
 function GrokSpeakerIcon({ on }: { on: boolean }) {
   return (
@@ -54,6 +55,7 @@ export function GrokImagineHole({
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [tail, setTail] = useState<GrokImaginePlate | null>(null);
+  const [attachError, setAttachError] = useState("");
   const [settings, setSettings] = useState<GrokImagineSettings>(() => {
     const stored = readGrokImagineSettings(jobId, shotId);
     const first = plates[0]?.fileName || "";
@@ -62,6 +64,10 @@ export function GrokImagineHole({
       plateFile: stored.plateFile || first,
     });
   });
+
+  useEffect(() => {
+    writeMvClipEngine(jobId, shotId, "grok");
+  }, [jobId, shotId]);
 
   useEffect(() => {
     let live = true;
@@ -144,6 +150,7 @@ export function GrokImagineHole({
               e.target.value = "";
               if (!file) return;
               void (async () => {
+                setAttachError("");
                 const form = new FormData();
                 form.set("jobId", jobId);
                 form.set("shotId", shotId);
@@ -158,7 +165,13 @@ export function GrokImagineHole({
                   error?: string;
                 };
                 if (data.job) onJobChange?.(data.job);
-                if (data.fileName) patch({ plateFile: data.fileName });
+                if (data.fileName) {
+                  patch({ plateFile: data.fileName });
+                  return;
+                }
+                setAttachError(
+                  (data.error || "").trim() || "Couldn't add that still. Try another photo.",
+                );
               })();
             }}
           />
@@ -247,6 +260,7 @@ export function GrokImagineHole({
           ) : null}
         </div>
       </div>
+      {attachError ? <p className="m-grok-attach-err">{attachError}</p> : null}
       <p className="m-grok-attach-label">Plate image — tap one, or + for a file</p>
       <div className="m-plate-h3-lasts" role="group" aria-label="GROK plate image">
         {allPlates.length ? (

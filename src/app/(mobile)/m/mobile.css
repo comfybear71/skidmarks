@@ -3672,6 +3672,12 @@ span.scratch-history-blob {
   font-weight: 700;
 }
 
+.m-grok-attach-err {
+  margin: 6px 0 0;
+  color: var(--magenta-hot);
+  font-size: 12px;
+}
+
 .m-math-canvas {
   display: block;
   width: 100%;

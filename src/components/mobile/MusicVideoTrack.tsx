@@ -127,6 +127,7 @@ import {
 } from "@/lib/songCutCook";
 import {
   formatScratchCookNote,
+  humanStudioCookError,
   parseScratchCook,
   scratchCookButtonLabel,
   scratchCookIsLive,
@@ -1560,12 +1561,18 @@ export function MusicVideoTrack({
       (c) => (c.error || "").trim() && (c.status === "error" || cook?.step === "error"),
     );
     if (cook?.step === "error" || (cutErr?.error || "").trim()) {
-      const msg = (cook?.message || cutErr?.error || live.error || "Clip failed").trim();
+      const msg = humanStudioCookError(
+        (cook?.message || cutErr?.error || live.error || "Clip failed").trim(),
+      );
       paintPlateSend(msg, scratchCookButtonLabel(cook, true));
       return;
     }
     const now = Date.now();
-    const cutRunning = (live.scratchSong?.cuts || []).some((c) => c.status === "running");
+    const cutRunning = (live.scratchSong?.cuts || []).some((c) => {
+      if (c.status !== "running") return false;
+      if (cook?.cutId) return c.id === cook.cutId;
+      return false;
+    });
     paintPlateSend(
       formatScratchCookNote(cook, {
         nowMs: now,
@@ -2023,7 +2030,8 @@ export function MusicVideoTrack({
     const grokMode = useGrok ? readGrokImagineSettings(job.id, hangPlateShotId(hangId) || hangId).mode : "video";
     const engine: ScratchCookEngine = useH3 ? "h3" : "ltx";
     sendPostedRef.current = false;
-    if (!useMath && !(useGrok && grokMode === "image")) void watchPlateCook(hangId, startedMs, engine);
+    // GROK paints its own line. The LTX watcher called this "Sending to LTX".
+    if (!useMath && !useGrok) void watchPlateCook(hangId, startedMs, engine);
     try {
       const motion = motionBodyForSend(hangId);
       void persistMotionFor(hangId);
@@ -2092,7 +2100,8 @@ export function MusicVideoTrack({
     if (!cook || cook.step === "done") return;
     if (busy.startsWith("send-")) return;
     if (cook.step === "error") {
-      paintPlateSend(cook.message || "Clip failed", "Send");
+      // Leftover fail from an earlier Send. Do not keep painting
+      // "Scratch plate is not on this job" when he taps GROK or +.
       return;
     }
     paintPlateSend(

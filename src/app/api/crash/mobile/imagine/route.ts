@@ -13,9 +13,10 @@ import { patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { resolveMobileMedia, uploadMobileMedia } from "@/lib/mobileMediaStore";
 import { resolveGenOrPackPlate } from "@/lib/crashActivePack";
+import { hangPlateShotId } from "@/lib/musicVideoTrack";
 import { CRASH_DIR } from "@/lib/paths";
 import { newId, sortableId } from "@/lib/types";
-import type { PlateTake } from "@/lib/crashStoryTypes";
+import type { CrashStoryDoc, PlateTake } from "@/lib/crashStoryTypes";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
 export const runtime = "nodejs";
@@ -34,6 +35,14 @@ export async function GET() {
     imageModel: GROK_IMAGINE_IMAGE_MODEL,
     videoModel: GROK_IMAGINE_VIDEO_MODEL,
   });
+}
+
+function findImagineShot(story: CrashStoryDoc, shotId: string) {
+  const raw = (shotId || "").trim();
+  const still = hangPlateShotId(raw) || raw;
+  return story.scenes
+    .flatMap((sc) => sc.shots)
+    .find((sh) => sh.id === still || sh.id === raw);
 }
 
 async function resolvePlatePath(
@@ -69,7 +78,7 @@ async function attachDroppedPlate(req: Request) {
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
   const story = job.folderName ? await readMobileStory(job.styleId, job.folderName) : null;
   if (!story) return NextResponse.json({ error: "Open the pack first." }, { status: 400 });
-  const shot = story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === shotId);
+  const shot = findImagineShot(story, shotId);
   if (!shot) return NextResponse.json({ error: "That still is not on this pack." }, { status: 404 });
   const ext = path.extname(file.name || "").toLowerCase() || ".png";
   const safeExt = ext === ".jpg" || ext === ".jpeg" || ext === ".webp" ? ext : ".png";
@@ -99,13 +108,15 @@ async function attachDroppedPlate(req: Request) {
     scenes: story.scenes.map((sc) => ({
       ...sc,
       shots: sc.shots.map((sh) =>
-        sh.id === shotId ? { ...sh, plateFile: fileName, plateTakes } : sh,
+        sh.id === shot.id ? { ...sh, plateFile: fileName, plateTakes } : sh,
       ),
     })),
   };
   await writeMobileStory(nextStory, job.folderName);
   const shots = (job.shots || []).map((s) =>
-    s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
+    s.shotId === shot.id || hangPlateShotId(s.shotId) === shot.id
+      ? { ...s, plateFile: fileName, error: "" }
+      : s,
   );
   const updated = await patchMobileGenJob(jobId, { shots, error: "" });
   return NextResponse.json({ ok: true, job: updated, fileName, attached: true });
@@ -149,7 +160,7 @@ export async function POST(req: Request) {
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
     const story = job.folderName ? await readMobileStory(job.styleId, job.folderName) : null;
     if (!story) return NextResponse.json({ error: "Open the pack first." }, { status: 400 });
-    const shot = story.scenes.flatMap((sc) => sc.shots).find((sh) => sh.id === shotId);
+    const shot = findImagineShot(story, shotId);
     if (!shot) return NextResponse.json({ error: "That still is not on this pack." }, { status: 404 });
 
     const plateFile = String(body.plateFile || shot.plateFile || "").trim();
@@ -187,13 +198,15 @@ export async function POST(req: Request) {
       scenes: story.scenes.map((sc) => ({
         ...sc,
         shots: sc.shots.map((sh) =>
-          sh.id === shotId ? { ...sh, plateFile: fileName, plateTakes } : sh,
+          sh.id === shot.id ? { ...sh, plateFile: fileName, plateTakes } : sh,
         ),
       })),
     };
     await writeMobileStory(nextStory, job.folderName);
     const shots = (job.shots || []).map((s) =>
-      s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
+      s.shotId === shot.id || hangPlateShotId(s.shotId) === shot.id
+        ? { ...s, plateFile: fileName, error: "" }
+        : s,
     );
     const updated = await patchMobileGenJob(jobId, { shots, error: "" });
     return NextResponse.json({ ok: true, job: updated, fileName, model: GROK_IMAGINE_IMAGE_MODEL });
