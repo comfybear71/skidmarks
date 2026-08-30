@@ -476,6 +476,12 @@ export async function POST(req: Request) {
             );
           }
           const durationSec = snapGrokI2vDurationSec(asked);
+          const grokPlate =
+            String(body.plateFile || "").trim() ||
+            (cut.plateFile || "").trim() ||
+            (jobShot?.plateFile || "").trim() ||
+            (storyShot?.plateFile || "").trim() ||
+            undefined;
           const drawn = await submitScratchGrokClip({
             job,
             story,
@@ -484,7 +490,7 @@ export async function POST(req: Request) {
             beatId,
             durationSec,
             prompt: String(body.imageMotion || "").trim() || undefined,
-            plateFile: String(body.plateFile || "").trim() || undefined,
+            plateFile: grokPlate,
             resolution: parseGrokImagineVideoRes(body.resolution),
             keepAudio: body.keepAudio === true,
           });
@@ -824,12 +830,20 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Need a plate to add." }, { status: 400 });
       }
       song = { ...song, cuts: clearStuckSongCooks(song.cuts || []) };
-      const shot = job.shots.find((s) => s.shotId === shotId);
-      const plateFile = (shot?.plateFile || "").trim();
+      const stillId = hangPlateShotId(shotId) || shotId;
+      const shot =
+        job.shots.find((s) => s.shotId === stillId) ||
+        job.shots.find((s) => s.shotId === shotId);
+      const storyRow = findStoryShot(story, stillId);
+      const plateFile =
+        (shot?.plateFile || "").trim() || (storyRow?.plateFile || "").trim();
       if (!plateFile || plateFile === "__error__") {
         const copied = await copyPlaceStillAsEmptyPlate({
           job,
-          sceneId: shot?.sceneId || "",
+          sceneId:
+            shot?.sceneId ||
+            story.scenes.find((sc) => sc.shots.some((sh) => sh.id === stillId))?.id ||
+            "",
         });
         if (!copied) {
           return NextResponse.json(
@@ -837,14 +851,18 @@ export async function POST(req: Request) {
             { status: 400 },
           );
         }
+        const placeSceneId =
+          shot?.sceneId ||
+          story.scenes.find((sc) => sc.shots.some((sh) => sh.id === stillId))?.id ||
+          "";
         const placeName =
-          job.scenes.find((sc) => sc.id === shot?.sceneId)?.placeName ||
-          story.scenes.find((sc) => sc.id === shot?.sceneId)?.placeName ||
+          job.scenes.find((sc) => sc.id === placeSceneId)?.placeName ||
+          story.scenes.find((sc) => sc.id === placeSceneId)?.placeName ||
           "";
         const landed = await landEpisodePlateStill({
           job,
           story,
-          shotId,
+          shotId: stillId,
           fileName: copied,
           staging: emptyStageFarOutStaging(placeName),
         });
@@ -857,8 +875,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Job not found" }, { status: 404 });
       }
       const livePlate =
-        (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim();
-      const storyShot = findStoryShot(story, shotId);
+        (job.shots.find((s) => s.shotId === stillId)?.plateFile || "").trim() ||
+        (job.shots.find((s) => s.shotId === shotId)?.plateFile || "").trim() ||
+        (findStoryShot(story, stillId)?.plateFile || "").trim();
+      const storyShot = findStoryShot(story, stillId);
       const singing = addPlateIsSingingHang({
         mute: body.mute === true,
         emptyFrame: body.emptyFrame === true,

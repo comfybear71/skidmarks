@@ -1718,7 +1718,13 @@ export function MusicVideoTrack({
         beatId: targetBeatId || beatId,
         clipEngine: GROK_I2V_ID,
         durationSec,
-        plateFile: settings.plateFile || undefined,
+        plateFile:
+          settings.plateFile ||
+          (storyShotFor(hangShot)?.plateFile || "").trim() ||
+          (
+            jobRef.current.shots.find((s) => s.shotId === hangShot)?.plateFile || ""
+          ).trim() ||
+          undefined,
         resolution: settings.videoRes,
         keepAudio: settings.keepAudio,
         imageMotion: settings.prompt || undefined,

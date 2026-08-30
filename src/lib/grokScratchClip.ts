@@ -10,14 +10,22 @@ import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { resolveGenOrPackPlate } from "./crashActivePack";
+import { cacheJobPlateFile } from "./mobilePlateMedia";
 import { resolveMobileMedia, uploadMobileMedia } from "./mobileMediaStore";
 import { rememberClipTake, withSongCookPendingClip } from "./mobilePlateClips";
 import { probeDurationSeconds } from "./mediaDuration";
 import { CRASH_DIR } from "./paths";
 import { stripLtxLipSyncLead } from "./mobileImageMotion";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "./mobileGenJob";
-import { mobileMediaFolder } from "./mobileJobFolder";
-import type { CrashStoryDoc } from "./crashStoryTypes";
+import { mobileCandidateFolders, mobileMediaFolder } from "./mobileJobFolder";
+import type { CrashStoryBeat, CrashStoryDoc, CrashStoryShot } from "./crashStoryTypes";
+import {
+  beatForSongCut,
+  isMusicVideoSongJob,
+  muteSongBeatStub,
+  storyShotForSongCut,
+} from "./musicVideoSong";
+import { hangPlateShotId, songFromTrackDraft } from "./musicVideoTrack";
 import { sortableId } from "./types";
 import { fileToSirayVideoDataUrl } from "./sirayScratchPlate";
 import { buildSirayI2vPrompt } from "./sirayI2v";
@@ -66,6 +74,145 @@ function stripInventedAudio(mp4Path: string) {
   }
 }
 
+async function resolveGrokPlatePath(
+  job: MobileGenJob,
+  fileName: string,
+): Promise<string | null> {
+  const name = fileName.trim();
+  if (!name || name === "__error__") return null;
+  const local = resolveGenOrPackPlate(name);
+  if (local) return local;
+  const folders = mobileCandidateFolders(job);
+  for (const folder of folders) {
+    const resolved = await resolveMobileMedia({
+      styleId: job.styleId,
+      folderName: folder,
+      kind: "plates",
+      fileName: name,
+      destPath: path.join(CRASH_DIR, "gen", name),
+    });
+    if (resolved) return resolved;
+  }
+  return cacheJobPlateFile({
+    styleId: job.styleId,
+    folders,
+    fileName: name,
+  });
+}
+
+function stubStoryShot(opts: {
+  shotId: string;
+  plateFile: string;
+  beat?: CrashStoryBeat;
+}): CrashStoryShot {
+  return {
+    id: opts.shotId,
+    title: "",
+    summary: "",
+    staging: "",
+    plateFile: opts.plateFile,
+    beats: opts.beat ? [opts.beat] : [],
+    sfx: [],
+  };
+}
+
+/**
+ * Music-video stills live on the story / TRACK hang, not Scratch
+ * `job.shots`. Extra hangs are `shotId~take`. Do not require a pad row.
+ */
+export function resolveGrokClipRefs(opts: {
+  job: MobileGenJob;
+  story: CrashStoryDoc;
+  shotId: string;
+  sceneId: string;
+  beatId: string;
+  plateFile?: string;
+}): {
+  hangId: string;
+  stillId: string;
+  sceneId: string;
+  plateFile: string;
+  storyShot: CrashStoryShot;
+  beat: CrashStoryBeat;
+} {
+  const hangId = (opts.shotId || "").trim();
+  const stillId = hangPlateShotId(hangId) || hangId;
+  const askedPlate = (opts.plateFile || "").trim();
+  const jobShot =
+    opts.job.shots.find((s) => s.shotId === stillId) ||
+    opts.job.shots.find((s) => s.shotId === hangId) ||
+    (askedPlate
+      ? opts.job.shots.find((s) => (s.plateFile || "").trim() === askedPlate)
+      : undefined);
+  const found = storyShotForSongCut({
+    story: opts.story,
+    jobShots: opts.job.shots,
+    cut: {
+      shotId: hangId || stillId,
+      plateFile: askedPlate || jobShot?.plateFile,
+    },
+  });
+  const scene =
+    opts.story.scenes.find((sc) => sc.id === (opts.sceneId || "").trim()) ||
+    opts.story.scenes.find((sc) => sc.id === found?.sceneId) ||
+    opts.story.scenes.find((sc) => sc.shots.some((sh) => sh.id === stillId));
+  let storyShot: CrashStoryShot | undefined =
+    found?.shot || scene?.shots.find((sh) => sh.id === stillId);
+  const plateFile = (
+    askedPlate ||
+    jobShot?.plateFile ||
+    storyShot?.plateFile ||
+    ""
+  ).trim();
+  if (plateFile === "__error__") {
+    throw new Error(
+      jobShot?.error
+        ? `Plate failed — ${jobShot.error}`
+        : "Plate failed — pick the face and the place first",
+    );
+  }
+  if (!plateFile) {
+    throw new Error("Add a plate image first — tap + on GROK.");
+  }
+  const song = songFromTrackDraft(opts.job.trackDraft, opts.job.scratchSong);
+  let beat: CrashStoryBeat | undefined | null =
+    storyShot?.beats.find((b) => b.id === opts.beatId) ||
+    beatForSongCut({
+      story: opts.story,
+      storyShot,
+      beatId: opts.beatId,
+      songFile: song?.fileName,
+    });
+  if (!beat && (isMusicVideoSongJob(opts.job) || (song?.fileName || "").trim())) {
+    beat = muteSongBeatStub({
+      beatId: opts.beatId,
+      songFile: song?.fileName,
+    });
+  }
+  if (!storyShot) {
+    storyShot = stubStoryShot({
+      shotId: stillId || jobShot?.shotId || "shot",
+      plateFile,
+      beat: beat || undefined,
+    });
+  }
+  if (!beat) {
+    throw new Error(
+      isMusicVideoSongJob(opts.job)
+        ? "That still is not ready. Draw it again, then Send."
+        : "That line is missing from the scratch plate",
+    );
+  }
+  return {
+    hangId: hangId || stillId,
+    stillId: stillId || storyShot.id,
+    sceneId: (opts.sceneId || found?.sceneId || scene?.id || jobShot?.sceneId || "").trim(),
+    plateFile,
+    storyShot,
+    beat,
+  };
+}
+
 async function markClipError(jobId: string, beatId: string, message: string): Promise<MobileGenJob> {
   const job = await readMobileGenJob(jobId);
   if (!job) throw new Error(message);
@@ -96,31 +243,15 @@ export async function submitScratchGrokClip(opts: {
   if (!grokVideoConfigured()) {
     throw new Error("Missing XAI_API_KEY — https://console.x.ai");
   }
-  const { story, shotId, sceneId, beatId } = opts;
+  const refs = resolveGrokClipRefs(opts);
+  const { storyShot, beat, plateFile } = refs;
+  const shotId = refs.hangId;
+  const sceneId = refs.sceneId;
+  const beatId = opts.beatId;
   let job = opts.job;
   const jobId = job.id;
-  const shot = job.shots.find((s) => s.shotId === shotId);
-  const scene = story.scenes.find((sc) => sc.id === sceneId);
-  const storyShot = scene?.shots.find((sh) => sh.id === shotId);
-  const beat = storyShot?.beats.find((b) => b.id === beatId);
-  if (!shot) throw new Error("Scratch plate is not on this job");
-  if (shot.plateFile === "__error__") {
-    throw new Error(shot.error ? `Plate failed — ${shot.error}` : "Plate failed — pick the face and the place first");
-  }
-  if (!shot.plateFile) throw new Error("Draw the still first");
-  if (!storyShot || !beat) throw new Error("That line is missing from the scratch plate");
 
-  const plateFile = (opts.plateFile || shot.plateFile || "").trim();
-  if (!plateFile) throw new Error("Add a plate image first — tap + on GROK.");
-  const platePath =
-    resolveGenOrPackPlate(plateFile) ||
-    (await resolveMobileMedia({
-      styleId: job.styleId,
-      folderName: job.folderName,
-      kind: "plates",
-      fileName: plateFile,
-      destPath: path.join(CRASH_DIR, "gen", plateFile),
-    }));
+  const platePath = await resolveGrokPlatePath(job, plateFile);
   if (!platePath) throw new Error("Plate file missing on disk");
 
   const voiceFile = (beat.voiceFile || "").trim();

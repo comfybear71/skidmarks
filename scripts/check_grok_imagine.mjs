@@ -8,9 +8,11 @@ import {
   composeGrokImagineMotion,
   grokImagineFoldSummary,
   grokImagineMotionLooksLike,
+  grokPlatesForShot,
   parseGrokImagineMode,
   snapGrokImagineDurationSec,
 } from "../src/lib/grokImagine.ts";
+import { resolveGrokClipRefs } from "../src/lib/grokScratchClip.ts";
 import { parseMuteMvEngine, resolveMvSendEngine } from "../src/lib/mobileImageMotion.ts";
 import { cookDurationFromHungBar } from "../src/lib/musicVideoTrack.ts";
 
@@ -64,5 +66,57 @@ const imageGen = readFileSync(join(root, "src/lib/imageGen.ts"), "utf8");
 assert(imageGen.includes("grok-imagine-image-2.0"), "2.0 model in imageGen");
 assert(imageGen.includes("export async function generateImagineImage"), "dedicated 2.0 helper");
 assert(imageGen.includes('model: "grok-imagine-image"'), "face/plate cooks stay on old model");
+
+const scratch = readFileSync(join(root, "src/lib/grokScratchClip.ts"), "utf8");
+assert(scratch.includes("hangPlateShotId"), "GROK strips extra hang ids");
+assert(scratch.includes("storyShotForSongCut"), "GROK uses story stills");
+assert(
+  !scratch.includes('throw new Error("Scratch plate is not on this job")'),
+  "GROK no longer requires a Scratch pad row",
+);
+assert(song.includes("cut.plateFile"), "song run passes the hung plate file");
+
+const holePlates = grokPlatesForShot(
+  { plateFile: "buddha.png", title: "MEDITATING BUDDHA FOREST", plateTakes: [] },
+  [{ fileName: "place.png", title: "Place still" }],
+);
+assert(holePlates[0]?.fileName === "buddha.png", "hole leads with this plate");
+assert(
+  holePlates.some((p) => p.fileName === "place.png"),
+  "hole also offers the place still",
+);
+
+const storyOnly = resolveGrokClipRefs({
+  job: {
+    id: "j",
+    styleId: "music_video",
+    folderName: "PACK",
+    shots: [],
+    clips: [],
+    scratchSong: { fileName: "song.mp3" },
+  },
+  story: {
+    scenes: [
+      {
+        id: "sc1",
+        shots: [
+          {
+            id: "shotA",
+            title: "BUD",
+            plateFile: "buddha.png",
+            beats: [{ id: "b1", speaker: "", text: "" }],
+            sfx: [],
+          },
+        ],
+      },
+    ],
+  },
+  shotId: "shotA~still2",
+  sceneId: "",
+  beatId: "song-cut",
+});
+assert(storyOnly.plateFile === "buddha.png", "story plate without job.shots");
+assert(storyOnly.stillId === "shotA", "extra hang strips to the still");
+assert(storyOnly.beat, "music-video beat is not required on the pad");
 
 console.log("check_grok_imagine: ok");
