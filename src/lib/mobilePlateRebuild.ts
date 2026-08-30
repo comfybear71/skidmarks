@@ -277,9 +277,11 @@ export async function landEpisodePlateStill(opts: {
     plateTakes,
   });
   await writeMobileStory(story, job.folderName);
-  const shots = job.shots.map((s) =>
-    s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
-  );
+  const shots = job.shots.some((s) => s.shotId === shotId)
+    ? job.shots.map((s) =>
+        s.shotId === shotId ? { ...s, plateFile: fileName, error: "" } : s,
+      )
+    : [...job.shots, { shotId, sceneId: scene.id, plateFile: fileName }];
   const updated = (await patchMobileGenJob(job.id, {
     shots,
     error: "",

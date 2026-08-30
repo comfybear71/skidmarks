@@ -85,6 +85,7 @@ import {
   type MuteMvEngine,
 } from "@/lib/mobileImageMotion";
 import { collectMinimaxH3LastStills, type MinimaxH3LastStill } from "@/lib/minimaxH3";
+import { grokPlatesForShot } from "@/lib/grokImagine";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 import { isEmptyStageStaging } from "@/lib/emptyStagePlate";
 import { talkNextShotTitle } from "@/lib/talkClipTimeline";
@@ -1134,6 +1135,12 @@ export function PlateReviewEditor({
             shots.find((s) => s.shotId === openShotId)
               ? placeStillUrl(job, shots.find((s) => s.shotId === openShotId)!.sceneId)
               : ""
+          }
+          placeFile={
+            locationStillFileName(
+              job.locationCandidates,
+              shots.find((s) => s.shotId === openShotId)?.sceneId || "",
+            ) || ""
           }
           jobPlated={Boolean(
             shots.find((s) => s.shotId === openShotId)?.plateFile &&
@@ -2336,6 +2343,7 @@ function ShotLineEditor({
   error,
   placeName,
   placeSrc,
+  placeFile,
   jobPlated,
   clipRemoveDisabled,
   onDismissClipError,
@@ -2370,6 +2378,7 @@ function ShotLineEditor({
   error: string;
   placeName?: string;
   placeSrc?: string;
+  placeFile?: string;
   jobPlated?: boolean;
   clipRemoveDisabled?: boolean;
   onDismissClipError?: (beatId: string) => void;
@@ -2580,6 +2589,14 @@ function ShotLineEditor({
             jobId={jobId}
             shotId={shot.id}
             h3LastStills={h3LastStills}
+            grokPlates={grokPlatesForShot(shot, [
+              ...(h3LastStills || []).map((s) => ({
+                fileName: s.fileName,
+                title: s.label,
+              })),
+              ...(siblingPlates || []),
+              ...(placeFile ? [{ fileName: placeFile, title: "Place still" }] : []),
+            ])}
             enginePromptOpen={
               styleId === "music_video" &&
               (enginePromptOpen || muteAction)
@@ -2710,7 +2727,10 @@ function ShotLineEditor({
                 <GrokImagineHole
                   jobId={jobId}
                   shotId={shot.id}
-                  plates={grokPlatesForShot(shot, siblingPlates)}
+                  plates={grokPlatesForShot(shot, [
+                    ...(siblingPlates || []),
+                    ...(placeFile ? [{ fileName: placeFile, title: "Place still" }] : []),
+                  ])}
                   onJobChange={onJobChange}
                   onImagine={onSendStill ? () => void onSendStill(shot.id) : undefined}
                 />
@@ -2908,24 +2928,6 @@ function PlateSendButton({
   );
 }
 
-function grokPlatesForShot(
-  shot: { plateFile?: string; plateTakes?: PlateTake[]; title?: string },
-  siblings?: { fileName?: string; title?: string }[],
-): { fileName: string; label: string }[] {
-  const out: { fileName: string; label: string }[] = [];
-  const seen = new Set<string>();
-  const add = (file?: string, label?: string) => {
-    const name = (file || "").trim();
-    if (!name || seen.has(name)) return;
-    seen.add(name);
-    out.push({ fileName: name, label: label || "Plate" });
-  };
-  add(shot.plateFile, shot.title || "This plate");
-  for (const take of shot.plateTakes || []) add(take.fileName, "Take");
-  for (const other of siblings || []) add(other.fileName, other.title || "Still");
-  return out;
-}
-
 /** Add | LTX | H3 | MATH | GROK | No lips | Hum | Send. MATH is noise. GROK is Imagine. */
 function PlateEngineButtons({
   jobId,
@@ -3111,6 +3113,7 @@ function BeatLineEditor({
   jobId,
   shotId,
   h3LastStills,
+  grokPlates,
   enginePromptOpen,
   mvEngine,
   jobVoices,
@@ -3136,6 +3139,7 @@ function BeatLineEditor({
   jobId: string;
   shotId: string;
   h3LastStills?: MinimaxH3LastStill[];
+  grokPlates?: { fileName: string; label: string }[];
   enginePromptOpen?: boolean;
   mvEngine?: MuteMvEngine;
   jobVoices?: Record<string, JobSpeakerVoice>;
@@ -3702,10 +3706,7 @@ function BeatLineEditor({
         <GrokImagineHole
           jobId={jobId}
           shotId={shotId}
-          plates={(h3LastStills || []).map((s) => ({
-            fileName: s.fileName,
-            label: s.label,
-          }))}
+          plates={grokPlates || []}
           disabled={saving}
           onJobChange={onJobChange}
           onImagine={onSendStill ? () => void onSendStill(shotId) : undefined}

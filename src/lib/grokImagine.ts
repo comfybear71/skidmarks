@@ -133,3 +133,34 @@ export function composeGrokImagineMotion(settings: GrokImagineSettings): string 
 export function grokImagineMotionLooksLike(text: string): boolean {
   return /^GROK Imagine/i.test((text || "").trim());
 }
+
+export type GrokImaginePlate = { fileName: string; label: string };
+
+/**
+ * Plates the GROK hole can send. Always include the still on this card
+ * (plateFile) — H3 last-stills skip it, which left the hole empty while
+ * the Buddha / place picture was already on screen.
+ */
+export function grokPlatesForShot(
+  shot?: {
+    plateFile?: string;
+    plateTakes?: { fileName?: string }[];
+    title?: string;
+  } | null,
+  extras?: { fileName?: string; title?: string; label?: string }[],
+): GrokImaginePlate[] {
+  const out: GrokImaginePlate[] = [];
+  const seen = new Set<string>();
+  const add = (file?: string, label?: string) => {
+    const name = (file || "").trim();
+    if (!name || name === "__error__" || seen.has(name)) return;
+    seen.add(name);
+    out.push({ fileName: name, label: (label || "").trim() || "Plate" });
+  };
+  add(shot?.plateFile, shot?.title || "This plate");
+  for (const take of shot?.plateTakes || []) add(take.fileName, "Take");
+  for (const extra of extras || []) {
+    add(extra.fileName, extra.label || extra.title || "Still");
+  }
+  return out;
+}
