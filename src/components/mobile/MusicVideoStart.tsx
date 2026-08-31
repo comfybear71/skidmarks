@@ -393,10 +393,10 @@ export function ScriptBox({
     <div className="m-mv-lyrics">
       <div className="m-mv-lyrics-note">
         {lines
-          ? `${lines} line${lines === 1 ? "" : "s"} · type who sings`
+          ? `${lines} line${lines === 1 ? "" : "s"} · [SOUL REBEL] or [CENTRE-LEFT]`
           : canFill
-            ? "from lyrics + marquee · type who sings"
-            : "who · start – stop"}
+            ? "from lyrics + marquee · one [name] per row"
+            : "[SOUL REBEL] · start – stop"}
         {saved ? " · saved" : saving ? " · saving…" : ""}
         {saveErr ? ` · ${saveErr}` : ""}
       </div>
@@ -417,7 +417,7 @@ export function ScriptBox({
         value={text}
         rows={8}
         spellCheck={false}
-        placeholder={"0:00–0:12  NAME\nwhat they do\n\n0:12–0:31  NAME\nthe line"}
+        placeholder={"0:00–0:12  [SOUL REBEL]\nwhat they do\n\n0:12–0:31  [CENTRE-LEFT]\nthe line"}
         onChange={(e) => update(e.target.value)}
         onBlur={() => {
           if (saveTimer.current) {

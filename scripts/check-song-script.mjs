@@ -6,9 +6,11 @@ import {
   buildSongScriptText,
   formatSongScript,
   mergeSongScriptWho,
+  oneSongScriptSinger,
   parseSongScript,
   songScriptBeatsFromLyricsAndMarquee,
   songScriptHasWho,
+  songScriptWhoTag,
   typicalSungMs,
 } from "../src/lib/songScript.ts";
 
@@ -83,21 +85,36 @@ assert.match(text, /^0:00–0:27\n/);
 assert.match(text, /0:27–0:31\nThe sun is shining bright/);
 assert.doesNotMatch(text, /  JACK/, "names are not invented");
 
-const named = parseSongScript(`0:27–0:31  JACK
+assert.equal(oneSongScriptSinger("[SOUL REBEL]"), "SOUL REBEL");
+assert.equal(oneSongScriptSinger("[SOUL REBEL] [CENTRE-LEFT]"), "SOUL REBEL");
+assert.equal(oneSongScriptSinger("[Verse 1]"), "", "sheet tags are not a singer");
+assert.equal(songScriptWhoTag("CENTRE-LEFT"), "[CENTRE-LEFT]");
+
+const named = parseSongScript(`0:27–0:31  [SOUL REBEL]
 The sun is shining bright
 
 0:31–0:35
 Everything is feeling right`);
-assert.equal(named[0]?.who, "JACK");
+assert.equal(named[0]?.who, "SOUL REBEL");
 assert.equal(named[1]?.who, "");
 assert.equal(named[0]?.kind, "sing");
-assert.equal(true, songScriptHasWho(`0:27–0:31  JACK\nThe sun is shining bright`));
+assert.equal(true, songScriptHasWho(`0:27–0:31  [SOUL REBEL]\nThe sun is shining bright`));
 assert.equal(false, songScriptHasWho(text));
+
+const two = parseSongScript(`0:27–0:31  [SOUL REBEL] [CENTRE-LEFT]
+The sun is shining bright`);
+assert.equal(two[0]?.who, "SOUL REBEL", "two names on one row keep the first");
+
+const stacked = parseSongScript(`0:27–0:31
+[CENTRE-LEFT]
+The sun is shining bright`);
+assert.equal(stacked[0]?.who, "CENTRE-LEFT");
+assert.equal(stacked[0]?.line, "The sun is shining bright");
 
 const merged = mergeSongScriptWho(beats, named);
 assert.equal(
   merged.find((b) => b.line === "The sun is shining bright")?.who,
-  "JACK",
+  "SOUL REBEL",
   "rebuild keeps the typed name",
 );
 
@@ -105,9 +122,9 @@ const rebuilt = buildSongScriptText({
   lyrics,
   lyricCues: cues,
   durationMs: 263_000,
-  previousText: `0:00–0:27  BAND\ndance / break — no singing`,
+  previousText: `0:00–0:27  [CENTRE-LEFT]\ndance / break — no singing`,
 });
-assert.match(rebuilt, /0:00–0:27  BAND/);
+assert.match(rebuilt, /0:00–0:27  \[CENTRE-LEFT\]/);
 assert.match(rebuilt, /I'm a soul rebel, moving with the tide/);
 assert.doesNotMatch(rebuilt, /\bH3\b/);
 assert.doesNotMatch(rebuilt, /\bMATH\b/);
@@ -120,7 +137,7 @@ assert.doesNotMatch(rebuilt, /three-quarter|over.shoulder/i);
   const track = readFileSync(new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url), "utf8");
   assert.match(ui, /Fill from marquee/);
   assert.match(ui, /buildSongScriptText/);
-  assert.match(ui, /type who sings/);
+  assert.match(ui, /\[SOUL REBEL\] or \[CENTRE-LEFT\]/);
   assert.match(ui, /Do not put H3 \/ MATH \/ GROK \/ camera \/ place here/);
   assert.match(track, /lyrics=\{job\.lyrics/);
   assert.match(track, /lyricCues=\{lyricCues\}/);

@@ -3,7 +3,8 @@
  *
  * Sung lines take the pin-to-pin window. A long gap is not more singing:
  * the line keeps a typical hold, the leftover is dance / break — no talking.
- * Who sings stays blank until it is typed on the row.
+ * Who sings stays blank until it is typed as [SOUL REBEL] or
+ * [CENTRE-LEFT] — one name, one plate. Two names on one row keep the first.
  *
  * This file only builds and reads the text. It does not cook, hang, or
  * Start directing.
@@ -39,6 +40,38 @@ export type SongScriptBeat = {
 };
 
 const BREAK_LINE = "dance / break — no singing";
+
+/** Sheet tags — not a singer. */
+const STRUCTURE_WHO =
+  /\b(verse|chorus|hook|intro|outro|bridge|instrumental|solo|break|interlude|percussion|guitar|bass|skank|drone|fade)\b/i;
+
+export function isSongScriptStructureTag(raw: string): boolean {
+  return STRUCTURE_WHO.test(String(raw || "").trim());
+}
+
+/**
+ * One singer from [SOUL REBEL] / [CENTRE-LEFT]. A second [name] on the
+ * same row is dropped — two faces on one plate has not worked.
+ */
+export function oneSongScriptSinger(raw: string): string {
+  const text = String(raw || "").trim();
+  if (!text) return "";
+  const tags = [...text.matchAll(/\[([^\]]+)\]/g)]
+    .map((m) => (m[1] || "").trim())
+    .filter((t) => t && !isSongScriptStructureTag(t));
+  if (tags.length) return tags[0]!;
+  const bare = text
+    .replace(/\[|\]/g, " ")
+    .split(/\s*(?:\/|&|,| and )\s*/i)[0]
+    ?.trim() || "";
+  if (!bare || isSongScriptStructureTag(bare)) return "";
+  return bare.replace(/\s+/g, " ");
+}
+
+export function songScriptWhoTag(who: string): string {
+  const name = oneSongScriptSinger(who);
+  return name ? `[${name}]` : "";
+}
 
 export function typicalSungMs(cues: LyricCue[]): number {
   const sorted = [...(cues || [])].sort((a, b) => a.atMs - b.atMs || a.lineIndex - b.lineIndex);
@@ -149,7 +182,8 @@ export function formatSongScript(beats: SongScriptBeat[]): string {
   return (beats || [])
     .map((b) => {
       const clock = `${formatTrackClock(b.startMs)}–${formatTrackClock(b.endMs)}`;
-      const head = b.who.trim() ? `${clock}  ${b.who.trim()}` : clock;
+      const tag = songScriptWhoTag(b.who);
+      const head = tag ? `${clock}  ${tag}` : clock;
       return `${head}\n${b.line}`;
     })
     .join("\n\n");
@@ -171,8 +205,15 @@ export function parseSongScript(text: string): SongScriptBeat[] {
     const startMs = parseTrackClock(hit[1]!);
     const endMs = parseTrackClock(hit[2]!);
     if (startMs == null || endMs == null) continue;
-    const who = (hit[3] || "").trim();
-    const body = lines.slice(1).join(" ").trim();
+    const headWho = oneSongScriptSinger(hit[3] || "");
+    const rest = lines.slice(1);
+    const onlyTag = rest[0]?.match(/^\[([^\]]+)\]$/);
+    const bodyWho = onlyTag && !isSongScriptStructureTag(onlyTag[1] || "")
+      ? (onlyTag[1] || "").trim()
+      : "";
+    const who = headWho || bodyWho;
+    const bodyLines = headWho || !bodyWho ? rest : rest.slice(1);
+    const body = bodyLines.join(" ").trim();
     const kind: SongScriptBeatKind = /no singing/i.test(body) || /dance\s*\/\s*break/i.test(body)
       ? "break"
       : "sing";
@@ -205,13 +246,13 @@ export function mergeSongScriptWho(
     const sameLine = prev.find(
       (p) => p.kind === beat.kind && p.who.trim() && normLine(p.line) === normLine(beat.line),
     );
-    if (sameLine) return { ...beat, who: sameLine.who.trim() };
+    if (sameLine) return { ...beat, who: oneSongScriptSinger(sameLine.who) };
     const overlap = prev.find((p) => {
       if (!p.who.trim()) return false;
       if (p.kind !== beat.kind) return false;
       return p.startMs < beat.endMs && p.endMs > beat.startMs;
     });
-    if (overlap) return { ...beat, who: overlap.who.trim() };
+    if (overlap) return { ...beat, who: oneSongScriptSinger(overlap.who) };
     return beat;
   });
 }
