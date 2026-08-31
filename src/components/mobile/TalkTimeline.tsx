@@ -15,6 +15,7 @@ import {
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   talkPlaceActsFrom,
+  talkActEmptyHint,
   talkActRoman,
   talkCellTakes,
   talkClipClock,
@@ -1071,7 +1072,7 @@ export function TalkTimeline({
         ) : (
           <p className="m-talk-empty">
             {openAct
-              ? `No clips on Act ${openAct.roman}${openAct.title ? ` · ${openAct.title}` : ""} yet.`
+              ? talkActEmptyHint(openAct)
               : "Tap an act to see its clips."}
           </p>
         )
