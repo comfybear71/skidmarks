@@ -15,6 +15,7 @@ import {
 import { readApiJson, studioFetchError } from "@/lib/studioFetchError";
 import {
   talkPlaceActsFrom,
+  talkActLandSceneId,
   talkActEmptyHint,
   talkActRoman,
   talkCellTakes,
@@ -675,7 +676,10 @@ export function TalkTimeline({
   const innerW = talkDeskInnerWidth(visibleCells);
   const selected =
     visibleCells.find((c) => c.key === pickedKey) || visibleCells[0] || null;
-  const actSceneId = openAct?.sceneId || "";
+  const landSceneId = talkActLandSceneId(openAct, job.scenes);
+  useEffect(() => {
+    if (landSceneId) setPickWhere(landSceneId);
+  }, [landSceneId]);
 
   async function addActPlace() {
     const name = addActName.trim();
@@ -711,13 +715,14 @@ export function TalkTimeline({
     }
   }
 
-  async function addSlot() {
-    const sceneId = pickWhere || actSceneId;
-    if (!pickWho || !sceneId || !job.folderName) return;
+  async function addSlot(whoRaw?: string) {
+    const who = (whoRaw || pickWho).trim();
+    const sceneId = landSceneId || pickWhere;
+    if (!who || !sceneId || !job.folderName) return;
     setDeskBusy("add");
     setDeskError("");
     try {
-      const title = talkNextShotTitle(cells, pickWho);
+      const title = talkNextShotTitle(cells, who);
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -725,7 +730,7 @@ export function TalkTimeline({
           jobId: job.id,
           action: "add",
           sceneId,
-          speaker: pickWho,
+          speaker: who,
           title,
           reuseScene: true,
         }),
@@ -734,13 +739,18 @@ export function TalkTimeline({
       if (data.job) onJobChange?.(data.job);
       setOpenActId(`place-${sceneId}`);
       setPickOpen(false);
-      setPickWho("");
-      setPickWhere("");
+      setPickWho(who);
+      setPickWhere(sceneId);
     } catch (e) {
       setDeskError(studioFetchError(e, "Couldn't add that slot"));
     } finally {
       setDeskBusy("");
     }
+  }
+
+  function openAddOrLand() {
+    setPickOpen((v) => !v);
+    if (landSceneId) setPickWhere(landSceneId);
   }
 
   async function removeSlot(cell: TalkClipCell) {
@@ -795,7 +805,10 @@ export function TalkTimeline({
             type="button"
             key={who.name}
             className={`m-plate-pick-cell${pickWho === who.name ? " is-on" : ""}`}
-            onClick={() => setPickWho(who.name)}
+            onClick={() => {
+              setPickWho(who.name);
+              if (landSceneId) void addSlot(who.name);
+            }}
           >
             {who.faceUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -807,6 +820,7 @@ export function TalkTimeline({
           </button>
         ))}
       </div>
+      {!landSceneId ? (
       <div className="m-plate-pick-row">
         {placeOptions.map((place) => (
           <button
@@ -825,10 +839,11 @@ export function TalkTimeline({
           </button>
         ))}
       </div>
+      ) : null}
       <div className="m-plate-pick-actions">
         <MobilePrimaryButton
           size="chip"
-          disabled={Boolean(deskBusy) || !pickWho || !(pickWhere || actSceneId) || !job.folderName}
+          disabled={Boolean(deskBusy) || !pickWho || !(landSceneId || pickWhere) || !job.folderName}
           onClick={() => void addSlot()}
         >
           {deskBusy === "add" ? "…" : `Add ${pickWho || "clip"}`}
@@ -846,10 +861,7 @@ export function TalkTimeline({
         size="chip"
         tone="ghost"
         disabled={Boolean(deskBusy) || !job.folderName}
-        onClick={() => {
-          setPickOpen((v) => !v);
-          if (!pickWhere && actSceneId) setPickWhere(actSceneId);
-        }}
+        onClick={() => openAddOrLand()}
       >
         {pickOpen ? "Hide add" : "+ Add clip"}
       </MobilePrimaryButton>
@@ -1058,10 +1070,7 @@ export function TalkTimeline({
                   aria-label="Add a talking clip"
                   aria-expanded={pickOpen}
                   disabled={Boolean(deskBusy) || !job.folderName}
-                  onClick={() => {
-                    setPickOpen((v) => !v);
-                    if (!pickWhere && actSceneId) setPickWhere(actSceneId);
-                  }}
+                  onClick={() => openAddOrLand()}
                 >
                   +
                 </button>

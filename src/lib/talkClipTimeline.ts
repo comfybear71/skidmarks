@@ -177,6 +177,21 @@ export function talkActRoman(n: number): string {
 }
 
 /**
+ * Where a new talking slot or plate goes: the open act's place.
+ * Not the last cook (BBQ after you tap Act IV · Alert).
+ * Skidmarks stage ids are not job scenes — those still pick a place.
+ */
+export function talkActLandSceneId(
+  act: Pick<TalkActScript, "sceneId"> | null | undefined,
+  scenes: Array<{ id?: string }> | null | undefined,
+): string {
+  const id = String(act?.sceneId || "").trim();
+  if (!id) return "";
+  if (!(scenes || []).some((s) => (s.id || "").trim() === id)) return "";
+  return id;
+}
+
+/**
  * + Act only mints an empty place chip. Clips already cooked stay on
  * the act of that plate's place. This is why Act IV · Alert shows 0
  * after Generate on a BBQ / Unit 9 still.
