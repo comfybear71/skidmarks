@@ -1006,7 +1006,6 @@ export function StudioTree({
   onDropCast,
   onDropLocation,
   onDropScript,
-  onAddAct,
   onStartMusicVideo,
   onGenerateVideo,
   onRetryError,
@@ -1074,7 +1073,6 @@ export function StudioTree({
   const [addPlateDoneFor, setAddPlateDoneFor] = useState<string | null>(null);
   const [focusPlateShotId, setFocusPlateShotId] = useState<string | null>(null);
   const [scriptDraft, setScriptDraft] = useState("");
-  const [actDraft, setActDraft] = useState("");
   const [plating, setPlating] = useState(false);
   const [plateGraphHint, setPlateGraphHint] = useState("");
   const [deskStory, setDeskStory] = useState<CrashStoryDoc | null>(null);
@@ -2062,37 +2060,7 @@ export function StudioTree({
         ) : null}
 
         {/* Music video has one UI, empty or full — the track above is it.
-            Only the other shows get the paste-a-script panel. */}
-        {platesOpen &&
-        job.folderName &&
-        onAddAct &&
-        canLockEpisode(job.phase) &&
-        !lockingScript &&
-        !isMusicVideoSongJob(job) ? (
-          <div style={{ marginBottom: "12px" }}>
-            <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
-              Paste only the next act. Place: must match that act chip (
-              {talkAct?.title || "BBQ shelter"}, or the place you named with + Act).
-              Act I stays. Do not paste the whole episode again.
-            </div>
-            <MobileTextInput
-              value={actDraft}
-              onChange={setActDraft}
-              placeholder={`--- SHOT 12 ---&#10;Place: ${talkAct?.title || "Alert"}`}
-              multiline
-              rows={10}
-            />
-            <div style={{ marginTop: "10px" }}>
-              <MobilePrimaryButton
-                disabled={busy || !actDraft.trim()}
-                onClick={() => onAddAct(actDraft)}
-              >
-                {busy ? "Adding…" : "Add this act"}
-              </MobilePrimaryButton>
-            </div>
-          </div>
-        ) : null}
-
+            Locked talking packs grow with + Act / + Add clip, not a paste box. */}
         {platesOpen && canWrite && !lockingScript && !job.folderName && !isMusicVideoSongJob(job) ? (
           <div style={{ marginBottom: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
