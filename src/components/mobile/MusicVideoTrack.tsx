@@ -2360,7 +2360,15 @@ export function MusicVideoTrack({
               ×
             </button>
           </div>
-          {scriptOpen ? <ScriptBox job={job} onJobChange={onJobChange} /> : null}
+          {scriptOpen ? (
+            <ScriptBox
+              job={job}
+              onJobChange={onJobChange}
+              lyrics={job.lyrics || ""}
+              lyricCues={lyricCues}
+              durationMs={effectiveDurationMs}
+            />
+          ) : null}
           {lyricsOpen ? <LyricsBox job={job} onJobChange={onJobChange} /> : null}
           {!compact && marqueeOpen ? (
             <LyricPinPanel

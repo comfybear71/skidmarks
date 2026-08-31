@@ -365,6 +365,8 @@ assert.ok(
   "Script is left of Lyrics",
 );
 assert.match(trackUi, /<ScriptBox/);
+assert.match(trackUi, /lyricCues=\{lyricCues\}/);
+assert.match(trackUi, /durationMs=\{effectiveDurationMs\}/);
 assert.match(trackUi, /Add section/);
 assert.match(trackUi, /Put stills on the song/);
 assert.doesNotMatch(trackUi, /Starts at/, "Starts at is not on the TRACK pick");
