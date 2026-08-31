@@ -20,14 +20,11 @@ import {
 
 export type ScriptGoEngine = "ltx" | "h3" | "grok";
 
-const SOLO_CAMERAS: readonly MusicVideoCameraKey[] = [
-  "tight-cu",
-  "mcu",
-  "medium",
-  "wide",
-  "ots",
-  "sitting",
-];
+/** Singing stays in the face. Wide / medium / sitting pulled Soul Rebel
+ * off his tight CAST still and the draw invented someone else. */
+const SING_CAMERAS: readonly MusicVideoCameraKey[] = ["tight-cu", "mcu"];
+/** Dance / break can turn a little. Never a distant full-body. */
+const BREAK_CAMERAS: readonly MusicVideoCameraKey[] = ["tight-cu", "mcu", "ots"];
 
 export type ScriptGoPlanItem = {
   startMs: number;
@@ -54,23 +51,33 @@ export function pickScriptGoEngine(beat: Pick<SongScriptBeat, "kind" | "startMs"
   return Math.floor(beat.startMs / 8000) % 2 === 0 ? "h3" : "grok";
 }
 
-export function pickScriptGoCamera(index: number): MusicVideoCameraKey {
-  return SOLO_CAMERAS[index % SOLO_CAMERAS.length]!;
+export function pickScriptGoCamera(
+  index: number,
+  kind: SongScriptBeat["kind"] = "sing",
+): MusicVideoCameraKey {
+  const list = kind === "break" ? BREAK_CAMERAS : SING_CAMERAS;
+  return list[index % list.length]!;
 }
 
 export function scriptGoStaging(opts: {
   who: string;
   placeName: string;
   cameraKey: MusicVideoCameraKey;
+  kind?: SongScriptBeat["kind"];
 }): string {
   const who = opts.who.trim() || "The character";
   const place = opts.placeName.trim() || "the place";
   const cam = MUSIC_VIDEO_CAMERAS[opts.cameraKey];
+  const sing = opts.kind !== "break";
   return [
     `${who} alone. Only ${who} in frame, no one else appears.`,
+    `Same person as the ${who} still. Same face, same sex, same beard or no beard as that still. Do not turn them into a different person.`,
     `At ${place}.`,
     cam,
-    "Empty hands. No phone. No extra objects. No instrument.",
+    sing
+      ? "Facing camera, mouth clear. Face fills the frame, huge and near the camera. Do not pull back. Not a distant full-body. Not over the shoulder. Not a wide of the place."
+      : "Face fills the frame, huge and near the camera. Do not pull back. Not a distant full-body. Not a wide of the place.",
+    "Empty hands. No phone. No extra objects. No saxophone. No trumpet.",
   ].join(" ");
 }
 
@@ -118,7 +125,7 @@ export function planScriptGo(opts: {
       who,
       line: beat.line,
       sceneIndex: out.length % scenes,
-      cameraKey: pickScriptGoCamera(out.length),
+      cameraKey: pickScriptGoCamera(out.length, beat.kind),
       engine: pickScriptGoEngine(beat),
     });
   }

@@ -153,6 +153,12 @@ export function ltxSendPrompt(
 export function isInstrumentalStaging(staging: string): boolean {
   const t = (staging || "").toLowerCase();
   if (!t) return false;
+  // "Empty hands. No instrument." is the singer lock, not a horn plate.
+  // Matching the word instrument here skipped the lip-sync lead on Soul Rebel.
+  if (/\bempty hands\b/.test(t) && /\bno (?:sax(?:ophone)?|trumpet|instrument)\b/.test(t)) {
+    return false;
+  }
+  if (/\bno instrument\b/.test(t) && !/\bplay(?:s|ing)?\b/.test(t)) return false;
   return (
     /\b(sax(?:ophone)?|trumpet|trombone|clarinet|flute|guitar|bass|drum(?:s|mer)?|keyboard|piano|violin|cello|harmonica|instrument(?:al)?)\b/.test(
       t,
