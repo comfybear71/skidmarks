@@ -1205,6 +1205,17 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, alreadyRunning: true, job });
       }
       const origin = new URL(req.url).origin;
+      // The browser attaches its session cookie to every request it makes
+      // automatically; a server calling its own API back from inside
+      // after() gets no such thing for free, and every one of those calls
+      // sits behind the same studio-login gate (proxy.ts) as a real client
+      // request — without forwarding it, the very first internal call
+      // (script-fresh) 401s immediately and the whole run dies on step one,
+      // every time. Capturing it once here and reusing it for the run's
+      // whole lifetime is exactly right for the "survives a refresh" goal:
+      // it is a bearer credential, not a live connection to this tab.
+      const cookie = req.headers.get("cookie") || "";
+      const internalHeaders = cookie ? { Cookie: cookie } : undefined;
       const claimed = await patchMobileGenJob(jobId, {
         scriptGoUntil: new Date(Date.now() + 14 * 60 * 1000).toISOString(),
         scriptGoNote: "Starting…",
@@ -1226,6 +1237,7 @@ export async function POST(req: Request) {
           await runScriptGo({
             jobId,
             baseUrl: origin,
+            headers: internalHeaders,
             cancelled: () => stopped,
             onNote: (msg) => {
               void patchMobileGenJob(jobId, { scriptGoNote: msg }).catch(() => {});

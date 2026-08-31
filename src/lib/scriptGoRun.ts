@@ -62,10 +62,11 @@ export async function scriptGoJson(
   path: string,
   body: Record<string, unknown>,
   baseUrl = "",
+  headers?: Record<string, string>,
 ): Promise<JsonBag> {
   const res = await fetch(`${baseUrl}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
     cache: "no-store",
   });
@@ -82,6 +83,7 @@ async function drawStill(opts: {
   staging: string;
   baseUrl: string;
   cancelled?: () => boolean;
+  headers?: Record<string, string>;
 }): Promise<JsonBag> {
   const start = await scriptGoJson(
     "/api/crash/mobile/plate",
@@ -93,6 +95,7 @@ async function drawStill(opts: {
       summary: opts.staging,
     },
     opts.baseUrl,
+    opts.headers,
   );
   if (!start.pending) return start;
   for (let i = 0; i < 90; i++) {
@@ -102,6 +105,7 @@ async function drawStill(opts: {
       "/api/crash/mobile/plate",
       { jobId: opts.jobId, shotId: opts.shotId, action: "draw-poll" },
       opts.baseUrl,
+      opts.headers,
     );
     if (!poll.pending) return poll;
   }
@@ -115,6 +119,7 @@ async function pollClip(opts: {
   shotId: string;
   baseUrl: string;
   cancelled?: () => boolean;
+  headers?: Record<string, string>;
 }): Promise<JsonBag> {
   let last: JsonBag = {};
   for (let i = 0; i < 80; i++) {
@@ -129,6 +134,7 @@ async function pollClip(opts: {
         shotId: opts.shotId,
       },
       opts.baseUrl,
+      opts.headers,
     );
     if (!last.pending) return last;
     await sleep(2500);
@@ -146,9 +152,19 @@ export async function runScriptGo(opts: {
   onJob?: (job: MobileGenJob) => void;
   onNote?: (msg: string) => void;
   cancelled?: () => boolean;
+  /**
+   * A session cookie header to attach to every internal call. The browser
+   * attaches its own cookie automatically, so this only matters when
+   * runScriptGo is driven server-side (script-go-background) — a server's
+   * own fetch back to its API carries no cookie on its own, and every one
+   * of those calls goes through the same studio-login gate as a real
+   * client request, so without this every call 401s immediately.
+   */
+  headers?: Record<string, string>;
 }): Promise<MobileGenJob | null> {
   const baseUrl = (opts.baseUrl || "").replace(/\/$/, "");
   const jobId = opts.jobId.trim();
+  const headers = opts.headers;
   let live: MobileGenJob | null = null;
   const note = (msg: string) => opts.onNote?.(msg);
   const take = (job?: MobileGenJob) => {
@@ -162,6 +178,7 @@ export async function runScriptGo(opts: {
     "/api/crash/mobile/song",
     { action: SCRIPT_GO_FRESH, jobId },
     baseUrl,
+    headers,
   );
   take(fresh.job);
   if (opts.cancelled?.()) return live;
@@ -171,6 +188,7 @@ export async function runScriptGo(opts: {
     "/api/crash/mobile/song",
     { action: SCRIPT_GO_BLADE, jobId },
     baseUrl,
+    headers,
   );
   take(blade.job);
   const items = blade.items || [];
@@ -192,6 +210,7 @@ export async function runScriptGo(opts: {
       staging: item.staging,
       baseUrl,
       cancelled: opts.cancelled,
+      headers,
     });
     take(drawn.job);
     if (opts.cancelled?.()) return live;
@@ -207,6 +226,7 @@ export async function runScriptGo(opts: {
         sortIndex: i,
       },
       baseUrl,
+      headers,
     );
     take(hung.job);
     const cut = cutForPlate(hung.job || live || undefined, item.shotId);
@@ -247,6 +267,7 @@ export async function runScriptGo(opts: {
           ...(mute || pick !== "ltx" ? { mute: true } : {}),
         },
         baseUrl,
+        headers,
       );
 
     try {
@@ -260,6 +281,7 @@ export async function runScriptGo(opts: {
           shotId: item.shotId,
           baseUrl,
           cancelled: opts.cancelled,
+          headers,
         });
         take(polled.job);
       }
@@ -278,6 +300,7 @@ export async function runScriptGo(opts: {
             shotId: item.shotId,
             baseUrl,
             cancelled: opts.cancelled,
+            headers,
           });
           take(polled.job);
         }
