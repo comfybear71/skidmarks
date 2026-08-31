@@ -19,8 +19,9 @@ import {
   type PendingSong,
 } from "@/lib/musicVideoStart";
 import { buildSongScriptText } from "@/lib/songScript";
-import type { LyricCue } from "@/lib/musicVideoTrack";
+import { formatTrackClock, type LyricCue } from "@/lib/musicVideoTrack";
 import { runScriptGo } from "@/lib/scriptGoRun";
+import type { ListenReport } from "@/lib/songVocalListen";
 
 /**
  * The parked mp3, as React state. Every panel that asks "do we have a song
@@ -208,6 +209,31 @@ async function saveSongScript(jobId: string, songScript: string): Promise<Mobile
 }
 
 /**
+ * Read-only. Runs ffmpeg silencedetect on the real mp3 and reports the drift
+ * between each lyric pin and the nearest real sound. No cook, no rewrite —
+ * see songVocalListen.ts for what this can and cannot tell you.
+ */
+async function listenToSong(jobId: string): Promise<ListenReport> {
+  const res = await fetch("/api/crash/mobile/song", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "listen", jobId }),
+  });
+  const data = await readApiJson<{ report?: ListenReport; error?: string }>(res);
+  if (!res.ok || !data.report) {
+    throw new Error(data.error?.trim() || `Couldn't listen (${res.status})`);
+  }
+  return data.report;
+}
+
+function formatListenDrift(ms: number | null): string {
+  if (ms === null) return "no sound found";
+  const sec = ms / 1000;
+  if (Math.abs(sec) < 0.05) return "±0.0s";
+  return `${sec > 0 ? "+" : ""}${sec.toFixed(1)}s`;
+}
+
+/**
  * Lyrics box. Shared by the start panel and the song desk so the words stay
  * reachable after Lock. Closed unless there is already something in it.
  */
@@ -316,6 +342,9 @@ export function ScriptBox({
   const [dirty, setDirty] = useState(false);
   const [going, setGoing] = useState(false);
   const [goNote, setGoNote] = useState("");
+  const [listening, setListening] = useState(false);
+  const [listenErr, setListenErr] = useState("");
+  const [listenReport, setListenReport] = useState<ListenReport | null>(null);
   const stopGo = useRef(false);
   const autoFilled = useRef("");
   const lines = lyricLineCount(text);
@@ -423,6 +452,20 @@ export function ScriptBox({
     }
   }
 
+  async function runListen() {
+    if (listening) return;
+    setListening(true);
+    setListenErr("");
+    try {
+      const report = await listenToSong(job.id);
+      setListenReport(report);
+    } catch (e) {
+      setListenErr(studioFetchError(e, "Couldn't listen to the song"));
+    } finally {
+      setListening(false);
+    }
+  }
+
   return (
     <div className="m-mv-lyrics">
       <div className="m-mv-lyrics-note">
@@ -475,6 +518,15 @@ export function ScriptBox({
             Stop
           </button>
         ) : null}
+        <button
+          type="button"
+          className="m-track-btn"
+          disabled={listening}
+          title="Read-only: runs ffmpeg on the mp3 and compares real sound to the pins. No cook, no rewrite."
+          onClick={() => void runListen()}
+        >
+          {listening ? "Listening…" : "Listen"}
+        </button>
       </div>
       <textarea
         className="m-mv-lyrics-input"
@@ -484,6 +536,37 @@ export function ScriptBox({
         placeholder={"0:00–0:12  [SOUL REBEL]\nwhat they do\n\n0:12–0:31  [CENTRE-LEFT]\nthe line"}
         onChange={(e) => update(e.target.value)}
       />
+      {listenErr ? <p className="m-mv-listen-err">{listenErr}</p> : null}
+      {listenReport ? (
+        <div className="m-mv-listen">
+          <p className="m-mv-listen-note">
+            Pin clock vs. real sound on the mp3 — amplitude-based, not a vocal detector. A pin
+            marked &ldquo;in silence&rdquo; likely landed wrong.
+          </p>
+          <div className="m-mv-listen-rows">
+            {listenReport.pinDrift.map((row) => (
+              <div key={row.lineIndex} className="m-mv-listen-row">
+                <span className="m-mv-listen-pin">
+                  #{row.lineIndex + 1} {formatTrackClock(row.pinAtMs)}
+                </span>
+                <span className={row.pinInSilence ? "m-mv-listen-bad" : "m-mv-listen-drift"}>
+                  {row.pinInSilence ? "in silence" : formatListenDrift(row.driftMs)}
+                </span>
+                {row.line ? <span className="m-mv-listen-line">{row.line}</span> : null}
+              </div>
+            ))}
+          </div>
+          {listenReport.longQuietStretches.length ? (
+            <p className="m-mv-listen-note">
+              Long quiet stretches (candidate instrumental —{" "}
+              {listenReport.longQuietStretches
+                .map((s) => `${formatTrackClock(s.startMs)}–${formatTrackClock(s.endMs)}`)
+                .join(", ")}
+              )
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

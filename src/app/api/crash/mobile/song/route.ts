@@ -1,3 +1,4 @@
+import path from "path";
 import { NextResponse } from "next/server";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { appendPlacePlate } from "@/lib/mobilePlateGraph";
@@ -92,6 +93,16 @@ import { parseSongSlicePerformance } from "@/lib/mobileImageMotion";
 import { findStoryShot, isSupportShot } from "@/lib/stockFootage";
 import { writeScratchCookProgress } from "@/lib/scratchCookStore";
 import { resolveStartPlateForNextClip } from "@/lib/clipTailFrame";
+import { resolveMobileBeatAudio } from "@/lib/resolveMobileBeatAudio";
+import { resolveMobileMedia, resolveMobileMediaByFilename } from "@/lib/mobileMediaStore";
+import { mobileCandidateFolders, mobileMediaFolder } from "@/lib/mobileJobFolder";
+import { storyDialogueDir } from "@/lib/crashStoryLocations";
+import { isSafeMediaName } from "@/lib/cloudMedia";
+import { probeSongDurationSec } from "@/lib/scratchSongSlice";
+import { detectSilenceWindows } from "@/lib/audioSilenceDetect";
+import { buildListenReport } from "@/lib/songVocalListen";
+import { parseSongScript } from "@/lib/songScript";
+import type { ShowStyleId } from "@/lib/showStylePresets";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -124,6 +135,9 @@ export const maxDuration = 900;
  *   set-row-slices — −/+ on a list row; rebuilds the cut times.
  *   skip-plate — take one list row off. Plate card stays.
  *   List edits clear stuck cooks first — a hung LTX must not lock Add forever.
+ *   listen — read-only. Runs ffmpeg silencedetect on the real mp3 and reports
+ *     the drift in ms between each lyric pin and the nearest real sound.
+ *     No cook, no hang, no write to pins/Script/Script Go.
  */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -1097,6 +1111,84 @@ export async function POST(req: Request) {
       const songScript = String((body as { songScript?: string }).songScript ?? "");
       const updated = await patchMobileGenJob(jobId, { songScript, error: "" });
       return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (action === "listen") {
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop the song first." }, { status: 400 });
+      }
+      const fileName = song.fileName;
+      if (!isSafeMediaName(fileName)) {
+        return NextResponse.json({ error: "Song file name looks unsafe." }, { status: 400 });
+      }
+
+      let localPath: string | null = null;
+      const explicitBeat = (job.scratchSong?.carrierBeatId || "").trim();
+      let beatId = explicitBeat;
+      if (!beatId && isMusicVideoSongJob(job)) {
+        beatId = findSongCarrierBeatId(story, fileName, job.shots[0]?.shotId);
+      }
+      if (beatId) {
+        localPath = await resolveMobileBeatAudio({
+          styleId: job.styleId,
+          folderName: job.folderName,
+          folderCandidates: mobileCandidateFolders(job),
+          beatId,
+          voiceFile: fileName,
+        });
+      }
+      if (!localPath) {
+        const destPath = path.join(storyDialogueDir(job.styleId as ShowStyleId), fileName);
+        localPath =
+          (await resolveMobileMedia({
+            styleId: job.styleId,
+            folderName: mobileMediaFolder(job),
+            kind: "audio",
+            fileName,
+            destPath,
+          })) ||
+          (await resolveMobileMediaByFilename({ kind: "audio", fileName, destPath }));
+      }
+      if (!localPath) {
+        return NextResponse.json({ error: "Couldn't find the song file to listen to." }, { status: 404 });
+      }
+
+      const durationMs = Math.round(
+        (song.durationSec > 0 ? song.durationSec : probeSongDurationSec(localPath) || 0) * 1000,
+      );
+      if (!(durationMs > 0)) {
+        return NextResponse.json({ error: "Couldn't read the song's duration." }, { status: 400 });
+      }
+
+      let silence: { silences: import("@/lib/songVocalListen").SilenceWindow[]; raw: string };
+      try {
+        silence = detectSilenceWindows(localPath, { durationMs });
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "Listen failed." },
+          { status: 500 },
+        );
+      }
+
+      const report = buildListenReport({
+        songDurationMs: durationMs,
+        silences: silence.silences,
+        cues: song.lyricCues || [],
+      });
+
+      // Best-effort: attach the sung line's words when Script has already
+      // named this pin's time. Read-only — nothing is written back.
+      const scriptBeats = parseSongScript(job.songScript || "");
+      const textByStartMs = new Map(
+        scriptBeats.filter((b) => b.kind === "sing").map((b) => [b.startMs, b.line]),
+      );
+      const pinDrift = report.pinDrift.map((row) => ({
+        ...row,
+        line: textByStartMs.get(row.pinAtMs) || "",
+      }));
+
+      return NextResponse.json({ ok: true, report: { ...report, pinDrift } });
     }
 
     if (action === "script-fresh") {
