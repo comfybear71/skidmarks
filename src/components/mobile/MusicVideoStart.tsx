@@ -360,6 +360,7 @@ export function ScriptBox({
       durationMs: durationMs || 0,
       previousText,
       listen: listenReport ? { soundWindows: listenReport.soundWindows } : undefined,
+      speakers: job.speakers,
     });
   }
 

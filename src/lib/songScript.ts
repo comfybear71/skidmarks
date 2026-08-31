@@ -28,6 +28,7 @@ import {
   parseTrackClock,
   type LyricCue,
   type LyricTag,
+  type TrackSectionLabel,
 } from "./musicVideoTrack";
 import {
   isInSilence,
@@ -160,11 +161,44 @@ function pushBeat(
   endMs: number,
   kind: SongScriptBeatKind,
   line: string,
+  who = "",
 ): void {
   const start = Math.max(0, Math.round(startMs));
   const end = Math.max(start, Math.round(endMs));
   if (end <= start) return;
-  out.push({ startMs: start, endMs: end, kind, line, who: "" });
+  out.push({ startMs: start, endMs: end, kind, line, who });
+}
+
+/** The section a lyric line sits under — the last [tag] at or before it. */
+function sectionLabelAtLine(tags: LyricTag[], lineIndex: number): TrackSectionLabel | "" {
+  let found: TrackSectionLabel | "" = "";
+  for (const t of tags) {
+    if (t.lineIndex <= lineIndex) found = t.label;
+  }
+  return found;
+}
+
+/**
+ * With exactly one or two named speakers, who sings a line is no longer a
+ * guess: [Verse]/[Bridge]/[Intro]/[Outro]/untagged rows are the one singer
+ * (or the lead, when there are two), and [Chorus] rows alternate — backing
+ * leads the chorus, same convention revolveChorusBeats already expects.
+ * Three or more speakers stays blank; there is no sheet convention that
+ * says which of three names takes a given verse.
+ */
+function autoWhoFor(opts: {
+  speakers: string[];
+  label: TrackSectionLabel | "";
+  chorusIndex: number;
+}): string {
+  const speakers = (opts.speakers || []).map((s) => s.trim()).filter(Boolean);
+  if (speakers.length < 1 || speakers.length > 2) return "";
+  const lead = speakers[0]!;
+  const backing = speakers[1] || lead;
+  if (opts.label === "chorus" && speakers.length === 2) {
+    return opts.chorusIndex % 2 === 0 ? backing : lead;
+  }
+  return lead;
 }
 
 /**
@@ -177,6 +211,9 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
   durationMs: number;
   /** From Listen (Pass 1). Omit to get the old pin-only behavior exactly. */
   listen?: SongScriptListenInput;
+  /** One or two names auto-tags verse/chorus by section. Omit or three-plus
+   * names leaves who blank, same as before. */
+  speakers?: string[];
 }): SongScriptBeat[] {
   const lyrics = String(opts.lyrics || "");
   const sung = lyricLinesFrom(lyrics);
@@ -194,7 +231,10 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
   const tags = lyricTagsFrom(lyrics);
   const typical = typicalSungMs(cues);
   const longQuiet = opts.listen ? longQuietStretches(silenceWindowsFrom(opts.listen.soundWindows)) : [];
+  const speakers = opts.speakers || [];
   const out: SongScriptBeat[] = [];
+  const breakWho = autoWhoFor({ speakers, label: "", chorusIndex: 0 });
+  let chorusIndex = 0;
 
   const firstAt = cues[0]!.atMs;
   if (firstAt >= SONG_SCRIPT_MIN_BREAK_MS) {
@@ -204,6 +244,7 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
       firstAt,
       "break",
       breakLineFromTags(tagsBetweenLines(tags, -1, cues[0]!.lineIndex)),
+      breakWho,
     );
   }
 
@@ -214,9 +255,13 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
     const nextAt = next ? next.atMs : songMs;
     const gap = Math.max(0, nextAt - cue.atMs);
     const words = line.text;
+    const label = sectionLabelAtLine(tags, cue.lineIndex);
+    if (label !== "chorus") chorusIndex = 0;
+    const sungWho = autoWhoFor({ speakers, label, chorusIndex });
+    if (label === "chorus") chorusIndex += 1;
 
     if (gap <= SONG_SCRIPT_MAX_SUNG_MS) {
-      pushBeat(out, cue.atMs, nextAt, "sing", words);
+      pushBeat(out, cue.atMs, nextAt, "sing", words, sungWho);
       continue;
     }
 
@@ -228,20 +273,34 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
     const realQuiet = longQuiet.find((q) => q.startMs > cue.atMs && q.startMs < nextAt);
     if (realQuiet) {
       const sungEnd = Math.max(cue.atMs, realQuiet.startMs);
-      pushBeat(out, cue.atMs, sungEnd, "sing", words);
-      pushBeat(out, sungEnd, nextAt, "break", breakLineFromTags(tagsBetweenLines(tags, afterLine, beforeLine)));
+      pushBeat(out, cue.atMs, sungEnd, "sing", words, sungWho);
+      pushBeat(
+        out,
+        sungEnd,
+        nextAt,
+        "break",
+        breakLineFromTags(tagsBetweenLines(tags, afterLine, beforeLine)),
+        breakWho,
+      );
       continue;
     }
 
     const sungEnd = Math.min(nextAt, cue.atMs + typical);
     const leftover = nextAt - sungEnd;
     if (leftover < SONG_SCRIPT_MIN_BREAK_MS) {
-      pushBeat(out, cue.atMs, nextAt, "sing", words);
+      pushBeat(out, cue.atMs, nextAt, "sing", words, sungWho);
       continue;
     }
 
-    pushBeat(out, cue.atMs, sungEnd, "sing", words);
-    pushBeat(out, sungEnd, nextAt, "break", breakLineFromTags(tagsBetweenLines(tags, afterLine, beforeLine)));
+    pushBeat(out, cue.atMs, sungEnd, "sing", words, sungWho);
+    pushBeat(
+      out,
+      sungEnd,
+      nextAt,
+      "break",
+      breakLineFromTags(tagsBetweenLines(tags, afterLine, beforeLine)),
+      breakWho,
+    );
   }
 
   return out;
@@ -367,6 +426,7 @@ export function buildSongScriptText(opts: {
   durationMs: number;
   previousText?: string;
   listen?: SongScriptListenInput;
+  speakers?: string[];
 }): string {
   const built = songScriptBeatsFromLyricsAndMarquee(opts);
   const previous = parseSongScript(opts.previousText || "");

@@ -259,6 +259,119 @@ Everything is feeling right`;
 
 console.log("check-song-script: mergeAdjacentSameWho ok");
 
+// --- Auto-who: one or two named speakers means nobody has to type [NAME] ---
+
+{
+  // Every sung/break beat here sits under [Verse 1] — one speaker means
+  // there is no ambiguity, so it is filled in without being asked.
+  const oneSpeaker = songScriptBeatsFromLyricsAndMarquee({
+    lyrics,
+    lyricCues: cues,
+    durationMs: 263_000,
+    speakers: ["SOUL REBEL"],
+  });
+  assert.ok(oneSpeaker.length, "still builds beats");
+  assert.ok(
+    oneSpeaker.every((b) => b.who === "SOUL REBEL"),
+    "one named speaker auto-fills every beat, sung and break alike",
+  );
+
+  const twoSpeakers = songScriptBeatsFromLyricsAndMarquee({
+    lyrics,
+    lyricCues: cues,
+    durationMs: 263_000,
+    speakers: ["SOUL REBEL", "CENTRE-LEFT"],
+  });
+  assert.ok(
+    twoSpeakers.every((b) => b.who === "SOUL REBEL"),
+    "verse/break rows default to the lead when there are two speakers",
+  );
+
+  const threeSpeakers = songScriptBeatsFromLyricsAndMarquee({
+    lyrics,
+    lyricCues: cues,
+    durationMs: 263_000,
+    speakers: ["SOUL REBEL", "CENTRE-LEFT", "THIRD"],
+  });
+  assert.ok(
+    threeSpeakers.every((b) => b.who === ""),
+    "three-plus speakers is genuinely ambiguous — who stays blank, same as before",
+  );
+
+  const noSpeakers = songScriptBeatsFromLyricsAndMarquee({
+    lyrics,
+    lyricCues: cues,
+    durationMs: 263_000,
+  });
+  assert.deepEqual(noSpeakers, beats, "omitting speakers reproduces the old blank-who beats exactly");
+}
+
+{
+  // A [Chorus] section with two speakers alternates per row — backing leads
+  // the chorus, same convention revolveChorusBeats already expects.
+  const chorusLyrics = [
+    "[Verse 1]",
+    "verse line one",
+    "[Chorus]",
+    "chorus line one",
+    "chorus line two",
+    "chorus line three",
+    "chorus line four",
+  ].join("\n");
+  const chorusCues = [
+    { lineIndex: 1, atMs: 0 },
+    { lineIndex: 3, atMs: 4_000 },
+    { lineIndex: 4, atMs: 8_000 },
+    { lineIndex: 5, atMs: 12_000 },
+    { lineIndex: 6, atMs: 16_000 },
+  ];
+  const chorusBeats = songScriptBeatsFromLyricsAndMarquee({
+    lyrics: chorusLyrics,
+    lyricCues: chorusCues,
+    durationMs: 20_000,
+    speakers: ["SOUL REBEL", "CENTRE-LEFT"],
+  });
+  const sung = chorusBeats.filter((b) => b.kind === "sing");
+  assert.deepEqual(
+    sung.map((b) => [b.line, b.who]),
+    [
+      ["verse line one", "SOUL REBEL"],
+      ["chorus line one", "CENTRE-LEFT"],
+      ["chorus line two", "SOUL REBEL"],
+      ["chorus line three", "CENTRE-LEFT"],
+      ["chorus line four", "SOUL REBEL"],
+    ],
+    "verse stays lead; chorus alternates starting with backing",
+  );
+}
+
+{
+  // A hand-typed name still wins over the auto default on a rebuild — the
+  // operator correcting the sheet is never silently overwritten.
+  const previousText = `0:27–0:31  [CENTRE-LEFT]
+The sun is shining bright`;
+  const rebuilt = buildSongScriptText({
+    lyrics,
+    lyricCues: cues,
+    durationMs: 263_000,
+    previousText,
+    speakers: ["SOUL REBEL", "CENTRE-LEFT"],
+  });
+  const parsed = parseSongScript(rebuilt);
+  assert.equal(
+    parsed.find((b) => b.line === "The sun is shining bright")?.who,
+    "CENTRE-LEFT",
+    "typed override beats the auto-filled lead",
+  );
+  assert.equal(
+    parsed.find((b) => b.line === "Everything is feeling right")?.who,
+    "SOUL REBEL",
+    "untouched rows still get the auto default",
+  );
+}
+
+console.log("check-song-script: auto-who from section tags ok");
+
 {
   const ui = readFileSync(new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url), "utf8");
   const track = readFileSync(new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url), "utf8");
