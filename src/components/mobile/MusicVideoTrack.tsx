@@ -112,7 +112,7 @@ import { clampHangLengthSec } from "@/lib/scratchSongWindow";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 import { ClipFrameThumb } from "./ClipFrameThumb";
 import { DeskFold, MobilePrimaryButton } from "./MobileUi";
-import { LyricsBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
+import { LyricsBox, ScriptBox, SongDropRow, SongPlayer, usePendingSong } from "./MusicVideoStart";
 import { PlateLenSlider } from "./PlateLenSlider";
 
 import {
@@ -912,6 +912,7 @@ export function MusicVideoTrack({
   const [audioDurationMs, setAudioDurationMs] = useState(0);
   const [markerLabel, setMarkerLabel] = useState<TrackSectionLabel>("verse");
   const [lyricsOpen, setLyricsOpen] = useState(() => lyricsPanelOpensAt(job.lyrics || ""));
+  const [scriptOpen, setScriptOpen] = useState(() => lyricsPanelOpensAt(job.songScript || ""));
   const [marqueeOpen, setMarqueeOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [pickedId, setPickedId] = useState("");
@@ -2300,20 +2301,38 @@ export function MusicVideoTrack({
           title row, player slot, wave, sections and plates are always here —
           they just have nothing in them until a song lands. */}
       <>
-          {/* Title line owns the card: name left, Lyrics and drop right.
-              Lyrics stay shut — that box is for entering them, not reading. */}
-          <div className="m-track-song-top">
+          {/* Title on its own line. Script / Lyrics / Marquee under it. */}
+          <div className="m-track-song-head">
             <span className="m-track-song-name">
               {musicVideoCreditLine(job) ||
                 songChipName(song?.fileName || job.trackDraft?.songFile || parked?.file.name || "")}
             </span>
+          </div>
+          <div className="m-track-song-top">
+            <button
+              type="button"
+              className={`m-mv-lyr-toggle${scriptOpen ? " is-open" : ""}`}
+              aria-expanded={scriptOpen}
+              onClick={() => {
+                setScriptOpen((v) => !v);
+                if (!scriptOpen) {
+                  setLyricsOpen(false);
+                  setMarqueeOpen(false);
+                }
+              }}
+            >
+              Script <span className="m-mv-lyr-caret">{scriptOpen ? "▾" : "▸"}</span>
+            </button>
             <button
               type="button"
               className={`m-mv-lyr-toggle${lyricsOpen ? " is-open" : ""}`}
               aria-expanded={lyricsOpen}
               onClick={() => {
                 setLyricsOpen((v) => !v);
-                if (!lyricsOpen) setMarqueeOpen(false);
+                if (!lyricsOpen) {
+                  setScriptOpen(false);
+                  setMarqueeOpen(false);
+                }
               }}
             >
               Lyrics <span className="m-mv-lyr-caret">{lyricsOpen ? "▾" : "▸"}</span>
@@ -2324,7 +2343,10 @@ export function MusicVideoTrack({
               aria-expanded={marqueeOpen}
               onClick={() => {
                 setMarqueeOpen((v) => !v);
-                if (!marqueeOpen) setLyricsOpen(false);
+                if (!marqueeOpen) {
+                  setScriptOpen(false);
+                  setLyricsOpen(false);
+                }
               }}
             >
               Marquee <span className="m-mv-lyr-caret">{marqueeOpen ? "▾" : "▸"}</span>
@@ -2338,6 +2360,7 @@ export function MusicVideoTrack({
               ×
             </button>
           </div>
+          {scriptOpen ? <ScriptBox job={job} onJobChange={onJobChange} /> : null}
           {lyricsOpen ? <LyricsBox job={job} onJobChange={onJobChange} /> : null}
           {!compact && marqueeOpen ? (
             <LyricPinPanel

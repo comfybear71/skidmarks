@@ -1083,6 +1083,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, job: updated });
     }
 
+    if (action === "set-song-script") {
+      const songScript = String((body as { songScript?: string }).songScript ?? "");
+      const updated = await patchMobileGenJob(jobId, { songScript, error: "" });
+      return NextResponse.json({ ok: true, job: updated });
+    }
+
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (e) {
     return NextResponse.json(

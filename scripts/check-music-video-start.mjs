@@ -108,6 +108,9 @@ assert.doesNotMatch(solo.story.scenes[0].shots[1].staging, /muted trumpet/);
 assert.match(startRoute, /buildMusicVideoStartStory/);
 assert.match(startRoute, /carrierBeatId/);
 assert.match(songRoute, /action === "set-lyrics"/);
+assert.match(songRoute, /action === "set-song-script"/);
+assert.match(mvStart, /export function ScriptBox/);
+assert.match(mvStart, /set-song-script/);
 assert.match(mvStart, /attachParkedSongToBeat/);
 assert.match(mvStart, /attachTakenPendingSong/);
 // "Start the video" is a button inside the one track UI now, not a panel of
@@ -121,6 +124,7 @@ assert.match(mPage, /music-video\/start/);
 assert.match(mPage, /attachTakenPendingSong/);
 assert.match(mobileCss, /\.m-mv-drop/);
 assert.match(mobileCss, /\.m-mv-lyrics/);
+assert.match(mobileCss, /\.m-track-song-head/);
 
 {
   // The paste-a-script panel belongs to the other shows only.
