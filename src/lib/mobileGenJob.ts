@@ -125,6 +125,11 @@ export type MobileGenJob = {
   songTitle?: string;
   /** Music video only. Pasted words — never sent as a spoken line. */
   lyrics?: string;
+  /**
+   * Music video only. Who sings and when (start–stop). For AI plates later.
+   * Older jobs omit it.
+   */
+  songScript?: string;
   /** Pre-lock TRACK draft — peaks/markers before scratchSong exists. */
   trackDraft?: MusicVideoTrackDraft | null;
   /** Leftover from the old "How long?" step. Not a planning input —

@@ -191,6 +191,19 @@ async function saveLyrics(jobId: string, lyrics: string): Promise<MobileGenJob |
   return data.job || null;
 }
 
+async function saveSongScript(jobId: string, songScript: string): Promise<MobileGenJob | null> {
+  const res = await fetch("/api/crash/mobile/song", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "set-song-script", jobId, songScript }),
+  });
+  const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
+  if (!res.ok) {
+    throw new Error(data.error?.trim() || `Couldn't save script (${res.status})`);
+  }
+  return data.job || null;
+}
+
 /**
  * Lyrics box. Shared by the start panel and the song desk so the words stay
  * reachable after Lock. Closed unless there is already something in it.
@@ -269,6 +282,80 @@ export function LyricsBox({
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Who sings and when. Same save as lyrics. AI plates read this later —
+ * this box only stores the words.
+ */
+export function ScriptBox({
+  job,
+  onJobChange,
+}: {
+  job: MobileGenJob;
+  onJobChange?: (job: MobileGenJob) => void;
+}) {
+  const [text, setText] = useState(job.songScript || "");
+  const [saved, setSaved] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+  const [saving, setSaving] = useState(false);
+  const saveTimer = useRef<number | null>(null);
+  const lines = lyricLineCount(text);
+
+  useEffect(() => {
+    setText(job.songScript || "");
+    setSaved(false);
+    setSaveErr("");
+  }, [job.id, job.songScript]);
+
+  function update(next: string) {
+    setText(next);
+    setSaved(false);
+    setSaveErr("");
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      void persist(next);
+    }, 1200);
+  }
+
+  async function persist(next: string) {
+    setSaving(true);
+    try {
+      const updated = await saveSongScript(job.id, next);
+      setSaved(true);
+      setSaveErr("");
+      if (updated) onJobChange?.(updated);
+    } catch (e) {
+      setSaveErr(studioFetchError(e, "Couldn't save script — tap out and try again"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="m-mv-lyrics">
+      <div className="m-mv-lyrics-note">
+        {lines ? `${lines} line${lines === 1 ? "" : "s"}` : "who · start – stop"}
+        {saved ? " · saved" : saving ? " · saving…" : ""}
+        {saveErr ? ` · ${saveErr}` : ""}
+      </div>
+      <textarea
+        className="m-mv-lyrics-input"
+        value={text}
+        rows={8}
+        spellCheck={false}
+        placeholder={"0:00–0:12  NAME\nwhat they do\n\n0:12–0:31  NAME\nthe line"}
+        onChange={(e) => update(e.target.value)}
+        onBlur={() => {
+          if (saveTimer.current) {
+            window.clearTimeout(saveTimer.current);
+            saveTimer.current = null;
+          }
+          void persist(text);
+        }}
+      />
     </div>
   );
 }

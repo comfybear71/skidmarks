@@ -3026,20 +3026,28 @@ span.scratch-history-blob {
 
 /* ── Song card: title line, lyrics toggle, waveform ────────────────────── */
 
+.m-track-song-head {
+  margin: 0 0 6px;
+}
+
 .m-track-song-top,
 .m-mv-song-top {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
-  /* The LYRICS chip and × are taller than the name — keep them off the
-     header line above. */
+  /* Script / Lyrics / Marquee / × sit under the title. */
   min-height: 34px;
+}
+
+.m-track-song-top .m-mv-x,
+.m-mv-song-top .m-mv-x {
+  margin-left: auto;
 }
 
 .m-track-song-name,
 .m-mv-song-name {
-  flex: 1;
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

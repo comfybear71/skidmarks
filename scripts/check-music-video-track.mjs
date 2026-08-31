@@ -354,6 +354,17 @@ assert.match(
 // Collapsed Plates still shows the wave and the player.
 assert.match(tree, /compact=\{!platesOpen\}/);
 assert.match(trackUi, /WaveformCanvas/);
+assert.match(trackUi, /m-track-song-head/);
+assert.match(trackUi, /Script <span className="m-mv-lyr-caret"/);
+assert.ok(
+  trackUi.indexOf("m-track-song-head") < trackUi.indexOf("Script <span"),
+  "title sits above Script / Lyrics / Marquee",
+);
+assert.ok(
+  trackUi.indexOf("Script <span") < trackUi.indexOf("Lyrics <span"),
+  "Script is left of Lyrics",
+);
+assert.match(trackUi, /<ScriptBox/);
 assert.match(trackUi, /Add section/);
 assert.match(trackUi, /Put stills on the song/);
 assert.doesNotMatch(trackUi, /Starts at/, "Starts at is not on the TRACK pick");
