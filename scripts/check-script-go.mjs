@@ -1,6 +1,8 @@
 /** Run: npx tsx scripts/check-script-go.mjs */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import http from "node:http";
+import { scriptGoJson } from "../src/lib/scriptGoRun.ts";
 import {
   matchScriptGoSpeaker,
   pickScriptGoCamera,
@@ -267,6 +269,74 @@ console.log("check-script-go: ok");
     /job\.scriptGoUntil/,
     "the resume-on-reopen effect must key off the job field, not local state",
   );
+
+  // The bug this exists to catch: the browser attaches its session cookie
+  // to every request automatically, but a server calling its own API back
+  // from inside after() gets nothing for free — every internal call sits
+  // behind the same studio-login gate as a real client request. Without
+  // forwarding the cookie, script-fresh (the very first internal call)
+  // 401s immediately and the whole background run dies on step one, every
+  // single time — exactly what shipped and broke Go on a real login-gated
+  // deployment. Source-check every internal call site threads it through.
+  const run = readFileSync(new URL("../src/lib/scriptGoRun.ts", import.meta.url), "utf8");
+  assert.match(
+    route,
+    /req\.headers\.get\("cookie"\)/,
+    "script-go-background must capture the inbound session cookie",
+  );
+  assert.match(
+    route,
+    /headers:\s*internalHeaders/,
+    "the captured cookie must actually reach runScriptGo",
+  );
+  assert.match(run, /headers\?:\s*Record<string,\s*string>/, "scriptGoJson accepts a headers override");
+  // matchAll's non-greedy ");" can walk into a call's own body (e.g. the
+  // fetch(...) inside scriptGoJson's definition) — count call sites by
+  // their distinct leading assignment/call form instead of a blanket scan.
+  const callSiteMarkers = [
+    /const start = await scriptGoJson\(\s*"\/api\/crash\/mobile\/plate"/,
+    /const poll = await scriptGoJson\(\s*"\/api\/crash\/mobile\/plate"/,
+    /last = await scriptGoJson\(\s*"\/api\/crash\/mobile\/song"/,
+    /const fresh = await scriptGoJson\(\s*"\/api\/crash\/mobile\/song"/,
+    /const blade = await scriptGoJson\(\s*"\/api\/crash\/mobile\/song"/,
+    /const hung = await scriptGoJson\(\s*"\/api\/crash\/mobile\/track"/,
+    /scriptGoJson\(\s*"\/api\/crash\/mobile\/song",\s*\{\s*action:\s*"run"/,
+  ];
+  for (const marker of callSiteMarkers) {
+    const hit = run.match(marker);
+    assert.ok(hit, `expected call site not found: ${marker}`);
+    // headers must appear within a short window after the match, i.e. as
+    // one of that same call's arguments — not just somewhere later in file.
+    const from = hit.index;
+    const window = run.slice(from, from + 700);
+    assert.match(window, /headers(,|\s*\))/, `call site is missing headers:\n${window}`);
+  }
+  assert.match(run, /drawStill\(\{[\s\S]{0,200}?headers,?[\s\S]{0,10}?\}\)/, "drawStill call sites forward headers");
+  assert.match(run, /pollClip\(\{[\s\S]{0,200}?headers,?[\s\S]{0,10}?\}\)/, "pollClip call sites forward headers");
 }
 
 console.log("check-script-go: Go survives a refresh ok");
+
+// --- scriptGoJson actually attaches a header override to the real fetch ---
+
+{
+  const received = [];
+  const server = http.createServer((req, res) => {
+    received.push(req.headers.cookie || "");
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ ok: true }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  await scriptGoJson("/x", { a: 1 }, baseUrl, { Cookie: "studio_session=abc123" });
+  await scriptGoJson("/y", { a: 1 }, baseUrl);
+
+  await new Promise((resolve) => server.close(resolve));
+
+  assert.equal(received[0], "studio_session=abc123", "a header override actually reaches the request");
+  assert.equal(received[1], "", "omitting headers must not send a stale cookie from a previous call");
+}
+
+console.log("check-script-go: scriptGoJson forwards a cookie header ok");
