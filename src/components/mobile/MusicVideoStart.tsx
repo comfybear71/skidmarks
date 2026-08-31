@@ -290,8 +290,9 @@ export function LyricsBox({
 
 /**
  * Who sings and when. Lyrics + marquee pins fill the clock. Type the
- * name on each row. AI plates read this later — this box only stores
- * the words. It does not cook.
+ * name on each row. Do not put H3 / MATH / GROK / camera / place here —
+ * a later plate pass picks those. This box only stores the words.
+ * It does not cook.
  */
 export function ScriptBox({
   job,

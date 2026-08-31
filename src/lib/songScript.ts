@@ -7,6 +7,9 @@
  *
  * This file only builds and reads the text. It does not cook, hang, or
  * Start directing.
+ *
+ * Never write H3, MATH, GROK, camera, place, or position into this text.
+ * Those stay off the script. A later plate pass picks them.
  */
 
 import {

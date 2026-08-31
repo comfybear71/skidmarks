@@ -109,6 +109,11 @@ const rebuilt = buildSongScriptText({
 });
 assert.match(rebuilt, /0:00–0:27  BAND/);
 assert.match(rebuilt, /I'm a soul rebel, moving with the tide/);
+assert.doesNotMatch(rebuilt, /\bH3\b/);
+assert.doesNotMatch(rebuilt, /\bMATH\b/);
+assert.doesNotMatch(rebuilt, /\bGROK\b/);
+assert.doesNotMatch(rebuilt, /camera/i);
+assert.doesNotMatch(rebuilt, /three-quarter|over.shoulder/i);
 
 {
   const ui = readFileSync(new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url), "utf8");
@@ -116,6 +121,7 @@ assert.match(rebuilt, /I'm a soul rebel, moving with the tide/);
   assert.match(ui, /Fill from marquee/);
   assert.match(ui, /buildSongScriptText/);
   assert.match(ui, /type who sings/);
+  assert.match(ui, /Do not put H3 \/ MATH \/ GROK \/ camera \/ place here/);
   assert.match(track, /lyrics=\{job\.lyrics/);
   assert.match(track, /lyricCues=\{lyricCues\}/);
   assert.doesNotMatch(ui, /Start directing/);
