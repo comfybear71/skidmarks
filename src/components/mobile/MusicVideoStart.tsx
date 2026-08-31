@@ -20,6 +20,7 @@ import {
 } from "@/lib/musicVideoStart";
 import { buildSongScriptText } from "@/lib/songScript";
 import type { LyricCue } from "@/lib/musicVideoTrack";
+import { runScriptGo } from "@/lib/scriptGoRun";
 
 /**
  * The parked mp3, as React state. Every panel that asks "do we have a song
@@ -293,7 +294,7 @@ export function LyricsBox({
  * [name] per row — chorus can flip [SOUL REBEL] / [CENTRE-LEFT] on
  * alternate lines. Saves only when Save is tapped, so a mid-edit
  * write cannot wipe the chorus. Do not put H3 / MATH / GROK / camera / place here —
- * a later plate pass picks those. Does not cook.
+ * a later plate pass picks those. Go parks clips, hangs the clock, draws, then cooks.
  */
 export function ScriptBox({
   job,
@@ -313,6 +314,9 @@ export function ScriptBox({
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [going, setGoing] = useState(false);
+  const [goNote, setGoNote] = useState("");
+  const stopGo = useRef(false);
   const autoFilled = useRef("");
   const lines = lyricLineCount(text);
   const sheet = lyrics ?? job.lyrics ?? "";
@@ -391,6 +395,34 @@ export function ScriptBox({
     setSaveErr("");
   }
 
+  async function goFromScript() {
+    if (going) return;
+    stopGo.current = false;
+    setGoing(true);
+    setSaveErr("");
+    setGoNote("Saving the script");
+    try {
+      if (canSave) {
+        const savedJob = await saveSongScript(job.id, text);
+        setDirty(false);
+        setSaved(true);
+        if (savedJob) onJobChange?.(savedJob);
+      }
+      await runScriptGo({
+        jobId: job.id,
+        onJob: (next) => onJobChange?.(next),
+        onNote: setGoNote,
+        cancelled: () => stopGo.current,
+      });
+    } catch (e) {
+      const msg = studioFetchError(e, "Couldn't Go from the script");
+      setSaveErr(msg);
+      setGoNote(msg);
+    } finally {
+      setGoing(false);
+    }
+  }
+
   return (
     <div className="m-mv-lyrics">
       <div className="m-mv-lyrics-note">
@@ -401,6 +433,7 @@ export function ScriptBox({
             : "[SOUL REBEL] · start – stop"}
         {saved ? " · saved" : dirty ? " · not saved" : ""}
         {saving ? " · saving…" : ""}
+        {going ? ` · ${goNote || "Go…"}` : goNote && saveErr ? "" : goNote ? ` · ${goNote}` : ""}
         {saveErr ? ` · ${saveErr}` : ""}
       </div>
       <div className="m-track-marker-row">
@@ -408,7 +441,7 @@ export function ScriptBox({
           <button
             type="button"
             className="m-track-btn"
-            disabled={saving}
+            disabled={saving || going}
             onClick={() => fillFromMarquee()}
           >
             Fill from marquee
@@ -417,11 +450,31 @@ export function ScriptBox({
         <button
           type="button"
           className="m-track-btn"
-          disabled={saving || !canSave}
+          disabled={saving || going || !canSave}
           onClick={() => void persist(text)}
         >
           Save
         </button>
+        <button
+          type="button"
+          className="m-track-btn"
+          disabled={saving || going || !text.trim()}
+          onClick={() => void goFromScript()}
+        >
+          Go
+        </button>
+        {going ? (
+          <button
+            type="button"
+            className="m-track-btn"
+            onClick={() => {
+              stopGo.current = true;
+              setGoNote("Stopping after this still");
+            }}
+          >
+            Stop
+          </button>
+        ) : null}
       </div>
       <textarea
         className="m-mv-lyrics-input"
