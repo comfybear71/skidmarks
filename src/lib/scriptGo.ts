@@ -191,10 +191,17 @@ export function planScriptGo(opts: {
   sceneCount: number;
 }): ScriptGoPlanItem[] {
   const scenes = Math.max(1, Math.round(opts.sceneCount || 1));
+  const lead = (opts.speakers || [])[0] || "";
   const beats = revolveChorusBeats(parseSongScript(opts.songScript || ""), opts.speakers);
   const out: ScriptGoPlanItem[] = [];
   for (const beat of beats) {
-    const who = matchScriptGoSpeaker(beat.who, opts.speakers);
+    // An untagged break is a real pause in the singing (a bridge / instrumental
+    // stretch) — nobody types a [NAME] on those rows, so they used to get
+    // dropped here and never cooked at all. The lead vocalist is who the
+    // camera holds on through a pause, same as everywhere else `speakers[0]`
+    // is the default prominent character.
+    const namedWho = matchScriptGoSpeaker(beat.who, opts.speakers);
+    const who = namedWho || (beat.kind === "break" ? lead : "");
     if (!who) continue;
     if (beat.endMs <= beat.startMs) continue;
     out.push({
