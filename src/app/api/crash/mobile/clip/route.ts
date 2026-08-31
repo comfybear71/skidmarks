@@ -15,8 +15,24 @@ import {
 } from "@/lib/mobileEpisodeClips";
 import { planParkDeskClipTake } from "@/lib/parkDeskClip";
 import { patchMobileGenJob, readMobileGenJob, type MobileGenJob } from "@/lib/mobileGenJob";
-import { readMobileStory } from "@/lib/mobileStoryStore";
+import { hydrateMobilePackOnDisk, readMobileStory } from "@/lib/mobileStoryStore";
 import { isOffEpisodeDeskShot } from "@/lib/mobileScratch";
+import {
+  finishScratchMinimaxClip,
+  isMinimaxScratchClipTask,
+  submitScratchMinimaxClip,
+} from "@/lib/minimaxScratchClip";
+import {
+  finishScratchGrokClip,
+  isGrokScratchClipTask,
+  submitScratchGrokClip,
+} from "@/lib/grokScratchClip";
+import { parseScratchClipEngine } from "@/lib/sirayI2v";
+import { GROK_I2V_ID } from "@/lib/grokI2v";
+import { MINIMAX_H3_ID, parseMinimaxH3Camera, parseMinimaxH3Resolution } from "@/lib/minimaxH3";
+import { parseGrokImagineVideoRes } from "@/lib/grokImagine";
+import { grokVideoConfigured } from "@/lib/grokVideo";
+import { minimaxVideoConfigured } from "@/lib/minimaxVideo";
 
 export const runtime = "nodejs";
 
@@ -74,6 +90,8 @@ export async function GET(req: Request) {
  *     Prior takes stay.
  *   bin-failed — dismiss every failed episode-desk clip. Scratch/campaign
  *     errors stay. If the job was stuck in phase error, it returns to review.
+ *   cook — H3 or GROK on a talking-desk line. Does not rewrite LTX Generate.
+ *   cook-poll — one H3 / GROK tick until the mp4 lands.
  */
 export async function POST(req: Request) {
   try {
@@ -82,11 +100,26 @@ export async function POST(req: Request) {
       jobId?: string;
       beatId?: string;
       fileName?: string;
+      shotId?: string;
+      clipEngine?: string;
+      durationSec?: number;
+      endPlateFile?: string;
+      resolution?: string;
+      h3Camera?: string;
+      plateFile?: string;
+      prompt?: string;
+      keepAudio?: boolean;
     };
     const jobId = (body.jobId || "").trim();
     const action = (body.action || "").trim().toLowerCase();
     if (!jobId) return NextResponse.json({ error: "Need jobId" }, { status: 400 });
-    if (action !== "remove-clip" && action !== "dismiss" && action !== "bin-failed") {
+    if (
+      action !== "remove-clip" &&
+      action !== "dismiss" &&
+      action !== "bin-failed" &&
+      action !== "cook" &&
+      action !== "cook-poll"
+    ) {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
 
@@ -103,6 +136,137 @@ export async function POST(req: Request) {
     }
     const isEpisode = (clip: { shotId: string }) =>
       !isOffEpisodeDeskShot(job, clip.shotId, story);
+
+    if (action === "cook" || action === "cook-poll") {
+      if (!job.folderName) {
+        return NextResponse.json({ error: "Lock the episode first" }, { status: 400 });
+      }
+      await hydrateMobilePackOnDisk(job.styleId, job.folderName);
+      const liveStory = story || (await readMobileStory(job.styleId, job.folderName));
+      if (action === "cook-poll") {
+        const task = job.scratchClip;
+        if (!task?.taskId) {
+          const beatId = (body.beatId || "").trim();
+          const landed = (job.clips || []).find(
+            (c) =>
+              (!beatId || c.beatId === beatId) &&
+              c.clipFile &&
+              c.clipStatus === "done",
+          );
+          if (landed?.clipFile) {
+            return NextResponse.json({ ok: true, pending: false, recovered: true, job });
+          }
+          return NextResponse.json(
+            { error: "No cook in flight — tap Generate again. The episode is still there." },
+            { status: 400 },
+          );
+        }
+        try {
+          const tick = isMinimaxScratchClipTask(task)
+            ? await finishScratchMinimaxClip({ job, task })
+            : isGrokScratchClipTask(task)
+              ? await finishScratchGrokClip({ job, task })
+              : null;
+          if (!tick) {
+            return NextResponse.json({ error: "That cook is not H3 or GROK." }, { status: 400 });
+          }
+          return NextResponse.json({ ok: true, pending: tick.pending, job: tick.job });
+        } catch (e) {
+          return NextResponse.json(
+            { error: e instanceof Error ? e.message : String(e) },
+            { status: 502 },
+          );
+        }
+      }
+      let clipPick: ReturnType<typeof parseScratchClipEngine>;
+      try {
+        clipPick = parseScratchClipEngine(body.clipEngine);
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : String(e) },
+          { status: 400 },
+        );
+      }
+      if (clipPick !== MINIMAX_H3_ID && clipPick !== GROK_I2V_ID) {
+        return NextResponse.json(
+          { error: "Talking desk cook is H3 or GROK. Lip-sync stays on Generate / LTX." },
+          { status: 400 },
+        );
+      }
+      const beatId = (body.beatId || "").trim();
+      const shotId = (body.shotId || "").trim();
+      if (!beatId || !shotId) {
+        return NextResponse.json({ error: "Need shotId and beatId" }, { status: 400 });
+      }
+      const scene = liveStory.scenes.find((sc) => sc.shots.some((sh) => sh.id === shotId));
+      const shot = scene?.shots.find((sh) => sh.id === shotId);
+      if (!scene || !shot) {
+        return NextResponse.json({ error: "That still is not on this pack." }, { status: 404 });
+      }
+      if (!shot.beats.some((b) => b.id === beatId)) {
+        return NextResponse.json({ error: "That line is not on this still." }, { status: 404 });
+      }
+      if (!job.shots.some((s) => s.shotId === shotId)) {
+        return NextResponse.json(
+          { error: "That plate is not on this job — Add it on the place, then Generate." },
+          { status: 400 },
+        );
+      }
+      try {
+        if (clipPick === MINIMAX_H3_ID) {
+          if (!minimaxVideoConfigured()) {
+            return NextResponse.json({ error: "H3 is not on this Studio." }, { status: 400 });
+          }
+          const drawn = await submitScratchMinimaxClip({
+            job,
+            story: liveStory,
+            shotId,
+            sceneId: scene.id,
+            beatId,
+            durationSec: body.durationSec,
+            endPlateFile: String(body.endPlateFile || "").trim() || undefined,
+            resolution: parseMinimaxH3Resolution(body.resolution),
+            camera: parseMinimaxH3Camera(body.h3Camera),
+          });
+          return NextResponse.json({
+            ok: true,
+            pending: true,
+            job: drawn.job,
+            backend: "minimax-h3",
+            clipEngine: MINIMAX_H3_ID,
+            durationSec: drawn.durationSec,
+          });
+        }
+        if (!grokVideoConfigured()) {
+          return NextResponse.json({ error: "GROK is not on this Studio." }, { status: 400 });
+        }
+        const drawn = await submitScratchGrokClip({
+          job,
+          story: liveStory,
+          shotId,
+          sceneId: scene.id,
+          beatId,
+          durationSec: body.durationSec,
+          prompt: String(body.prompt || "").trim() || undefined,
+          plateFile: String(body.plateFile || "").trim() || undefined,
+          resolution: parseGrokImagineVideoRes(body.resolution),
+          keepAudio: body.keepAudio === true,
+        });
+        return NextResponse.json({
+          ok: true,
+          pending: true,
+          job: drawn.job,
+          backend: "grok-i2v",
+          clipEngine: GROK_I2V_ID,
+          durationSec: drawn.durationSec,
+        });
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : String(e) },
+          { status: 502 },
+        );
+      }
+    }
 
     if (action === "remove-clip") {
       const plan = planParkDeskClipTake({

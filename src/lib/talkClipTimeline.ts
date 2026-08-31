@@ -176,6 +176,22 @@ export function talkActRoman(n: number): string {
   return TALK_ROMAN[Math.max(1, Math.floor(n)) - 1] || String(n);
 }
 
+/**
+ * + Act only mints an empty place chip. Clips already cooked stay on
+ * the act of that plate's place. This is why Act IV · Alert shows 0
+ * after Generate on a BBQ / Unit 9 still.
+ */
+export function talkActEmptyHint(act: Pick<TalkActScript, "roman" | "title">): string {
+  const place = (act.title || "").trim();
+  const who = place ? `Act ${act.roman} · ${place}` : `Act ${act.roman}`;
+  return (
+    `No clips on ${who} yet. + Act only names a new place — it does not move clips. ` +
+    `Clips you already made stay on that plate's place. ` +
+    `To put a clip here: + Add clip and pick ${place || "this place"}, ` +
+    `or paste Place: ${place || "this place"} and Add this act.`
+  );
+}
+
 export function talkRomanToN(raw: string): number | null {
   const key = String(raw || "").trim().toUpperCase();
   const i = TALK_ROMAN.indexOf(key as (typeof TALK_ROMAN)[number]);
