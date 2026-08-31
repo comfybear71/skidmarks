@@ -475,7 +475,7 @@ export function MuteMvEnginePanel({
         </button>
       </div>
       {engine === "math" && jobId && shotId ? (
-        <MathPatternHole jobId={jobId} shotId={shotId} disabled={disabled} />
+        <MathPatternHole jobId={jobId} shotId={shotId} plates={[]} disabled={disabled} />
       ) : engine === "grok" && jobId && shotId ? (
         <GrokImagineHole jobId={jobId} shotId={shotId} plates={[]} disabled={disabled} />
       ) : (

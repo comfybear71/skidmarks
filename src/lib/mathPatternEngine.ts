@@ -12,9 +12,12 @@ import {
 } from "./mathPatternMotion";
 import {
   compileMathPatternProgram,
+  createMathPatternImageTexture,
+  destroyMathPatternImageTexture,
   destroyMathPatternProgram,
   drawMathPattern,
   resizeMathPatternCanvas,
+  type MathPatternImage,
   type MathPatternParams,
   type MathPatternProgram,
 } from "./mathPatternShader";
@@ -36,6 +39,8 @@ export type MathPatternRuntime = {
   setSettings: (settings: MathPatternSettings) => void;
   setCycleSec: (sec: number) => void;
   resetClock: () => void;
+  /** Photo to warp/recolor instead of pure math. Pass null to go back to math-only. */
+  setImage: (source: HTMLImageElement | HTMLCanvasElement | ImageBitmap | null) => void;
   frame: () => void;
   destroy: () => void;
 };
@@ -76,6 +81,7 @@ function fieldMarble(x: number, y: number, t: number, warp: number): number {
 }
 
 function stageParamsNow(settings: MathPatternSettings, phase: number): MathPatternParams {
+  if (settings.manual) return settings.manual;
   const outbreak = mathPatternStageParams(settings.outbreak);
   const shift = mathPatternStageParams(settings.shift);
   const dissolve = mathPatternStageParams(settings.dissolve);
@@ -188,6 +194,9 @@ function create2dRuntime(
     resetClock() {
       startedAt = performance.now();
     },
+    setImage() {
+      // The 2D fallback has no texture pipeline — photo mode needs WebGL2.
+    },
     frame,
     destroy() {
       live = false;
@@ -214,13 +223,14 @@ function createGl2Runtime(
   let startedAt = 0;
   let raf = 0;
   let live = false;
+  let image: MathPatternImage | null = null;
 
   function frame() {
     const { width, height } = resizeMathPatternCanvas(canvas, MATH_PATTERN_WIDTH, MATH_PATTERN_HEIGHT);
     const elapsedSec = live ? (performance.now() - startedAt) / 1000 : 0;
     const phase = mathPatternPhaseValue(elapsedSec, cycleSec);
     const params = stageParamsNow(settings, phase);
-    drawMathPattern(gl, prog, { timeSec: elapsedSec, width, height, params });
+    drawMathPattern(gl, prog, { timeSec: elapsedSec, width, height, params, image });
     onTick?.({ phase, phaseId: mathPatternPhaseId(phase), elapsedSec });
   }
 
@@ -253,11 +263,22 @@ function createGl2Runtime(
     resetClock() {
       startedAt = performance.now();
     },
+    setImage(source) {
+      if (image) {
+        destroyMathPatternImageTexture(gl, image);
+        image = null;
+      }
+      if (!source) return;
+      const width = "naturalWidth" in source ? source.naturalWidth : source.width;
+      const height = "naturalHeight" in source ? source.naturalHeight : source.height;
+      image = createMathPatternImageTexture(gl, source, width, height);
+    },
     frame,
     destroy() {
       live = false;
       if (raf) window.cancelAnimationFrame(raf);
       raf = 0;
+      if (image) destroyMathPatternImageTexture(gl, image);
       destroyMathPatternProgram(gl, prog);
     },
   };
