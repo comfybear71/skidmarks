@@ -6,14 +6,14 @@ import type { LyricCue, PlateTiming, TrackSectionMarker } from "./musicVideoTrac
 export const SCRATCH_SONG_SLICE_DEFAULT_SEC = 15;
 export const SCRATCH_SONG_SLICE_MIN_SEC = 4;
 export const SCRATCH_SONG_SLICE_MAX_SEC = 30;
-/** This still’s TRACK bar / LTX Send — slider 5–60, not snap-only 5/10/15. */
-export const HANG_LENGTH_MIN_SEC = 5;
+/** This still’s TRACK bar / LTX Send — slider 2–60, not snap-only 5/10/15. */
+export const HANG_LENGTH_MIN_SEC = 2;
 export const HANG_LENGTH_MAX_SEC = 60;
-/** Legacy snap stops. The hang slider is 5–60. */
+/** Legacy snap stops. The hang slider is 2–60. */
 export const HANG_LENGTH_CHIPS_SEC = [5, 10, 15] as const;
 export type HangLengthChipSec = (typeof HANG_LENGTH_CHIPS_SEC)[number];
 
-/** 5–60 for this still. 10 stays 10. 44 stays 44. Not a 15s invent. */
+/** 2–60 for this still. 10 stays 10. 44 stays 44. Not a 15s invent. */
 export function clampHangLengthSec(sec: number): number {
   if (!Number.isFinite(sec) || sec <= 0) return SCRATCH_SONG_SLICE_DEFAULT_SEC;
   return Math.max(
