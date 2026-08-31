@@ -6,7 +6,6 @@
  * (H3 max 15s). Mute cinema — do not feed the song mp3.
  */
 
-import { castNamesMatch } from "./mobileDropCast";
 import {
   MUSIC_VIDEO_CAMERAS,
   type MusicVideoCameraKey,
@@ -56,10 +55,14 @@ export type ScriptGoPlanItem = {
   engine: ScriptGoEngine;
 };
 
+function namesMatch(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 export function matchScriptGoSpeaker(who: string, speakers: string[]): string {
   const want = oneSongScriptSinger(who);
   if (!want) return "";
-  return (speakers || []).find((s) => castNamesMatch(s, want)) || "";
+  return (speakers || []).find((s) => namesMatch(s, want)) || "";
 }
 
 export function pickScriptGoEngine(beat: Pick<SongScriptBeat, "kind" | "startMs" | "endMs">): ScriptGoEngine {
