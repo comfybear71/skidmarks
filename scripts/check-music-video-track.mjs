@@ -445,14 +445,14 @@ assert.match(mobileCss, /width: 2\.3rem/, "seconds box is half the old 4.6rem");
   assert.match(lenUi, /PlateHangLenControl/);
   assert.match(lenUi, /valueSec > 0/, "do not write 15 over a typed 9 when the still is not hung");
   assert.doesNotMatch(lenUi, /snapHangLengthSec/);
-  assert.doesNotMatch(lenUi, /step=\{5\}/, "slider is continuous 5–40, not 5/10/15 snaps");
+  assert.doesNotMatch(lenUi, /step=\{5\}/, "slider is continuous 2–60, not 5/10/15 snaps");
   assert.doesNotMatch(
     lenUi,
     /onDraft\?\.\(clampHangLengthSec\(n\)\)/,
-    "typing 1 of 19 must not clamp the box to 5",
+    "typing 1 of 19 must not clamp the box to 2",
   );
 }
-assert.equal(HANG_LENGTH_MIN_SEC, 5);
+assert.equal(HANG_LENGTH_MIN_SEC, 2);
 assert.equal(HANG_LENGTH_MAX_SEC, 60);
 assert.equal(clampHangLengthSec(10), 10);
 assert.equal(clampHangLengthSec(40), 40);
@@ -461,7 +461,9 @@ assert.equal(clampHangLengthSec(31.6), 31.6);
 assert.equal(clampHangLengthSec(50), 50);
 assert.equal(clampHangLengthSec(60), 60);
 assert.equal(clampHangLengthSec(70), 60);
-assert.equal(clampHangLengthSec(3), 5);
+assert.equal(clampHangLengthSec(2), 2);
+assert.equal(clampHangLengthSec(3), 3);
+assert.equal(clampHangLengthSec(1), 2);
 assert.match(
   readFileSync(join(here, "../src/app/api/crash/mobile/song/route.ts"), "utf8"),
   /refuseMinimaxH3OverMax/,

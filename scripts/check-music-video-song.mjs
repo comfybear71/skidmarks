@@ -303,7 +303,7 @@ assert.doesNotMatch(
 );
 assert.match(songUi, /shortPlateLabel/);
 assert.match(songUi, /deskRowAllDone/);
-assert.match(songRoute, /Still with no mp4 hangs at body\.durationSec \(slider 5–60\)/);
+assert.match(songRoute, /Still with no mp4 hangs at body\.durationSec \(slider 2–60\)/);
 assert.match(songRoute, /leftover mp4 file-first hangs in a gap or at 0/);
 assert.match(songUi, /runOneCut/);
 assert.doesNotMatch(songUi, /Send next/);
