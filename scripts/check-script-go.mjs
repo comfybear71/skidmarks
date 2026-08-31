@@ -146,6 +146,56 @@ assert.equal(scriptGoNeedsWho("0:00–0:27\nintro", ["SOUL REBEL"]), true);
 }
 
 {
+  // A real pause in the singing — an untagged break, exactly what
+  // buildSongScriptText produces before anyone types a [NAME] on it — used
+  // to be dropped from the plan entirely. The camera should hold on the
+  // lead vocalist (speakers[0], same convention used everywhere else in
+  // this codebase) through the pause instead of cooking nothing.
+  const untaggedBreakScript = `0:00–0:10  [SOUL REBEL]
+The sun is shining bright
+
+0:10–0:40
+Instrumental bridge — no singing
+
+0:40–0:44  [CENTRE-LEFT]
+This easy life`;
+  const untaggedPlan = planScriptGo({
+    songScript: untaggedBreakScript,
+    speakers: ["SOUL REBEL", "CENTRE-LEFT"],
+    sceneCount: 1,
+  });
+  assert.equal(untaggedPlan.length, 3, "the untagged bridge is no longer dropped");
+  const bridge = untaggedPlan.find((i) => i.kind === "break");
+  assert.ok(bridge, "the bridge got a plan item");
+  assert.equal(bridge.who, "SOUL REBEL", "an untagged break defaults to the lead vocalist, not the backing singer");
+  assert.equal(bridge.startMs, 10_000);
+  assert.equal(bridge.endMs, 40_000);
+  assert.equal(pickScriptGoEngine(bridge), "ltx", "a 30s bridge is over the H3 max, so it's an LTX mute hold");
+
+  // A short untagged break should still reach GROK/H3 exactly like a
+  // hand-tagged one already does.
+  const shortBridgeScript = `0:00–0:10  [SOUL REBEL]
+The sun is shining bright
+
+0:10–0:13
+Short instrumental — no singing`;
+  const shortPlan = planScriptGo({
+    songScript: shortBridgeScript,
+    speakers: ["SOUL REBEL", "CENTRE-LEFT"],
+    sceneCount: 1,
+  });
+  const shortBridge = shortPlan.find((i) => i.kind === "break");
+  assert.equal(shortBridge?.who, "SOUL REBEL");
+  assert.equal(
+    shortBridge?.engine,
+    "grok",
+    "a short (under H3 min) untagged bridge reaches Grok, same as a tagged one",
+  );
+}
+
+console.log("check-script-go: untagged breaks default to the lead vocalist ok");
+
+{
   const ui = readFileSync(new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url), "utf8");
   const run = readFileSync(new URL("../src/lib/scriptGoRun.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../src/app/api/crash/mobile/song/route.ts", import.meta.url), "utf8");
