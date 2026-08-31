@@ -7,6 +7,9 @@ import {
   buildDefaultBeatMotion,
   buildGlobalPrompt,
   defaultSoloStaging,
+  isStockStandingSoloStaging,
+  rewriteStockStandingSoloStaging,
+  tweakNamesDirectorPose,
   directorWantsEmptyHands,
   isJoKeyboardWarrior,
   joPhoneStagingExtra,
@@ -155,8 +158,22 @@ assert.doesNotMatch(joOnlyHold, /mobile phone/);
 
 assert.equal(
   defaultSoloStaging("CRAZY BIG HOLE JO"),
-  "CRAZY BIG HOLE JO alone. Only CRAZY BIG HOLE JO in frame, no one else appears. Standing centre-frame, facing camera, mid body. Empty hands. No phone. No extra objects.",
+  "CRAZY BIG HOLE JO alone. Only CRAZY BIG HOLE JO in frame, no one else appears. Same person as the CRAZY BIG HOLE JO still — keep that still's pose, clothes, and body. Empty hands. No phone. No extra objects.",
 );
+assert.doesNotMatch(defaultSoloStaging("AMITABHA"), /Standing centre-frame/);
+assert.match(defaultSoloStaging("AMITABHA"), /keep that still's pose/);
+const leftoverStanding =
+  "AMITABHA alone. Only AMITABHA in frame, no one else appears. Standing centre-frame, facing camera, mid body. Empty hands. No phone. No extra objects.";
+assert.equal(isStockStandingSoloStaging(leftoverStanding), true);
+assert.equal(isStockStandingSoloStaging(defaultSoloStaging("AMITABHA")), false);
+assert.equal(rewriteStockStandingSoloStaging(leftoverStanding), defaultSoloStaging("AMITABHA"));
+assert.equal(
+  rewriteStockStandingSoloStaging("AMITABHA sitting on the lotus, hands in lap."),
+  "AMITABHA sitting on the lotus, hands in lap.",
+);
+assert.equal(tweakNamesDirectorPose(leftoverStanding), false);
+assert.equal(tweakNamesDirectorPose(defaultSoloStaging("AMITABHA")), false);
+assert.equal(tweakNamesDirectorPose("AMITABHA sitting on the lotus, hands in lap."), true);
 assert.equal(joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "standing centre-frame"), "");
 assert.equal(
   joPhoneStagingExtra(["CRAZY BIG HOLE JO"], "standing centre-frame", true).length > 0,

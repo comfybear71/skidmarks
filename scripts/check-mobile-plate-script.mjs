@@ -8,6 +8,9 @@ import {
   resolvePlateStaging,
   visualActionFromSummary,
 } from "../src/lib/mobilePlateScript.ts";
+import { defaultSoloStaging } from "../src/lib/mobileImageMotion.ts";
+import { plateIdentityPoseLine } from "../src/lib/plateCast.ts";
+import { plateCastStagingNote } from "../src/lib/mobilePlateLines.ts";
 
 const mcu = compileScriptedPosition({ name: "COMFY", place: "Front of the houses" });
 assert.equal(isTalkingMcuDefault(mcu), true);
@@ -145,5 +148,37 @@ assert.equal(
   }),
   compileScriptedPosition({ name: "CRACKWHORE DARRYL", place: "Dirty Dog Pub" }),
 );
+
+const leftoverAmitabha =
+  "AMITABHA alone. Only AMITABHA in frame, no one else appears. Standing centre-frame, facing camera, mid body. Empty hands. No phone. No extra objects.";
+assert.equal(
+  resolvePlateStaging({
+    stagingIn: leftoverAmitabha,
+    existingStaging: leftoverAmitabha,
+    speaker: "AMITABHA",
+    place: "Temple",
+  }),
+  defaultSoloStaging("AMITABHA"),
+);
+assert.doesNotMatch(
+  resolvePlateStaging({
+    stagingIn: leftoverAmitabha,
+    speaker: "AMITABHA",
+    place: "Temple",
+  }),
+  /Standing centre-frame/,
+);
+assert.match(plateIdentityPoseLine(leftoverAmitabha), /Keep the EXACT body pose/);
+assert.doesNotMatch(plateIdentityPoseLine(leftoverAmitabha), /unless the tweak names a pose/);
+assert.match(
+  plateIdentityPoseLine("AMITABHA sitting on the lotus."),
+  /Use the pose, crop, clothes/,
+);
+const amitabhaNote = plateCastStagingNote({
+  speakers: ["AMITABHA"],
+  staging: leftoverAmitabha,
+});
+assert.doesNotMatch(amitabhaNote, /Standing centre-frame/);
+assert.match(amitabhaNote, /keep that still's pose/);
 
 console.log("check-mobile-plate-script: ok");

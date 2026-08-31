@@ -30,6 +30,12 @@ const plates = read("../src/lib/mobilePlates.ts");
 assert.match(plates, /resolvePlateCastPath/);
 assert.doesNotMatch(
   plates,
+  /localPath \|\| !jobFile/,
+  "Job picked face wins — a shelf card that shares the name must not replace it",
+);
+assert.match(plates, /Picked a face on this job/);
+assert.doesNotMatch(
+  plates,
   /findCharacterPlate/,
   "Shot Draw uses the single cast card — not the 4-up sheet",
 );

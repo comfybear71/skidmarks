@@ -7,11 +7,23 @@ import {
   type ShowStyleId,
 } from "@/lib/showStylePresets";
 import { saveCplateMeta } from "@/lib/cplateManifest";
-import { emptyHandsStillLock } from "@/lib/mobileImageMotion";
+import {
+  emptyHandsStillLock,
+  rewriteStockStandingSoloStaging,
+  tweakNamesDirectorPose,
+} from "@/lib/mobileImageMotion";
 import { PLATE_FACES_PER_PASS } from "@/lib/plateConstants";
 import { sortableId } from "@/lib/types";
 
 export { PLATE_FACES_PER_PASS } from "@/lib/plateConstants";
+
+/** Keep image 2 unless the director named a different pose. */
+export function plateIdentityPoseLine(tweak: string): string {
+  if (tweakNamesDirectorPose(tweak)) {
+    return "Use the pose, crop, clothes, or held prop named in the tweak. Same face from image 2. Do not invent a second person. No passer-by. No extra body in the distance.";
+  }
+  return "Keep the EXACT body pose, clothes, and body from image 2. Same face from image 2. Do not stand them up. Do not change their clothes. Do not invent a second person. No passer-by. No extra body in the distance.";
+}
 
 /** Position box can override the default medium / dead-centre solo crop. */
 export function plateFramingLine(opts: {
@@ -80,15 +92,15 @@ function buildPlatePrompt(opts: {
   chainPass: boolean;
   tweak: string;
 }): string {
-  const { n, chainPass, tweak } = opts;
+  const { n, chainPass } = opts;
+  const tweak = rewriteStockStandingSoloStaging(opts.tweak);
   const look = buildCrashGenLook(opts.styleId, opts.styleRealism);
 
   const bgLine = chainPass
     ? "Image 1 is the CURRENT scene — keep EVERY person already in image 1 exactly as they are (same faces, clothes, positions). Do not remove, replace, or reposition anyone already there."
     : "Image 1 is the LOCKED background — keep that exact place, lighting and materials. Do not move the camera. Do not replace the location with a photo street. Remove any people or crowds already in image 1 — empty place only.";
 
-  const poseLine =
-    "Keep the EXACT body pose from image 2 unless the tweak names a pose, crop, clothes, or held prop — then use the tweak. Same face from image 2. Do not invent a second person. No passer-by. No extra body in the distance.";
+  const poseLine = plateIdentityPoseLine(tweak);
 
   const peopleLines =
     n === 1
