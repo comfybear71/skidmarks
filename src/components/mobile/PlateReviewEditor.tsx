@@ -67,6 +67,9 @@ import {
   looksLikePlatePositionPrompt,
   pickLtxMotionBody,
   readLtxMotionDraft,
+  readMvH3Camera,
+  readMvH3LastFrame,
+  readMvH3Resolution,
   readMvMotionSlot,
   isSingingDefaultMotion,
   readMvHumAction,
@@ -84,8 +87,9 @@ import {
   writeMvNobodyInShot,
   type MuteMvEngine,
 } from "@/lib/mobileImageMotion";
-import { collectMinimaxH3LastStills, type MinimaxH3LastStill } from "@/lib/minimaxH3";
-import { grokPlatesForShot } from "@/lib/grokImagine";
+import { collectMinimaxH3LastStills, MINIMAX_H3_DEFAULT_SEC, MINIMAX_H3_ID, type MinimaxH3LastStill } from "@/lib/minimaxH3";
+import { grokPlatesForShot, readGrokImagineSettings } from "@/lib/grokImagine";
+import { GROK_I2V_DEFAULT_SEC, GROK_I2V_ID } from "@/lib/grokI2v";
 import { compileScriptedPosition } from "@/lib/mobilePlateScript";
 import { isEmptyStageStaging } from "@/lib/emptyStagePlate";
 import { talkNextShotTitle } from "@/lib/talkClipTimeline";
@@ -2950,7 +2954,7 @@ function PlateSendButton({
   );
 }
 
-/** Add | LTX | H3 | MATH | GROK | No lips | Hum | Send. MATH is noise. GROK is Imagine. */
+/** Music: LTX | H3 | MATH | GROK | No lips | Hum. Talk: LTX | H3 | GROK only. */
 function PlateEngineButtons({
   jobId,
   shotId,
@@ -2959,6 +2963,7 @@ function PlateEngineButtons({
   promptOpen,
   muteOn,
   humOn,
+  desk = "music",
   onMute,
   onHum,
   onEngine,
@@ -2971,6 +2976,7 @@ function PlateEngineButtons({
   promptOpen?: boolean;
   muteOn?: boolean;
   humOn?: boolean;
+  desk?: "music" | "talk";
   onMute?: (on: boolean) => void;
   onHum?: (on: boolean) => void;
   onEngine?: (engine: MuteMvEngine) => void;
@@ -3023,7 +3029,11 @@ function PlateEngineButtons({
       className="m-plate-engine-pair"
       data-motion-open={promptOpen ? "yes" : "no"}
       role="group"
-      aria-label="Open LTX, H3, MATH, or GROK, or No lips for mute, or Hum for an intro"
+      aria-label={
+        desk === "talk"
+          ? "Open LTX, H3, or GROK"
+          : "Open LTX, H3, MATH, or GROK, or No lips for mute, or Hum for an intro"
+      }
     >
       <MobilePrimaryButton
         tone={engine === "ltx" ? "accent" : "ghost"}
@@ -3038,18 +3048,22 @@ function PlateEngineButtons({
       >
         H3
       </MobilePrimaryButton>
+      {desk === "talk" ? null : (
       <MobilePrimaryButton
         tone={engine === "math" ? "accent" : "ghost"}
         onClick={() => pick("math")}
       >
         MATH
       </MobilePrimaryButton>
+      )}
       <MobilePrimaryButton
         tone={engine === "grok" ? "accent" : "ghost"}
         onClick={() => pick("grok")}
       >
         GROK
       </MobilePrimaryButton>
+      {desk === "talk" ? null : (
+      <>
       <MobilePrimaryButton
         tone={muteOn ? "accent" : "danger"}
         onClick={() => onMute?.(!muteOn)}
@@ -3062,6 +3076,8 @@ function PlateEngineButtons({
       >
         Hum
       </MobilePrimaryButton>
+      </>
+      )}
     </div>
   );
 }
@@ -3208,6 +3224,11 @@ function BeatLineEditor({
   const [removing, setRemoving] = useState(false);
   const [redrawing, setRedrawing] = useState(false);
   const [error, setError] = useState("");
+  const [talkEngine, setTalkEngine] = useState<MuteMvEngine>(() =>
+    resolveMvSendEngine({ jobId, shotId, beatId: beat.id }),
+  );
+  const [talkHoleOpen, setTalkHoleOpen] = useState(false);
+  const [talkH3Slot, setTalkH3Slot] = useState(() => readMvMotionSlot(jobId, beat.id) || "");
   const [ltxOpen, setLtxOpen] = useState(false);
   // Bible already ran on Draw — keep this shut unless they need Redo still.
   const [positionOpen, setPositionOpen] = useState(false);
@@ -3237,6 +3258,17 @@ function BeatLineEditor({
   });
   const positionBody = positionDraft ?? (positionPrompt.trim() ? positionPrompt : scriptedPosition);
   const positionDirty = positionDraft !== null && positionDraft.trim() !== (positionPrompt || "").trim();
+  const talkLock = useMemo(
+    () =>
+      buildMuteMvMotionLock({
+        styleId: styleId as ShowStyleId,
+        speaker: beat.speaker,
+        lookLock,
+        shotSpeakers,
+        staging: positionBody,
+      }),
+    [beat.speaker, lookLock, positionBody, shotSpeakers, styleId],
+  );
 
   useEffect(() => {
     setPositionDraft(null);
@@ -3436,6 +3468,87 @@ function BeatLineEditor({
     } finally {
       setGenerating(false);
     }
+  }
+
+  async function pollTalkCook() {
+    for (let i = 0; i < 80; i++) {
+      const res = await fetch("/api/crash/mobile/clip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, action: "cook-poll", beatId: beat.id }),
+      });
+      const data = await readApiJson<{ pending?: boolean; job?: MobileGenJob }>(res);
+      if (data.job) onSaved(text, voiceFile, motionBody, data.job);
+      if (!data.pending) return;
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+    }
+    throw new Error("Still cooking. The episode is still there — tap Generate again.");
+  }
+
+  async function sendTalkEngine(engine: "h3" | "grok") {
+    setGenerating(true);
+    setError("");
+    try {
+      if (engine === "h3") {
+        const composed = [talkLock.lead, talkH3Slot, talkLock.tail].filter(Boolean).join("\n\n");
+        if (composed.trim()) await persistMotion(composed);
+      } else if (motionDirty) {
+        await persistMotion(motionBody);
+      }
+      const grok = readGrokImagineSettings(jobId, shotId);
+      if (engine === "grok" && grok.mode === "image") {
+        const res = await fetch("/api/crash/mobile/imagine", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jobId,
+            shotId,
+            prompt: grok.prompt,
+            plateFile: grok.plateFile,
+            aspectRatio: grok.aspect,
+            resolution: grok.imageRes,
+          }),
+        });
+        const data = await readApiJson<{ job?: MobileGenJob }>(res);
+        if (data.job) onJobChange?.(data.job);
+        return;
+      }
+      const res = await fetch("/api/crash/mobile/clip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId,
+          action: "cook",
+          beatId: beat.id,
+          shotId,
+          clipEngine: engine === "h3" ? MINIMAX_H3_ID : GROK_I2V_ID,
+          durationSec:
+            engine === "h3"
+              ? MINIMAX_H3_DEFAULT_SEC
+              : grok.durationSec || GROK_I2V_DEFAULT_SEC,
+          endPlateFile: engine === "h3" ? readMvH3LastFrame(jobId, shotId) || undefined : undefined,
+          resolution: engine === "h3" ? readMvH3Resolution(jobId, shotId) : grok.videoRes,
+          h3Camera: engine === "h3" ? readMvH3Camera(jobId, shotId) || undefined : undefined,
+          plateFile: engine === "grok" ? grok.plateFile || undefined : undefined,
+          prompt: engine === "grok" ? grok.prompt || undefined : undefined,
+          keepAudio: engine === "grok" ? grok.keepAudio === true : undefined,
+        }),
+      });
+      const data = await readApiJson<{ pending?: boolean; job?: MobileGenJob }>(res);
+      if (data.job) onSaved(text, voiceFile, motionBody, data.job);
+      if (data.pending) await pollTalkCook();
+    } catch (e) {
+      setError(studioFetchError(e, "Couldn't start that clip"));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function generatePicked() {
+    if (songDesk) return void generateThisClip();
+    if (talkEngine === "h3") return void sendTalkEngine("h3");
+    if (talkEngine === "grok") return void sendTalkEngine("grok");
+    return void generateThisClip();
   }
 
   const emptiedPhoneMotionRef = useRef("");
@@ -3759,9 +3872,56 @@ function BeatLineEditor({
           h3LastStills={h3LastStills}
         />
       ) : songDesk ? null : (
+      <>
+      <div className="m-plate-add-engines">
+        <PlateEngineButtons
+          desk="talk"
+          jobId={jobId}
+          shotId={shotId}
+          beatId={beat.id}
+          engine={talkEngine}
+          promptOpen={talkHoleOpen}
+          onEngine={setTalkEngine}
+          onOpen={(next) => {
+            setTalkEngine(next);
+            setTalkHoleOpen(true);
+            if (next === "ltx") setLtxOpen(true);
+          }}
+        />
+      </div>
+      {talkEngine === "grok" && talkHoleOpen ? (
+        <GrokImagineHole
+          jobId={jobId}
+          shotId={shotId}
+          plates={grokPlates || []}
+          disabled={saving || generating}
+          onJobChange={onJobChange}
+          onImagine={() => void sendTalkEngine("grok")}
+        />
+      ) : talkEngine === "h3" && talkHoleOpen ? (
+        <MuteMvMotionHole
+          engine="h3"
+          motionLock={talkLock}
+          motionSlot={talkH3Slot}
+          onMotionSlot={(next) => {
+            setTalkH3Slot(next);
+            writeMvMotionSlot(jobId, beat.id, next);
+          }}
+          disabled={saving || generating}
+          mute
+          jobId={jobId}
+          shotId={shotId}
+          h3LastStills={h3LastStills}
+        />
+      ) : (
       <LtxImageMotionPanel
-        open={ltxOpen}
-        onToggle={() => setLtxOpen((open) => !open)}
+        open={ltxOpen || (talkHoleOpen && talkEngine === "ltx")}
+        onToggle={() => {
+          setLtxOpen((open) => !open);
+          setTalkHoleOpen(true);
+          setTalkEngine("ltx");
+        }}
+        foldLabel="LTX Image motion"
         body={motionBody}
         onChange={(v) => setMotionDraft(v)}
         keepDisabled={saving}
@@ -3779,26 +3939,31 @@ function BeatLineEditor({
         aiError={motionAssist.aiError}
       />
       )}
+      </>
+      )}
       {songDesk ? null : (
       <MobilePrimaryButton
         disabled={
           generating ||
           saving ||
           removing ||
-          !playable ||
-          positionAsLine ||
+          (talkEngine === "ltx" && (!playable || positionAsLine)) ||
           clipStatus === "running"
         }
-        onClick={() => void generateThisClip()}
+        onClick={() => void generatePicked()}
       >
         {generating || clipStatus === "running"
           ? "Sending…"
-          : playable
-            ? "Generate"
-            : "Save the line first"}
+          : talkEngine === "h3"
+            ? "Generate H3"
+            : talkEngine === "grok"
+              ? "Generate GROK"
+              : playable
+                ? "Generate"
+                : "Save the line first"}
       </MobilePrimaryButton>
       )}
-      {songDesk || playable ? null : (
+      {songDesk || playable || talkEngine !== "ltx" ? null : (
         <div style={{ fontSize: "12px", color: "var(--chrome-dim)" }}>
           Save the spoken line (Play appears), then Generate — that makes this line&apos;s LTX
           clip only. Generate video at the top still sends every Saved line.

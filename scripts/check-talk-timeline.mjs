@@ -18,6 +18,7 @@ import {
 import {
   TALK_CLIP_PX_PER_SEC,
   talkActNFromEvents,
+  talkActEmptyHint,
   talkActRoman,
   talkActScriptsFrom,
   talkPlaceActsFrom,
@@ -742,5 +743,24 @@ assert.match(editor, /plateClipRail\.clips/);
 assert.match(editor, /posterByShotId/);
 assert.doesNotMatch(song, /jobShowsMusicTrack/);
 assert.match(trackRoute, /Music video only/);
+
+assert.equal(
+  talkActEmptyHint({ roman: "IV", title: "Alert" }),
+  "No clips on Act IV · Alert yet. + Act only names a new place — it does not move clips. Clips you already made stay on that plate's place. To put a clip here: + Add clip and pick Alert, or paste Place: Alert and Add this act.",
+);
+assert.match(talkUi, /talkActEmptyHint/);
+assert.match(editor, /desk="talk"/);
+assert.match(editor, /Generate H3/);
+assert.match(editor, /Generate GROK/);
+assert.match(editor, /sendTalkEngine\("h3"\)/);
+assert.doesNotMatch(
+  editor.slice(editor.indexOf('desk="talk"'), editor.indexOf('desk="talk"') + 800),
+  />MATH</,
+);
+const clipRoute = readFileSync(join(root, "src/app/api/crash/mobile/clip/route.ts"), "utf8");
+assert.match(clipRoute, /action === "cook"/);
+assert.match(clipRoute, /submitScratchMinimaxClip/);
+assert.match(clipRoute, /submitScratchGrokClip/);
+assert.match(clipRoute, /Lip-sync stays on Generate \/ LTX/);
 
 console.log("check-talk-timeline: ok");

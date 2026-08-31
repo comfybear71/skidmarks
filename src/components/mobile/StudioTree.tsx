@@ -2071,14 +2071,14 @@ export function StudioTree({
         !isMusicVideoSongJob(job) ? (
           <div style={{ marginBottom: "12px" }}>
             <div style={{ color: "var(--chrome-dim)", fontSize: "12px", marginBottom: "8px" }}>
-              Paste only the next act. Place: must match that act chip (BBQ shelter,
-              or the place you named with + Act). Act I stays. Do not paste the
-              whole episode again.
+              Paste only the next act. Place: must match that act chip (
+              {talkAct?.title || "BBQ shelter"}, or the place you named with + Act).
+              Act I stays. Do not paste the whole episode again.
             </div>
             <MobileTextInput
               value={actDraft}
               onChange={setActDraft}
-              placeholder="--- SHOT 12 ---&#10;Place: BBQ shelter"
+              placeholder={`--- SHOT 12 ---&#10;Place: ${talkAct?.title || "Alert"}`}
               multiline
               rows={10}
             />
