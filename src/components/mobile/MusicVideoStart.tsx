@@ -289,10 +289,11 @@ export function LyricsBox({
 }
 
 /**
- * Who sings and when. Lyrics + marquee pins fill the clock. Type the
- * name on each row. Do not put H3 / MATH / GROK / camera / place here —
- * a later plate pass picks those. This box only stores the words.
- * It does not cook.
+ * Who sings and when. Lyrics + marquee pins fill the clock. Type one
+ * [name] per row — chorus can flip [SOUL REBEL] / [CENTRE-LEFT] on
+ * alternate lines. Saves only when Save is tapped, so a mid-edit
+ * write cannot wipe the chorus. Do not put H3 / MATH / GROK / camera / place here —
+ * a later plate pass picks those. Does not cook.
  */
 export function ScriptBox({
   job,
@@ -311,12 +312,13 @@ export function ScriptBox({
   const [saved, setSaved] = useState(false);
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
-  const saveTimer = useRef<number | null>(null);
+  const [dirty, setDirty] = useState(false);
   const autoFilled = useRef("");
   const lines = lyricLineCount(text);
   const sheet = lyrics ?? job.lyrics ?? "";
   const cues = lyricCues || [];
   const canFill = cues.length > 0 && Boolean(sheet.trim());
+  const canSave = dirty || text !== (job.songScript || "");
 
   function builtFromMarquee(previousText = text): string {
     return buildSongScriptText({
@@ -329,46 +331,48 @@ export function ScriptBox({
 
   useEffect(() => {
     autoFilled.current = "";
+    setDirty(false);
   }, [job.id]);
 
   useEffect(() => {
+    if (dirty) return;
     setText(job.songScript || "");
     setSaved(false);
     setSaveErr("");
-  }, [job.id, job.songScript]);
+  }, [job.id, job.songScript, dirty]);
 
   useEffect(() => {
     if ((job.songScript || "").trim()) return;
+    if (dirty) return;
     if (!canFill) return;
     const built = builtFromMarquee("");
     if (!built.trim()) return;
     if (autoFilled.current === `${job.id}:${built}`) return;
     autoFilled.current = `${job.id}:${built}`;
+    setDirty(true);
     setText(built);
-    void persist(built);
-    // First open with an empty script — fill once from the pins we already have.
+    setSaved(false);
+    // First open with an empty script — put the pins in the box. Save is a tap.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job.id, job.songScript, canFill, sheet, cues.length, durationMs]);
 
   function update(next: string) {
+    setDirty(true);
     setText(next);
     setSaved(false);
     setSaveErr("");
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => {
-      void persist(next);
-    }, 1200);
   }
 
   async function persist(next: string) {
     setSaving(true);
     try {
       const updated = await saveSongScript(job.id, next);
+      setDirty(false);
       setSaved(true);
       setSaveErr("");
       if (updated) onJobChange?.(updated);
     } catch (e) {
-      setSaveErr(studioFetchError(e, "Couldn't save script — tap out and try again"));
+      setSaveErr(studioFetchError(e, "Couldn't save script — tap Save and try again"));
     } finally {
       setSaving(false);
     }
@@ -376,32 +380,31 @@ export function ScriptBox({
 
   function fillFromMarquee() {
     if (!canFill) return;
-    if (saveTimer.current) {
-      window.clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
     const next = builtFromMarquee(text);
     if (!next.trim()) {
       setSaveErr("Pin Marquee lines first");
       return;
     }
+    setDirty(true);
     setText(next);
-    void persist(next);
+    setSaved(false);
+    setSaveErr("");
   }
 
   return (
     <div className="m-mv-lyrics">
       <div className="m-mv-lyrics-note">
         {lines
-          ? `${lines} line${lines === 1 ? "" : "s"} · type who sings`
+          ? `${lines} line${lines === 1 ? "" : "s"} · [SOUL REBEL] or [CENTRE-LEFT]`
           : canFill
-            ? "from lyrics + marquee · type who sings"
-            : "who · start – stop"}
-        {saved ? " · saved" : saving ? " · saving…" : ""}
+            ? "from lyrics + marquee · one [name] per row"
+            : "[SOUL REBEL] · start – stop"}
+        {saved ? " · saved" : dirty ? " · not saved" : ""}
+        {saving ? " · saving…" : ""}
         {saveErr ? ` · ${saveErr}` : ""}
       </div>
-      {canFill ? (
-        <div className="m-track-marker-row">
+      <div className="m-track-marker-row">
+        {canFill ? (
           <button
             type="button"
             className="m-track-btn"
@@ -410,22 +413,23 @@ export function ScriptBox({
           >
             Fill from marquee
           </button>
-        </div>
-      ) : null}
+        ) : null}
+        <button
+          type="button"
+          className="m-track-btn"
+          disabled={saving || !canSave}
+          onClick={() => void persist(text)}
+        >
+          Save
+        </button>
+      </div>
       <textarea
         className="m-mv-lyrics-input"
         value={text}
         rows={8}
         spellCheck={false}
-        placeholder={"0:00–0:12  NAME\nwhat they do\n\n0:12–0:31  NAME\nthe line"}
+        placeholder={"0:00–0:12  [SOUL REBEL]\nwhat they do\n\n0:12–0:31  [CENTRE-LEFT]\nthe line"}
         onChange={(e) => update(e.target.value)}
-        onBlur={() => {
-          if (saveTimer.current) {
-            window.clearTimeout(saveTimer.current);
-            saveTimer.current = null;
-          }
-          void persist(text);
-        }}
       />
     </div>
   );
