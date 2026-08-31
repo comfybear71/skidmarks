@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
-import { readMobileStory } from "@/lib/mobileStoryStore";
+import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
+import { appendPlacePlate } from "@/lib/mobilePlateGraph";
+import { phaseAfterPlateAdd } from "@/lib/mobileJobReady";
+import {
+  planScriptGo,
+  scriptGoNeedsWho,
+  scriptGoStaging,
+  uniqueScriptGoPlaces,
+} from "@/lib/scriptGo";
 import { MOBILE_JOB_READ_MISS, patchMobileGenJob, readMobileGenJob } from "@/lib/mobileGenJob";
 import { failScratchSongCutRun, runScratchLtxClip } from "@/lib/mobileScratchClip";
 import { finishScratchSirayClip, submitScratchSirayClip } from "@/lib/sirayScratchClip";
@@ -1087,6 +1095,169 @@ export async function POST(req: Request) {
       const songScript = String((body as { songScript?: string }).songScript ?? "");
       const updated = await patchMobileGenJob(jobId, { songScript, error: "" });
       return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (action === "script-fresh") {
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop the song first." }, { status: 400 });
+      }
+      const files = new Set<string>();
+      for (const clip of job.clips || []) {
+        for (const file of stackedClipFiles(clip)) files.add(file);
+      }
+      for (const cut of song.cuts || []) {
+        const file = clipFileBasename(cut.clipFile || "");
+        if (file) files.add(file);
+      }
+      for (const file of files) parkMobileClipFile(file);
+      const updated = await patchMobileGenJob(jobId, {
+        clips: [],
+        scratchSong: { ...song, plateTimings: [], cuts: [] },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated, parked: files.size });
+    }
+
+    if (action === "script-blade") {
+      if (!job.folderName) {
+        return NextResponse.json({ error: "Lock the episode first." }, { status: 400 });
+      }
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop the song first." }, { status: 400 });
+      }
+      const script = String(job.songScript || "").trim();
+      if (scriptGoNeedsWho(script, job.speakers || [])) {
+        return NextResponse.json(
+          { error: "Type [SOUL REBEL] or [CENTRE-LEFT] on the rows, then Save." },
+          { status: 400 },
+        );
+      }
+      const places = uniqueScriptGoPlaces(job.scenes || [], job.locationCandidates);
+      if (!places.length) {
+        return NextResponse.json({ error: "Need a location on LOCATIONS first." }, { status: 400 });
+      }
+      const plan = planScriptGo({
+        songScript: script,
+        speakers: job.speakers || [],
+        sceneCount: places.length,
+      });
+      let story = await readMobileStory(job.styleId, job.folderName);
+      if (!story?.scenes?.length) {
+        return NextResponse.json({ error: "Couldn't read this pack's story." }, { status: 400 });
+      }
+      let live = job;
+      const plateTimings = [...(song.plateTimings || [])];
+      let cuts = [...(song.cuts || [])];
+      const items: Array<{
+        shotId: string;
+        beatId: string;
+        startMs: number;
+        endMs: number;
+        who: string;
+        kind: string;
+        engine: string;
+        staging: string;
+      }> = [];
+
+      for (let i = 0; i < plan.length; i++) {
+        const step = plan[i]!;
+        const place = places[step.sceneIndex % places.length]!;
+        const staging = scriptGoStaging({
+          who: step.who,
+          placeName: place.placeName,
+          cameraKey: step.cameraKey,
+        });
+        let minted;
+        try {
+          minted = appendPlacePlate({
+            job: live,
+            story,
+            sceneId: place.id,
+            speaker: step.who,
+            reuseScene: true,
+          });
+        } catch (e) {
+          return NextResponse.json(
+            { error: e instanceof Error ? e.message : "Couldn't add a plate" },
+            { status: 400 },
+          );
+        }
+        story = {
+          ...minted.story,
+          scenes: minted.story.scenes.map((sc) => ({
+            ...sc,
+            shots: sc.shots.map((sh) =>
+              sh.id === minted.shotId
+                ? {
+                    ...sh,
+                    staging,
+                    summary: `${step.who}, solo. ${step.line}`,
+                    noLips: step.kind === "break",
+                  }
+                : sh,
+            ),
+          })),
+        };
+        const addedScene = story.scenes.find((sc) => sc.id === minted.sceneId);
+        const sceneIsNew = addedScene && !live.scenes.some((s) => s.id === minted.sceneId);
+        const scenes = sceneIsNew && addedScene
+          ? [
+              ...live.scenes,
+              {
+                id: addedScene.id,
+                placeName: addedScene.placeName,
+                worldThumbKey: addedScene.worldThumbKey || "",
+              },
+            ]
+          : live.scenes;
+        const carried = minted.carryStillFrom
+          ? (live.locationCandidates[minted.carryStillFrom] || []).filter(
+              (c) => c.approved && c.fileName.trim(),
+            )
+          : [];
+        const locationCandidates =
+          sceneIsNew && carried.length
+            ? { ...live.locationCandidates, [minted.sceneId]: carried }
+            : live.locationCandidates;
+        live = (await patchMobileGenJob(jobId, {
+          shots: minted.shots,
+          scenes,
+          locationCandidates,
+          error: "",
+          phase: phaseAfterPlateAdd(live.phase),
+        })) || live;
+        const beatId = story.scenes
+          .flatMap((sc) => sc.shots)
+          .find((sh) => sh.id === minted.shotId)
+          ?.beats?.[0]?.id || "";
+        const timing = {
+          plateId: minted.shotId,
+          startMs: step.startMs,
+          endMs: step.endMs,
+          sortIndex: plateTimings.length,
+        };
+        plateTimings.push(timing);
+        cuts = cutFromPlateTiming(cuts, timing, "", () => newId("cut"));
+        items.push({
+          shotId: minted.shotId,
+          beatId,
+          startMs: step.startMs,
+          endMs: step.endMs,
+          who: step.who,
+          kind: step.kind,
+          engine: step.engine,
+          staging,
+        });
+      }
+
+      await writeMobileStory(story, job.folderName);
+      const updated = await patchMobileGenJob(jobId, {
+        scratchSong: { ...song, plateTimings, cuts },
+        error: "",
+      });
+      return NextResponse.json({ ok: true, job: updated, items, count: items.length });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
