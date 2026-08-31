@@ -118,9 +118,10 @@ export function lyricLineCount(text: string): number {
     .filter((line) => line.trim().length > 0).length;
 }
 
-/** Closed by default unless there is already something in there to see. */
-export function lyricsPanelOpensAt(text: string): boolean {
-  return lyricLineCount(text) > 0;
+/** Always closed on load. Hard refresh stays closed even when lyrics
+ * or the script already have text. Tap to open. */
+export function lyricsPanelOpensAt(_text?: string): boolean {
+  return false;
 }
 
 function emptyBookend(): CrashStoryDoc["intro"] {
