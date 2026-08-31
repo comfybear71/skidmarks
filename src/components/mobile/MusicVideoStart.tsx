@@ -18,6 +18,8 @@ import {
   takePendingSong,
   type PendingSong,
 } from "@/lib/musicVideoStart";
+import { buildSongScriptText } from "@/lib/songScript";
+import type { LyricCue } from "@/lib/musicVideoTrack";
 
 /**
  * The parked mp3, as React state. Every panel that asks "do we have a song
@@ -287,28 +289,66 @@ export function LyricsBox({
 }
 
 /**
- * Who sings and when. Same save as lyrics. AI plates read this later —
- * this box only stores the words.
+ * Who sings and when. Lyrics + marquee pins fill the clock. Type the
+ * name on each row. Do not put H3 / MATH / GROK / camera / place here —
+ * a later plate pass picks those. This box only stores the words.
+ * It does not cook.
  */
 export function ScriptBox({
   job,
   onJobChange,
+  lyrics,
+  lyricCues,
+  durationMs,
 }: {
   job: MobileGenJob;
   onJobChange?: (job: MobileGenJob) => void;
+  lyrics?: string;
+  lyricCues?: LyricCue[];
+  durationMs?: number;
 }) {
   const [text, setText] = useState(job.songScript || "");
   const [saved, setSaved] = useState(false);
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
   const saveTimer = useRef<number | null>(null);
+  const autoFilled = useRef("");
   const lines = lyricLineCount(text);
+  const sheet = lyrics ?? job.lyrics ?? "";
+  const cues = lyricCues || [];
+  const canFill = cues.length > 0 && Boolean(sheet.trim());
+
+  function builtFromMarquee(previousText = text): string {
+    return buildSongScriptText({
+      lyrics: sheet,
+      lyricCues: cues,
+      durationMs: durationMs || 0,
+      previousText,
+    });
+  }
+
+  useEffect(() => {
+    autoFilled.current = "";
+  }, [job.id]);
 
   useEffect(() => {
     setText(job.songScript || "");
     setSaved(false);
     setSaveErr("");
   }, [job.id, job.songScript]);
+
+  useEffect(() => {
+    if ((job.songScript || "").trim()) return;
+    if (!canFill) return;
+    const built = builtFromMarquee("");
+    if (!built.trim()) return;
+    if (autoFilled.current === `${job.id}:${built}`) return;
+    autoFilled.current = `${job.id}:${built}`;
+    setText(built);
+    void persist(built);
+    // First open with an empty script — fill once from the pins we already have.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.id, job.songScript, canFill, sheet, cues.length, durationMs]);
 
   function update(next: string) {
     setText(next);
@@ -334,13 +374,44 @@ export function ScriptBox({
     }
   }
 
+  function fillFromMarquee() {
+    if (!canFill) return;
+    if (saveTimer.current) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const next = builtFromMarquee(text);
+    if (!next.trim()) {
+      setSaveErr("Pin Marquee lines first");
+      return;
+    }
+    setText(next);
+    void persist(next);
+  }
+
   return (
     <div className="m-mv-lyrics">
       <div className="m-mv-lyrics-note">
-        {lines ? `${lines} line${lines === 1 ? "" : "s"}` : "who · start – stop"}
+        {lines
+          ? `${lines} line${lines === 1 ? "" : "s"} · type who sings`
+          : canFill
+            ? "from lyrics + marquee · type who sings"
+            : "who · start – stop"}
         {saved ? " · saved" : saving ? " · saving…" : ""}
         {saveErr ? ` · ${saveErr}` : ""}
       </div>
+      {canFill ? (
+        <div className="m-track-marker-row">
+          <button
+            type="button"
+            className="m-track-btn"
+            disabled={saving}
+            onClick={() => fillFromMarquee()}
+          >
+            Fill from marquee
+          </button>
+        </div>
+      ) : null}
       <textarea
         className="m-mv-lyrics-input"
         value={text}

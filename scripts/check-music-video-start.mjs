@@ -111,6 +111,8 @@ assert.match(songRoute, /action === "set-lyrics"/);
 assert.match(songRoute, /action === "set-song-script"/);
 assert.match(mvStart, /export function ScriptBox/);
 assert.match(mvStart, /set-song-script/);
+assert.match(mvStart, /Fill from marquee/);
+assert.match(mvStart, /buildSongScriptText/);
 assert.match(mvStart, /attachParkedSongToBeat/);
 assert.match(mvStart, /attachTakenPendingSong/);
 // "Start the video" is a button inside the one track UI now, not a panel of
