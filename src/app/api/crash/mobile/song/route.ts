@@ -1,5 +1,6 @@
 import path from "path";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { runScriptGo } from "@/lib/scriptGoRun";
 import { readMobileStory, writeMobileStory } from "@/lib/mobileStoryStore";
 import { appendPlacePlate } from "@/lib/mobilePlateGraph";
 import { phaseAfterPlateAdd } from "@/lib/mobileJobReady";
@@ -1189,6 +1190,69 @@ export async function POST(req: Request) {
       }));
 
       return NextResponse.json({ ok: true, report: { ...report, pinDrift } });
+    }
+
+    if (action === "script-go-background") {
+      // Go used to be a loop the phone's own tab drove step by step — a
+      // refresh or switching apps killed it mid-run, and the client Stop
+      // ref went with it. This hands the exact same loop (runScriptGo,
+      // unchanged) to the server via after(), so it keeps cooking for up
+      // to ~14 minutes (under the route's 900s ceiling) no matter what the
+      // phone does. scriptGoUntil is the claim — a second start while one
+      // is already live just reports back instead of racing it.
+      const claimedUntil = job.scriptGoUntil ? Date.parse(job.scriptGoUntil) : 0;
+      if (Number.isFinite(claimedUntil) && claimedUntil > Date.now()) {
+        return NextResponse.json({ ok: true, alreadyRunning: true, job });
+      }
+      const origin = new URL(req.url).origin;
+      const claimed = await patchMobileGenJob(jobId, {
+        scriptGoUntil: new Date(Date.now() + 14 * 60 * 1000).toISOString(),
+        scriptGoNote: "Starting…",
+        scriptGoStopRequested: false,
+        error: "",
+      });
+      after(async () => {
+        let stopped = false;
+        const watcher = setInterval(() => {
+          void readMobileGenJob(jobId)
+            .then((live) => {
+              if (live?.scriptGoStopRequested) stopped = true;
+            })
+            .catch(() => {
+              // A transient read hiccup must not kill an otherwise-fine run.
+            });
+        }, 4000);
+        try {
+          await runScriptGo({
+            jobId,
+            baseUrl: origin,
+            cancelled: () => stopped,
+            onNote: (msg) => {
+              void patchMobileGenJob(jobId, { scriptGoNote: msg }).catch(() => {});
+            },
+          });
+        } catch (e) {
+          await patchMobileGenJob(jobId, {
+            error: e instanceof Error ? e.message : String(e),
+          }).catch(() => {});
+        } finally {
+          clearInterval(watcher);
+          await patchMobileGenJob(jobId, {
+            scriptGoUntil: "",
+            scriptGoStopRequested: false,
+          }).catch(() => {});
+        }
+      });
+      return NextResponse.json({ ok: true, started: true, job: claimed });
+    }
+
+    if (action === "script-go-status") {
+      return NextResponse.json({ ok: true, job });
+    }
+
+    if (action === "script-go-stop") {
+      const updated = await patchMobileGenJob(jobId, { scriptGoStopRequested: true });
+      return NextResponse.json({ ok: true, job: updated });
     }
 
     if (action === "script-fresh") {

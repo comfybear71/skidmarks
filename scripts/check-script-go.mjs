@@ -200,7 +200,6 @@ console.log("check-script-go: untagged breaks default to the lead vocalist ok");
   const run = readFileSync(new URL("../src/lib/scriptGoRun.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../src/app/api/crash/mobile/song/route.ts", import.meta.url), "utf8");
   assert.match(ui, />\s*Go\s*</);
-  assert.match(ui, /runScriptGo/);
   assert.match(run, /script-fresh/);
   assert.match(run, /script-blade/);
   assert.match(run, /trimToSec/);
@@ -216,3 +215,58 @@ console.log("check-script-go: untagged breaks default to the lead vocalist ok");
 }
 
 console.log("check-script-go: ok");
+
+// --- Go survives a refresh: the run moves to the server, the tab just watches ---
+
+{
+  // Go used to be a loop the phone's own tab drove step by step — refresh,
+  // lock the phone, or switch apps, and the loop just died. Tapping Go now
+  // starts the exact same loop (runScriptGo, unchanged) on the server via
+  // after(), so it keeps cooking regardless of what the phone does.
+  const ui = readFileSync(new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../src/app/api/crash/mobile/song/route.ts", import.meta.url), "utf8");
+  const job = readFileSync(new URL("../src/lib/mobileGenJob.ts", import.meta.url), "utf8");
+
+  assert.match(route, /import\s*\{\s*NextResponse,\s*after\s*\}\s*from\s*"next\/server"/);
+  assert.match(route, /import\s*\{\s*runScriptGo\s*\}\s*from\s*"@\/lib\/scriptGoRun"/);
+  assert.match(route, /action === "script-go-background"/);
+  assert.match(route, /action === "script-go-status"/);
+  assert.match(route, /action === "script-go-stop"/);
+  assert.match(route, /after\(async \(\) => \{/, "the cook loop is handed to after(), not tied to the response");
+  assert.match(route, /runScriptGo\(\{/);
+  assert.match(
+    route,
+    /claimedUntil > Date\.now\(\)/,
+    "a second start while one is already live must not race it",
+  );
+  assert.match(
+    route,
+    /scriptGoStopRequested/,
+    "Stop has to reach a run that is no longer driven by this tab",
+  );
+
+  assert.match(job, /scriptGoUntil\?:\s*string/);
+  assert.match(job, /scriptGoNote\?:\s*string/);
+  assert.match(job, /scriptGoStopRequested\?:\s*boolean/);
+
+  // The client no longer runs the loop itself — it starts the background
+  // job and then just watches scriptGoUntil, which is what makes a refresh
+  // safe: reopening the page reads the same field and resumes watching a
+  // run that was never riding on the tab that started it.
+  assert.doesNotMatch(
+    ui,
+    /import\s*\{\s*runScriptGo\s*\}/,
+    "Go must not run the client-side loop directly any more",
+  );
+  assert.match(ui, /scriptGoJson/);
+  assert.match(ui, /action:\s*"script-go-background"/);
+  assert.match(ui, /action:\s*"script-go-status"/);
+  assert.match(ui, /action:\s*"script-go-stop"/);
+  assert.match(
+    ui,
+    /job\.scriptGoUntil/,
+    "the resume-on-reopen effect must key off the job field, not local state",
+  );
+}
+
+console.log("check-script-go: Go survives a refresh ok");

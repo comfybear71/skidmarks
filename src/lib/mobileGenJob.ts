@@ -216,6 +216,21 @@ export type MobileGenJob = {
   stockLook?: StockLook | null;
   /** Hide the last still on /scratch. Plate file stays — refresh must not put it back. */
   scratchPadCleared?: boolean;
+  /**
+   * Script Go running server-side (after()), independent of the phone's
+   * tab. ISO claim time — ignore if past. Set on start, cleared on finish
+   * or error, so a refresh or app-switch never loses the run: it was never
+   * riding on the tab in the first place. Older jobs omit this.
+   */
+  scriptGoUntil?: string;
+  /** Last progress line from the background Script Go run — the desk
+   * reads this to show live status without needing the tab that started
+   * it. Older jobs omit this. */
+  scriptGoNote?: string;
+  /** Stop asked while a background Script Go run is live. The loop's
+   * server-side watcher notices on its next check and stops after the
+   * still in progress, same as the old client Stop button. */
+  scriptGoStopRequested?: boolean;
   finalVideoFile: string;
   error: string;
   createdAt: string;

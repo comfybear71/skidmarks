@@ -20,7 +20,7 @@ import {
 } from "@/lib/musicVideoStart";
 import { buildSongScriptText } from "@/lib/songScript";
 import { formatTrackClock, type LyricCue } from "@/lib/musicVideoTrack";
-import { runScriptGo } from "@/lib/scriptGoRun";
+import { scriptGoJson } from "@/lib/scriptGoRun";
 import type { ListenReport } from "@/lib/songVocalListen";
 
 /**
@@ -345,7 +345,6 @@ export function ScriptBox({
   const [listening, setListening] = useState(false);
   const [listenErr, setListenErr] = useState("");
   const [listenReport, setListenReport] = useState<ListenReport | null>(null);
-  const stopGo = useRef(false);
   const autoFilled = useRef("");
   const lines = lyricLineCount(text);
   const sheet = lyrics ?? job.lyrics ?? "";
@@ -427,9 +426,48 @@ export function ScriptBox({
     setSaveErr("");
   }
 
+  // Go used to be a loop this tab drove step by step — switch screens,
+  // lock the phone, or refresh, and it just stopped. Now one tap hands the
+  // whole run to the server (script-go-background), which keeps cooking on
+  // its own for up to ~14 minutes. This effect is what makes a refresh safe:
+  // it reads scriptGoUntil off the job itself, so a run already underway on
+  // the server is picked back up and shown here again, whether this page
+  // started it or just reopened onto it.
+  useEffect(() => {
+    const untilMs = job.scriptGoUntil ? Date.parse(job.scriptGoUntil) : 0;
+    const active = Number.isFinite(untilMs) && untilMs > Date.now();
+    setGoing(active);
+    if (!active) {
+      if (job.error) setGoNote(job.error);
+      else if (job.scriptGoNote) setGoNote(job.scriptGoNote);
+      return;
+    }
+    setGoNote(job.scriptGoNote || "Cooking on the server — safe to switch screens or refresh");
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const res = await scriptGoJson("/api/crash/mobile/song", {
+          action: "script-go-status",
+          jobId: job.id,
+        });
+        if (stopped || !res.job) return;
+        onJobChange?.(res.job);
+      } catch {
+        // Transient — the next tick retries. A dropped poll must not read
+        // as the run having stopped.
+      }
+    };
+    const id = setInterval(() => void tick(), 3000);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.id, job.scriptGoUntil]);
+
   async function goFromScript() {
     if (going) return;
-    stopGo.current = false;
     setGoing(true);
     setSaveErr("");
     setGoNote("Saving the script");
@@ -440,18 +478,30 @@ export function ScriptBox({
         setSaved(true);
         if (savedJob) onJobChange?.(savedJob);
       }
-      await runScriptGo({
+      setGoNote("Starting…");
+      const started = await scriptGoJson("/api/crash/mobile/song", {
+        action: "script-go-background",
         jobId: job.id,
-        onJob: (next) => onJobChange?.(next),
-        onNote: setGoNote,
-        cancelled: () => stopGo.current,
       });
+      if (started.job) onJobChange?.(started.job);
     } catch (e) {
-      const msg = studioFetchError(e, "Couldn't Go from the script");
+      const msg = studioFetchError(e, "Couldn't start Go from the script");
       setSaveErr(msg);
       setGoNote(msg);
-    } finally {
       setGoing(false);
+    }
+  }
+
+  async function stopGoBackground() {
+    setGoNote("Stopping after this still…");
+    try {
+      const stopped = await scriptGoJson("/api/crash/mobile/song", {
+        action: "script-go-stop",
+        jobId: job.id,
+      });
+      if (stopped.job) onJobChange?.(stopped.job);
+    } catch (e) {
+      setSaveErr(studioFetchError(e, "Couldn't stop — it will finish the current still"));
     }
   }
 
@@ -520,10 +570,7 @@ export function ScriptBox({
           <button
             type="button"
             className="m-track-btn"
-            onClick={() => {
-              stopGo.current = true;
-              setGoNote("Stopping after this still");
-            }}
+            onClick={() => void stopGoBackground()}
           >
             Stop
           </button>
