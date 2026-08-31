@@ -132,11 +132,69 @@ assert.doesNotMatch(rebuilt, /\bGROK\b/);
 assert.doesNotMatch(rebuilt, /camera/i);
 assert.doesNotMatch(rebuilt, /three-quarter|over.shoulder/i);
 
+// --- Pass 2: hang from the listen, not the pins ---
+
+{
+  // A pin sitting in real silence snaps onto the nearest real sound onset.
+  // A pin already on real sound is left exactly where it is.
+  const listenCues = [
+    { lineIndex: 3, atMs: 500 }, // inside the 0–2000 silence
+    { lineIndex: 4, atMs: 2_400 }, // already on real sound — must not move
+  ];
+  const soundWindows = [
+    { startMs: 0, endMs: 2_000, kind: "silence" },
+    { startMs: 2_000, endMs: 20_000, kind: "sound" },
+  ];
+  const snapped = songScriptBeatsFromLyricsAndMarquee({
+    lyrics,
+    lyricCues: listenCues,
+    durationMs: 20_000,
+    listen: { soundWindows },
+  });
+  const line1 = snapped.find((b) => b.line === "The sun is shining bright");
+  const line2 = snapped.find((b) => b.line === "Everything is feeling right");
+  assert.equal(line1?.startMs, 2_000, "pin in real silence snaps to the real sound onset");
+  assert.equal(line2?.startMs, 2_400, "pin already on real sound is left alone");
+}
+
+{
+  // A real detected quiet stretch inside a long gap becomes the break —
+  // its own boundaries, not the typical-sung-hold guess.
+  const soundWindows = [
+    { startMs: 0, endMs: 40_000, kind: "sound" },
+    { startMs: 40_000, endMs: 70_000, kind: "silence" }, // the real instrumental break
+    { startMs: 70_000, endMs: 263_000, kind: "sound" },
+  ];
+  const listenBeats = songScriptBeatsFromLyricsAndMarquee({
+    lyrics,
+    lyricCues: cues,
+    durationMs: 263_000,
+    listen: { soundWindows },
+  });
+  const realBreak = listenBeats.find((b) => b.startMs === 40_000);
+  assert.ok(realBreak, "break starts at the real quiet stretch, not the typical-hold guess (35,000)");
+  assert.equal(realBreak.kind, "break");
+  assert.equal(realBreak.endMs, 76_000, "break runs to the next pin");
+  const sungBeforeBreak = listenBeats.find((b) => b.line === "Everything is feeling right");
+  assert.equal(sungBeforeBreak?.endMs, 40_000, "sung hold shortens to where the real quiet actually starts");
+}
+
+{
+  // Without a listen report, behavior is exactly the old pin-only math —
+  // Pass 2 is additive, never a silent behavior change.
+  const noListen = songScriptBeatsFromLyricsAndMarquee({ lyrics, lyricCues: cues, durationMs: 263_000 });
+  assert.deepEqual(noListen, beats, "omitting `listen` reproduces the pin-only beats exactly");
+}
+
+console.log("check-song-script: Pass 2 (listen) ok");
+
 {
   const ui = readFileSync(new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url), "utf8");
   const track = readFileSync(new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url), "utf8");
   const scriptBox = ui.slice(ui.indexOf("export function ScriptBox"), ui.indexOf("export function SongDropRow"));
   assert.match(scriptBox, /Fill from marquee/);
+  assert.match(scriptBox, /Fill from listen \+ marquee/, "Fill relabels once Listen has run");
+  assert.match(scriptBox, /listen:\s*listenReport/, "Fill from marquee threads the listen report through");
   assert.match(scriptBox, />\s*Save\s*</);
   assert.doesNotMatch(scriptBox, /1200/, "Script does not auto-save on a timer");
   assert.doesNotMatch(scriptBox, /onBlur/, "Script does not save on tap-out");

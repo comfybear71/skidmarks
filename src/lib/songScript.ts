@@ -11,6 +11,14 @@
  *
  * Never write H3, MATH, GROK, camera, place, or position into this text.
  * Those stay off the script. A later plate pass picks them.
+ *
+ * Pass 2 — hang from the listen, not the pins: when a Listen report
+ * (songVocalListen.ts) is passed in, a pin that lands in real silence is
+ * snapped onto the nearest real sound onset (bounded — see
+ * SONG_SCRIPT_LISTEN_SNAP_MAX_MS), and a break in a long gap uses the real
+ * detected quiet stretch's boundaries instead of the typical-hold guess.
+ * Without a listen report this file behaves exactly as before — the
+ * pin-to-pin math is the fallback, not replaced.
  */
 
 import {
@@ -21,6 +29,13 @@ import {
   type LyricCue,
   type LyricTag,
 } from "./musicVideoTrack";
+import {
+  isInSilence,
+  longQuietStretches,
+  nearestSoundStart,
+  type SilenceWindow,
+  type SoundWindow,
+} from "./songVocalListen";
 
 /** Same ceiling as the marquee hold — a 20s hole is not one sung line. */
 export const SONG_SCRIPT_MAX_SUNG_MS = 9000;
@@ -28,8 +43,47 @@ export const SONG_SCRIPT_MAX_SUNG_MS = 9000;
 export const SONG_SCRIPT_MIN_BREAK_MS = 2000;
 /** Last line / sparse pins, when there is no tight cluster to copy. */
 export const SONG_SCRIPT_FALLBACK_SUNG_MS = 5200;
+/**
+ * How far a pin can snap onto the nearest real sound before the snap is
+ * dropped. Listen is amplitude-only, not word-level — a wild snap onto some
+ * unrelated sound onset is worse than leaving the pin alone.
+ */
+export const SONG_SCRIPT_LISTEN_SNAP_MAX_MS = SONG_SCRIPT_MAX_SUNG_MS;
 
 export type SongScriptBeatKind = "sing" | "break";
+
+/** The Listen report's sound/silence timeline — the "hang from the listen" input. */
+export type SongScriptListenInput = { soundWindows: SoundWindow[] };
+
+function silenceWindowsFrom(soundWindows: SoundWindow[]): SilenceWindow[] {
+  return soundWindows
+    .filter((w) => w.kind === "silence")
+    .map((w) => ({ startMs: w.startMs, endMs: w.endMs }));
+}
+
+/**
+ * A pin sitting in real silence is snapped onto the nearest real sound
+ * onset, bounded by SONG_SCRIPT_LISTEN_SNAP_MAX_MS. A pin already on real
+ * sound is left exactly where it is — Listen only corrects what it can show
+ * is wrong. Snapped times never move earlier than the previous line's
+ * (already snapped) time, so line order can never invert.
+ */
+function snapCuesToListen(cues: LyricCue[], listen: SongScriptListenInput): LyricCue[] {
+  const silences = silenceWindowsFrom(listen.soundWindows);
+  let prevAt = 0;
+  return cues.map((cue) => {
+    let at = cue.atMs;
+    if (isInSilence(silences, at)) {
+      const nearest = nearestSoundStart(listen.soundWindows, at);
+      if (nearest !== null && Math.abs(nearest - at) <= SONG_SCRIPT_LISTEN_SNAP_MAX_MS) {
+        at = nearest;
+      }
+    }
+    at = Math.max(at, prevAt);
+    prevAt = at;
+    return { ...cue, atMs: at };
+  });
+}
 
 export type SongScriptBeat = {
   startMs: number;
@@ -121,14 +175,17 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
   lyrics: string;
   lyricCues: LyricCue[];
   durationMs: number;
+  /** From Listen (Pass 1). Omit to get the old pin-only behavior exactly. */
+  listen?: SongScriptListenInput;
 }): SongScriptBeat[] {
   const lyrics = String(opts.lyrics || "");
   const sung = lyricLinesFrom(lyrics);
   const byIndex = new Map(sung.map((l) => [l.index, l]));
-  const cues = [...(opts.lyricCues || [])]
+  let cues = [...(opts.lyricCues || [])]
     .filter((c) => byIndex.has(c.lineIndex) && Number.isFinite(c.atMs) && c.atMs >= 0)
     .sort((a, b) => a.atMs - b.atMs || a.lineIndex - b.lineIndex);
   if (!cues.length) return [];
+  if (opts.listen) cues = snapCuesToListen(cues, opts.listen);
 
   const songMs = Math.max(
     cues[cues.length - 1]!.atMs + SONG_SCRIPT_FALLBACK_SUNG_MS,
@@ -136,6 +193,7 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
   );
   const tags = lyricTagsFrom(lyrics);
   const typical = typicalSungMs(cues);
+  const longQuiet = opts.listen ? longQuietStretches(silenceWindowsFrom(opts.listen.soundWindows)) : [];
   const out: SongScriptBeat[] = [];
 
   const firstAt = cues[0]!.atMs;
@@ -162,6 +220,19 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
       continue;
     }
 
+    const afterLine = cue.lineIndex;
+    const beforeLine = next ? next.lineIndex : Number.POSITIVE_INFINITY;
+
+    // A real detected quiet stretch in this gap is the actual break — use
+    // its own boundaries instead of guessing from the typical sung hold.
+    const realQuiet = longQuiet.find((q) => q.startMs > cue.atMs && q.startMs < nextAt);
+    if (realQuiet) {
+      const sungEnd = Math.max(cue.atMs, realQuiet.startMs);
+      pushBeat(out, cue.atMs, sungEnd, "sing", words);
+      pushBeat(out, sungEnd, nextAt, "break", breakLineFromTags(tagsBetweenLines(tags, afterLine, beforeLine)));
+      continue;
+    }
+
     const sungEnd = Math.min(nextAt, cue.atMs + typical);
     const leftover = nextAt - sungEnd;
     if (leftover < SONG_SCRIPT_MIN_BREAK_MS) {
@@ -170,8 +241,6 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
     }
 
     pushBeat(out, cue.atMs, sungEnd, "sing", words);
-    const afterLine = cue.lineIndex;
-    const beforeLine = next ? next.lineIndex : Number.POSITIVE_INFINITY;
     pushBeat(out, sungEnd, nextAt, "break", breakLineFromTags(tagsBetweenLines(tags, afterLine, beforeLine)));
   }
 
@@ -262,6 +331,7 @@ export function buildSongScriptText(opts: {
   lyricCues: LyricCue[];
   durationMs: number;
   previousText?: string;
+  listen?: SongScriptListenInput;
 }): string {
   const built = songScriptBeatsFromLyricsAndMarquee(opts);
   const previous = parseSongScript(opts.previousText || "");

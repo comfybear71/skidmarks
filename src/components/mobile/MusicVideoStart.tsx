@@ -359,6 +359,7 @@ export function ScriptBox({
       lyricCues: cues,
       durationMs: durationMs || 0,
       previousText,
+      listen: listenReport ? { soundWindows: listenReport.soundWindows } : undefined,
     });
   }
 
@@ -386,8 +387,9 @@ export function ScriptBox({
     setText(built);
     setSaved(false);
     // First open with an empty script — put the pins in the box. Save is a tap.
+    // Re-runs once Listen lands so an empty script auto-fills listen-corrected.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job.id, job.songScript, canFill, sheet, cues.length, durationMs]);
+  }, [job.id, job.songScript, canFill, sheet, cues.length, durationMs, listenReport]);
 
   function update(next: string) {
     setDirty(true);
@@ -472,7 +474,9 @@ export function ScriptBox({
         {lines
           ? `${lines} line${lines === 1 ? "" : "s"} · [SOUL REBEL] or [CENTRE-LEFT]`
           : canFill
-            ? "from lyrics + marquee · one [name] per row"
+            ? listenReport
+              ? "from lyrics + marquee, corrected against Listen · one [name] per row"
+              : "from lyrics + marquee · one [name] per row"
             : "[SOUL REBEL] · start – stop"}
         {saved ? " · saved" : dirty ? " · not saved" : ""}
         {saving ? " · saving…" : ""}
@@ -485,9 +489,14 @@ export function ScriptBox({
             type="button"
             className="m-track-btn"
             disabled={saving || going}
+            title={
+              listenReport
+                ? "Rebuilds from lyrics + marquee, with pins corrected against the Listen report"
+                : "Rebuilds from lyrics + marquee pins. Run Listen first to correct against real sound."
+            }
             onClick={() => fillFromMarquee()}
           >
-            Fill from marquee
+            {listenReport ? "Fill from listen + marquee" : "Fill from marquee"}
           </button>
         ) : null}
         <button
