@@ -1129,12 +1129,19 @@ export function StudioTree({
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, action: "add", sceneId, speaker: who }),
+        body: JSON.stringify({
+          jobId: job.id,
+          action: "add",
+          sceneId,
+          speaker: who,
+          reuseScene: !isMusicVideoSongJob(job),
+        }),
       });
       const data = (await res.json()) as { error?: string; job?: MobileGenJob; shotId?: string };
       if (!res.ok) throw new Error(data.error || "Couldn't add a plate there");
       if (data.job) onJobChange(data.job);
       setAddPlateDoneFor(sceneId);
+      if (!isMusicVideoSongJob(job)) setTalkActId(`place-${sceneId}`);
       revealPlates(data.shotId);
     } catch (e) {
       setAddPlateError(studioFetchError(e, "Couldn't add a plate there"));
@@ -2108,6 +2115,7 @@ export function StudioTree({
               collapsed={!platesOpen}
               onExpand={() => setPlatesOpen(true)}
               defaultPlaceId={placeFocus || undefined}
+              actSceneId={talkAct?.sceneId || undefined}
               focusShotId={focusPlateShotId}
               onSendStill={(shotId) => sendStillRef.current(shotId)}
               sendStillBusy={sendStillBusy}

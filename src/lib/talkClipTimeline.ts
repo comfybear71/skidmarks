@@ -176,6 +176,21 @@ export function talkActRoman(n: number): string {
   return TALK_ROMAN[Math.max(1, Math.floor(n)) - 1] || String(n);
 }
 
+/**
+ * Where a new talking slot or plate goes: the open act's place.
+ * Not the last cook (BBQ after you tap Act IV · Alert).
+ * Skidmarks stage ids are not job scenes — those still pick a place.
+ */
+export function talkActLandSceneId(
+  act: Pick<TalkActScript, "sceneId"> | null | undefined,
+  scenes: Array<{ id?: string }> | null | undefined,
+): string {
+  const id = String(act?.sceneId || "").trim();
+  if (!id) return "";
+  if (!(scenes || []).some((s) => (s.id || "").trim() === id)) return "";
+  return id;
+}
+
 export function talkRomanToN(raw: string): number | null {
   const key = String(raw || "").trim().toUpperCase();
   const i = TALK_ROMAN.indexOf(key as (typeof TALK_ROMAN)[number]);

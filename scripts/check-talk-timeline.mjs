@@ -18,6 +18,7 @@ import {
 import {
   TALK_CLIP_PX_PER_SEC,
   talkActNFromEvents,
+  talkActLandSceneId,
   talkActRoman,
   talkActScriptsFrom,
   talkPlaceActsFrom,
@@ -743,5 +744,29 @@ assert.match(editor, /plateClipRail\.clips/);
 assert.match(editor, /posterByShotId/);
 assert.doesNotMatch(song, /jobShowsMusicTrack/);
 assert.match(trackRoute, /Music video only/);
+
+assert.equal(
+  talkActLandSceneId({ sceneId: "scene_alert" }, [{ id: "scene_alert" }, { id: "scene_bbq" }]),
+  "scene_alert",
+  "open act is where the next slot goes",
+);
+assert.equal(
+  talkActLandSceneId({ sceneId: "scene_alert" }, [{ id: "scene_bbq" }]),
+  "",
+  "a leftover BBQ scene must not stand in for Alert",
+);
+assert.equal(
+  talkActLandSceneId({ sceneId: "stage-1" }, [{ id: "scene_bar" }]),
+  "",
+  "Skidmarks stage ids are not a talking place",
+);
+assert.match(talkUi, /talkActLandSceneId/);
+assert.match(talkUi, /landSceneId \|\| pickWhere/);
+assert.doesNotMatch(talkUi, /pickWhere \|\| actSceneId/);
+assert.match(talkUi, /if \(landSceneId\) void addSlot\(who\.name\)/);
+assert.match(editor, /actSceneId/);
+assert.match(editor, /reuseScene: Boolean\(actSceneId\)/);
+assert.match(tree, /actSceneId=\{talkAct/);
+assert.match(tree, /reuseScene: !isMusicVideoSongJob\(job\)/);
 
 console.log("check-talk-timeline: ok");

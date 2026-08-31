@@ -245,6 +245,7 @@ export function PlateReviewEditor({
   collapsed,
   onExpand,
   defaultPlaceId,
+  actSceneId,
   focusShotId,
   onSendStill,
   sendStillBusy,
@@ -256,8 +257,10 @@ export function PlateReviewEditor({
   /** Strip-only mode — everything below the thumbnails stays hidden. */
   collapsed?: boolean;
   onExpand?: () => void;
-  /** Place currently open under Locations — new + cards land here. */
+  /** Place currently open under Locations — used when no act is open. */
   defaultPlaceId?: string;
+  /** Open talking act — new + cards land here, not the last BBQ cook. */
+  actSceneId?: string;
   /** Shot just minted from Locations — open it on the strip. */
   focusShotId?: string | null;
   /** Music-video plate-row Send — same cook TRACK used to run. */
@@ -391,6 +394,8 @@ export function PlateReviewEditor({
       if (story?.scenes.some((s) => s.id === id)) return id;
       return null;
     };
+    const onAct = known(actSceneId);
+    if (onAct) return onAct;
     const focused = known(defaultPlaceId);
     if (focused) return focused;
     if (openShotId) {
@@ -422,7 +427,14 @@ export function PlateReviewEditor({
       const res = await fetch("/api/crash/mobile/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, action: "add", sceneId, speaker, title }),
+        body: JSON.stringify({
+          jobId: job.id,
+          action: "add",
+          sceneId,
+          speaker,
+          title,
+          reuseScene: Boolean(actSceneId),
+        }),
       });
       const data = (await res.json()) as { error?: string; job?: MobileGenJob; shotId?: string };
       if (!res.ok) throw new Error(data.error || "Couldn't add that card");
