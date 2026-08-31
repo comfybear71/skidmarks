@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   matchScriptGoSpeaker,
+  pickScriptGoCamera,
   pickScriptGoEngine,
   planScriptGo,
   scriptGoNeedsWho,
   scriptGoStaging,
   uniqueScriptGoPlaces,
 } from "../src/lib/scriptGo.ts";
+import { isInstrumentalStaging, skipSongLipSyncLead } from "../src/lib/mobileImageMotion.ts";
 
 assert.equal(matchScriptGoSpeaker("[SOUL REBEL]", ["SOUL REBEL", "CENTRE-LEFT"]), "SOUL REBEL");
 assert.equal(matchScriptGoSpeaker("[CENTRE-LEFT]", ["SOUL REBEL", "CENTRE-LEFT"]), "CENTRE-LEFT");
@@ -46,9 +48,31 @@ assert.equal(plan[0]?.who, "SOUL REBEL");
 assert.equal(plan[1]?.who, "SOUL REBEL");
 assert.equal(plan[2]?.who, "CENTRE-LEFT");
 assert.notEqual(plan[0]?.sceneIndex, plan[1]?.sceneIndex, "places rotate");
-assert.match(scriptGoStaging({ who: "SOUL REBEL", placeName: "shack", cameraKey: "ots" }), /SOUL REBEL alone/);
-assert.match(scriptGoStaging({ who: "SOUL REBEL", placeName: "shack", cameraKey: "ots" }), /Empty hands/);
-assert.doesNotMatch(scriptGoStaging({ who: "SOUL REBEL", placeName: "shack", cameraKey: "ots" }), /CENTRE-LEFT/);
+assert.equal(plan[1]?.cameraKey, "mcu");
+assert.equal(pickScriptGoCamera(2, "sing"), "tight-cu");
+assert.equal(pickScriptGoCamera(1, "sing"), "mcu");
+assert.notEqual(pickScriptGoCamera(2, "sing"), "wide");
+assert.notEqual(pickScriptGoCamera(4, "sing"), "ots");
+const singStaging = scriptGoStaging({
+  who: "SOUL REBEL",
+  placeName: "shack",
+  cameraKey: "mcu",
+  kind: "sing",
+});
+assert.match(singStaging, /SOUL REBEL alone/);
+assert.match(singStaging, /Empty hands/);
+assert.match(singStaging, /Facing camera, mouth clear/);
+assert.match(singStaging, /Same person as the SOUL REBEL still/);
+assert.doesNotMatch(singStaging, /CENTRE-LEFT/);
+assert.equal(isInstrumentalStaging(singStaging), false);
+assert.equal(
+  skipSongLipSyncLead({
+    speaker: "SOUL REBEL",
+    staging: singStaging,
+    singing: true,
+  }),
+  false,
+);
 assert.equal(scriptGoNeedsWho("0:00–0:27\nintro", ["SOUL REBEL"]), true);
 
 {

@@ -233,6 +233,11 @@ assert.doesNotMatch(
 
 assert.equal(isInstrumentalStaging("on stage playing saxophone"), true);
 assert.equal(isInstrumentalStaging("Facing camera, mouth clear"), false);
+assert.equal(
+  isInstrumentalStaging("Empty hands. No phone. No extra objects. No instrument."),
+  false,
+  "No instrument is the singer lock, not a horn plate",
+);
 // Bible "clear silhouette against the place" must NOT flip singer prompts —
 // that was the bleed that hit lit singers and other characters.
 assert.equal(isInstrumentalStaging("Full-body shot, clear silhouette against the place"), false);

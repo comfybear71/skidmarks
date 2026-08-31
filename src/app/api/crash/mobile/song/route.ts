@@ -1168,6 +1168,7 @@ export async function POST(req: Request) {
           who: step.who,
           placeName: place.placeName,
           cameraKey: step.cameraKey,
+          kind: step.kind,
         });
         let minted;
         try {
@@ -1195,6 +1196,11 @@ export async function POST(req: Request) {
                     staging,
                     summary: `${step.who}, solo. ${step.line}`,
                     noLips: step.kind === "break",
+                    beats: (sh.beats || []).map((b, bi) =>
+                      bi === 0 && step.kind === "sing" && step.line.trim()
+                        ? { ...b, speaker: step.who, text: step.line.trim() }
+                        : b,
+                    ),
                   }
                 : sh,
             ),
