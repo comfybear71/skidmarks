@@ -10,6 +10,14 @@
  * he says go.
  */
 
+import {
+  MATH_PATTERN_MODE_PRESETS,
+  MATH_PATTERN_MODES,
+  MATH_PATTERN_PALETTES,
+  clampMathPatternParams,
+  type MathPatternParams,
+} from "./mathPatternShader";
+
 export type MathPatternEmotion = "calm" | "excited";
 
 export type MathPatternPhaseId = "outbreak" | "shift" | "dissolve";
@@ -161,4 +169,83 @@ export function mathPatternPhaseId(phase: number): MathPatternPhaseId {
   if (phase < 0.7) return "outbreak";
   if (phase < 1.4) return "shift";
   return "dissolve";
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return function next() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Hash a stage's prompt text into a deterministic MathPatternParams set —
+ * same text always produces the same look. Mode/palette are drawn from the
+ * hash; the numeric fold/zoom/bands/warp start from that mode's preset
+ * (jittered by the same hash) rather than being fully random.
+ */
+export function mathPatternStageParams(text: string): MathPatternParams {
+  const seed = Math.floor(mathPatternSeed(text) * 4294967295);
+  const rand = mulberry32(seed);
+  const mode = MATH_PATTERN_MODES[Math.floor(rand() * MATH_PATTERN_MODES.length)];
+  const palette = MATH_PATTERN_PALETTES[Math.floor(rand() * MATH_PATTERN_PALETTES.length)];
+  const preset = MATH_PATTERN_MODE_PRESETS[mode];
+  const jitter = () => (rand() - 0.5) * 0.12;
+  return clampMathPatternParams({
+    mode,
+    palette,
+    bands: preset.bands + jitter(),
+    hardEdges: 0.5 + jitter(),
+    warp: preset.warp + jitter(),
+    zoom: preset.zoom + jitter(),
+    fold: preset.fold + jitter(),
+    hueShift: rand(),
+    intensity: 0.6,
+    speed: 0.5,
+  });
+}
+
+function smoothstep01(t: number): number {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
+}
+
+/**
+ * Smoothstep the numeric params across the timeline (phase 0 → outbreak,
+ * 1 → shift, 2 → dissolve). Mode and palette are discrete: they switch at
+ * the stage boundary instead of blending.
+ */
+export function interpolateMathPatternStage(
+  phase: number,
+  outbreak: MathPatternParams,
+  shift: MathPatternParams,
+  dissolve: MathPatternParams,
+): MathPatternParams {
+  let from = outbreak;
+  let to = shift;
+  let local = phase;
+  if (phase >= 1) {
+    from = shift;
+    to = dissolve;
+    local = phase - 1;
+  }
+  const t = smoothstep01(local);
+  const discrete = t < 0.5 ? from : to;
+  const lerp = (a: number, b: number) => a + (b - a) * t;
+  return {
+    mode: discrete.mode,
+    palette: discrete.palette,
+    bands: lerp(from.bands, to.bands),
+    hardEdges: lerp(from.hardEdges, to.hardEdges),
+    warp: lerp(from.warp, to.warp),
+    zoom: lerp(from.zoom, to.zoom),
+    fold: lerp(from.fold, to.fold),
+    hueShift: lerp(from.hueShift, to.hueShift),
+    intensity: lerp(from.intensity, to.intensity),
+    speed: lerp(from.speed, to.speed),
+  };
 }
