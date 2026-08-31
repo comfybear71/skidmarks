@@ -61,6 +61,24 @@ const report = buildListenReport({ songDurationMs: 12000, silences, cues });
 assert(report.pinDrift.length === 3, "buildListenReport wires pinDrift through");
 assert(report.longQuietStretches.length === 1, "buildListenReport wires longQuietStretches through");
 
+// --- regression: a dense mix with almost no detected silence must not report
+// a huge, meaningless "drift" for a pin that is actually fine ---
+// One giant sound block after a short intro — the real-world case: a busy
+// mix that rarely dips below the silence threshold, so the only sound
+// window's start is far from pins deep in the song.
+const denseSilences = [{ startMs: 0, endMs: 1000 }];
+const denseSound = soundWindowsFromSilence(denseSilences, 300_000);
+const densePinDrift = compareListenClockToPins(
+  [{ lineIndex: 0, atMs: 182_000 }], // 3:02 — deep inside the one long sound block
+  denseSilences,
+  denseSound,
+);
+assert(
+  densePinDrift[0].driftMs === null && densePinDrift[0].nearestSoundStartMs === null,
+  "a pin on real sound with nothing nearby to compare against reports no drift, not a huge fake one",
+);
+assert(densePinDrift[0].pinInSilence === false, "the pin is genuinely on sound, just far from any restart");
+
 // --- ffmpeg stderr parsing, hand-crafted ---
 const sampleStderr = `
 [silencedetect @ 0x1] silence_start: 0.5
