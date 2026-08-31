@@ -11,7 +11,7 @@ import { GROK_I2V_ID } from "./grokI2v";
 import { MINIMAX_H3_ID } from "./minimaxH3";
 import { cookDurationFromHungBar } from "./musicVideoTrack";
 import { readApiJson, studioFetchError } from "./studioFetchError";
-import type { ScriptGoEngine } from "./scriptGo";
+import { scriptGoShortChorusCook, type ScriptGoEngine } from "./scriptGo";
 
 export const SCRIPT_GO_FRESH = "script-fresh";
 export const SCRIPT_GO_BLADE = "script-blade";
@@ -215,6 +215,8 @@ export async function runScriptGo(opts: {
     }
 
     let engine = (item.engine || "ltx") as ScriptGoEngine;
+    const hangSec = Math.max(0, (item.endMs - item.startMs) / 1000);
+    const short = engine === "ltx" ? scriptGoShortChorusCook(hangSec) : null;
     const cook = cookDurationFromHungBar(
       { startMs: item.startMs, endMs: item.endMs },
       engine === "h3" ? "h3" : engine === "grok" ? "grok" : "ltx",
@@ -222,9 +224,12 @@ export async function runScriptGo(opts: {
     if ("error" in cook) {
       throw new Error(cook.error);
     }
+    const durationSec = short?.cookSec ?? cook.durationSec;
     const mute = item.kind !== "sing";
     note(
-      `Cook ${i + 1}/${items.length} · ${engine.toUpperCase()}${mute ? " mute" : ""} · ${cook.durationSec}s`,
+      `Cook ${i + 1}/${items.length} · ${engine.toUpperCase()}${mute ? " mute" : ""}${
+        short?.cutToSec != null ? ` ${durationSec}s then cut ${short.cutToSec.toFixed(1)}s` : ` · ${durationSec}s`
+      }`,
     );
 
     const send = async (pick: ScriptGoEngine) =>
@@ -237,7 +242,8 @@ export async function runScriptGo(opts: {
           beatId: item.beatId,
           shotId: item.shotId,
           clipEngine: clipEngineId(pick),
-          durationSec: cook.durationSec,
+          durationSec: pick === "ltx" ? durationSec : cook.durationSec,
+          ...(short?.cutToSec != null && pick === "ltx" ? { trimToSec: short.cutToSec } : {}),
           ...(mute || pick !== "ltx" ? { mute: true } : {}),
         },
         baseUrl,

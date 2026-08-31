@@ -6,6 +6,7 @@ import {
   pickScriptGoCamera,
   pickScriptGoEngine,
   planScriptGo,
+  scriptGoShortChorusCook,
   scriptGoNeedsWho,
   scriptGoStaging,
   uniqueScriptGoPlaces,
@@ -16,6 +17,12 @@ assert.equal(matchScriptGoSpeaker("[SOUL REBEL]", ["SOUL REBEL", "CENTRE-LEFT"])
 assert.equal(matchScriptGoSpeaker("[CENTRE-LEFT]", ["SOUL REBEL", "CENTRE-LEFT"]), "CENTRE-LEFT");
 assert.equal(matchScriptGoSpeaker("[SOUL REBEL] [CENTRE-LEFT]", ["SOUL REBEL", "CENTRE-LEFT"]), "SOUL REBEL");
 assert.equal(matchScriptGoSpeaker("", ["SOUL REBEL"]), "");
+
+assert.equal(scriptGoShortChorusCook(1).cookSec, 5);
+assert.equal(scriptGoShortChorusCook(1).cutToSec, 1);
+assert.equal(scriptGoShortChorusCook(3).cookSec, 5);
+assert.equal(scriptGoShortChorusCook(14).cutToSec, null);
+assert.equal(scriptGoShortChorusCook(14).cookSec, 14);
 
 assert.equal(pickScriptGoEngine({ kind: "sing", startMs: 27000, endMs: 31000 }), "ltx");
 assert.equal(pickScriptGoEngine({ kind: "break", startMs: 0, endMs: 27000 }), "ltx", "27s break is over H3 max");
@@ -83,6 +90,10 @@ assert.equal(scriptGoNeedsWho("0:00–0:27\nintro", ["SOUL REBEL"]), true);
   assert.match(ui, /runScriptGo/);
   assert.match(run, /script-fresh/);
   assert.match(run, /script-blade/);
+  assert.match(run, /trimToSec/);
+  assert.match(route, /trimToSec/);
+  const slice = readFileSync(new URL("../src/lib/scratchSongSlice.ts", import.meta.url), "utf8");
+  assert.match(slice, /export function trimClipMp4/);
   assert.match(route, /action === "script-fresh"/);
   assert.match(route, /action === "script-blade"/);
   assert.match(route, /reuseScene: true/);

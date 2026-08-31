@@ -20,6 +20,25 @@ import {
 
 export type ScriptGoEngine = "ltx" | "h3" | "grok";
 
+/** LTX will not cook a 1s chorus flip. Cook this, then cut to the hang. */
+export const SCRIPT_GO_SHORT_COOK_SEC = 5;
+
+/**
+ * Short chorus hang → cook 5s, then cut the mp4 to the bar.
+ * A 14s verse cooks 14s. Does not invent a 15s hang.
+ */
+export function scriptGoShortChorusCook(hangSec: number): {
+  cookSec: number;
+  cutToSec: number | null;
+} {
+  const hang = Number(hangSec);
+  if (!Number.isFinite(hang) || hang <= 0) {
+    return { cookSec: SCRIPT_GO_SHORT_COOK_SEC, cutToSec: null };
+  }
+  if (hang + 0.05 >= 4) return { cookSec: hang, cutToSec: null };
+  return { cookSec: SCRIPT_GO_SHORT_COOK_SEC, cutToSec: Math.max(0.4, hang) };
+}
+
 /** Singing stays in the face. Wide / medium / sitting pulled Soul Rebel
  * off his tight CAST still and the draw invented someone else. */
 const SING_CAMERAS: readonly MusicVideoCameraKey[] = ["tight-cu", "mcu"];

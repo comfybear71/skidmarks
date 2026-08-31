@@ -118,3 +118,52 @@ export function sliceSongMp3(opts: {
 export function scratchSongSliceTempPath(jobId: string): string {
   return path.join(os.tmpdir(), `scratch-song-${jobId}-${sortableId("slc")}.mp3`);
 }
+
+/** Cook 5s, hang 2s — keep the first `durationSec` of the mp4. Does not delete the long take. */
+export function trimClipMp4(opts: {
+  srcPath: string;
+  destPath: string;
+  durationSec: number;
+}): string {
+  const { bin, tried } = resolveFfmpeg();
+  const t = Math.max(0.4, Number(opts.durationSec) || 0);
+  if (!opts.srcPath || !fs.existsSync(opts.srcPath)) {
+    throw new Error("Clip to cut is missing.");
+  }
+  fs.mkdirSync(path.dirname(opts.destPath), { recursive: true });
+  try {
+    execFileSync(
+      bin || "ffmpeg",
+      [
+        "-y",
+        "-i",
+        opts.srcPath,
+        "-t",
+        t.toFixed(2),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "18",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-movflags",
+        "+faststart",
+        opts.destPath,
+      ],
+      { timeout: 120_000, stdio: "pipe" },
+    );
+  } catch (e) {
+    const why = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      bin ? `Couldn't cut that clip — ${why}` : `No ffmpeg to cut the clip. Looked in: ${tried.join(", ")}`,
+    );
+  }
+  if (!fs.existsSync(opts.destPath) || fs.statSync(opts.destPath).size < 200) {
+    throw new Error("Cut clip came out empty.");
+  }
+  return opts.destPath;
+}
