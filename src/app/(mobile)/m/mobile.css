@@ -3132,6 +3132,69 @@ span.scratch-history-blob {
   border-color: rgba(200, 255, 46, 0.5);
 }
 
+.m-mv-listen-err {
+  margin: 6px 0 0;
+  color: var(--magenta-hot);
+  font-size: 12px;
+}
+
+.m-mv-listen {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.m-mv-listen-note {
+  color: var(--chrome-dim);
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 0 0 6px;
+}
+
+.m-mv-listen-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.m-mv-listen-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.m-mv-listen-pin {
+  color: var(--chrome);
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.m-mv-listen-drift {
+  color: var(--chrome-dim);
+  flex: 0 0 auto;
+}
+
+.m-mv-listen-bad {
+  color: var(--magenta-hot);
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.m-mv-listen-line {
+  color: var(--chrome-dim);
+  flex: 1 1 100%;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .m-track-wave {
   display: block;
   width: 100%;
