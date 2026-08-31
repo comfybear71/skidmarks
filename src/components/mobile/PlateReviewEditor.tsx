@@ -3477,7 +3477,7 @@ function BeatLineEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId, action: "cook-poll", beatId: beat.id }),
       });
-      const data = await readApiJson<{ pending?: boolean; job?: MobileGenJob }>(res);
+      const data = await readApiJson<{ pending?: boolean; job?: MobileGenJob; error?: string }>(res);
       if (data.job) onSaved(text, voiceFile, motionBody, data.job);
       if (!data.pending) return;
       await new Promise((resolve) => setTimeout(resolve, 2500));
@@ -3509,7 +3509,7 @@ function BeatLineEditor({
             resolution: grok.imageRes,
           }),
         });
-        const data = await readApiJson<{ job?: MobileGenJob }>(res);
+        const data = await readApiJson<{ job?: MobileGenJob; error?: string }>(res);
         if (data.job) onJobChange?.(data.job);
         return;
       }
@@ -3534,7 +3534,7 @@ function BeatLineEditor({
           keepAudio: engine === "grok" ? grok.keepAudio === true : undefined,
         }),
       });
-      const data = await readApiJson<{ pending?: boolean; job?: MobileGenJob }>(res);
+      const data = await readApiJson<{ pending?: boolean; job?: MobileGenJob; error?: string }>(res);
       if (data.job) onSaved(text, voiceFile, motionBody, data.job);
       if (data.pending) await pollTalkCook();
     } catch (e) {
