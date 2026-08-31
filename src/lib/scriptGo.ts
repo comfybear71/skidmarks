@@ -103,6 +103,63 @@ export function scriptGoStaging(opts: {
   ].join(" ");
 }
 
+/** A chorus flip is a short sung row. Three-plus alternating shorts
+ * become two full-chorus takes — backup, then the other — same clock.
+ * He revolves them later. Does not rewrite the script text. */
+export const SCRIPT_GO_CHORUS_FLIP_MAX_MS = 6000;
+export const SCRIPT_GO_CHORUS_MIN_FLIPS = 4;
+
+export function revolveChorusBeats(
+  beats: SongScriptBeat[],
+  speakers: string[],
+): SongScriptBeat[] {
+  const rows = (beats || []).map((b) => ({
+    ...b,
+    who: matchScriptGoSpeaker(b.who, speakers) || oneSongScriptSinger(b.who),
+  }));
+  const out: SongScriptBeat[] = [];
+  for (let i = 0; i < rows.length; ) {
+    const first = rows[i]!;
+    const shortSing =
+      first.kind === "sing" &&
+      first.who &&
+      first.endMs - first.startMs <= SCRIPT_GO_CHORUS_FLIP_MAX_MS;
+    if (!shortSing) {
+      out.push(rows[i]!);
+      i += 1;
+      continue;
+    }
+    let j = i + 1;
+    while (j < rows.length) {
+      const prev = rows[j - 1]!;
+      const row = rows[j]!;
+      const dur = row.endMs - row.startMs;
+      const join = row.startMs <= prev.endMs + 400;
+      if (row.kind !== "sing" || !row.who || dur > SCRIPT_GO_CHORUS_FLIP_MAX_MS || !join) break;
+      j += 1;
+    }
+    const cluster = rows.slice(i, j);
+    const names: string[] = [];
+    for (const row of cluster) {
+      if (row.who && !names.includes(row.who)) names.push(row.who);
+    }
+    if (cluster.length >= SCRIPT_GO_CHORUS_MIN_FLIPS && names.length >= 2) {
+      const startMs = cluster[0]!.startMs;
+      const endMs = cluster[cluster.length - 1]!.endMs;
+      const words = cluster.map((r) => r.line.trim()).filter(Boolean);
+      const line = words.filter((w, n) => n === 0 || w !== words[n - 1]).join(" ");
+      for (const who of names.slice(0, 2)) {
+        out.push({ startMs, endMs, kind: "sing", who, line });
+      }
+      i = j;
+      continue;
+    }
+    out.push(rows[i]!);
+    i += 1;
+  }
+  return out;
+}
+
 export function uniqueScriptGoPlaces(
   scenes: Array<{ id?: string; placeName?: string }>,
   locationCandidates?: Record<string, Array<{ approved?: boolean; fileName?: string }>>,
@@ -134,7 +191,7 @@ export function planScriptGo(opts: {
   sceneCount: number;
 }): ScriptGoPlanItem[] {
   const scenes = Math.max(1, Math.round(opts.sceneCount || 1));
-  const beats = parseSongScript(opts.songScript || "");
+  const beats = revolveChorusBeats(parseSongScript(opts.songScript || ""), opts.speakers);
   const out: ScriptGoPlanItem[] = [];
   for (const beat of beats) {
     const who = matchScriptGoSpeaker(beat.who, opts.speakers);

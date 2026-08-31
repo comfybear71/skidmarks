@@ -6,6 +6,7 @@ import {
   pickScriptGoCamera,
   pickScriptGoEngine,
   planScriptGo,
+  revolveChorusBeats,
   scriptGoShortChorusCook,
   scriptGoNeedsWho,
   scriptGoStaging,
@@ -81,6 +82,68 @@ assert.equal(
   false,
 );
 assert.equal(scriptGoNeedsWho("0:00–0:27\nintro", ["SOUL REBEL"]), true);
+
+{
+  const chorusScript = [
+    "0:00–0:10  [SOUL REBEL]",
+    "verse line that is long enough",
+    "",
+    "0:56–0:58  [CENTRE-LEFT]",
+    "This easy life",
+    "",
+    "0:58–1:00  [SOUL REBEL]",
+    "This easy life",
+    "",
+    "1:00–1:03  [CENTRE-LEFT]",
+    "I want this easy life",
+    "",
+    "1:03–1:04  [SOUL REBEL]",
+    "This easy life",
+    "",
+    "1:04–1:07  [CENTRE-LEFT]",
+    "I want this easy life",
+    "",
+    "1:07–1:10  [SOUL REBEL]",
+    "This easy life",
+    "",
+    "1:10–1:16  [CENTRE-LEFT]",
+    "I want this easy life",
+    "",
+    "1:16–1:20  [SOUL REBEL]",
+    "This easy life",
+    "",
+    "1:20–1:36  [SOUL REBEL]",
+    "Instrumental break — no singing",
+  ].join("\n");
+  const chorusPlan = planScriptGo({
+    songScript: chorusScript,
+    speakers: ["SOUL REBEL", "CENTRE-LEFT"],
+    sceneCount: 2,
+  });
+  assert.equal(
+    chorusPlan.length,
+    4,
+    `revolve should collapse chorus to 2 long takes + verse + break, got ${chorusPlan.length}`,
+  );
+  const [verse, a, b, brk] = chorusPlan;
+  assert.equal(verse?.kind, "sing");
+  assert.equal(verse?.who, "SOUL REBEL");
+  assert.equal(a?.kind, "sing");
+  assert.equal(b?.kind, "sing");
+  assert.equal(brk?.kind, "break");
+  assert.equal(a?.who, "CENTRE-LEFT", "backup leads the chorus take");
+  assert.equal(b?.who, "SOUL REBEL");
+  assert.equal(a?.startMs, 56_000);
+  assert.equal(a?.endMs, 80_000);
+  assert.equal(b?.startMs, 56_000);
+  assert.equal(b?.endMs, 80_000);
+  assert.match(a?.line || "", /I want this easy life/i);
+  assert.match(b?.line || "", /I want this easy life/i);
+  assert.ok(
+    chorusPlan.filter((i) => i.kind === "sing").every((i) => i.cameraKey === "tight-cu" || i.cameraKey === "mcu"),
+  );
+  assert.equal(revolveChorusBeats([], ["SOUL REBEL"]).length, 0);
+}
 
 {
   const ui = readFileSync(new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url), "utf8");
