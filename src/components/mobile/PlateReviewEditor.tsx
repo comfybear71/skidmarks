@@ -2738,7 +2738,14 @@ function ShotLineEditor({
                 />
               </div>
               {styleId === "music_video" && mvEngine === "math" && enginePromptOpen ? (
-                <MathPatternHole jobId={jobId} shotId={shot.id} />
+                <MathPatternHole
+                  jobId={jobId}
+                  shotId={shot.id}
+                  plates={grokPlatesForShot(shot, [
+                    ...(siblingPlates || []),
+                    ...(placeFile ? [{ fileName: placeFile, title: "Place still" }] : []),
+                  ])}
+                />
               ) : styleId === "music_video" && mvEngine === "grok" && enginePromptOpen ? (
                 <GrokImagineHole
                   jobId={jobId}
@@ -3841,7 +3848,7 @@ function BeatLineEditor({
         picked: mvEngine,
       }) === "math" &&
       enginePromptOpen ? (
-        <MathPatternHole jobId={jobId} shotId={shotId} disabled={saving} />
+        <MathPatternHole jobId={jobId} shotId={shotId} plates={grokPlates || []} disabled={saving} />
       ) : songDesk &&
         resolveMvSendEngine({
           jobId,

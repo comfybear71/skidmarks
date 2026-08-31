@@ -152,6 +152,9 @@ uniform float uFold;
 uniform float uHueShift;
 uniform float uIntensity;
 uniform float uSpeed;
+uniform float uHasImage;
+uniform float uImageAspect;
+uniform sampler2D uImage;
 
 out vec4 fragColor;
 
@@ -259,15 +262,33 @@ void main() {
     field = fieldMarble(p, t, uWarp);
   }
 
-  float bandsCount = mix(2.0, 40.0, uBands);
-  float bandsT = field * bandsCount;
-  float steps = mix(96.0, 5.0, uHardEdges);
-  float quantized = floor(bandsT * steps) / steps;
-  float finalT = mix(bandsT, quantized, uHardEdges);
-
   int pal = int(floor(uPalette + 0.5));
-  vec3 col = palette(fract(finalT + uHueShift), pal);
-  col *= mix(0.55, 1.7, uIntensity);
+  vec3 col;
+
+  if (uHasImage > 0.5) {
+    vec2 fit = uRes.x / uRes.y > uImageAspect
+      ? vec2(uImageAspect * uRes.y / uRes.x, 1.0)
+      : vec2(1.0, uRes.x / (uImageAspect * uRes.y));
+    vec2 imgUv = (uv - 0.5) * fit + 0.5;
+    vec2 disp = vec2(cos(field * 6.28318), sin(field * 6.28318)) * uWarp * 0.06;
+    vec3 photo = texture(uImage, clamp(imgUv + disp, 0.0, 1.0)).rgb;
+    float lum = dot(photo, vec3(0.299, 0.587, 0.114));
+    float bandsCount = mix(2.0, 40.0, uBands);
+    float bandsT = (lum + field * 0.35) * bandsCount;
+    float steps = mix(96.0, 5.0, uHardEdges);
+    float quantized = floor(bandsT * steps) / steps;
+    float finalT = mix(bandsT, quantized, uHardEdges);
+    vec3 tint = palette(fract(finalT + uHueShift), pal);
+    col = mix(photo, photo * tint * 1.6, clamp(uIntensity * 1.3, 0.0, 1.0));
+  } else {
+    float bandsCount = mix(2.0, 40.0, uBands);
+    float bandsT = field * bandsCount;
+    float steps = mix(96.0, 5.0, uHardEdges);
+    float quantized = floor(bandsT * steps) / steps;
+    float finalT = mix(bandsT, quantized, uHardEdges);
+    col = palette(fract(finalT + uHueShift), pal);
+    col *= mix(0.55, 1.7, uIntensity);
+  }
   col = pow(clamp(col, 0.0, 1.0), vec3(0.85));
 
   fragColor = vec4(col, 1.0);
@@ -287,6 +308,9 @@ export type MathPatternUniforms = {
   uHueShift: WebGLUniformLocation | null;
   uIntensity: WebGLUniformLocation | null;
   uSpeed: WebGLUniformLocation | null;
+  uHasImage: WebGLUniformLocation | null;
+  uImageAspect: WebGLUniformLocation | null;
+  uImage: WebGLUniformLocation | null;
 };
 
 export type MathPatternProgram = {
@@ -354,17 +378,49 @@ export function compileMathPatternProgram(
     uHueShift: gl.getUniformLocation(program, "uHueShift"),
     uIntensity: gl.getUniformLocation(program, "uIntensity"),
     uSpeed: gl.getUniformLocation(program, "uSpeed"),
+    uHasImage: gl.getUniformLocation(program, "uHasImage"),
+    uImageAspect: gl.getUniformLocation(program, "uImageAspect"),
+    uImage: gl.getUniformLocation(program, "uImage"),
   };
 
   return { program, vao, uniforms };
 }
 
+export type MathPatternImage = { texture: WebGLTexture; aspect: number };
+
+export function createMathPatternImageTexture(
+  gl: WebGL2RenderingContext,
+  source: TexImageSource,
+  width: number,
+  height: number,
+): MathPatternImage {
+  const texture = gl.createTexture()!;
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  return { texture, aspect: width > 0 && height > 0 ? width / height : 1 };
+}
+
+export function destroyMathPatternImageTexture(gl: WebGL2RenderingContext, image: MathPatternImage): void {
+  gl.deleteTexture(image.texture);
+}
+
 export function drawMathPattern(
   gl: WebGL2RenderingContext,
   prog: MathPatternProgram,
-  args: { timeSec: number; width: number; height: number; params: MathPatternParams },
+  args: {
+    timeSec: number;
+    width: number;
+    height: number;
+    params: MathPatternParams;
+    image?: MathPatternImage | null;
+  },
 ): void {
-  const { params } = args;
+  const { params, image } = args;
   gl.viewport(0, 0, args.width, args.height);
   gl.useProgram(prog.program);
   gl.bindVertexArray(prog.vao);
@@ -380,6 +436,15 @@ export function drawMathPattern(
   gl.uniform1f(prog.uniforms.uHueShift, params.hueShift);
   gl.uniform1f(prog.uniforms.uIntensity, params.intensity);
   gl.uniform1f(prog.uniforms.uSpeed, params.speed);
+  if (image) {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, image.texture);
+    gl.uniform1i(prog.uniforms.uImage, 0);
+    gl.uniform1f(prog.uniforms.uImageAspect, image.aspect);
+    gl.uniform1f(prog.uniforms.uHasImage, 1);
+  } else {
+    gl.uniform1f(prog.uniforms.uHasImage, 0);
+  }
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   gl.bindVertexArray(null);
 }
@@ -404,13 +469,20 @@ export function startMathPatternLoop(
   getParams: () => MathPatternParams,
   fallbackWidth: number,
   fallbackHeight: number,
+  getImage?: () => MathPatternImage | null,
 ): MathPatternLoopHandle {
   let raf = 0;
   const startedAt = performance.now();
   function loop() {
     const { width, height } = resizeMathPatternCanvas(canvas, fallbackWidth, fallbackHeight);
     const timeSec = (performance.now() - startedAt) / 1000;
-    drawMathPattern(gl, prog, { timeSec, width, height, params: getParams() });
+    drawMathPattern(gl, prog, {
+      timeSec,
+      width,
+      height,
+      params: getParams(),
+      image: getImage?.() || null,
+    });
     raf = requestAnimationFrame(loop);
   }
   raf = requestAnimationFrame(loop);

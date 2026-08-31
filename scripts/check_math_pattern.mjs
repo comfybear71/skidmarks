@@ -84,8 +84,9 @@ assert(!/clipEngine:\s*"ltx"/.test(engineSrc), "engine file does not send LTX");
 
 const shaderSrc = readFileSync(join(root, "src/lib/mathPatternShader.ts"), "utf8");
 assert(/#version 300 es/.test(shaderSrc), "shader is GLSL ES 3.00");
-assert(!/uPrev|sampler2D/.test(shaderSrc), "shader has no feedback texture");
+assert(!/uPrev/.test(shaderSrc), "shader has no feedback-frame sampler");
 assert(/uHardEdges/.test(shaderSrc), "shader has a hard-edges/posterize uniform");
+assert(/uImage/.test(shaderSrc), "shader has an optional photo-warp input");
 assert(Object.keys(MATH_PATTERN_MODE_LABELS).length === 7, "seven modes");
 assert(Object.keys(MATH_PATTERN_PALETTE_LABELS).length === 5, "five palettes");
 

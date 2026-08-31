@@ -27,6 +27,12 @@ export type MathPatternSettings = {
   outbreak: string;
   shift: string;
   dissolve: string;
+  /** Set once the operator touches a mode/palette/slider/shuffle control — pins the
+   * look and overrides the schedule-hash-driven auto params below. */
+  manual?: MathPatternParams | null;
+  /** A plate filename picked as the image-warp source. Session-only uploads are
+   * held in component state instead, since they have no stable server path. */
+  imageFileName?: string;
 };
 
 /** Frame 0 — organic melt. His words. */
@@ -66,6 +72,8 @@ export function normalizeMathPatternSettings(
     outbreak: cleanMathPatternLine(raw?.outbreak || "") || MATH_PATTERN_OUTBREAK,
     shift: cleanMathPatternLine(raw?.shift || "") || MATH_PATTERN_SHIFT,
     dissolve: cleanMathPatternLine(raw?.dissolve || "") || MATH_PATTERN_DISSOLVE,
+    manual: raw?.manual ? clampMathPatternParams(raw.manual) : null,
+    imageFileName: cleanMathPatternLine(raw?.imageFileName || ""),
   };
 }
 
@@ -217,7 +225,11 @@ function smoothstep01(t: number): number {
 /**
  * Smoothstep the numeric params across the timeline (phase 0 → outbreak,
  * 1 → shift, 2 → dissolve). Mode and palette are discrete: they switch at
- * the stage boundary instead of blending.
+ * the stage boundary instead of blending. So do the mode's own geometry
+ * knobs (bands/warp/zoom/fold) — two different modes give those numbers
+ * different meaning, so cross-fading them mid-transition produces
+ * nonsensical, noisy combinations. Only the mode-agnostic style values
+ * (hue/intensity/speed) actually crossfade.
  */
 export function interpolateMathPatternStage(
   phase: number,
@@ -239,11 +251,11 @@ export function interpolateMathPatternStage(
   return {
     mode: discrete.mode,
     palette: discrete.palette,
-    bands: lerp(from.bands, to.bands),
-    hardEdges: lerp(from.hardEdges, to.hardEdges),
-    warp: lerp(from.warp, to.warp),
-    zoom: lerp(from.zoom, to.zoom),
-    fold: lerp(from.fold, to.fold),
+    bands: discrete.bands,
+    hardEdges: discrete.hardEdges,
+    warp: discrete.warp,
+    zoom: discrete.zoom,
+    fold: discrete.fold,
     hueShift: lerp(from.hueShift, to.hueShift),
     intensity: lerp(from.intensity, to.intensity),
     speed: lerp(from.speed, to.speed),
