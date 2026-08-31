@@ -2489,6 +2489,12 @@ assert.doesNotMatch(trackUi, /muteMvEngineFold/, "fold copy does not live on the
 assert.doesNotMatch(trackUi, /Cowboy Bebop/, "Cowboy Bebop lock is on the hole, not TRACK");
 assert.match(panels, /MINIMAX_H3_CAMERAS/, "hole lists official H3 camera chips");
 assert.match(panels, /m-plate-h3-last/, "hole has last-frame thumbs");
+assert.match(panels, />Off</, "last frame has an Off chip — tap does not swap to the start still");
+assert.match(
+  panels,
+  /The big picture is the start/,
+  "last-frame copy says the big picture is first",
+);
 assert.match(panels, /MINIMAX_H3_RESOLUTIONS/, "hole has 768P/2K");
 assert.match(editor, /collectMinimaxH3LastStills/, "plate editor collects last stills");
 assert.match(editor, /h3LastStills/, "last stills reach the hole");

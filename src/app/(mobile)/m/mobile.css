@@ -3576,6 +3576,11 @@ span.scratch-history-blob {
   background-position: center;
 }
 
+.m-plate-h3-last-none {
+  background: #1a1a1a;
+  background-image: none;
+}
+
 .m-plate-h3-last span {
   padding: 3px 4px;
   overflow: hidden;
