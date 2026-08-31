@@ -326,6 +326,41 @@ export function mergeSongScriptWho(
   });
 }
 
+/** Same-singer beats within this gap of each other are one continuous take. */
+export const SONG_SCRIPT_MERGE_GAP_MS = 500;
+
+/**
+ * Consecutive sung lines the same singer takes are one continuous take, not
+ * a new clip per line — Script Go cooks one clip per beat, so leaving a run
+ * of same-singer lines as separate beats is what makes a single verse or
+ * chorus pass keep switching every few seconds. Only merges once a who is
+ * actually typed (a run of still-blank lines is left alone, waiting for the
+ * operator); a break, a different singer, or a real gap between lines ends
+ * the run. Run this after mergeSongScriptWho, once who is known.
+ */
+export function mergeAdjacentSameWho(beats: SongScriptBeat[]): SongScriptBeat[] {
+  const out: SongScriptBeat[] = [];
+  for (const beat of beats) {
+    const prev = out[out.length - 1];
+    const who = oneSongScriptSinger(beat.who);
+    const prevWho = prev ? oneSongScriptSinger(prev.who) : "";
+    const canMerge =
+      prev &&
+      beat.kind === "sing" &&
+      prev.kind === "sing" &&
+      who &&
+      prevWho.toLowerCase() === who.toLowerCase() &&
+      beat.startMs - prev.endMs <= SONG_SCRIPT_MERGE_GAP_MS;
+    if (canMerge) {
+      prev!.endMs = Math.max(prev!.endMs, beat.endMs);
+      prev!.line = `${prev!.line} ${beat.line}`.trim();
+    } else {
+      out.push({ ...beat });
+    }
+  }
+  return out;
+}
+
 export function buildSongScriptText(opts: {
   lyrics: string;
   lyricCues: LyricCue[];
@@ -335,5 +370,6 @@ export function buildSongScriptText(opts: {
 }): string {
   const built = songScriptBeatsFromLyricsAndMarquee(opts);
   const previous = parseSongScript(opts.previousText || "");
-  return formatSongScript(mergeSongScriptWho(built, previous));
+  const named = mergeSongScriptWho(built, previous);
+  return formatSongScript(mergeAdjacentSameWho(named));
 }

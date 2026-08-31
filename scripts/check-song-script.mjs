@@ -5,6 +5,7 @@ import {
   SONG_SCRIPT_FALLBACK_SUNG_MS,
   buildSongScriptText,
   formatSongScript,
+  mergeAdjacentSameWho,
   mergeSongScriptWho,
   oneSongScriptSinger,
   parseSongScript,
@@ -187,6 +188,76 @@ assert.doesNotMatch(rebuilt, /three-quarter|over.shoulder/i);
 }
 
 console.log("check-song-script: Pass 2 (listen) ok");
+
+// --- mergeAdjacentSameWho: one continuous take per singer, not a clip per line ---
+
+{
+  const rows = [
+    { startMs: 0, endMs: 4_000, kind: "sing", line: "line one", who: "SOUL REBEL" },
+    { startMs: 4_000, endMs: 8_000, kind: "sing", line: "line two", who: "SOUL REBEL" },
+    { startMs: 8_000, endMs: 12_000, kind: "sing", line: "line three", who: "SOUL REBEL" },
+  ];
+  const merged = mergeAdjacentSameWho(rows);
+  assert.equal(merged.length, 1, "three consecutive same-singer lines become one beat");
+  assert.equal(merged[0].startMs, 0);
+  assert.equal(merged[0].endMs, 12_000);
+  assert.equal(merged[0].line, "line one line two line three", "merged beat keeps every line's words");
+  assert.equal(merged[0].who, "SOUL REBEL");
+}
+
+{
+  // A different singer, a break, and a real gap all stop the run.
+  const rows = [
+    { startMs: 0, endMs: 4_000, kind: "sing", line: "a", who: "SOUL REBEL" },
+    { startMs: 4_000, endMs: 8_000, kind: "sing", line: "b", who: "CENTRE-LEFT" },
+    { startMs: 8_000, endMs: 12_000, kind: "sing", line: "c", who: "CENTRE-LEFT" },
+    { startMs: 12_000, endMs: 16_000, kind: "break", line: "dance / break — no singing", who: "" },
+    { startMs: 16_000, endMs: 20_000, kind: "sing", line: "d", who: "CENTRE-LEFT" },
+    { startMs: 30_000, endMs: 34_000, kind: "sing", line: "e", who: "CENTRE-LEFT" }, // real gap before it
+  ];
+  const merged = mergeAdjacentSameWho(rows);
+  assert.equal(merged.length, 5, "different singer, a break, and a real gap each stay separate");
+  assert.equal(merged[0].who, "SOUL REBEL");
+  assert.equal(merged[1].line, "b c", "the two CENTRE-LEFT lines before the break merge");
+  assert.equal(merged[1].endMs, 12_000);
+  assert.equal(merged[2].kind, "break");
+  assert.equal(merged[3].line, "d");
+  assert.equal(merged[4].line, "e", "a real 10s gap after the break keeps the last line on its own");
+}
+
+{
+  // Still-blank who is left alone — merging strangers' lines would invent a
+  // singer nobody typed.
+  const rows = [
+    { startMs: 0, endMs: 4_000, kind: "sing", line: "a", who: "" },
+    { startMs: 4_000, endMs: 8_000, kind: "sing", line: "b", who: "" },
+  ];
+  const merged = mergeAdjacentSameWho(rows);
+  assert.equal(merged.length, 2, "untyped lines never merge on their own");
+}
+
+{
+  // The real-world case: buildSongScriptText keeps a hand-typed run merged
+  // across a rebuild, instead of a fresh Fill re-fragmenting it back into
+  // one short beat per lyric line.
+  const previousText = `0:27–0:35  [CENTRE-LEFT]
+Everything is feeling right`;
+  const rebuilt = buildSongScriptText({ lyrics, lyricCues: cues, durationMs: 263_000, previousText });
+  const earlyBeats = parseSongScript(rebuilt).filter((b) => b.startMs < 35_000);
+  assert.equal(
+    earlyBeats.length,
+    2,
+    "a rebuild does not re-fragment a hand-typed singer run back into one beat per line",
+  );
+  const merged = earlyBeats.find((b) => b.kind === "sing");
+  assert.ok(merged, "the two opening verse lines are one sing beat");
+  assert.equal(merged.startMs, 27_000);
+  assert.equal(merged.endMs, 35_000);
+  assert.equal(merged.who, "CENTRE-LEFT");
+  assert.equal(merged.line, "The sun is shining bright Everything is feeling right");
+}
+
+console.log("check-song-script: mergeAdjacentSameWho ok");
 
 {
   const ui = readFileSync(new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url), "utf8");
