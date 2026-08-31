@@ -418,7 +418,17 @@ function LyricPinPanel({
           type="button"
           className="m-track-btn"
           disabled={Boolean(busy) || !lyricCues.length}
-          onClick={() => void saveCues([])}
+          onClick={() => {
+            if (
+              typeof window !== "undefined" &&
+              !window.confirm(
+                `Un-pin all ${lyricCues.length} line${lyricCues.length === 1 ? "" : "s"}? This clears every timing on the marquee — Import from lyrics rebuilds them, but any hand-nudged pin is lost.`,
+              )
+            ) {
+              return;
+            }
+            void saveCues([]);
+          }}
         >
           Clear all
         </button>
@@ -940,6 +950,7 @@ export function MusicVideoTrack({
   const cookWatchLive = useRef(false);
   const blobRef = useRef("");
   const lyricImportTried = useRef(false);
+  const cueRebuildTried = useRef(false);
   const rememberedSongSecRef = useRef(false);
 
   // Plain arithmetic — memoising it only confused the compiler about which
@@ -2126,6 +2137,24 @@ export function MusicVideoTrack({
     lyricImportTried.current = true;
     void importFromLyrics(true);
   }, [busy, effectiveDurationMs, job.lyrics, markers]);
+
+  // Sections already exist, but every pin is gone (Clear all, or every line
+  // un-pinned by hand) — the marquee cannot silently sit empty forever
+  // hoping someone remembers "Import from lyrics" exists. Rebuild the pins
+  // from the sections that are already there. Only fires once per mount,
+  // and never touches the sections themselves or a marquee that still has
+  // even one real pin on it — a sparse-but-not-empty marquee is someone
+  // mid-edit, not a wipe to recover from.
+  useEffect(() => {
+    if (cueRebuildTried.current) return;
+    if (busy) return;
+    if (lyricCues.length) return;
+    if (!markers.length) return;
+    if (!lyricTagsReady) return;
+    if (!effectiveDurationMs) return;
+    cueRebuildTried.current = true;
+    void importFromLyrics(false);
+  }, [busy, effectiveDurationMs, lyricCues.length, lyricTagsReady, markers.length]);
 
   async function movePlate(shotId: string, direction: "earlier" | "later") {
     if (!hasSong) {
