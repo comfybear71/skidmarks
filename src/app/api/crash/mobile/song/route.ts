@@ -137,6 +137,7 @@ export async function POST(req: Request) {
     listIndex?: number;
     clipEngine?: string;
     durationSec?: number;
+    trimToSec?: number;
     mute?: boolean;
     emptyFrame?: boolean;
     nobodyInShot?: boolean;
@@ -583,6 +584,7 @@ export async function POST(req: Request) {
           nobodyInShot: body.nobodyInShot === true,
           imageMotion: String(body.imageMotion || "").trim() || undefined,
           performance,
+          trimToSec: Number(body.trimToSec) > 0 ? Number(body.trimToSec) : undefined,
         });
         return NextResponse.json({
           ok: true,

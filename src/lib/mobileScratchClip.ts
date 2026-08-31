@@ -47,6 +47,7 @@ import {
   isDroppedPlaceholderLine,
   scratchSongSliceTempPath,
   sliceSongMp3,
+  trimClipMp4,
   type ScratchSong,
 } from "./scratchSongSlice";
 import {
@@ -117,6 +118,8 @@ export async function runScratchLtxClip(opts: {
   imageMotion?: string;
   /** Hum tap — intro / no lyrics. Overrides leftover cut.performance sing. */
   performance?: SongSlicePerformance;
+  /** Short chorus: cook 5s, then keep this many seconds on the hang. */
+  trimToSec?: number;
 }): Promise<MobileGenJob> {
   const { story, sceneId, beatId } = opts;
   const hangId = (opts.shotId || "").trim();
@@ -514,6 +517,17 @@ export async function runScratchLtxClip(opts: {
     if (humanPath !== result.localMp4) {
       fs.copyFileSync(result.localMp4, humanPath);
       localMp4 = humanPath;
+    }
+    const trimTo = Number(opts.trimToSec);
+    if (Number.isFinite(trimTo) && trimTo > 0) {
+      const fullSec = probeDurationSeconds(localMp4) || 0;
+      if (fullSec > trimTo + 0.15) {
+        const cutPath = path.join(
+          path.dirname(localMp4),
+          `${path.basename(localMp4, path.extname(localMp4))}_cut${path.extname(localMp4) || ".mp4"}`,
+        );
+        localMp4 = trimClipMp4({ srcPath: localMp4, destPath: cutPath, durationSec: trimTo });
+      }
     }
     try {
       await uploadMobileMedia({

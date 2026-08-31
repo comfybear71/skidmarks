@@ -6,7 +6,6 @@
  * (H3 max 15s). Mute cinema — do not feed the song mp3.
  */
 
-import { castNamesMatch } from "./mobileDropCast";
 import {
   MUSIC_VIDEO_CAMERAS,
   type MusicVideoCameraKey,
@@ -19,6 +18,25 @@ import {
 } from "./songScript";
 
 export type ScriptGoEngine = "ltx" | "h3" | "grok";
+
+/** LTX will not cook a 1s chorus flip. Cook this, then cut to the hang. */
+export const SCRIPT_GO_SHORT_COOK_SEC = 5;
+
+/**
+ * Short chorus hang → cook 5s, then cut the mp4 to the bar.
+ * A 14s verse cooks 14s. Does not invent a 15s hang.
+ */
+export function scriptGoShortChorusCook(hangSec: number): {
+  cookSec: number;
+  cutToSec: number | null;
+} {
+  const hang = Number(hangSec);
+  if (!Number.isFinite(hang) || hang <= 0) {
+    return { cookSec: SCRIPT_GO_SHORT_COOK_SEC, cutToSec: null };
+  }
+  if (hang + 0.05 >= 4) return { cookSec: hang, cutToSec: null };
+  return { cookSec: SCRIPT_GO_SHORT_COOK_SEC, cutToSec: Math.max(0.4, hang) };
+}
 
 /** Singing stays in the face. Wide / medium / sitting pulled Soul Rebel
  * off his tight CAST still and the draw invented someone else. */
@@ -37,10 +55,14 @@ export type ScriptGoPlanItem = {
   engine: ScriptGoEngine;
 };
 
+function namesMatch(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 export function matchScriptGoSpeaker(who: string, speakers: string[]): string {
   const want = oneSongScriptSinger(who);
   if (!want) return "";
-  return (speakers || []).find((s) => castNamesMatch(s, want)) || "";
+  return (speakers || []).find((s) => namesMatch(s, want)) || "";
 }
 
 export function pickScriptGoEngine(beat: Pick<SongScriptBeat, "kind" | "startMs" | "endMs">): ScriptGoEngine {
@@ -81,6 +103,63 @@ export function scriptGoStaging(opts: {
   ].join(" ");
 }
 
+/** A chorus flip is a short sung row. Three-plus alternating shorts
+ * become two full-chorus takes — backup, then the other — same clock.
+ * He revolves them later. Does not rewrite the script text. */
+export const SCRIPT_GO_CHORUS_FLIP_MAX_MS = 6000;
+export const SCRIPT_GO_CHORUS_MIN_FLIPS = 4;
+
+export function revolveChorusBeats(
+  beats: SongScriptBeat[],
+  speakers: string[],
+): SongScriptBeat[] {
+  const rows = (beats || []).map((b) => ({
+    ...b,
+    who: matchScriptGoSpeaker(b.who, speakers) || oneSongScriptSinger(b.who),
+  }));
+  const out: SongScriptBeat[] = [];
+  for (let i = 0; i < rows.length; ) {
+    const first = rows[i]!;
+    const shortSing =
+      first.kind === "sing" &&
+      first.who &&
+      first.endMs - first.startMs <= SCRIPT_GO_CHORUS_FLIP_MAX_MS;
+    if (!shortSing) {
+      out.push(rows[i]!);
+      i += 1;
+      continue;
+    }
+    let j = i + 1;
+    while (j < rows.length) {
+      const prev = rows[j - 1]!;
+      const row = rows[j]!;
+      const dur = row.endMs - row.startMs;
+      const join = row.startMs <= prev.endMs + 400;
+      if (row.kind !== "sing" || !row.who || dur > SCRIPT_GO_CHORUS_FLIP_MAX_MS || !join) break;
+      j += 1;
+    }
+    const cluster = rows.slice(i, j);
+    const names: string[] = [];
+    for (const row of cluster) {
+      if (row.who && !names.includes(row.who)) names.push(row.who);
+    }
+    if (cluster.length >= SCRIPT_GO_CHORUS_MIN_FLIPS && names.length >= 2) {
+      const startMs = cluster[0]!.startMs;
+      const endMs = cluster[cluster.length - 1]!.endMs;
+      const words = cluster.map((r) => r.line.trim()).filter(Boolean);
+      const line = words.filter((w, n) => n === 0 || w !== words[n - 1]).join(" ");
+      for (const who of names.slice(0, 2)) {
+        out.push({ startMs, endMs, kind: "sing", who, line });
+      }
+      i = j;
+      continue;
+    }
+    out.push(rows[i]!);
+    i += 1;
+  }
+  return out;
+}
+
 export function uniqueScriptGoPlaces(
   scenes: Array<{ id?: string; placeName?: string }>,
   locationCandidates?: Record<string, Array<{ approved?: boolean; fileName?: string }>>,
@@ -112,7 +191,7 @@ export function planScriptGo(opts: {
   sceneCount: number;
 }): ScriptGoPlanItem[] {
   const scenes = Math.max(1, Math.round(opts.sceneCount || 1));
-  const beats = parseSongScript(opts.songScript || "");
+  const beats = revolveChorusBeats(parseSongScript(opts.songScript || ""), opts.speakers);
   const out: ScriptGoPlanItem[] = [];
   for (const beat of beats) {
     const who = matchScriptGoSpeaker(beat.who, opts.speakers);
