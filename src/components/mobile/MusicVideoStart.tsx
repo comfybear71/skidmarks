@@ -227,7 +227,7 @@ async function listenToSong(jobId: string): Promise<ListenReport> {
 }
 
 function formatListenDrift(ms: number | null): string {
-  if (ms === null) return "no sound found";
+  if (ms === null) return "on sound, nothing nearby to compare";
   const sec = ms / 1000;
   if (Math.abs(sec) < 0.05) return "±0.0s";
   return `${sec > 0 ? "+" : ""}${sec.toFixed(1)}s`;

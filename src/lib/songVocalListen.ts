@@ -25,7 +25,11 @@ export type SoundWindow = { startMs: number; endMs: number; kind: "sound" | "sil
 export type PinListenDrift = {
   lineIndex: number;
   pinAtMs: number;
-  /** Nearest moment sound (re)starts, before or after the pin. Null if the song has no sound windows. */
+  /**
+   * Nearest moment sound (re)starts, before or after the pin — only when
+   * that's within LISTEN_MAX_MEANINGFUL_DRIFT_MS or the pin is in silence.
+   * Null means Listen has no nearby finding here, not that the pin is fine.
+   */
   nearestSoundStartMs: number | null;
   /** nearestSoundStartMs - pinAtMs. Positive: sound starts after the pin. Negative: before it. */
   driftMs: number | null;
@@ -45,6 +49,18 @@ export type ListenReport = {
 
 /** Stretches at least this long are worth flagging as a possible instrumental break. */
 export const LISTEN_LONG_QUIET_MS = 3000;
+
+/**
+ * How far a "nearest sound restart" can be from a pin before it stops being
+ * a finding. A dense mix can go a long stretch — sometimes the whole song
+ * after the intro — without ever dropping below the silence threshold, so
+ * "nearest sound window start" can land far away with nothing to do with
+ * this pin. Reporting that distance as "drift" would read as a huge, scary
+ * number that is really just the size of one continuous sound block, not
+ * a measured miss. Only a nearby restart, or the pin sitting in silence, is
+ * something Listen can actually back up.
+ */
+export const LISTEN_MAX_MEANINGFUL_DRIFT_MS = 8000;
 
 function clampMs(n: number, max: number): number {
   return Math.max(0, Math.min(max, n));
@@ -107,13 +123,19 @@ export function compareListenClockToPins(
     .slice()
     .sort((a, b) => a.atMs - b.atMs)
     .map((cue) => {
+      const pinInSilence = isInSilence(silences, cue.atMs);
       const nearest = nearestSoundStart(soundWindows, cue.atMs);
+      const rawDrift = nearest === null ? null : nearest - cue.atMs;
+      // A pin already on real sound with nothing nearby to compare against
+      // has no backed-up finding — see LISTEN_MAX_MEANINGFUL_DRIFT_MS.
+      const meaningful =
+        pinInSilence || (rawDrift !== null && Math.abs(rawDrift) <= LISTEN_MAX_MEANINGFUL_DRIFT_MS);
       return {
         lineIndex: cue.lineIndex,
         pinAtMs: cue.atMs,
-        nearestSoundStartMs: nearest,
-        driftMs: nearest === null ? null : nearest - cue.atMs,
-        pinInSilence: isInSilence(silences, cue.atMs),
+        nearestSoundStartMs: meaningful ? nearest : null,
+        driftMs: meaningful ? rawDrift : null,
+        pinInSilence,
       };
     });
 }
