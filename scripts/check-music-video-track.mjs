@@ -363,6 +363,31 @@ assert.doesNotMatch(
   "Marquee must open on tap even while Plates is collapsed",
 );
 assert.match(trackUi, /\{marqueeOpen \? \(\s*<LyricPinPanel/, "Marquee panel opens purely on its own toggle");
+
+// Clear all wipes every pin on the marquee in one tap with no undo — that
+// is exactly how a whole episode's marquee has gone from ~37 pins to one
+// leftover pin before. It needs a confirm, same as every other destructive
+// row action in this app (removing a cast member, dropping a location).
+{
+  const clearAllBlock = trackUi.slice(
+    trackUi.indexOf("Clear all") - 400,
+    trackUi.indexOf("Clear all") + 20,
+  );
+  assert.match(clearAllBlock, /window\.confirm/, "Clear all must confirm before wiping every pin");
+  assert.match(clearAllBlock, /saveCues\(\[\]\)/, "confirmed Clear all still wipes the cues");
+}
+
+// If the marquee ends up fully empty while sections already exist (Clear
+// all, or every line un-pinned by hand), the desk must not sit there
+// silently broken until someone remembers "Import from lyrics" exists —
+// it rebuilds the pins itself, once, from the sections already on the job.
+assert.match(trackUi, /cueRebuildTried/, "an empty marquee with sections already on the job self-heals");
+assert.match(
+  trackUi,
+  /if \(lyricCues\.length\) return;[\s\S]{0,120}if \(!markers\.length\) return;/,
+  "self-heal only fires on a fully empty marquee, never over a sparse-but-real in-progress one",
+);
+assert.match(trackUi, /void importFromLyrics\(false\)/, "self-heal reuses the existing sections, does not re-guess them");
 assert.match(trackUi, /WaveformCanvas/);
 assert.match(trackUi, /m-track-song-head/);
 assert.match(trackUi, /Script <span className="m-mv-lyr-caret"/);

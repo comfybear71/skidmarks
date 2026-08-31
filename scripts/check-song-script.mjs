@@ -346,6 +346,56 @@ console.log("check-song-script: mergeAdjacentSameWho ok");
 }
 
 {
+  // The real bug: a pasted sheet almost always writes a style/production
+  // note right after the section name — "[Chorus]\n[Soulful backing
+  // singers...]". That note is a stage direction, not a section — reading
+  // it as "what section is this line in" clobbered "chorus" back to
+  // "unknown" for every line after it, so CENTRE-LEFT never appeared and
+  // the whole song merged onto SOUL REBEL as one giant block.
+  const chorusWithNoteLyrics = [
+    "[Verse 1]",
+    "[Clean acoustic guitar skank]",
+    "verse line one",
+    "[Chorus]",
+    "[Soulful female backing singers rising up with warm harmonies]",
+    "chorus line one",
+    "chorus line two",
+    "chorus line three",
+    "chorus line four",
+    "[Verse 2]",
+    "[Stronger, rolling acoustic roots reggae bass pocket]",
+    "verse two line one",
+  ].join("\n");
+  const chorusWithNoteCues = [
+    { lineIndex: 2, atMs: 0 },
+    { lineIndex: 5, atMs: 4_000 },
+    { lineIndex: 6, atMs: 8_000 },
+    { lineIndex: 7, atMs: 12_000 },
+    { lineIndex: 8, atMs: 16_000 },
+    { lineIndex: 11, atMs: 20_000 },
+  ];
+  const chorusWithNoteBeats = songScriptBeatsFromLyricsAndMarquee({
+    lyrics: chorusWithNoteLyrics,
+    lyricCues: chorusWithNoteCues,
+    durationMs: 30_000,
+    speakers: ["SOUL REBEL", "CENTRE-LEFT"],
+  });
+  const sungWithNote = chorusWithNoteBeats.filter((b) => b.kind === "sing");
+  assert.deepEqual(
+    sungWithNote.map((b) => [b.line, b.who]),
+    [
+      ["verse line one", "SOUL REBEL"],
+      ["chorus line one", "CENTRE-LEFT"],
+      ["chorus line two", "SOUL REBEL"],
+      ["chorus line three", "CENTRE-LEFT"],
+      ["chorus line four", "SOUL REBEL"],
+      ["verse two line one", "SOUL REBEL"],
+    ],
+    "a style note stapled onto [Chorus] must not stop the chorus from alternating",
+  );
+}
+
+{
   // A hand-typed name still wins over the auto default on a rebuild — the
   // operator correcting the sheet is never silently overwritten.
   const previousText = `0:27–0:31  [CENTRE-LEFT]
