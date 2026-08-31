@@ -34,7 +34,12 @@ assert.equal(isMp3File({ name: "track.wav", type: "audio/mpeg" }), true);
 assert.equal(formatSongLength(267), "4:27");
 assert.equal(lyricLineCount("a\n\nb\n"), 2);
 assert.equal(lyricsPanelOpensAt(""), false);
-assert.equal(lyricsPanelOpensAt("hello"), true);
+assert.equal(lyricsPanelOpensAt("hello"), false);
+assert.match(mvTrack, /lyricsPanelOpensAt\(job\.lyrics/);
+assert.match(mvTrack, /lyricsPanelOpensAt\(job\.songScript/);
+assert.match(tree, /const \[castOpen, setCastOpen\] = useState\(false\)/);
+assert.match(tree, /const \[locationsOpen, setLocationsOpen\] = useState\(false\)/);
+assert.match(tree, /const \[platesOpen, setPlatesOpen\] = useState\(false\)/);
 assert.match(songChipName("My Song Title.mp3"), /My Song Title/);
 
 parkPendingSong("job_a", { file: { name: "a.mp3", size: 1, type: "audio/mpeg" }, durationSec: 120 });

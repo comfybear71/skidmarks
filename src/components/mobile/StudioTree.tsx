@@ -1061,9 +1061,9 @@ export function StudioTree({
   const [openCast, setOpenCast] = useState<string | null>(null);
   const [castStayClosed, setCastStayClosed] = useState(false);
   const [openPlace, setOpenPlace] = useState<string | null>(null);
-  const [castOpen, setCastOpen] = useState(true);
-  const [locationsOpen, setLocationsOpen] = useState(true);
-  const [platesOpen, setPlatesOpen] = useState(true);
+  const [castOpen, setCastOpen] = useState(false);
+  const [locationsOpen, setLocationsOpen] = useState(false);
+  const [platesOpen, setPlatesOpen] = useState(false);
   const sendStillRef = useRef<(shotId: string) => Promise<void>>(async () => {});
   const [sendStillBusy, setSendStillBusy] = useState(false);
   const [sendStillNote, setSendStillNote] = useState("");
