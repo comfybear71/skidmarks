@@ -163,11 +163,65 @@ function pushBeat(
   kind: SongScriptBeatKind,
   line: string,
   who = "",
+  labels?: (TrackSectionLabel | "")[],
+  label: TrackSectionLabel | "" = "",
 ): void {
   const start = Math.max(0, Math.round(startMs));
   const end = Math.max(start, Math.round(endMs));
   if (end <= start) return;
   out.push({ startMs: start, endMs: end, kind, line, who });
+  labels?.push(label);
+}
+
+/**
+ * "Each singer sings the chorus, then it revolves" is the proven, working
+ * pattern (revolveChorusBeats, hand-typed) — the auto-tag alternation
+ * above only reproduces that shape at Script Go time when every chorus
+ * line is short enough (<=6s) to read as a quick flip. A real chorus line
+ * running 7-8s (common) never qualifies, so it stayed as several short
+ * alternating clips instead of two full takes. Since the section tag
+ * already tells us exactly where the chorus starts and ends, there is no
+ * need to guess from line length: collapse every run of auto-tagged
+ * chorus sing-beats straight into the same two-full-take shape a hand-
+ * tagged chorus gets, right here, so it never depends on line duration.
+ */
+function collapseChorusToFullTakes(
+  beats: SongScriptBeat[],
+  labels: (TrackSectionLabel | "")[],
+  speakers: string[],
+): SongScriptBeat[] {
+  if (speakers.length !== 2) return beats;
+  const out: SongScriptBeat[] = [];
+  let i = 0;
+  while (i < beats.length) {
+    if (labels[i] !== "chorus" || beats[i]!.kind !== "sing") {
+      out.push(beats[i]!);
+      i += 1;
+      continue;
+    }
+    let j = i + 1;
+    while (j < beats.length && labels[j] === "chorus" && beats[j]!.kind === "sing") j += 1;
+    const run = beats.slice(i, j);
+    const names: string[] = [];
+    for (const b of run) {
+      const who = oneSongScriptSinger(b.who);
+      if (who && !names.includes(who)) names.push(who);
+    }
+    if (run.length < 2 || names.length < 2) {
+      out.push(...run);
+      i = j;
+      continue;
+    }
+    const startMs = run[0]!.startMs;
+    const endMs = run[run.length - 1]!.endMs;
+    const words = run.map((r) => r.line.trim()).filter(Boolean);
+    const line = words.filter((w, n) => n === 0 || w !== words[n - 1]).join(" ");
+    for (const who of names.slice(0, 2)) {
+      out.push({ startMs, endMs, kind: "sing", who, line });
+    }
+    i = j;
+  }
+  return out;
 }
 
 /** The section a lyric line sits under — the last [tag] at or before it. */
@@ -241,6 +295,7 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
   const longQuiet = opts.listen ? longQuietStretches(silenceWindowsFrom(opts.listen.soundWindows)) : [];
   const speakers = opts.speakers || [];
   const out: SongScriptBeat[] = [];
+  const outLabels: (TrackSectionLabel | "")[] = [];
   const breakWho = autoWhoFor({ speakers, label: "", chorusIndex: 0 });
   let chorusIndex = 0;
 
@@ -253,6 +308,7 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
       "break",
       breakLineFromTags(tagsBetweenLines(tags, -1, cues[0]!.lineIndex)),
       breakWho,
+      outLabels,
     );
   }
 
@@ -269,7 +325,7 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
     if (label === "chorus") chorusIndex += 1;
 
     if (gap <= SONG_SCRIPT_MAX_SUNG_MS) {
-      pushBeat(out, cue.atMs, nextAt, "sing", words, sungWho);
+      pushBeat(out, cue.atMs, nextAt, "sing", words, sungWho, outLabels, label);
       continue;
     }
 
@@ -281,7 +337,7 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
     const realQuiet = longQuiet.find((q) => q.startMs > cue.atMs && q.startMs < nextAt);
     if (realQuiet) {
       const sungEnd = Math.max(cue.atMs, realQuiet.startMs);
-      pushBeat(out, cue.atMs, sungEnd, "sing", words, sungWho);
+      pushBeat(out, cue.atMs, sungEnd, "sing", words, sungWho, outLabels, label);
       pushBeat(
         out,
         sungEnd,
@@ -289,6 +345,7 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
         "break",
         breakLineFromTags(tagsBetweenLines(tags, afterLine, beforeLine)),
         breakWho,
+        outLabels,
       );
       continue;
     }
@@ -296,11 +353,11 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
     const sungEnd = Math.min(nextAt, cue.atMs + typical);
     const leftover = nextAt - sungEnd;
     if (leftover < SONG_SCRIPT_MIN_BREAK_MS) {
-      pushBeat(out, cue.atMs, nextAt, "sing", words, sungWho);
+      pushBeat(out, cue.atMs, nextAt, "sing", words, sungWho, outLabels, label);
       continue;
     }
 
-    pushBeat(out, cue.atMs, sungEnd, "sing", words, sungWho);
+    pushBeat(out, cue.atMs, sungEnd, "sing", words, sungWho, outLabels, label);
     pushBeat(
       out,
       sungEnd,
@@ -308,10 +365,11 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
       "break",
       breakLineFromTags(tagsBetweenLines(tags, afterLine, beforeLine)),
       breakWho,
+      outLabels,
     );
   }
 
-  return out;
+  return collapseChorusToFullTakes(out, outLabels, speakers);
 }
 
 export function formatSongScript(beats: SongScriptBeat[]): string {

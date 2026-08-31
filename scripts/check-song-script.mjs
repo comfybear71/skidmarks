@@ -307,8 +307,10 @@ console.log("check-song-script: mergeAdjacentSameWho ok");
 }
 
 {
-  // A [Chorus] section with two speakers alternates per row — backing leads
-  // the chorus, same convention revolveChorusBeats already expects.
+  // A [Chorus] section with two speakers collapses to two full takes —
+  // backing, then lead, each spanning the whole chorus — matching the
+  // proven hand-tagged "each singer sings the chorus, then revolve"
+  // pattern (revolveChorusBeats), not a flip-flop of short per-line clips.
   const chorusLyrics = [
     "[Verse 1]",
     "verse line one",
@@ -333,15 +335,55 @@ console.log("check-song-script: mergeAdjacentSameWho ok");
   });
   const sung = chorusBeats.filter((b) => b.kind === "sing");
   assert.deepEqual(
-    sung.map((b) => [b.line, b.who]),
+    sung.map((b) => [b.startMs, b.endMs, b.who]),
     [
-      ["verse line one", "SOUL REBEL"],
-      ["chorus line one", "CENTRE-LEFT"],
-      ["chorus line two", "SOUL REBEL"],
-      ["chorus line three", "CENTRE-LEFT"],
-      ["chorus line four", "SOUL REBEL"],
+      [0, 4_000, "SOUL REBEL"],
+      [4_000, 21_200, "CENTRE-LEFT"],
+      [4_000, 21_200, "SOUL REBEL"],
     ],
-    "verse stays lead; chorus alternates starting with backing",
+    "verse stays lead; the whole chorus collapses to two full takes, backing first",
+  );
+  const centreLeftTake = sung.find((b) => b.who === "CENTRE-LEFT");
+  assert.equal(
+    centreLeftTake?.line,
+    "chorus line one chorus line two chorus line three chorus line four",
+    "each take carries every chorus line's words, deduplicated",
+  );
+}
+
+{
+  // The real-world case the collapse exists for: chorus lines that run
+  // longer than the old 6s "quick flip" heuristic (revolveChorusBeats at
+  // Go-plan time never fires past 6s per line) still collapse correctly,
+  // because this collapse reads the actual section tag, not line length.
+  const longChorusLyrics = [
+    "[Verse 1]",
+    "verse line one",
+    "[Chorus]",
+    "[Soulful female backing singers rising up with warm harmonies]",
+    "chorus line one",
+    "chorus line two",
+  ].join("\n");
+  const longChorusCues = [
+    { lineIndex: 1, atMs: 0 },
+    { lineIndex: 4, atMs: 8_000 },
+    { lineIndex: 5, atMs: 16_000 },
+  ];
+  const longChorusBeats = songScriptBeatsFromLyricsAndMarquee({
+    lyrics: longChorusLyrics,
+    lyricCues: longChorusCues,
+    durationMs: 24_000,
+    speakers: ["SOUL REBEL", "CENTRE-LEFT"],
+  });
+  const longSung = longChorusBeats.filter((b) => b.kind === "sing");
+  assert.deepEqual(
+    longSung.map((b) => [b.startMs, b.endMs, b.who]),
+    [
+      [0, 8_000, "SOUL REBEL"],
+      [8_000, 24_000, "CENTRE-LEFT"],
+      [8_000, 24_000, "SOUL REBEL"],
+    ],
+    "8s-per-line chorus rows (over the old 6s quick-flip ceiling) still collapse to two full takes",
   );
 }
 
@@ -381,17 +423,16 @@ console.log("check-song-script: mergeAdjacentSameWho ok");
     speakers: ["SOUL REBEL", "CENTRE-LEFT"],
   });
   const sungWithNote = chorusWithNoteBeats.filter((b) => b.kind === "sing");
+  const chorusWords = "chorus line one chorus line two chorus line three chorus line four";
   assert.deepEqual(
     sungWithNote.map((b) => [b.line, b.who]),
     [
       ["verse line one", "SOUL REBEL"],
-      ["chorus line one", "CENTRE-LEFT"],
-      ["chorus line two", "SOUL REBEL"],
-      ["chorus line three", "CENTRE-LEFT"],
-      ["chorus line four", "SOUL REBEL"],
+      [chorusWords, "CENTRE-LEFT"],
+      [chorusWords, "SOUL REBEL"],
       ["verse two line one", "SOUL REBEL"],
     ],
-    "a style note stapled onto [Chorus] must not stop the chorus from alternating",
+    "a style note stapled onto [Chorus] must not stop the chorus from collapsing to two full takes",
   );
 }
 
