@@ -112,7 +112,13 @@ assert.match(songRoute, /action === "set-song-script"/);
 assert.match(mvStart, /export function ScriptBox/);
 assert.match(mvStart, /set-song-script/);
 assert.match(mvStart, /Fill from marquee/);
+assert.match(mvStart, />\s*Save\s*</);
 assert.match(mvStart, /buildSongScriptText/);
+{
+  const scriptBox = mvStart.slice(mvStart.indexOf("export function ScriptBox"), mvStart.indexOf("export function SongDropRow"));
+  assert.doesNotMatch(scriptBox, /1200/);
+  assert.doesNotMatch(scriptBox, /onBlur/);
+}
 assert.match(mvStart, /attachParkedSongToBeat/);
 assert.match(mvStart, /attachTakenPendingSong/);
 // "Start the video" is a button inside the one track UI now, not a panel of

@@ -135,7 +135,11 @@ assert.doesNotMatch(rebuilt, /three-quarter|over.shoulder/i);
 {
   const ui = readFileSync(new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url), "utf8");
   const track = readFileSync(new URL("../src/components/mobile/MusicVideoTrack.tsx", import.meta.url), "utf8");
-  assert.match(ui, /Fill from marquee/);
+  const scriptBox = ui.slice(ui.indexOf("export function ScriptBox"), ui.indexOf("export function SongDropRow"));
+  assert.match(scriptBox, /Fill from marquee/);
+  assert.match(scriptBox, />\s*Save\s*</);
+  assert.doesNotMatch(scriptBox, /1200/, "Script does not auto-save on a timer");
+  assert.doesNotMatch(scriptBox, /onBlur/, "Script does not save on tap-out");
   assert.match(ui, /buildSongScriptText/);
   assert.match(ui, /\[SOUL REBEL\] or \[CENTRE-LEFT\]/);
   assert.match(ui, /Do not put H3 \/ MATH \/ GROK \/ camera \/ place here/);
