@@ -172,6 +172,7 @@ export function LtxImageMotionPanel({
   aiBusy,
   aiError,
   placeholder = 'Mouth + head + NAME says: "line" — this is the LTX clip prompt.',
+  foldLabel = "LTX Image motion",
 }: {
   open: boolean;
   onToggle: () => void;
@@ -185,6 +186,7 @@ export function LtxImageMotionPanel({
   aiBusy?: boolean;
   aiError?: string;
   placeholder?: string;
+  foldLabel?: string;
 }) {
   return (
     <div className="shot-prompt-ltx scratch-ltx-motion">
@@ -193,7 +195,7 @@ export function LtxImageMotionPanel({
         onClick={onToggle}
         className="shot-prompt-toggle scratch-ltx-motion-toggle"
       >
-        {open ? "▾ LTX Image motion" : "▸ LTX Image motion"}
+        {open ? `▾ ${foldLabel}` : `▸ ${foldLabel}`}
       </button>
       {open ? (
         <div className="shot-prompt-panel-body scratch-ltx-motion-body">
