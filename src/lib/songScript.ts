@@ -25,6 +25,7 @@ import {
   formatTrackClock,
   lyricLinesFrom,
   lyricTagsFrom,
+  meaningfulLyricTags,
   parseTrackClock,
   type LyricCue,
   type LyricTag,
@@ -229,6 +230,13 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
     Math.round(opts.durationMs || 0),
   );
   const tags = lyricTagsFrom(lyrics);
+  // A stage-direction bracket right after "[Chorus]" (near-universal in a
+  // pasted sheet — "[Chorus]\n[Soulful backing singers...]") must not
+  // overwrite the section a line sits under. sectionLabelAtLine only reads
+  // real structure tags (verse/chorus/bridge/...), never a custom one — the
+  // whole song showing "custom" past the first production note, and every
+  // line defaulting to the lead as a result, was exactly that bug.
+  const sectionTags = meaningfulLyricTags(lyrics);
   const typical = typicalSungMs(cues);
   const longQuiet = opts.listen ? longQuietStretches(silenceWindowsFrom(opts.listen.soundWindows)) : [];
   const speakers = opts.speakers || [];
@@ -255,7 +263,7 @@ export function songScriptBeatsFromLyricsAndMarquee(opts: {
     const nextAt = next ? next.atMs : songMs;
     const gap = Math.max(0, nextAt - cue.atMs);
     const words = line.text;
-    const label = sectionLabelAtLine(tags, cue.lineIndex);
+    const label = sectionLabelAtLine(sectionTags, cue.lineIndex);
     if (label !== "chorus") chorusIndex = 0;
     const sungWho = autoWhoFor({ speakers, label, chorusIndex });
     if (label === "chorus") chorusIndex += 1;
