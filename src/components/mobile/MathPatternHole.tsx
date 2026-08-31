@@ -92,8 +92,6 @@ export function MathPatternHole({
       <canvas
         ref={canvasRef}
         className="m-math-canvas"
-        width={640}
-        height={360}
         aria-label="Live mathematical pattern. Not the plate."
       />
       <p className="m-math-phase">

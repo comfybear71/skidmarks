@@ -17,6 +17,7 @@ import {
 } from "../src/lib/mathPatternMotion.ts";
 import { cookDurationFromHungBar } from "../src/lib/musicVideoTrack.ts";
 import { parseMuteMvEngine, resolveMvSendEngine } from "../src/lib/mobileImageMotion.ts";
+import { MATH_PATTERN_MODE_LABELS, MATH_PATTERN_PALETTE_LABELS } from "../src/lib/mathPatternShader.ts";
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -75,10 +76,18 @@ assert("error" in missing, "MATH needs a hang");
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const engineSrc = readFileSync(join(root, "src/lib/mathPatternEngine.ts"), "utf8");
-assert(/float fbm\(/.test(engineSrc), "shader has fbm");
-assert(/tan\(/.test(engineSrc), "shader has tangent");
-assert(/uPrev/.test(engineSrc), "shader has feedback");
+assert(!/uPrev/.test(engineSrc), "single-pass shader has no feedback sampler");
+assert(!/ping.?pong|framebufferTexture2D/i.test(engineSrc), "no ping-pong accumulation buffer");
+assert(/webgl2/.test(engineSrc), "engine requests a webgl2 context");
+assert(/resizeMathPatternCanvas/.test(engineSrc), "engine sizes the canvas backing store from DPR");
 assert(!/clipEngine:\s*"ltx"/.test(engineSrc), "engine file does not send LTX");
+
+const shaderSrc = readFileSync(join(root, "src/lib/mathPatternShader.ts"), "utf8");
+assert(/#version 300 es/.test(shaderSrc), "shader is GLSL ES 3.00");
+assert(!/uPrev|sampler2D/.test(shaderSrc), "shader has no feedback texture");
+assert(/uHardEdges/.test(shaderSrc), "shader has a hard-edges/posterize uniform");
+assert(Object.keys(MATH_PATTERN_MODE_LABELS).length === 7, "seven modes");
+assert(Object.keys(MATH_PATTERN_PALETTE_LABELS).length === 5, "five palettes");
 
 const buttons = readFileSync(join(root, "src/components/mobile/PlateReviewEditor.tsx"), "utf8");
 const h3At = buttons.indexOf("onClick={() => pick(\"h3\")}");
