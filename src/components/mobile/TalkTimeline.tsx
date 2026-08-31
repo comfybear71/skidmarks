@@ -874,12 +874,6 @@ export function TalkTimeline({
     <div className="m-talk">
       <div className="m-talk-head">
         <span className="m-talk-kicker">Talking timeline</span>
-        <span className="m-talk-hint">
-          Tap an act — only that act is on the strip. + Act names the next place
-          when you need another one. Tap a box to play it — every clip on that shot,
-          in order. + adds a slot. × parks it — files stay. Send cooks the next
-          line.
-        </span>
       </div>
       {!compact && (acts.length || isSkidmarks) ? (
         <div className="m-talk-acts">
