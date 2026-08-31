@@ -353,6 +353,16 @@ assert.match(
 );
 // Collapsed Plates still shows the wave and the player.
 assert.match(tree, /compact=\{!platesOpen\}/);
+// Plates starts collapsed (platesOpen = false), so compact is true by
+// default. Tapping the Marquee tab is an explicit request to see the pin
+// panel — it must open regardless of that outer collapse, or the tab does
+// nothing and there is no pin to click.
+assert.doesNotMatch(
+  trackUi,
+  /!compact && marqueeOpen/,
+  "Marquee must open on tap even while Plates is collapsed",
+);
+assert.match(trackUi, /\{marqueeOpen \? \(\s*<LyricPinPanel/, "Marquee panel opens purely on its own toggle");
 assert.match(trackUi, /WaveformCanvas/);
 assert.match(trackUi, /m-track-song-head/);
 assert.match(trackUi, /Script <span className="m-mv-lyr-caret"/);

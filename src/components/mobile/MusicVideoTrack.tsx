@@ -2370,7 +2370,7 @@ export function MusicVideoTrack({
             />
           ) : null}
           {lyricsOpen ? <LyricsBox job={job} onJobChange={onJobChange} /> : null}
-          {!compact && marqueeOpen ? (
+          {marqueeOpen ? (
             <LyricPinPanel
               job={job}
               lyricLines={lyricLines}
