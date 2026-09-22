@@ -149,6 +149,9 @@ console.log("check-music-video-track-lyrics OK");
   assert.match(ui, /Start here/, "pin section start at playhead");
   assert.match(ui, /Clear sections/, "wipe broken section rows");
   assert.match(ui, /Clear all/, "Marquee can wipe every pin without touching Sections");
+  assert.match(ui, /auto-fill lyrics and pins|from the mp3 hear/i, "happy path is mp3 auto, not paste+pin");
+  assert.match(ui, /legacy/i, "paste/pin demoted as legacy");
+
   assert.match(ui, /m-track-time-set/, "explicit Set on time boxes");
   assert.match(ui, /sectionPeopleOnPlates/, "who is on the stills in that section");
 
@@ -704,6 +707,28 @@ console.log("check-music-video-ribbon OK");
 
 console.log("check-music-video-lyric-tags OK");
 
+// Auto lyrics from mp3 (ElevenLabs Scribe) — happy path after Drop.
+{
+  const { readFileSync } = await import("node:fs");
+  const start = readFileSync(
+    new URL("../src/components/mobile/MusicVideoStart.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(start, /requestAutoLyrics/, "client helper posts auto-lyrics");
+  assert.match(start, /Hear lyrics/, "manual re-hear on Lyrics panel");
+  assert.match(start, /force: true/, "fresh Drop forces a new hear");
+  assert.match(start, /legacy/i, "paste demoted");
+  const route = readFileSync(
+    new URL("../src/app/api/crash/mobile/song/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(route, /action === "auto-lyrics"/, "song API hears the mp3");
+  assert.match(route, /scribeSongAudio/, "uses ElevenLabs Scribe");
+  assert.match(route, /lyricsAndCuesFromWords/, "builds sheet + cues");
+  console.log("check-music-video-auto-lyrics OK");
+}
+
+
 // ── The + makes a plate, in the Plates section ─────────────────────────────
 {
   const { readFileSync } = await import("node:fs");
@@ -842,3 +867,5 @@ console.log("check-music-video-drop-song OK");
 }
 
 console.log("check-music-video-one-plus OK");
+
+

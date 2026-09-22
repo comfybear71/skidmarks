@@ -397,12 +397,17 @@ function LyricPinPanel({
 
   if (!lyricLines.length) {
     return (
-      <p className="m-track-lyric-hint">Paste lyrics first — then play the song and pin each line here.</p>
+      <p className="m-track-lyric-hint">
+        Drop the mp3 to auto-fill lyrics and pins. Paste + Pin stay as a legacy fallback.
+      </p>
     );
   }
 
   return (
     <>
+      <p className="m-track-lyric-hint">
+        Pins come from the mp3 hear. Import / Pin below are legacy fixes only.
+      </p>
       <div className="m-track-marker-row">
         {onImportFromLyrics ? (
           <button
@@ -410,6 +415,7 @@ function LyricPinPanel({
             className="m-track-btn"
             disabled={Boolean(busy)}
             onClick={() => onImportFromLyrics()}
+            title="Legacy: even-spread pins from the lyric sheet tags"
           >
             Import from lyrics
           </button>
@@ -2398,7 +2404,13 @@ export function MusicVideoTrack({
               durationMs={effectiveDurationMs}
             />
           ) : null}
-          {lyricsOpen ? <LyricsBox job={job} onJobChange={onJobChange} /> : null}
+          {lyricsOpen ? (
+            <LyricsBox
+              job={job}
+              onJobChange={onJobChange}
+              hasSong={Boolean(song?.fileName || job.trackDraft?.songFile || parked)}
+            />
+          ) : null}
           {marqueeOpen ? (
             <LyricPinPanel
               job={job}
