@@ -102,6 +102,9 @@ import { isSafeMediaName } from "@/lib/cloudMedia";
 import { probeSongDurationSec } from "@/lib/scratchSongSlice";
 import { detectSilenceWindows } from "@/lib/audioSilenceDetect";
 import { buildListenReport } from "@/lib/songVocalListen";
+import { scribeSongAudio } from "@/lib/elevenLabsScribe";
+import { lyricsAndCuesFromWords } from "@/lib/songAutoLyrics";
+import fs from "fs";
 import { parseSongScript } from "@/lib/songScript";
 import type { ShowStyleId } from "@/lib/showStylePresets";
 
@@ -139,6 +142,9 @@ export const maxDuration = 900;
  *   listen — read-only. Runs ffmpeg silencedetect on the real mp3 and reports
  *     the drift in ms between each lyric pin and the nearest real sound.
  *     No cook, no hang, no write to pins/Script/Script Go.
+ *   auto-lyrics — ElevenLabs Scribe on the saved mp3 → lyrics text + marquee
+ *     lyricCues. Happy path after Drop; paste/pin stay as legacy fallback.
+ *     force:true overwrites an existing sheet.
  */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -1106,6 +1112,125 @@ export async function POST(req: Request) {
       const lyrics = String((body as { lyrics?: string }).lyrics ?? "");
       const updated = await patchMobileGenJob(jobId, { lyrics, error: "" });
       return NextResponse.json({ ok: true, job: updated });
+    }
+
+    if (action === "auto-lyrics") {
+      const force = Boolean((body as { force?: boolean }).force);
+      const song = songFromTrackDraft(job.trackDraft, job.scratchSong);
+      if (!song?.fileName) {
+        return NextResponse.json({ error: "Drop the song first." }, { status: 400 });
+      }
+      const fileName = song.fileName;
+      if (!isSafeMediaName(fileName)) {
+        return NextResponse.json({ error: "Song file name looks unsafe." }, { status: 400 });
+      }
+
+      const existingLyrics = (job.lyrics || "").trim();
+      if (existingLyrics && !force) {
+        const existingCues = song.lyricCues || job.trackDraft?.lyricCues || [];
+        if (existingCues.length) {
+          return NextResponse.json({
+            ok: true,
+            skipped: true,
+            reason: "lyrics_already_set",
+            job,
+            lineCount: existingLyrics.split(/\r?\n/).filter((l: string) => l.trim()).length,
+            cueCount: existingCues.length,
+          });
+        }
+      }
+
+      let localPath: string | null = null;
+      const explicitBeat = (job.scratchSong?.carrierBeatId || "").trim();
+      let beatId = explicitBeat;
+      if (!beatId && isMusicVideoSongJob(job)) {
+        beatId = findSongCarrierBeatId(story, fileName, job.shots[0]?.shotId);
+      }
+      if (beatId) {
+        localPath = await resolveMobileBeatAudio({
+          styleId: job.styleId,
+          folderName: job.folderName,
+          folderCandidates: mobileCandidateFolders(job),
+          beatId,
+          voiceFile: fileName,
+        });
+      }
+      if (!localPath) {
+        const destPath = path.join(storyDialogueDir(job.styleId as ShowStyleId), fileName);
+        localPath =
+          (await resolveMobileMedia({
+            styleId: job.styleId,
+            folderName: mobileMediaFolder(job),
+            kind: "audio",
+            fileName,
+            destPath,
+          })) ||
+          (await resolveMobileMediaByFilename({ kind: "audio", fileName, destPath }));
+      }
+      if (!localPath) {
+        return NextResponse.json(
+          { error: "Couldn't find the song file to hear lyrics from." },
+          { status: 404 },
+        );
+      }
+
+      let bytes: Buffer;
+      try {
+        bytes = fs.readFileSync(localPath);
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "Couldn't read the song file." },
+          { status: 500 },
+        );
+      }
+      if (!bytes.length) {
+        return NextResponse.json({ error: "Song file is empty." }, { status: 400 });
+      }
+
+      const audioBlob = new Blob([new Uint8Array(bytes)], { type: "audio/mpeg" });
+      const scribe = await scribeSongAudio(audioBlob, fileName);
+      if (!scribe.ok) {
+        return NextResponse.json(
+          { error: scribe.error, code: scribe.code, unconfigured: scribe.unconfigured },
+          { status: scribe.status },
+        );
+      }
+
+      const built = lyricsAndCuesFromWords(scribe.words);
+      if (!built.lyricCues.length || !built.lyrics.trim()) {
+        return NextResponse.json(
+          {
+            error:
+              "Scribe returned words but none grouped into sung lines — try paste lyrics (legacy).",
+            code: "no_lines",
+          },
+          { status: 502 },
+        );
+      }
+
+      const cues = built.lyricCues;
+      const scratch = job.scratchSong;
+      const updated = scratch?.fileName
+        ? await patchMobileGenJob(jobId, {
+            lyrics: built.lyrics,
+            scratchSong: { ...scratch, lyricCues: cues },
+            error: "",
+          })
+        : await patchMobileGenJob(jobId, {
+            lyrics: built.lyrics,
+            trackDraft: { ...(job.trackDraft || {}), lyricCues: cues },
+            error: "",
+          });
+
+      return NextResponse.json({
+        ok: true,
+        job: updated,
+        provider: "elevenlabs",
+        wordCount: built.wordCount,
+        lineCount: built.lines.length,
+        cueCount: cues.length,
+        durationSec: scribe.durationSec,
+      });
     }
 
     if (action === "set-song-script") {

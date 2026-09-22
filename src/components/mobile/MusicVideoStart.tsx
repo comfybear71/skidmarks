@@ -195,6 +195,48 @@ async function saveLyrics(jobId: string, lyrics: string): Promise<MobileGenJob |
   return data.job || null;
 }
 
+export type AutoLyricsResponse = {
+  job?: MobileGenJob;
+  error?: string;
+  code?: string;
+  unconfigured?: boolean;
+  skipped?: boolean;
+  reason?: string;
+  lineCount?: number;
+  cueCount?: number;
+  wordCount?: number;
+  provider?: string;
+};
+
+/**
+ * Hear the saved mp3 with ElevenLabs Scribe → lyrics sheet + marquee pins.
+ * force replaces an existing sheet (used after a fresh Drop).
+ */
+export async function requestAutoLyrics(
+  jobId: string,
+  opts?: { force?: boolean },
+): Promise<AutoLyricsResponse> {
+  const res = await fetch("/api/crash/mobile/song", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "auto-lyrics",
+      jobId,
+      force: Boolean(opts?.force),
+    }),
+  });
+  const data = await readApiJson<AutoLyricsResponse>(res);
+  if (!res.ok) {
+    const err = new Error(
+      data.error?.trim() || `Couldn't hear lyrics (${res.status})`,
+    ) as Error & { code?: string; unconfigured?: boolean };
+    err.code = data.code;
+    err.unconfigured = data.unconfigured;
+    throw err;
+  }
+  return data;
+}
+
 async function saveSongScript(jobId: string, songScript: string): Promise<MobileGenJob | null> {
   const res = await fetch("/api/crash/mobile/song", {
     method: "POST",
@@ -242,23 +284,30 @@ export function LyricsBox({
   onSaved,
   onChange,
   onJobChange,
+  hasSong,
 }: {
   job: MobileGenJob;
   onSaved?: (lyrics: string) => void;
   onChange?: (lyrics: string) => void;
   onJobChange?: (job: MobileGenJob) => void;
+  /** Song on the job — Hear lyrics needs the mp3. */
+  hasSong?: boolean;
 }) {
   const [text, setText] = useState(job.lyrics || "");
   const [saved, setSaved] = useState(false);
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
+  const [hearing, setHearing] = useState(false);
+  const [hearNote, setHearNote] = useState("");
   const saveTimer = useRef<number | null>(null);
   const lines = lyricLineCount(text);
+  const songReady = hasSong !== false;
 
   useEffect(() => {
     setText(job.lyrics || "");
     setSaved(false);
     setSaveErr("");
+    setHearNote("");
   }, [job.id, job.lyrics]);
 
   function update(next: string) {
@@ -287,30 +336,81 @@ export function LyricsBox({
     }
   }
 
+  async function hearLyrics() {
+    if (hearing || !songReady) return;
+    const hasSheet = Boolean((job.lyrics || text || "").trim());
+    if (
+      hasSheet &&
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Replace the lyric sheet and marquee pins with a fresh hear from the mp3?",
+      )
+    ) {
+      return;
+    }
+    setHearing(true);
+    setHearNote("Hearing lyrics…");
+    setSaveErr("");
+    try {
+      const data = await requestAutoLyrics(job.id, { force: true });
+      if (data.job) {
+        onJobChange?.(data.job);
+        setText(data.job.lyrics || "");
+        onSaved?.(data.job.lyrics || "");
+      }
+      const n = data.lineCount ?? 0;
+      const c = data.cueCount ?? 0;
+      setHearNote(
+        data.skipped
+          ? "Sheet already set"
+          : `${n} line${n === 1 ? "" : "s"} · ${c} pin${c === 1 ? "" : "s"} from the mp3`,
+      );
+      setSaved(true);
+    } catch (e) {
+      const msg = studioFetchError(e, "Couldn't hear lyrics from the mp3");
+      setSaveErr(msg);
+      setHearNote("");
+    } finally {
+      setHearing(false);
+    }
+  }
+
   return (
     <div className="m-mv-lyrics">
       <div className="m-mv-lyrics-note">
-        {lines ? `${lines} line${lines === 1 ? "" : "s"}` : "paste the words"}
+        {lines
+          ? `${lines} line${lines === 1 ? "" : "s"} · from mp3 or legacy paste`
+          : "Drop the mp3 — lyrics fill automatically"}
         {saved ? " · saved" : saving ? " · saving…" : ""}
+        {hearing ? " · hearing…" : hearNote ? ` · ${hearNote}` : ""}
         {saveErr ? ` · ${saveErr}` : ""}
       </div>
-      {(
-        <textarea
-          className="m-mv-lyrics-input"
-          value={text}
-          rows={6}
-          spellCheck={false}
-          placeholder="Paste the words…"
-          onChange={(e) => update(e.target.value)}
-          onBlur={() => {
-            if (saveTimer.current) {
-              window.clearTimeout(saveTimer.current);
-              saveTimer.current = null;
-            }
-            void persist(text);
-          }}
-        />
-      )}
+      <div className="m-track-marker-row">
+        <button
+          type="button"
+          className="m-track-btn"
+          disabled={hearing || !songReady}
+          title="ElevenLabs Scribe on the saved mp3 — fills the sheet and marquee pins"
+          onClick={() => void hearLyrics()}
+        >
+          {hearing ? "Hearing…" : "Hear lyrics"}
+        </button>
+      </div>
+      <textarea
+        className="m-mv-lyrics-input"
+        value={text}
+        rows={6}
+        spellCheck={false}
+        placeholder="Auto from the mp3 — or paste here (legacy)"
+        onChange={(e) => update(e.target.value)}
+        onBlur={() => {
+          if (saveTimer.current) {
+            window.clearTimeout(saveTimer.current);
+            saveTimer.current = null;
+          }
+          void persist(text);
+        }}
+      />
     </div>
   );
 }
@@ -645,6 +745,8 @@ export function SongDropRow({
 }) {
   const [err, setErr] = useState("");
   const [over, setOver] = useState(false);
+  const [hearing, setHearing] = useState(false);
+  const [hearNote, setHearNote] = useState("");
   const pick = useRef<HTMLInputElement | null>(null);
 
   async function take(file: File) {
@@ -684,6 +786,29 @@ export function SongDropRow({
         job = (await postTrackSong(jobId, copy)).job;
       }
       if (job) onSaved?.(job);
+      // Happy path: hear the mp3 → lyrics + marquee pins. force so a re-drop
+      // replaces an old sheet. Missing Scribe key surfaces as a note, not a red fail.
+      if (job) {
+        setHearing(true);
+        setHearNote("Hearing lyrics…");
+        try {
+          const heard = await requestAutoLyrics(job.id, { force: true });
+          if (heard.job) onSaved?.(heard.job);
+          const n = heard.lineCount ?? 0;
+          const c = heard.cueCount ?? 0;
+          setHearNote(
+            heard.skipped
+              ? "Lyrics already on this job"
+              : `${n} line${n === 1 ? "" : "s"} timed on the marquee`,
+          );
+        } catch (e) {
+          const msg = studioFetchError(e, "Song saved — hear lyrics failed");
+          setHearNote(msg);
+          // Keep the song; paste remains the legacy path.
+        } finally {
+          setHearing(false);
+        }
+      }
     } catch (e) {
       setErr(studioFetchError(e, "Song is on screen but did not save — drop it again"));
     }
@@ -697,6 +822,7 @@ export function SongDropRow({
       <button
         type="button"
         className={`m-mv-drop${over ? " is-over" : ""}`}
+        disabled={hearing}
         onClick={() => pick.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();
@@ -710,7 +836,7 @@ export function SongDropRow({
           if (file) void take(file);
         }}
       >
-        Drop the mp3 — or tap to pick
+        {hearing ? "Hearing lyrics…" : "Drop the mp3 — lyrics + marquee fill automatically"}
       </button>
       <input
         ref={pick}
@@ -724,6 +850,7 @@ export function SongDropRow({
         }}
       />
       {err ? <p className="m-mv-err">{err}</p> : null}
+      {!err && hearNote ? <p className="m-mv-lyrics-note">{hearNote}</p> : null}
     </>
   );
 }
